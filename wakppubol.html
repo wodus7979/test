@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>왁뿌볼 뿌시기</title>
+<style>
+  :root{
+    --bg1:#141428;
+    --bg2:#1e1b3a;
+    --panel:rgba(255,255,255,.07);
+    --panel-b:rgba(255,255,255,.16);
+    --txt:#f2f0ff;
+    --sub:#a9a4c9;
+    --accent:#ffd166;
+    --accent2:#7ee8e0;
+    --danger:#ff6b81;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+    color:var(--txt);
+    background:
+      radial-gradient(1200px 700px at 20% -10%, #35306b 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 110%, #4a2b5e 0%, transparent 55%),
+      linear-gradient(160deg,var(--bg1),var(--bg2));
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;overflow:hidden;user-select:none;
+  }
+  .app{width:min(880px,100%)}
+  .screen{display:none;animation:pop .28s ease}
+  .screen.on{display:block}
+  @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--panel-b);
+    border-radius:22px;
+    padding:26px 24px;
+    backdrop-filter:blur(8px);
+    box-shadow:0 24px 60px rgba(0,0,0,.35);
+  }
+  h1{margin:0 0 6px;font-size:clamp(30px,6vw,48px);letter-spacing:-1px;
+     background:linear-gradient(90deg,#ff9fc4,#ffd166,#7ee8e0,#a08bff);
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  h2{margin:0 0 4px;font-size:clamp(20px,4vw,26px)}
+  p.sub{margin:0;color:var(--sub);font-size:14px;line-height:1.7}
+
+  .rules{margin:18px 0 22px;display:grid;gap:10px}
+  .rule{display:flex;gap:12px;align-items:flex-start;
+    background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.6}
+  .rule b{color:var(--accent)}
+  .num{flex:0 0 26px;height:26px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#ffd166,#ff9fc4);color:#2a2140;font-weight:800;font-size:13px}
+
+  button{font-family:inherit;cursor:pointer;border:0}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:14px 26px;border-radius:14px;font-size:16px;font-weight:800;
+    background:linear-gradient(135deg,#ffd166,#ff9a8b);color:#2a2140;
+    box-shadow:0 8px 22px rgba(255,180,110,.28);
+    transition:transform .12s ease, filter .12s ease;
+  }
+  .btn:hover{transform:translateY(-2px);filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:rgba(255,255,255,.1);color:var(--txt);border:1px solid var(--panel-b);box-shadow:none}
+  .btn:disabled{opacity:.35;cursor:not-allowed;transform:none;filter:none}
+
+  /* ---------- 색 고르기 ---------- */
+  .craft{display:grid;grid-template-columns:1fr 220px;gap:24px;align-items:center}
+  @media(max-width:640px){.craft{grid-template-columns:1fr}}
+  .swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:16px 0 14px}
+  .sw{
+    aspect-ratio:1;border-radius:50%;position:relative;
+    border:3px solid rgba(255,255,255,.18);
+    transition:transform .12s ease, box-shadow .12s;
+  }
+  .sw:hover{transform:scale(1.09)}
+  .sw.sel{border-color:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.22),0 8px 18px rgba(0,0,0,.4);transform:scale(1.06)}
+  .sw .ord{
+    position:absolute;inset:auto -4px -4px auto;width:20px;height:20px;border-radius:50%;
+    background:#1b1733;color:#fff;font-size:11px;font-weight:800;display:none;place-items:center;
+    border:2px solid rgba(255,255,255,.5)
+  }
+  .sw.sel .ord{display:grid}
+  .picked{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--sub)}
+  .chip{width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,.35)}
+  .previewWrap{display:grid;place-items:center;gap:12px}
+  #preview{width:200px;height:200px;filter:drop-shadow(0 14px 22px rgba(0,0,0,.45))}
+
+  /* ---------- 플레이 ---------- */
+  .hud{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .pill{
+    background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);
+    border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700
+  }
+  .pill span{color:var(--accent)}
+  .pill.warn span{color:var(--danger)}
+  .hearts{letter-spacing:2px;font-size:15px}
+  .stage{
+    position:relative;border-radius:20px;overflow:hidden;
+    border:1px solid rgba(255,255,255,.12);
+    background:radial-gradient(700px 400px at 50% 30%,rgba(120,110,220,.28),rgba(10,8,26,.75));
+    touch-action:none;cursor:crosshair;
+  }
+  #game{display:block;width:100%;height:auto}
+  .stage.shake{animation:shk .09s}
+  @keyframes shk{0%{transform:translate(0)}25%{transform:translate(-4px,3px)}50%{transform:translate(4px,-3px)}75%{transform:translate(-3px,-2px)}100%{transform:translate(0)}}
+
+  .bars{margin-top:12px;display:grid;gap:9px}
+  .bar{height:16px;border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden;position:relative;
+       border:1px solid rgba(255,255,255,.1)}
+  .bar i{display:block;height:100%;width:0%;transition:width .08s linear}
+  #barCrack i{background:linear-gradient(90deg,#7ee8e0,#ffd166,#ff8fab)}
+  #barTime i{background:linear-gradient(90deg,#6be07a,#ffd166)}
+  #barTime.low i{background:linear-gradient(90deg,#ff6b81,#ff9a8b)}
+  .barLabel{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:800;
+    color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);letter-spacing:.5px}
+
+  .hint{margin-top:10px;text-align:center;font-size:13px;color:var(--sub);min-height:20px}
+  .hint b{color:var(--accent2)}
+  .hint.bad b{color:var(--danger)}
+  .tapBtn{display:none;width:100%;margin-top:10px}
+  @media(hover:none){.tapBtn{display:flex}}
+
+  .overlay{
+    position:absolute;inset:0;display:grid;place-items:center;
+    background:rgba(10,8,26,.72);backdrop-filter:blur(3px);z-index:5;text-align:center;padding:20px
+  }
+  .overlay .big{font-size:clamp(38px,9vw,72px);font-weight:900;letter-spacing:-2px;
+    background:linear-gradient(90deg,#ffd166,#ff8fab);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .overlay .small{color:var(--sub);font-size:14px;margin-top:6px}
+  .hidden{display:none!important}
+
+  .result{text-align:center}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0 22px}
+  .stat{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 8px}
+  .stat b{display:block;font-size:24px;color:var(--accent)}
+  .stat small{color:var(--sub);font-size:12px}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== 타이틀 ===== -->
+  <section id="scTitle" class="screen on">
+    <div class="card" style="text-align:center">
+      <h1>왁뿌볼 뿌시기</h1>
+      <p class="sub">내가 만든 왁뿌볼을 10초 안에 뿌셔라!</p>
+      <div class="rules" style="text-align:left">
+        <div class="rule"><div class="num">1</div><div>색상표에서 <b>4가지 색</b>을 골라 나만의 왁뿌볼을 만든다.</div></div>
+        <div class="rule"><div class="num">2</div><div><b>10초</b> 안에 <b>스페이스바</b>를 연타해서 껍질을 뿌신다.</div></div>
+        <div class="rule"><div class="num">3</div><div>레벨이 오를수록 필요한 <b>연타 횟수가 증가</b>한다.</div></div>
+        <div class="rule"><div class="num">4</div><div><b>11레벨부터</b> 왁뿌볼이 도망간다! <b>마우스로 꽉 잡은 채로</b> 연타해야 인정된다. 놓치면 오히려 금이 아문다.</div></div>
+      </div>
+      <p class="sub" style="margin-bottom:16px">목숨 <b style="color:#ff6b81">♥♥♥</b> · 실패하면 같은 레벨을 다시 도전</p>
+      <button class="btn" id="btnStart">게임 시작</button>
+      <p class="sub" style="margin-top:12px">최고 기록 · Lv <b id="bestLv">0</b> / <b id="bestSc">0</b>점</p>
+    </div>
+  </section>
+
+  <!-- ===== 1단계 : 왁뿌볼 만들기 ===== -->
+  <section id="scCraft" class="screen">
+    <div class="card">
+      <h2>왁뿌볼 만들기</h2>
+      <p class="sub">색상표에서 <b style="color:var(--accent)">4가지 색</b>을 골라주세요. (<span id="craftLv">Lv 1</span>)</p>
+      <div class="craft">
+        <div>
+          <div class="swatches" id="swatches"></div>
+          <div class="picked">
+            선택: <span id="pickedChips" style="display:flex;gap:6px"></span>
+            <span id="pickCount" style="margin-left:auto">0 / 4</span>
+          </div>
+        </div>
+        <div class="previewWrap">
+          <canvas id="preview" width="400" height="400"></canvas>
+          <div style="display:flex;gap:8px">
+            <button class="btn ghost" id="btnRandom" style="padding:10px 16px;font-size:14px">랜덤</button>
+            <button class="btn ghost" id="btnClear" style="padding:10px 16px;font-size:14px">초기화</button>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:20px">
+        <button class="btn" id="btnMake" disabled>이 왁뿌볼로 뿌시기!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 2단계 : 뿌시기 ===== -->
+  <section id="scPlay" class="screen">
+    <div class="card" style="padding:18px">
+      <div class="hud">
+        <div class="pill">LEVEL <span id="hudLv">1</span></div>
+        <div class="pill">SCORE <span id="hudScore">0</span></div>
+        <div class="pill hearts" id="hudHearts">♥♥♥</div>
+        <div class="pill" id="hudMode" style="margin-left:auto">고정형</div>
+      </div>
+
+      <div class="stage" id="stage">
+        <canvas id="game" width="1440" height="840"></canvas>
+        <div class="overlay" id="overlay">
+          <div>
+            <div class="big" id="ovBig">READY</div>
+            <div class="small" id="ovSmall">스페이스바를 누르면 시작!</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bars">
+        <div class="bar" id="barCrack"><i></i><div class="barLabel" id="lbCrack">0 / 10</div></div>
+        <div class="bar" id="barTime"><i></i><div class="barLabel" id="lbTime">10.0초</div></div>
+      </div>
+      <div class="hint" id="hint">스페이스바 연타!</div>
+      <button class="btn tapBtn" id="btnTap">뿌시기 (터치)</button>
+    </div>
+  </section>
+
+  <!-- ===== 결과 ===== -->
+  <section id="scOver" class="screen">
+    <div class="card result">
+      <h1 id="overTitle">GAME OVER</h1>
+      <p class="sub" id="overMsg">왁뿌볼이 살아남았다...</p>
+      <div class="stats">
+        <div class="stat"><b id="stLv">1</b><small>도달 레벨</small></div>
+        <div class="stat"><b id="stSc">0</b><small>점수</small></div>
+        <div class="stat"><b id="stHit">0</b><small>총 연타</small></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnRetry">다시 하기</button>
+        <button class="btn ghost" id="btnHome">처음으로</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+   왁뿌볼 뿌시기 — 단일 파일 게임
+   ========================================================= */
+
+/* ---------- 상수 / 난이도 ---------- */
+const PALETTE = [
+  '#ff8fab','#ff5d73','#ff9f43','#ffd166','#fff6a0','#b8f28a',
+  '#5ad469','#7ee8e0','#5bc0eb','#7aa5ff','#4a5bff','#b892ff',
+  '#e9a6ff','#ffffff','#7b4b2a','#3a2f5e'
+];
+const NEED_COLORS  = 4;
+const TIME_LIMIT   = 10;      // 초
+const MOVE_LEVEL   = 11;      // 이 레벨부터 왁뿌볼이 이동
+const MAX_LIVES    = 3;
+
+/** 레벨별 필요한 연타 횟수 */
+const requiredHits = lv => Math.round(10 + (lv - 1) * 4.5);
+/** 레벨별 이동 속도(px/s, 논리 좌표 기준) */
+const ballSpeed = lv => lv < MOVE_LEVEL ? 0 : 210 + (lv - MOVE_LEVEL) * 78;
+/** 레벨별 반지름 — 높을수록 작아져서 잡기 어려움 */
+const ballRadius = lv => lv < MOVE_LEVEL ? 190 : Math.max(66, 150 - (lv - MOVE_LEVEL) * 6);
+/** 놓쳤을 때 초당 회복(=진행도 감소) 량 */
+const decayPerSec = lv => lv < MOVE_LEVEL ? 0 : 1.1 + (lv - MOVE_LEVEL) * 0.12;
+
+/* ---------- DOM ---------- */
+const $ = s => document.querySelector(s);
+const screens = { title:$('#scTitle'), craft:$('#scCraft'), play:$('#scPlay'), over:$('#scOver') };
+function show(name){ for(const k in screens) screens[k].classList.toggle('on', k===name); }
+
+const cv = $('#game'), ctx = cv.getContext('2d');
+const pv = $('#preview'), pctx = pv.getContext('2d');
+const stage = $('#stage'), overlay = $('#overlay');
+
+/* ---------- 전역 상태 ---------- */
+const S = {
+  scene:'title',        // title | craft | ready | play | breaking | fail
+  level:1, score:0, lives:MAX_LIVES, totalHits:0,
+  colors:[], seed:1,
+  hits:0, need:10, timeLeft:TIME_LIMIT,
+  grabbed:false, missTime:0,
+};
+const best = {
+  lv: +(localStorage.getItem('wakppu_bestLv')||0),
+  sc: +(localStorage.getItem('wakppu_bestSc')||0)
+};
+$('#bestLv').textContent = best.lv;
+$('#bestSc').textContent = best.sc;
+
+/* ---------- 사운드 (WebAudio, 외부 파일 없음) ---------- */
+let AC = null;
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function beep(freq, dur=0.07, type='square', vol=0.06, slide=0){
+  const a = ac(); if(!a) return;
+  if(a.state==='suspended') a.resume();
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, a.currentTime);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(40,freq+slide), a.currentTime+dur);
+  g.gain.setValueAtTime(vol, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime+dur);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime+dur);
+}
+function noise(dur=0.35, vol=0.25){
+  const a = ac(); if(!a) return;
+  const n = Math.floor(a.sampleRate*dur);
+  const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+  const src = a.createBufferSource(); src.buffer = buf;
+  const g = a.createGain(); g.gain.setValueAtTime(vol, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime+dur);
+  src.connect(g); g.connect(a.destination); src.start();
+}
+
+/* ---------- 유틸 ---------- */
+const clamp = (v,a,b)=> v<a?a:v>b?b:v;
+const lerp  = (a,b,t)=> a+(b-a)*t;
+function rng(seed){ let s = seed>>>0 || 1; return ()=> (s = (s*1664525+1013904223)>>>0) / 4294967296; }
+
+/* =========================================================
+   왁뿌볼 렌더링
+   ========================================================= */
+
+/** 껍질에 생길 균열 경로를 미리 생성 (반지름 1 기준 정규화) */
+function makeCracks(seed){
+  const r = rng(seed), out = [];
+  const n = 16;
+  for(let i=0;i<n;i++){
+    const a0 = (i/n)*Math.PI*2 + r()*0.35;
+    const pts = [];
+    let a = a0, rad = 0.98;
+    pts.push([Math.cos(a)*rad, Math.sin(a)*rad]);
+    const segs = 4 + Math.floor(r()*3);
+    for(let s=0;s<segs;s++){
+      a  += (r()-0.5)*0.55;
+      rad -= 0.10 + r()*0.13;
+      if(rad < 0.06) break;
+      pts.push([Math.cos(a)*rad, Math.sin(a)*rad]);
+    }
+    out.push(pts);
+    if(r() < 0.55 && pts.length > 2){          // 잔가지
+      const k = 1 + Math.floor(r()*(pts.length-2));
+      const [bx,by] = pts[k];
+      let ba = Math.atan2(by,bx) + (r()<.5?-1:1)*(0.6+r()*0.5);
+      let br = Math.hypot(bx,by);
+      const bp = [[bx,by]];
+      for(let s=0;s<3;s++){
+        ba += (r()-0.5)*0.5; br -= 0.09+r()*0.1;
+        if(br<0.05) break;
+        bp.push([Math.cos(ba)*br, Math.sin(ba)*br]);
+      }
+      if(bp.length>1) out.push(bp);
+    }
+  }
+  // 균열이 한쪽에만 몰리지 않도록 섞는다
+  for(let i=out.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); [out[i],out[j]]=[out[j],out[i]]; }
+  return out;
+}
+
+/**
+ * 왁뿌볼 그리기
+ * @param c  2d context
+ * @param x,y  중심
+ * @param r  반지름
+ * @param colors 4색
+ * @param p  깨짐 진행도 0~1
+ * @param t  애니메이션 시간(초)
+ * @param cracks makeCracks 결과
+ */
+function drawBall(c, x, y, r, colors, p=0, t=0, cracks=null, grabbed=false){
+  c.save();
+  c.translate(x,y);
+
+  // 바닥 그림자
+  c.save();
+  c.globalAlpha = .28; c.fillStyle = '#000';
+  c.beginPath(); c.ellipse(0, r*0.98, r*0.82, r*0.20, 0, 0, Math.PI*2); c.fill();
+  c.restore();
+
+  // 잡혔을 때 링
+  if(grabbed){
+    c.save();
+    c.strokeStyle = 'rgba(126,232,224,.9)'; c.lineWidth = Math.max(2, r*0.05);
+    c.setLineDash([r*0.25, r*0.16]); c.lineDashOffset = -t*80;
+    c.beginPath(); c.arc(0,0,r*1.14,0,Math.PI*2); c.stroke();
+    c.restore();
+  }
+
+  // ---- 내용물(말랑한 4색 젤리) ----
+  const ir = r*0.90;
+  c.save();
+  c.beginPath(); c.arc(0,0,ir,0,Math.PI*2); c.clip();
+  c.fillStyle = colors[0] || '#f6f2ee'; c.fillRect(-ir,-ir,ir*2,ir*2);
+  const rot = t*0.25;
+  // 4색 파스텔 덩어리 — 두 번 겹쳐 칠해 채도를 살린다
+  for(let pass=0; pass<2; pass++){
+    for(let i=0;i<colors.length;i++){
+      const a = rot + (i/colors.length)*Math.PI*2;
+      const cx = Math.cos(a)*ir*0.44, cy = Math.sin(a)*ir*0.44;
+      const rr = ir*(pass===0 ? 0.88 : 0.62);
+      const g = c.createRadialGradient(cx,cy,0, cx,cy, rr);
+      g.addColorStop(0,   colors[i]);
+      g.addColorStop(0.6, colors[i]+'e6');
+      g.addColorStop(1,   colors[i]+'00');
+      c.fillStyle = g;
+      c.beginPath(); c.arc(cx,cy,rr,0,Math.PI*2); c.fill();
+    }
+  }
+  // 내부 음영
+  const sh = c.createRadialGradient(-ir*.35,-ir*.4,ir*.1, 0,0, ir);
+  sh.addColorStop(0,'rgba(255,255,255,.30)');
+  sh.addColorStop(.5,'rgba(255,255,255,0)');
+  sh.addColorStop(1,'rgba(60,30,70,.32)');
+  c.fillStyle = sh; c.fillRect(-ir,-ir,ir*2,ir*2);
+  c.restore();
+
+  // ---- 투명 캡슐 껍질 ----
+  const shell = c.createRadialGradient(-r*.35,-r*.45,r*.05, 0,0,r);
+  shell.addColorStop(0,'rgba(255,255,255,.38)');
+  shell.addColorStop(.4,'rgba(255,255,255,.04)');
+  shell.addColorStop(.85,'rgba(255,255,255,.03)');
+  shell.addColorStop(1,'rgba(255,255,255,.30)');
+  c.fillStyle = shell;
+  c.beginPath(); c.arc(0,0,r,0,Math.PI*2); c.fill();
+
+  c.lineWidth = Math.max(1.5, r*0.022);
+  c.strokeStyle = 'rgba(255,255,255,.55)';
+  c.beginPath(); c.arc(0,0,r*0.995,0,Math.PI*2); c.stroke();
+
+  // 캡슐 이음새
+  c.save();
+  c.strokeStyle = 'rgba(255,255,255,.65)'; c.lineWidth = Math.max(1.5, r*0.028);
+  c.beginPath(); c.ellipse(0,0,r*0.995,r*0.13,0,0,Math.PI*2); c.stroke();
+  c.globalAlpha=.4;
+  c.beginPath(); c.ellipse(0,r*0.045,r*0.99,r*0.10,0,0,Math.PI*2); c.stroke();
+  c.restore();
+
+  // 하이라이트
+  c.save();
+  c.globalAlpha = .85; c.fillStyle = '#fff';
+  c.beginPath(); c.ellipse(-r*.38,-r*.44, r*.20, r*.12, -0.6, 0, Math.PI*2); c.fill();
+  c.globalAlpha = .45;
+  c.beginPath(); c.ellipse(r*.42, r*.34, r*.10, r*.06, -0.5, 0, Math.PI*2); c.fill();
+  c.restore();
+
+  // ---- 균열 ----
+  if(cracks && p > 0){
+    const total = cracks.length;
+    const full  = Math.floor(p * total);
+    const frac  = p * total - full;
+    c.save();
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    for(let i=0;i<Math.min(total, full+1);i++){
+      const pts = cracks[i];
+      const ratio = i < full ? 1 : frac;
+      if(ratio <= 0.02) continue;
+      const upto = Math.max(2, Math.ceil(pts.length * ratio));
+      // 어두운 심
+      for(let pass=0; pass<2; pass++){
+        c.strokeStyle = pass===0 ? 'rgba(30,10,40,.55)' : 'rgba(255,255,255,.9)';
+        c.lineWidth   = pass===0 ? Math.max(2, r*0.034) : Math.max(1, r*0.016);
+        c.beginPath();
+        for(let k=0;k<upto;k++){
+          const [px,py] = pts[k];
+          if(k===0) c.moveTo(px*r, py*r); else c.lineTo(px*r, py*r);
+        }
+        c.stroke();
+      }
+    }
+    c.restore();
+  }
+  c.restore();
+}
+
+/* =========================================================
+   1단계 — 색 고르기
+   ========================================================= */
+let picked = [];
+const swWrap = $('#swatches');
+PALETTE.forEach((col,i)=>{
+  const b = document.createElement('button');
+  b.className='sw'; b.style.background=col; b.dataset.i=i;
+  b.innerHTML = '<span class="ord"></span>';
+  b.addEventListener('click', ()=> togglePick(i));
+  swWrap.appendChild(b);
+});
+function togglePick(i){
+  const col = PALETTE[i];
+  const at = picked.indexOf(col);
+  if(at >= 0) picked.splice(at,1);
+  else{
+    if(picked.length >= NEED_COLORS){ beep(180,.06,'sine',.05); return; }
+    picked.push(col); beep(520+picked.length*90,.06,'sine',.05);
+  }
+  syncPick();
+}
+function syncPick(){
+  [...swWrap.children].forEach(el=>{
+    const col = PALETTE[+el.dataset.i];
+    const at = picked.indexOf(col);
+    el.classList.toggle('sel', at>=0);
+    el.querySelector('.ord').textContent = at>=0 ? at+1 : '';
+  });
+  $('#pickCount').textContent = picked.length + ' / ' + NEED_COLORS;
+  const chips = $('#pickedChips'); chips.innerHTML='';
+  picked.forEach(c=>{ const d=document.createElement('i'); d.className='chip'; d.style.background=c; chips.appendChild(d); });
+  $('#btnMake').disabled = picked.length !== NEED_COLORS;
+  drawPreview();
+}
+let pvT = 0, pvCracks = makeCracks(7);
+function drawPreview(){
+  pctx.clearRect(0,0,pv.width,pv.height);
+  const cols = picked.length ? picked : ['#3a3560','#3a3560','#3a3560','#3a3560'];
+  drawBall(pctx, pv.width/2, pv.height/2 - 8, 150, cols, 0, pvT, pvCracks, false);
+}
+(function pvLoop(){ pvT += 0.016; if(screens.craft.classList.contains('on')) drawPreview(); requestAnimationFrame(pvLoop); })();
+
+$('#btnRandom').addEventListener('click', ()=>{
+  const pool=[...PALETTE]; picked=[];
+  for(let i=0;i<NEED_COLORS;i++) picked.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  beep(660,.08,'sine',.06); syncPick();
+});
+$('#btnClear').addEventListener('click', ()=>{ picked=[]; syncPick(); });
+
+/* =========================================================
+   2단계 — 뿌시기
+   ========================================================= */
+const W = cv.width, H = cv.height;      // 논리 해상도
+const ball = { x:W/2, y:H/2, vx:0, vy:0, r:150, squash:0, cracks:makeCracks(7), steer:0, struggle:0 };
+let particles = [];
+let pointer = { x:-999, y:-999, down:false };
+let lastT = performance.now(), rafId = 0;
+let breakTimer = 0;
+
+function canvasPos(e){
+  const rc = cv.getBoundingClientRect();
+  return { x:(e.clientX-rc.left)/rc.width*W, y:(e.clientY-rc.top)/rc.height*H };
+}
+stage.addEventListener('pointerdown', e=>{ pointer.down=true; const p=canvasPos(e); pointer.x=p.x; pointer.y=p.y;
+  if(cv.setPointerCapture) try{ cv.setPointerCapture(e.pointerId); }catch(_){} e.preventDefault(); });
+window.addEventListener('pointermove', e=>{ const p=canvasPos(e); pointer.x=p.x; pointer.y=p.y; });
+window.addEventListener('pointerup',   ()=>{ pointer.down=false; });
+window.addEventListener('pointercancel',()=>{ pointer.down=false; });
+stage.addEventListener('contextmenu', e=>e.preventDefault());
+
+function startLevel(){
+  S.hits = 0;
+  S.need = requiredHits(S.level);
+  S.timeLeft = TIME_LIMIT;
+  S.grabbed = false;
+  S.missTime = 0;
+  S.seed = (S.level*7919 + Math.floor(Math.random()*9999)) >>> 0;
+
+  ball.r = ballRadius(S.level);
+  ball.x = W/2; ball.y = H/2;
+  ball.squash = 0; ball.steer = 0; ball.struggle = 0;
+  ball.cracks = makeCracks(S.seed);
+  const sp = ballSpeed(S.level);
+  const a = Math.random()*Math.PI*2;
+  ball.vx = Math.cos(a)*sp; ball.vy = Math.sin(a)*sp;
+  particles = [];
+
+  const moving = S.level >= MOVE_LEVEL;
+  $('#hudLv').textContent = S.level;
+  $('#hudScore').textContent = S.score;
+  $('#hudHearts').innerHTML = '♥'.repeat(S.lives) + '<span style="opacity:.25">♥</span>'.repeat(MAX_LIVES-S.lives);
+  $('#hudMode').textContent = moving ? '🏃 이동형 Lv'+S.level : '고정형';
+  $('#hudMode').style.color = moving ? '#ff6b81' : '';
+  $('#hint').className = 'hint';
+  $('#hint').innerHTML = moving
+    ? '마우스로 <b>왁뿌볼을 꾹 누른 채</b> 스페이스바 연타!'
+    : '<b>스페이스바</b>를 연타해서 뿌셔라!';
+
+  overlay.classList.remove('hidden');
+  $('#ovBig').textContent = 'LEVEL ' + S.level;
+  $('#ovSmall').innerHTML = '10초 안에 <b>' + S.need + '번</b> 연타!' +
+      (moving ? '<br>왁뿌볼이 도망칩니다 — 마우스로 잡으세요!' : '') +
+      '<br><br>스페이스바(또는 클릭)로 시작';
+  S.scene = 'ready';
+  updateBars();
+  show('play');
+  if(!rafId) rafId = requestAnimationFrame(loop);
+}
+
+function beginPlay(){
+  if(S.scene !== 'ready') return;
+  overlay.classList.add('hidden');
+  S.scene = 'play';
+  beep(880,.09,'sine',.07,200);
+}
+
+/** 연타 1회 */
+function hit(){
+  if(S.scene === 'ready'){ beginPlay(); return; }
+  if(S.scene !== 'play') return;
+
+  if(S.level >= MOVE_LEVEL && !S.grabbed){
+    // 놓친 상태 → 인정 안 됨
+    beep(140,.05,'sawtooth',.05);
+    $('#hint').className = 'hint bad';
+    $('#hint').innerHTML = '<b>놓쳤다!</b> 마우스로 왁뿌볼을 잡아야 인정됩니다';
+    stage.classList.remove('shake');
+    return;
+  }
+
+  S.hits++; S.totalHits++;
+  ball.squash = 1;
+  ball.struggle = 1;
+  stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
+  const prog = S.hits / S.need;
+  beep(300 + prog*520, .05, 'square', .05);
+  if(S.hits % 5 === 0) noise(.08,.12);
+
+  // 파편 튀기기
+  for(let i=0;i<4;i++){
+    const a = Math.random()*Math.PI*2;
+    particles.push({
+      x: ball.x + Math.cos(a)*ball.r*0.9, y: ball.y + Math.sin(a)*ball.r*0.9,
+      vx: Math.cos(a)*(120+Math.random()*220), vy: Math.sin(a)*(120+Math.random()*220)-80,
+      r: 3+Math.random()*6, life:1,
+      col: S.colors[Math.floor(Math.random()*S.colors.length)]
+    });
+  }
+
+  if(S.hits >= S.need) doBreak();
+  updateBars();
+}
+
+function doBreak(){
+  S.scene = 'breaking';
+  breakTimer = 0;
+  noise(.5,.35); beep(150,.4,'sawtooth',.12,-100);
+  for(let i=0;i<90;i++){
+    const a = Math.random()*Math.PI*2, sp = 150+Math.random()*620;
+    particles.push({
+      x: ball.x + Math.cos(a)*ball.r*Math.random(),
+      y: ball.y + Math.sin(a)*ball.r*Math.random(),
+      vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 160,
+      r: 4+Math.random()*14, life:1,
+      col: Math.random()<.28 ? '#ffffff' : S.colors[Math.floor(Math.random()*S.colors.length)]
+    });
+  }
+  const gain = S.level*100 + Math.round(S.timeLeft*20);
+  S.score += gain;
+  $('#hudScore').textContent = S.score;
+  $('#hint').className = 'hint';
+  $('#hint').innerHTML = '<b>뿌셨다!</b> +' + gain + '점';
+}
+
+function levelCleared(){
+  if(S.scene === 'cleared') return;   // 프레임마다 중복 호출 방지
+  S.scene = 'cleared';
+  S.level++;
+  overlay.classList.remove('hidden');
+  $('#ovBig').textContent = 'CLEAR!';
+  $('#ovSmall').innerHTML = '다음 왁뿌볼을 만들어 볼까요?<br><br><span style="opacity:.7">잠시 후 색상표로 이동</span>';
+  setTimeout(()=>{ gotoCraft(); }, 900);
+}
+
+function fail(){
+  S.scene = 'fail';
+  S.lives--;
+  beep(220,.25,'sawtooth',.10,-140);
+  overlay.classList.remove('hidden');
+  if(S.lives <= 0){ gameOver(); return; }
+  $('#ovBig').textContent = 'FAIL...';
+  $('#ovSmall').innerHTML = '왁뿌볼이 버텨냈다! (' + S.hits + ' / ' + S.need + ')<br>남은 목숨 ' +
+      '♥'.repeat(S.lives) + '<br><br><span style="opacity:.7">같은 레벨 재도전</span>';
+  setTimeout(()=>{ startLevel(); }, 1500);
+}
+
+function gameOver(){
+  cancelAnimationFrame(rafId); rafId = 0;
+  if(S.level > best.lv){ best.lv = S.level; localStorage.setItem('wakppu_bestLv', best.lv); }
+  if(S.score > best.sc){ best.sc = S.score; localStorage.setItem('wakppu_bestSc', best.sc); }
+  $('#bestLv').textContent = best.lv; $('#bestSc').textContent = best.sc;
+  $('#stLv').textContent = S.level;
+  $('#stSc').textContent = S.score;
+  $('#stHit').textContent = S.totalHits;
+  $('#overMsg').textContent = S.level >= MOVE_LEVEL
+      ? '도망다니는 왁뿌볼한테 결국 지고 말았다...'
+      : '왁뿌볼이 살아남았다...';
+  show('over');
+}
+
+function updateBars(){
+  const p = clamp(S.hits/S.need, 0, 1);
+  $('#barCrack').firstElementChild.style.width = (p*100)+'%';
+  $('#lbCrack').textContent = Math.floor(S.hits) + ' / ' + S.need + '  (' + Math.round(p*100) + '%)';
+  const tp = clamp(S.timeLeft/TIME_LIMIT, 0, 1);
+  $('#barTime').firstElementChild.style.width = (tp*100)+'%';
+  $('#barTime').classList.toggle('low', S.timeLeft <= 3);
+  $('#lbTime').textContent = S.timeLeft.toFixed(1) + '초';
+}
+
+/* ---------- 메인 루프 ---------- */
+function loop(now){
+  rafId = requestAnimationFrame(loop);
+  let dt = (now - lastT)/1000; lastT = now;
+  dt = Math.min(dt, 0.05);
+  update(dt);
+  render(now/1000);
+}
+
+function update(dt){
+  // 잡기 판정
+  const dist = Math.hypot(pointer.x-ball.x, pointer.y-ball.y);
+  const inside = dist <= ball.r*1.05;
+  S.grabbed = (S.level < MOVE_LEVEL) ? true : (pointer.down && inside);
+
+  if(S.scene === 'play'){
+    S.timeLeft -= dt;
+
+    // 놓친 동안 균열이 아문다
+    if(S.level >= MOVE_LEVEL && !S.grabbed && S.hits > 0){
+      S.hits = Math.max(0, S.hits - decayPerSec(S.level)*dt);
+      S.missTime += dt;
+      if(S.missTime > 0.35){
+        S.missTime = 0;
+        $('#hint').className = 'hint bad';
+        $('#hint').innerHTML = '<b>놓쳤다!</b> 마우스 왼쪽 버튼으로 왁뿌볼을 꽉 잡으세요';
+      }
+    }else if(S.level >= MOVE_LEVEL && S.grabbed){
+      S.missTime = 0;
+      if(!$('#hint').classList.contains('hint-ok')){
+        $('#hint').className = 'hint hint-ok';
+        $('#hint').innerHTML = '<b>잡았다!</b> 이대로 스페이스바 연타!';
+      }
+    }
+
+    if(S.timeLeft <= 0){ S.timeLeft = 0; updateBars(); fail(); }
+    else updateBars();
+  }
+
+  if(S.scene === 'breaking'){
+    breakTimer += dt;
+    if(breakTimer > 1.1) levelCleared();
+  }
+
+  // 이동
+  if(S.level >= MOVE_LEVEL && (S.scene === 'play')){
+    const base = ballSpeed(S.level);
+    // 잡히면 저항하며 느려짐
+    const factor = S.grabbed ? 0.42 : 1;
+    // 주기적 방향 전환 (지그재그)
+    ball.steer -= dt;
+    if(ball.steer <= 0){
+      ball.steer = 0.45 + Math.random()*0.5;
+      const a = Math.atan2(ball.vy, ball.vx) + (Math.random()-0.5)*(S.grabbed?2.2:1.3);
+      ball.vx = Math.cos(a)*base; ball.vy = Math.sin(a)*base;
+    }
+    // 잡혔을 때 몸부림 (탈출 시도)
+    if(S.grabbed && Math.random() < dt*2.2){
+      const a = Math.random()*Math.PI*2;
+      ball.vx += Math.cos(a)*base*0.7; ball.vy += Math.sin(a)*base*0.7;
+    }
+    // 속도 정규화
+    const sp = Math.hypot(ball.vx, ball.vy) || 1;
+    ball.vx = ball.vx/sp*base; ball.vy = ball.vy/sp*base;
+
+    ball.x += ball.vx*factor*dt;
+    ball.y += ball.vy*factor*dt;
+
+    const pad = ball.r + 6;
+    if(ball.x < pad){ ball.x = pad; ball.vx = Math.abs(ball.vx); }
+    if(ball.x > W-pad){ ball.x = W-pad; ball.vx = -Math.abs(ball.vx); }
+    if(ball.y < pad){ ball.y = pad; ball.vy = Math.abs(ball.vy); }
+    if(ball.y > H-pad){ ball.y = H-pad; ball.vy = -Math.abs(ball.vy); }
+  }
+
+  // 눌림 애니메이션 / 몸부림 감쇠
+  ball.squash   = Math.max(0, ball.squash - dt*5.5);
+  ball.struggle = Math.max(0, ball.struggle - dt*3);
+
+  // 파티클
+  for(const p of particles){
+    p.vy += 1500*dt;
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.life -= dt*(S.scene==='breaking' ? 0.85 : 1.8);
+  }
+  particles = particles.filter(p=>p.life>0);
+}
+
+function render(t){
+  ctx.clearRect(0,0,W,H);
+
+  // 배경 격자
+  ctx.save();
+  ctx.globalAlpha = .07; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+  for(let x=0;x<=W;x+=90){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<=H;y+=90){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  ctx.restore();
+
+  // 이동 레벨 안내선
+  if(S.level >= MOVE_LEVEL && S.scene !== 'breaking'){
+    ctx.save();
+    ctx.globalAlpha = S.grabbed ? .5 : .22;
+    ctx.strokeStyle = S.grabbed ? '#7ee8e0' : '#ff6b81';
+    ctx.lineWidth = 3; ctx.setLineDash([14,12]);
+    ctx.beginPath(); ctx.moveTo(pointer.x, pointer.y); ctx.lineTo(ball.x, ball.y); ctx.stroke();
+    ctx.restore();
+  }
+
+  const p = clamp(S.hits/S.need, 0, 1);
+
+  if(S.scene !== 'breaking'){
+    const sq = ball.squash;
+    const wob = ball.struggle * Math.sin(t*44) * ball.r * 0.05;
+    ctx.save();
+    ctx.translate(ball.x + wob, ball.y);
+    ctx.scale(1 + sq*0.09, 1 - sq*0.11);
+    ctx.translate(-ball.x, -ball.y);
+    drawBall(ctx, ball.x, ball.y, ball.r, S.colors, p, t, ball.cracks, S.grabbed && S.level>=MOVE_LEVEL);
+    ctx.restore();
+  }else{
+    // 터진 후 잔해
+    ctx.save();
+    ctx.globalAlpha = clamp(1 - breakTimer*1.4, 0, 1);
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r*(1+breakTimer*1.6), 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 파티클
+  for(const pt of particles){
+    ctx.save();
+    ctx.globalAlpha = clamp(pt.life,0,1);
+    ctx.fillStyle = pt.col;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // 커서 표시
+  if(S.level >= MOVE_LEVEL && pointer.x > -900){
+    ctx.save();
+    ctx.strokeStyle = pointer.down ? '#7ee8e0' : 'rgba(255,255,255,.5)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(pointer.x, pointer.y, pointer.down?16:11, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* =========================================================
+   화면 흐름
+   ========================================================= */
+function gotoCraft(){
+  S.scene = 'craft';
+  if(rafId){ cancelAnimationFrame(rafId); rafId = 0; }
+  $('#craftLv').textContent = 'Lv ' + S.level;
+  if(picked.length !== NEED_COLORS){
+    const pool=[...PALETTE]; picked=[];
+    for(let i=0;i<NEED_COLORS;i++) picked.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  }
+  syncPick();
+  show('craft');
+}
+
+$('#btnStart').addEventListener('click', ()=>{
+  ac(); beep(760,.1,'sine',.07,240);
+  S.level=1; S.score=0; S.lives=MAX_LIVES; S.totalHits=0;
+  picked = [];
+  gotoCraft();
+});
+$('#btnMake').addEventListener('click', ()=>{
+  if(picked.length !== NEED_COLORS) return;
+  S.colors = [...picked];
+  beep(600,.12,'sine',.07,300);
+  startLevel();
+});
+$('#btnRetry').addEventListener('click', ()=>{
+  S.level=1; S.score=0; S.lives=MAX_LIVES; S.totalHits=0;
+  gotoCraft();
+});
+$('#btnHome').addEventListener('click', ()=> show('title'));
+$('#btnTap').addEventListener('click', ()=> hit());
+overlay.addEventListener('pointerdown', e=>{ if(S.scene==='ready'){ beginPlay(); e.preventDefault(); } });
+
+/* 키 입력 — 자동 반복(꾹 누르기)은 무시! */
+window.addEventListener('keydown', e=>{
+  if(e.code === 'Space' || e.key === ' '){
+    e.preventDefault();
+    if(e.repeat) return;                       // 홀드 치트 방지
+    if(screens.play.classList.contains('on')) hit();
+    else if(screens.title.classList.contains('on')) $('#btnStart').click();
+    else if(screens.craft.classList.contains('on') && !$('#btnMake').disabled) $('#btnMake').click();
+    else if(screens.over.classList.contains('on')) $('#btnRetry').click();
+  }
+});
+window.addEventListener('keyup', e=>{ if(e.code==='Space') e.preventDefault(); });
+
+syncPick();
+</script>
+</body>
+</html>
