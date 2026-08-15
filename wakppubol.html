@@ -324,88 +324,94 @@ function beep(freq, dur=0.07, type='square', vol=0.06, slide=0){
   o.connect(g); g.connect(MASTER); o.start(t0); o.stop(t0+dur);
 }
 
+/** 필터를 통과하는 노이즈 한 덩어리 */
+function burst(a, t0, o){
+  const s = a.createBufferSource();
+  s.buffer = noiseBuf(a);
+  s.playbackRate.value = o.rate || 1;
+  const f = a.createBiquadFilter();
+  f.type = o.type || 'bandpass'; f.Q.value = o.q || 1;
+  f.frequency.setValueAtTime(o.f0, t0);
+  f.frequency.exponentialRampToValueAtTime(o.f1, t0 + o.dec);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(o.vol, t0 + (o.atk || 0.003));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.dec);
+  let tail = f;
+  if(o.lp){ const l = a.createBiquadFilter(); l.type='lowpass'; l.frequency.value = o.lp; f.connect(l); tail = l; }
+  s.connect(f); tail.connect(g); g.connect(MASTER);
+  s.start(t0, Math.random()); s.stop(t0 + o.dec + 0.1);
+}
+/** 감쇠하는 톤 하나 */
+function tone(a, t0, o){
+  const osc = a.createOscillator(), g = a.createGain();
+  osc.type = o.type || 'triangle';
+  osc.frequency.setValueAtTime(o.f0, t0);
+  if(o.f1) osc.frequency.exponentialRampToValueAtTime(o.f1, t0 + o.dec);
+  if(o.atk){ g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(o.vol, t0 + o.atk); }
+  else g.gain.setValueAtTime(o.vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.dec);
+  osc.connect(g); g.connect(MASTER); osc.start(t0); osc.stop(t0 + o.dec + 0.05);
+}
+
 /**
- * 스페이스바 한 방 — 껍질이 실제로 깨지는 소리
- * @param p 진행도 0~1 (깨질수록 높고 날카로워진다)
+ * 스페이스바 한 방 — 굳은 촛농 껍질이 갈라지는 소리.
+ * 밀랍은 무르고 공명이 없어서 유리처럼 쨍하지 않고,
+ * 짧고 건조하게 "툭" 갈라진 뒤 부스러기가 후두둑 떨어진다.
+ * @param p 진행도 0~1 (껍질이 얇아질수록 조금 더 높고 부스러기가 늘어난다)
  */
 function smashSound(p){
   const a = ac(); if(!a) return;
-  const t0 = a.currentTime;
-  const rnd = Math.random();
+  const t0 = a.currentTime, r = Math.random();
 
-  // ① 껍질 파열음 — 밴드패스로 훑는 노이즈 버스트 ("빠직")
-  const src = a.createBufferSource();
-  src.buffer = noiseBuf(a);
-  src.playbackRate.value = 0.75 + rnd*0.6;
-  const bp = a.createBiquadFilter();
-  bp.type = 'bandpass'; bp.Q.value = 1.1;
-  bp.frequency.setValueAtTime(1500 + p*2600 + rnd*500, t0);
-  bp.frequency.exponentialRampToValueAtTime(500 + p*700, t0 + 0.11);
-  const hp = a.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 380;
-  const g = a.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(0.34 + p*0.22, t0 + 0.004);   // 날카로운 어택
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09 + p*0.06);
-  src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(MASTER);
-  src.start(t0, rnd); src.stop(t0 + 0.3);
+  // ① 마른 균열 — 좁은 밴드패스로 짧게 끊고, 로우패스로 고음을 깎아 먹먹하게
+  burst(a, t0, {
+    f0: 1150 + p*900 + r*260,
+    f1: 380 + p*160,
+    q: 2.6, rate: 0.7 + r*0.45,
+    vol: 0.30 + p*0.16,
+    atk: 0.0025,
+    dec: 0.05 + p*0.02,
+    lp: 3200 + p*900          // 밀랍 특유의 둔한 질감
+  });
 
-  // ② 타격 바디 — 손맛을 만드는 저음 "툭"
-  const o = a.createOscillator(), og = a.createGain();
-  o.type = 'triangle';
-  o.frequency.setValueAtTime(190 + p*80, t0);
-  o.frequency.exponentialRampToValueAtTime(52, t0 + 0.09);
-  og.gain.setValueAtTime(0.26, t0);
-  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
-  o.connect(og); og.connect(MASTER); o.start(t0); o.stop(t0 + 0.16);
+  // ② 껍질이 떨어져 나가는 둔탁한 바디 — 울리지 않고 툭
+  tone(a, t0, { f0: 230 + p*70, f1: 68, vol: 0.22, dec: 0.075 });
 
-  // ③ 조각 튀는 고음 클릭
-  const o2 = a.createOscillator(), g2 = a.createGain();
-  o2.type = 'square';
-  o2.frequency.setValueAtTime(2200 + p*2000 + rnd*700, t0);
-  g2.gain.setValueAtTime(0.045, t0);
-  g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.035);
-  o2.connect(g2); g2.connect(MASTER); o2.start(t0); o2.stop(t0 + 0.05);
+  // ③ 촛농 부스러기가 후두둑 — 깨질수록 조각이 많아진다
+  const n = 3 + Math.floor(p*4);
+  for(let i=0;i<n;i++){
+    const d = 0.012 + Math.random()*(0.07 + p*0.07);
+    burst(a, t0 + d, {
+      f0: 900 + Math.random()*1500, f1: 500,
+      q: 4.5, rate: 0.9 + Math.random()*0.6,
+      vol: 0.035 + Math.random()*0.025,
+      atk: 0.002, dec: 0.022, lp: 4200
+    });
+  }
 }
 
-/** 완전히 산산조각 나는 순간 */
+/** 촛농 껍질이 통째로 떨어져 나가며 부서지는 순간 */
 function breakSound(){
   const a = ac(); if(!a) return;
   const t0 = a.currentTime;
 
-  // ① 큰 파열 — 로우패스가 쓸려 내려가는 굉음
-  const src = a.createBufferSource();
-  src.buffer = noiseBuf(a); src.playbackRate.value = 0.65;
-  const lp = a.createBiquadFilter(); lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(7000, t0);
-  lp.frequency.exponentialRampToValueAtTime(260, t0 + 0.55);
-  const g = a.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(0.45, t0 + 0.012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
-  src.connect(lp); lp.connect(g); g.connect(MASTER);
-  src.start(t0); src.stop(t0 + 0.7);
+  // ① 껍질이 무너지는 둔탁한 파열 — 유리와 달리 고음이 거의 없다
+  burst(a, t0, { type:'lowpass', f0: 3400, f1: 180, q: 0.6,
+                 rate: 0.6, vol: 0.42, atk: 0.01, dec: 0.42 });
 
-  // ② 저음 붐
-  const o = a.createOscillator(), og = a.createGain();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(150, t0);
-  o.frequency.exponentialRampToValueAtTime(38, t0 + 0.35);
-  og.gain.setValueAtTime(0.4, t0);
-  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
-  o.connect(og); og.connect(MASTER); o.start(t0); o.stop(t0 + 0.45);
+  // ② 덩어리가 떨어지는 저음
+  tone(a, t0, { type:'sine', f0: 130, f1: 34, vol: 0.34, dec: 0.32 });
 
-  // ③ 파편이 흩어지며 떨어지는 소리
-  for(let i=0;i<16;i++){
-    const d = 0.03 + Math.random()*0.5;
-    const os = a.createOscillator(), gs = a.createGain();
-    os.type = 'triangle';
-    os.frequency.setValueAtTime(1100 + Math.random()*3200, t0 + d);
-    gs.gain.setValueAtTime(0.0001, t0 + d);
-    gs.gain.exponentialRampToValueAtTime(0.055, t0 + d + 0.003);
-    gs.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.07);
-    os.connect(gs); gs.connect(MASTER);
-    os.start(t0 + d); os.stop(t0 + d + 0.09);
+  // ③ 부스러기가 한참 동안 후두둑 흩어진다
+  for(let i=0;i<22;i++){
+    const d = 0.02 + Math.random()*0.55;
+    burst(a, t0 + d, {
+      f0: 700 + Math.random()*1900, f1: 420,
+      q: 4, rate: 0.85 + Math.random()*0.7,
+      vol: 0.03 + Math.random()*0.03,
+      atk: 0.002, dec: 0.028, lp: 4000
+    });
   }
 }
 
