@@ -21,6 +21,10 @@
     --field: #C7B98C;
     --field-2: #B3A578;
     --shadow: 0 1px 2px rgba(23, 32, 28, .06), 0 8px 24px -12px rgba(23, 32, 28, .22);
+    /* 문제마다 색이 달라져요. 색상(--q-h)은 문제가, 밝기(--q-l)는 화면 테마가 정해요. */
+    --q-l: 32%;
+    --q-wash-a: .13;
+    --q-ground-a: .16;
 
     --font-display: "Nanum Myeongjo", AppleMyungjo, "Apple SD Gothic Neo", Batang, serif;
     --font-body: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
@@ -48,6 +52,9 @@
       --field: #4A4634;
       --field-2: #3B3829;
       --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .7);
+      --q-l: 67%;
+      --q-wash-a: .16;
+      --q-ground-a: .2;
     }
   }
 
@@ -71,6 +78,9 @@
     --field: #4A4634;
     --field-2: #3B3829;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .7);
+    --q-l: 67%;
+    --q-wash-a: .16;
+    --q-ground-a: .2;
   }
 
   *, *::before, *::after { box-sizing: border-box; }
@@ -245,15 +255,15 @@
     display: block;
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, var(--field), var(--geum));
-    transition: width .45s cubic-bezier(.4, 0, .2, 1);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--q-c) 40%, var(--surface-2)), var(--q-c));
+    transition: width .45s cubic-bezier(.4, 0, .2, 1), background .3s ease;
   }
 
   .march-marker {
     position: absolute;
     left: 0;
     transform: translateX(-50%);
-    color: var(--jeok);
+    color: var(--q-c);
     transition: left .45s cubic-bezier(.4, 0, .2, 1);
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .25));
   }
@@ -270,22 +280,43 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ── 문제 카드 ── */
-  .q-head { display: flex; gap: 16px; align-items: flex-start; }
-
-  .q-icon {
-    flex: none;
-    width: 62px;
-    height: 62px;
-    display: grid;
-    place-items: center;
-    border-radius: 12px;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    color: var(--patina);
+  /* ── 문제 카드: 문제마다 --q-h(색상)와 삽화가 바뀝니다 ── */
+  #screen-quiz {
+    --q-c: hsl(var(--q-h, 200) var(--q-s, 42%) var(--q-l));
+    --q-wash: hsl(var(--q-h, 200) var(--q-s, 42%) var(--q-l) / var(--q-wash-a));
+    border-top: 4px solid var(--q-c);
   }
 
-  .q-icon svg { width: 36px; height: 36px; }
+  .scene {
+    margin: -2px 0 2px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--q-wash), transparent 78%), var(--surface-2);
+  }
+
+  .scene svg { display: block; width: 100%; height: auto; animation: rise .34s ease both; }
+
+  .q-head { display: flex; flex-direction: column; gap: 6px; }
+
+  .q-tag {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-family: var(--font-num);
+    font-size: .72rem;
+    letter-spacing: .18em;
+    color: var(--q-c);
+  }
+
+  .q-tag::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: var(--q-c);
+  }
 
   .q-text {
     margin: 0;
@@ -321,7 +352,11 @@
     transition: border-color .14s ease, background .14s ease, transform .14s ease;
   }
 
-  .choice:hover:not(:disabled) { border-color: var(--cheong); transform: translateY(-2px); }
+  .choice:hover:not(:disabled) {
+    border-color: var(--q-c);
+    background: color-mix(in srgb, var(--q-c) 7%, var(--surface-2));
+    transform: translateY(-2px);
+  }
   .choice:disabled { cursor: default; }
 
   .choice-no {
@@ -335,7 +370,7 @@
     border: 1px solid var(--line);
     font-family: var(--font-num);
     font-size: .8rem;
-    color: var(--ink-soft);
+    color: var(--q-c);
   }
 
   .choice.is-right {
@@ -357,8 +392,8 @@
   .hint {
     margin: 0;
     padding: 12px 14px;
-    border-left: 3px solid var(--geum);
-    background: color-mix(in srgb, var(--geum) 10%, var(--surface));
+    border-left: 3px solid var(--q-c);
+    background: color-mix(in srgb, var(--q-c) 9%, var(--surface));
     border-radius: 0 8px 8px 0;
     font-size: .94rem;
   }
@@ -528,60 +563,13 @@
 <!-- 삽화용 아이콘 모음 -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <g id="i-helmet" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="3.4" r="1.3" />
-      <path d="M12 4.7v1.6" />
-      <path d="M5 16.5v-3.2a7 7 0 0 1 14 0v3.2" />
-      <path d="M3.4 16.5h17.2" />
-      <path d="M8 16.5v2.6a4 4 0 0 0 8 0v-2.6" />
-    </g>
     <g id="i-flag" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M6 21V3" />
       <path d="M6 4h11l-2.5 3.5L17 11H6" />
     </g>
-    <g id="i-land" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 18h20" />
-      <path d="M3 14l4-5 3.5 4.5L14 8l7 10" />
-      <path d="M2 21h20" />
-    </g>
     <g id="i-scroll" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <rect x="5" y="3" width="14" height="18" rx="2" />
       <path d="M9 8h6M9 12h6M9 16h3" />
-    </g>
-    <g id="i-hwarang" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="6" r="2.6" />
-      <path d="M12 8.6V16" />
-      <path d="M8 11.5h8" />
-      <path d="M9.5 21l2.5-5 2.5 5" />
-      <path d="M12 3.4 13 2M12 3.4 11 2" />
-    </g>
-    <g id="i-swords" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M4 3l10 10M17 16l3 3" />
-      <path d="M20 3L10 13M7 16l-3 3" />
-      <path d="M14 13l3 3M10 13l-3 3" />
-    </g>
-    <g id="i-fortress" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 21V9l3-2 3 2v3h6V7l3-2 3 2v14" />
-      <path d="M3 21h18" />
-      <path d="M10 21v-4h4v4" />
-    </g>
-    <g id="i-allies" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M5 21V5M19 21V5" />
-      <path d="M5 6h5l-1.2 2L10 10H5" />
-      <path d="M19 6h-5l1.2 2L14 10h5" />
-      <path d="M9 16h6" />
-    </g>
-    <g id="i-troops" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="7" cy="7" r="2" />
-      <circle cx="17" cy="7" r="2" />
-      <circle cx="12" cy="15" r="2" />
-      <path d="M3 21c.6-2.2 2.2-3.4 4-3.4M21 21c-.6-2.2-2.2-3.4-4-3.4" />
-      <path d="M3 12c.6-1.8 2.2-2.8 4-2.8M21 12c-.6-1.8-2.2-2.8-4-2.8" />
-    </g>
-    <g id="i-brush" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M17 3l4 4-9 9-4-4z" />
-      <path d="M8 12l-3 7 7-3" />
-      <path d="M4 21h4" />
     </g>
     <g id="i-check" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="9" />
@@ -700,8 +688,10 @@
       </div>
     </div>
 
+    <div class="scene" id="scene"></div>
+
     <div class="q-head">
-      <div class="q-icon"><svg viewBox="0 0 24 24" id="q-icon-svg" aria-hidden="true"><use href="#i-flag" id="q-icon-use" /></svg></div>
+      <p class="q-tag" id="q-tag">인물</p>
       <h2 class="q-text" id="q-text">문제</h2>
     </div>
 
@@ -772,9 +762,165 @@
 <footer>백제와 신라가 맞선 660년 황산벌 전투를 초등학생 눈높이로 담은 역사 퀴즈</footer>
 
 <script>
+  /* ── 문제별 삽화: 각 장면은 그 문제의 내용을 그림으로 보여 줍니다 ── */
+  const svg = (label, body) =>
+    '<svg viewBox="0 0 600 170" role="img" aria-label="' + label + '">' + body + '</svg>';
+
+  const GROUND =
+    '<rect y="136" width="600" height="34" fill="var(--q-c)" opacity="var(--q-ground-a)"/>' +
+    '<path d="M0 136q150-14 300-3t300 3" fill="none" stroke="var(--q-c)" stroke-width="2" opacity=".35"/>';
+
+  const flag = (x, top, color, dir = 1) =>
+    '<g fill="' + color + '" stroke="' + color + '" stroke-width="3" stroke-linecap="round">' +
+    '<path d="M' + x + ' 136V' + top + '"/>' +
+    '<path d="M' + x + ' ' + top + 'h' + 24 * dir + 'l' + -8 * dir + ' 10 ' + 8 * dir + ' 10H' + x + 'z" stroke-width="0"/>' +
+    '</g>';
+
+  const bust = (x, plume) =>
+    '<path d="M' + (x - 58) + ' 136c0-30 26-44 58-44s58 14 58 44z" fill="var(--q-c)"/>' +
+    '<rect x="' + (x - 19) + '" y="56" width="38" height="44" rx="15" fill="var(--q-c)" opacity=".45"/>' +
+    '<rect x="' + (x - 32) + '" y="66" width="13" height="26" rx="5" fill="var(--q-c)"/>' +
+    '<rect x="' + (x + 19) + '" y="66" width="13" height="26" rx="5" fill="var(--q-c)"/>' +
+    '<path d="M' + (x - 32) + ' 60a32 30 0 0 1 64 0z" fill="var(--q-c)"/>' +
+    '<rect x="' + (x - 39) + '" y="58" width="78" height="10" rx="5" fill="var(--q-c)"/>' +
+    (plume
+      ? '<circle cx="' + x + '" cy="22" r="6" fill="var(--geum)"/>' +
+        '<path d="M' + x + ' 28v8" stroke="var(--geum)" stroke-width="3.5" stroke-linecap="round"/>'
+      : '');
+
+  const repeat = (count, make) => Array.from({ length: count }, (_, i) => make(i)).join('');
+
+  const SCENES = {
+    // 백제와 신라, 벌판을 사이에 둔 대치
+    clash: () => svg('왼쪽 백제의 금빛 깃발과 오른쪽 신라의 푸른 깃발이 벌판을 사이에 두고 마주 선 그림',
+      GROUND +
+      flag(70, 84, 'var(--geum)') + flag(112, 96, 'var(--geum)') + flag(154, 88, 'var(--geum)') +
+      flag(530, 84, 'var(--cheong)', -1) + flag(488, 96, 'var(--cheong)', -1) +
+      flag(446, 88, 'var(--cheong)', -1) + flag(404, 100, 'var(--cheong)', -1) +
+      '<g stroke="var(--q-c)" stroke-linecap="round" fill="none">' +
+      '<path d="M266 66l68 62" stroke-width="6"/><path d="M334 66l-68 62" stroke-width="6"/>' +
+      '<path d="M275 56L257 76" stroke-width="5"/><path d="M343 76L325 56" stroke-width="5"/></g>' +
+      '<circle cx="259" cy="59" r="5" fill="var(--q-c)"/><circle cx="341" cy="59" r="5" fill="var(--q-c)"/>'),
+
+    // 계백: 다섯 깃발(5천 결사대)을 등지고 선 장군
+    gyebaek: () => svg('다섯 개의 금빛 깃발을 등지고 창을 세운 채 서 있는 백제 장군',
+      GROUND +
+      repeat(5, (i) => flag(90 + i * 34, 102, 'var(--geum)')) +
+      bust(316, true) +
+      '<path d="M436 140V60" stroke="var(--q-c)" stroke-width="5" stroke-linecap="round"/>' +
+      '<path d="M436 40l10 20h-20z" fill="var(--q-c)"/>'),
+
+    // 김유신: 창이 숲처럼 늘어선 대군의 장수
+    yushin: () => svg('창이 숲처럼 빽빽하게 늘어선 큰 군대 앞에 선 신라 장군',
+      GROUND +
+      repeat(12, (i) => {
+        const x = 208 + i * 33, top = 54 + (i % 3) * 12;
+        return '<path d="M' + x + ' 136V' + top + '" stroke="var(--q-c)" stroke-width="3.5" opacity=".38" stroke-linecap="round"/>' +
+               '<path d="M' + x + ' ' + (top - 14) + 'l6 14h-12z" fill="var(--q-c)" opacity=".38"/>';
+      }) +
+      bust(112, false) +
+      '<path d="M186 136V44" stroke="var(--q-c)" stroke-width="6" stroke-linecap="round"/>' +
+      '<path d="M168 62h36" stroke="var(--q-c)" stroke-width="5" stroke-linecap="round"/>' +
+      '<circle cx="186" cy="38" r="6" fill="var(--q-c)"/>'),
+
+    // 연도: 아직 채워지지 않은 옛 기록 두루마리
+    year: () => svg('연도가 ○○○년으로 비어 있는 옛 기록 두루마리',
+      '<rect x="112" y="46" width="376" height="92" rx="4" fill="var(--surface)" stroke="var(--q-c)" stroke-width="2"/>' +
+      '<rect x="96" y="38" width="26" height="108" rx="13" fill="var(--q-c)"/>' +
+      '<rect x="478" y="38" width="26" height="108" rx="13" fill="var(--q-c)"/>' +
+      '<text x="300" y="106" text-anchor="middle" style="font-family:var(--font-display);font-size:50px;font-weight:700;fill:var(--q-c)">○○○년</text>' +
+      '<path d="M156 124q144 13 288 0" fill="none" stroke="var(--q-c)" stroke-width="3" opacity=".3"/>'),
+
+    // 병력: 동그라미 하나가 군사 1,000명
+    troops: () => svg('왼쪽에 큰 금빛 동그라미 다섯 개, 오른쪽에 작은 푸른 동그라미 오십 개로 나타낸 양쪽 군사 수',
+      repeat(5, (i) => '<circle cx="' + (62 + i * 32) + '" cy="86" r="12" fill="var(--geum)"/>') +
+      '<path d="M254 40v92" stroke="var(--q-c)" stroke-width="2" stroke-dasharray="6 7" opacity=".5"/>' +
+      repeat(50, (i) => '<circle cx="' + (302 + (i % 10) * 24) + '" cy="' + (44 + Math.floor(i / 10) * 22) + '" r="6" fill="var(--cheong)"/>')),
+
+    // 땅: 들판 한가운데 선 이정표
+    land: () => svg('산으로 둘러싸인 들판 가운데 황산벌이라 적힌 이정표가 서 있고 아래 팻말에는 지금은 물음표가 적힌 그림',
+      GROUND +
+      '<path d="M0 136 L86 68 L140 108 L200 58 L286 136Z" fill="var(--q-c)" opacity=".28"/>' +
+      '<path d="M336 136 L406 84 L456 114 L506 72 L588 136Z" fill="var(--q-c)" opacity=".18"/>' +
+      '<path d="M300 140V56" stroke="var(--q-c)" stroke-width="7" stroke-linecap="round"/>' +
+      '<rect x="226" y="56" width="150" height="28" rx="5" fill="var(--q-c)"/>' +
+      '<text x="301" y="76" text-anchor="middle" style="font-size:17px;font-weight:700;fill:var(--surface)">황산벌</text>' +
+      '<rect x="248" y="94" width="106" height="26" rx="5" fill="var(--surface)" stroke="var(--q-c)" stroke-width="2"/>' +
+      '<text x="301" y="112" text-anchor="middle" style="font-size:15px;fill:var(--q-c)">지금은?</text>'),
+
+    // 관창: 창의 벽으로 홀로 달려가는 어린 화랑
+    hwarang: () => svg('창이 늘어선 적진을 향해 홀로 달려가는 작은 화랑, 투구에 붉은 꽃이 달려 있는 그림',
+      GROUND +
+      repeat(8, (i) => '<path d="M' + (360 + i * 30) + ' 136L' + (376 + i * 30) + ' 46" stroke="var(--q-c)" stroke-width="4" opacity=".3" stroke-linecap="round"/>') +
+      '<path d="M150 98h28M142 114h22" stroke="var(--q-c)" stroke-width="3" opacity=".4" stroke-linecap="round"/>' +
+      '<g stroke="var(--q-c)" stroke-width="5" stroke-linecap="round" fill="none">' +
+      '<path d="M200 108v20"/><path d="M186 116h30"/><path d="M192 140l8-12 8 12"/><path d="M216 112l18-9"/></g>' +
+      '<circle cx="200" cy="96" r="11" fill="var(--q-c)"/>' +
+      repeat(5, (i) => {
+        const a = (i / 5) * Math.PI * 2;
+        return '<circle cx="' + (200 + Math.cos(a) * 7).toFixed(1) + '" cy="' + (78 + Math.sin(a) * 7).toFixed(1) + '" r="4" fill="var(--jeok)"/>';
+      })),
+
+    // 동맹: 바다를 사이에 두고 손을 잡은 두 나라
+    allies: () => svg('바다를 사이에 두고 양쪽 언덕에 선 두 나라의 깃발이 점선 아치로 이어진 그림',
+      '<path d="M10 128 L70 74 L130 128Z" fill="var(--q-c)" opacity=".3"/>' +
+      '<path d="M470 128 L530 74 L590 128Z" fill="var(--cheong)" opacity=".28"/>' +
+      flag(70, 52, 'var(--q-c)') + flag(530, 52, 'var(--cheong)', -1) +
+      '<path d="M70 46q230-56 460 0" fill="none" stroke="var(--q-c)" stroke-width="2.5" stroke-dasharray="7 7"/>' +
+      '<circle cx="300" cy="22" r="9" fill="var(--q-c)"/>' +
+      '<path d="M0 132q25-11 50 0t50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0" fill="none" stroke="var(--q-c)" stroke-width="3" opacity=".45"/>' +
+      '<path d="M0 150q25-11 50 0t50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0 50 0" fill="none" stroke="var(--q-c)" stroke-width="3" opacity=".25"/>'),
+
+    // 네 번의 싸움: 방패 넷은 이기고 마지막 하나는 무너짐
+    fourwins: () => svg('방패 다섯 개 가운데 앞의 네 개에는 체크 표시가, 마지막 하나에는 가위표가 그려진 그림',
+      repeat(5, (i) => {
+        const x = 40 + i * 112;
+        return '<g transform="translate(' + x + ',44)">' +
+          '<path d="M0 0h72v40c0 30-36 46-36 46S0 70 0 40z" fill="' + (i < 4 ? 'var(--q-c)' : 'none') + '" stroke="var(--q-c)" stroke-width="3"' + (i < 4 ? '' : ' opacity=".45"') + '/>' +
+          (i < 4
+            ? '<path d="M22 42l10 11 20-23" fill="none" stroke="var(--surface)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>'
+            : '<path d="M26 36l20 20M46 36l-20 20" stroke="var(--q-c)" stroke-width="5" stroke-linecap="round" opacity=".5"/>') +
+          '</g>';
+      })),
+
+    // 승패: 신라 쪽으로 기운 저울
+    outcome: () => svg('저울이 푸른 신라 쪽으로 기울고 금빛 백제 쪽이 위로 올라간 그림',
+      GROUND +
+      '<path d="M300 136V62" stroke="var(--q-c)" stroke-width="7" stroke-linecap="round"/>' +
+      '<path d="M262 136h76" stroke="var(--q-c)" stroke-width="7" stroke-linecap="round"/>' +
+      '<path d="M180 44L420 84" stroke="var(--q-c)" stroke-width="5" stroke-linecap="round"/>' +
+      '<circle cx="300" cy="58" r="9" fill="var(--q-c)"/>' +
+      '<path d="M180 44v24M420 84v24" stroke="var(--q-c)" stroke-width="2.5"/>' +
+      '<path d="M150 68a30 13 0 0 0 60 0z" fill="var(--geum)"/>' +
+      '<path d="M390 108a30 13 0 0 0 60 0z" fill="var(--cheong)"/>'),
+
+    // 사비성: 해가 지는 도읍의 성벽
+    fortress: () => svg('해가 지는 하늘을 배경으로 선 성벽과 망루, 그 앞에 기울어진 붉은 깃발',
+      '<circle cx="300" cy="72" r="42" fill="var(--q-c)" opacity=".38"/>' +
+      GROUND +
+      '<rect x="80" y="104" width="440" height="32" fill="var(--q-c)"/>' +
+      repeat(11, (i) => '<rect x="' + (84 + i * 40) + '" y="94" width="22" height="12" fill="var(--q-c)"/>') +
+      '<path d="M86 70 L122 48 L158 70Z" fill="var(--q-c)"/><rect x="96" y="68" width="52" height="68" fill="var(--q-c)"/>' +
+      '<path d="M442 70 L478 48 L514 70Z" fill="var(--q-c)"/><rect x="452" y="68" width="52" height="68" fill="var(--q-c)"/>' +
+      '<path d="M282 136v-22a18 18 0 0 1 36 0v22z" fill="var(--surface-2)"/>' +
+      '<path d="M196 140l18-46" stroke="var(--jeok)" stroke-width="4" stroke-linecap="round"/>' +
+      '<path d="M214 94l22 8-14 10z" fill="var(--jeok)"/>'),
+
+    // 낱말: 붓과 먹 획, 그리고 낙관
+    word: () => svg('붓이 먹 획을 긋고 그 옆에 붉은 낙관이 찍힌 그림',
+      '<path d="M150 118q86-42 190-18" fill="none" stroke="var(--q-c)" stroke-width="12" stroke-linecap="round" opacity=".32"/>' +
+      '<path d="M452 46L342 124" stroke="var(--q-c)" stroke-width="11" stroke-linecap="round"/>' +
+      '<path d="M342 124l-28 22 12-32z" fill="var(--ink)"/>' +
+      '<circle cx="452" cy="46" r="7" fill="var(--geum)"/>' +
+      '<rect x="92" y="46" width="40" height="40" rx="5" fill="var(--jeok)"/>' +
+      '<text x="112" y="74" text-anchor="middle" style="font-family:var(--font-display);font-size:23px;font-weight:700;fill:var(--surface)">글</text>' +
+      '<circle cx="228" cy="52" r="4.5" fill="var(--q-c)" opacity=".45"/>' +
+      '<circle cx="262" cy="42" r="3.5" fill="var(--q-c)" opacity=".3"/>'),
+  };
+
   const QUESTIONS = [
     {
-      icon: "i-swords",
+      scene: "clash", tag: "나라", hue: 355, sat: 52,
       question: "황산벌 전투는 어느 두 나라가 싸운 전투일까요?",
       choices: ["백제와 신라", "고구려와 신라", "백제와 고구려", "신라와 발해"],
       answer: "백제와 신라",
@@ -782,7 +928,7 @@
       explain: "황산벌 전투는 백제군과 신라군이 맞붙은 전투예요.",
     },
     {
-      icon: "i-helmet",
+      scene: "gyebaek", tag: "인물", hue: 42, sat: 62,
       question: "황산벌 전투에서 백제 군사를 이끈 장군은 누구일까요?",
       choices: ["계백", "김유신", "을지문덕", "강감찬"],
       answer: "계백",
@@ -790,7 +936,7 @@
       explain: "백제의 계백 장군이 결사대를 이끌고 싸웠어요.",
     },
     {
-      icon: "i-helmet",
+      scene: "yushin", tag: "인물", hue: 210, sat: 52,
       question: "황산벌 전투에서 신라 군사를 이끈 장군은 누구일까요?",
       choices: ["김유신", "계백", "이순신", "연개소문"],
       answer: "김유신",
@@ -798,7 +944,7 @@
       explain: "신라의 김유신 장군이 5만 명의 군사를 이끌었어요.",
     },
     {
-      icon: "i-scroll",
+      scene: "year", tag: "연도", hue: 264, sat: 34,
       question: "황산벌 전투가 일어난 해는 언제일까요?",
       choices: ["660년", "612년", "1592년", "918년"],
       answer: "660년",
@@ -806,7 +952,7 @@
       explain: "660년에 황산벌 전투가 벌어졌고, 그해에 백제가 멸망했어요.",
     },
     {
-      icon: "i-troops",
+      scene: "troops", tag: "숫자", hue: 172, sat: 44,
       question: "계백 장군이 이끈 백제 결사대는 몇 명이었을까요?",
       choices: ["5천 명", "5만 명", "100명", "50만 명"],
       answer: "5천 명",
@@ -814,7 +960,7 @@
       explain: "백제 결사대 5천 명이 신라군 5만 명과 맞섰어요.",
     },
     {
-      icon: "i-land",
+      scene: "land", tag: "땅", hue: 96, sat: 38,
       question: "황산벌은 오늘날 어느 지역일까요?",
       choices: ["충청남도 논산", "강원도 강릉", "경상북도 경주", "제주도 서귀포"],
       answer: "충청남도 논산",
@@ -822,7 +968,7 @@
       explain: "황산벌은 지금의 충청남도 논산 지역으로 알려져 있어요.",
     },
     {
-      icon: "i-hwarang",
+      scene: "hwarang", tag: "인물", hue: 332, sat: 42,
       question: "황산벌 전투에서 용감하게 싸우다 목숨을 잃은 신라의 어린 화랑은 누구일까요?",
       choices: ["관창", "온달", "이사부", "장보고"],
       answer: "관창",
@@ -830,7 +976,7 @@
       explain: "어린 화랑 관창의 용맹한 모습에 신라군의 사기가 크게 올랐어요.",
     },
     {
-      icon: "i-allies",
+      scene: "allies", tag: "나라", hue: 288, sat: 34,
       question: "신라가 백제를 공격할 때 힘을 합친 나라는 어디일까요?",
       choices: ["당나라", "일본", "고구려", "몽골"],
       answer: "당나라",
@@ -838,7 +984,7 @@
       explain: "신라는 중국의 당나라와 손을 잡고 나당 연합군을 만들었어요.",
     },
     {
-      icon: "i-flag",
+      scene: "fourwins", tag: "사건", hue: 20, sat: 58,
       question: "백제 결사대는 처음 네 번의 싸움에서 어떻게 되었을까요?",
       choices: ["네 번 모두 이겼다", "네 번 모두 졌다", "한 번도 싸우지 않았다", "모두 도망갔다"],
       answer: "네 번 모두 이겼다",
@@ -846,7 +992,7 @@
       explain: "적은 수였지만 네 번의 싸움에서 모두 이겼고, 마지막 싸움에서 힘이 다해 졌어요.",
     },
     {
-      icon: "i-swords",
+      scene: "outcome", tag: "사건", hue: 192, sat: 48,
       question: "황산벌 전투에서 최종적으로 이긴 나라는 어디일까요?",
       choices: ["신라", "백제", "고구려", "무승부였다"],
       answer: "신라",
@@ -854,7 +1000,7 @@
       explain: "결국 신라가 이겼고, 계백 장군은 끝까지 싸우다 전사했어요.",
     },
     {
-      icon: "i-fortress",
+      scene: "fortress", tag: "사건", hue: 232, sat: 40,
       question: "황산벌 전투가 끝난 뒤 곧바로 멸망한 나라는 어디일까요?",
       choices: ["백제", "신라", "고구려", "가야"],
       answer: "백제",
@@ -862,7 +1008,7 @@
       explain: "나당 연합군이 도읍 사비성을 함락하면서 백제는 660년에 멸망했어요.",
     },
     {
-      icon: "i-brush",
+      scene: "word", tag: "낱말", hue: 150, sat: 34,
       question: "'결사대'는 어떤 뜻일까요?",
       choices: ["죽기를 각오하고 싸우는 부대", "말을 타고 달리는 부대", "성을 쌓는 사람들", "임금을 지키는 신하들"],
       answer: "죽기를 각오하고 싸우는 부대",
@@ -914,7 +1060,10 @@
     const quiz = deck[index];
     locked = false;
 
-    $("q-icon-use").setAttribute("href", "#" + quiz.icon);
+    screens.quiz.style.setProperty("--q-h", quiz.hue);
+    screens.quiz.style.setProperty("--q-s", quiz.sat + "%");
+    $("scene").innerHTML = SCENES[quiz.scene]();
+    $("q-tag").textContent = quiz.tag;
     $("q-text").textContent = quiz.question;
 
     $("hint").hidden = true;
@@ -988,7 +1137,7 @@
     if (index < deck.length - 1) {
       index += 1;
       renderQuestion();
-      $("q-text").scrollIntoView({ block: "nearest", behavior: "smooth" });
+      $("scene").scrollIntoView({ block: "nearest", behavior: "smooth" });
     } else {
       renderResult();
     }
