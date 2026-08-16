@@ -464,6 +464,15 @@ function smashSound(p, tool){
   synthSmash(p);
 }
 
+/** 휘두를 때 나는 바람 소리 — 누르는 즉시 울려서 스윙이 시작됐음을 알린다 */
+function whooshSound(){
+  const a = ac(); if(!a) return;
+  burst(a, a.currentTime, {
+    type:'bandpass', f0: 260, f1: 1500, q: 0.8,
+    rate: 0.5, vol: 0.085, atk: 0.022, dec: 0.075, lp: 2400
+  });
+}
+
 /** 완전히 부서지는 순간 — 큰 크랙 + 부스러기가 흩어지는 녹음 */
 function breakSound(){
   if(sfxBuf){
@@ -973,9 +982,12 @@ $('#btnClear').addEventListener('click', ()=>{ picked=[]; syncPick(); });
    ========================================================= */
 const W = cv.width, H = cv.height;      // 논리 해상도
 const ball = { x:W/2, y:H/2, vx:0, vy:0, r:150, squash:0, cracks:makeCracks(7), steer:0, struggle:0, knock:0 };
-/** 내려치는 주먹 — t는 1(타격 순간)에서 0(원위치)으로 줄어든다 */
-const hand = { t:0, side:1, ang:0 };
-const HAND_TIME = 0.20;   // 한 번 내려치고 되돌아오는 데 걸리는 시간(초)
+/** 휘두르는 도구 — t는 1(휘두르기 시작)에서 0(원위치)으로 줄어든다 */
+const hand = { t:0, side:1, ang:0, pending:false, flash:0 };
+const HAND_TIME    = 0.24;   // 휘두르기 시작부터 원위치까지(초)
+const IMPACT_AT    = 0.26;   // 이 지점에서 공에 닿는다 (0.24 × 0.26 ≈ 62ms)
+const SWING_SWEEP  = 0.95;   // 휘두르는 호의 크기(라디안) — 공 바로 위에서 시작해 내리꽂는다
+const SWING_SPIN   = 1.05;   // 감았다 푸는 회전량(라디안)
 let particles = [];
 let pointer = { x:-999, y:-999, down:false };
 let lastT = performance.now(), rafId = 0;
@@ -1003,7 +1015,7 @@ function startLevel(){
   ball.r = ballRadius(S.level);
   ball.x = W/2; ball.y = H/2;
   ball.squash = 0; ball.steer = 0; ball.struggle = 0; ball.knock = 0;
-  hand.t = 0;
+  hand.t = 0; hand.pending = false; hand.flash = 0;
   ball.cracks = makeCracks(S.seed);
   const sp = ballSpeed(S.level);
   const a = Math.random()*Math.PI*2;
@@ -1057,19 +1069,31 @@ function hit(){
     return;
   }
 
-  S.hits += (TOOL[S.tool] || TOOL.fist).dmg;   // 좋은 도구일수록 한 방이 세다
+  // 스윙 시작 — 실제 타격은 도구가 공에 닿는 순간(resolveImpact)에 일어난다
+  if(hand.pending) resolveImpact();            // 아직 안 닿은 스윙이 있으면 먼저 처리
+  hand.side = -hand.side;                      // 좌우 번갈아 휘두른다
+  hand.ang = (hand.side > 0 ? -0.62 : -(Math.PI - 0.62)) + (Math.random()-0.5)*0.22;
+  hand.t = 1;
+  hand.pending = true;
+  whooshSound();                               // 휘두르는 바람 소리는 누르는 즉시
+}
+
+/** 휘두른 도구가 껍질에 닿는 순간 — 타격량, 소리, 이펙트가 모두 여기서 일어난다 */
+function resolveImpact(){
+  hand.pending = false;
+  hand.flash = 1;
+  if(S.scene !== 'play') return;               // 시간이 다 됐으면 헛스윙
+
+  const tl = TOOL[S.tool] || TOOL.fist;
+  S.hits += tl.dmg;                            // 좋은 도구일수록 한 방이 세다
   S.totalHits++;
   ball.squash = 1;
   ball.struggle = 1;
   ball.knock = 1;
-
-  // 주먹을 좌우 번갈아 내려친다 (연타처럼 보이도록)
-  hand.side = -hand.side;
-  hand.ang = (hand.side > 0 ? -0.62 : -(Math.PI - 0.62)) + (Math.random()-0.5)*0.22;
-  hand.t = 1;
   stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
+
   const prog = clamp(S.hits / S.need, 0, 1);
-  smashSound(prog, TOOL[S.tool]);      // 누를 때마다 실제 부수는 타격음
+  smashSound(prog, tl);                        // 닿는 순간 부서지는 타격음
 
   // 파편 튀기기
   for(let i=0;i<4;i++){
@@ -1233,7 +1257,13 @@ function update(dt){
   ball.squash   = Math.max(0, ball.squash - dt*5.5);
   ball.struggle = Math.max(0, ball.struggle - dt*3);
   ball.knock    = Math.max(0, ball.knock - dt*7);
-  hand.t        = Math.max(0, hand.t - dt/HAND_TIME);
+  hand.flash    = Math.max(0, hand.flash - dt*7);
+
+  // 스윙 진행 — 타격 지점을 지나면 그때 실제 타격이 들어간다
+  if(hand.t > 0){
+    hand.t = Math.max(0, hand.t - dt/HAND_TIME);
+    if(hand.pending && (1 - hand.t) >= IMPACT_AT) resolveImpact();
+  }
 
   // 파티클
   for(const p of particles){
@@ -1298,35 +1328,64 @@ function render(t){
     ctx.restore();
   }
 
-  // ---- 내려치는 도구 ----
-  if(hand.t > 0 && S.scene !== 'ready'){
+  // ---- 휘두르는 도구 ----
+  if((hand.t > 0 || hand.flash > 0) && S.scene !== 'ready'){
     const tl = TOOL[S.tool] || TOOL.fist;
-    const u  = 1 - hand.t;                              // 0 = 때리는 순간, 1 = 다 올라감
+    const u  = 1 - hand.t;                              // 0 = 휘두르기 시작, 1 = 원위치
     const fs = clamp(ball.r*0.62, 46, 108) * tl.scale;  // 공이 작아지면 도구도 작아진다
     const contact = ball.r*0.93 + fs*tl.reach;          // 타격면이 껍질에 닿는 거리
-    const back    = (ball.r + fs) * 1.15;               // 되돌아가는 거리
-    const d  = contact + back * (1 - Math.pow(1-u, 3));
-    const hx = ball.x + ux*d, hy = ball.y + uy*d;
+    const raise   = ball.r*0.22 + fs*0.85;              // 치켜든 높이 (화면 밖으로 나가지 않게)
+    const sgn = hand.side > 0 ? 1 : -1;
 
-    drawTool(ctx, hx, hy, fs, hand.ang + Math.PI, clamp(1 - u*3.2, 0, 1), hand.side > 0 ? 1 : -1, tl.id);
+    // 위에서 감았다가 내리꽂고, 반동으로 되돌아간다
+    let off, dist, spin;
+    if(u <= IMPACT_AT){
+      const e = Math.pow(u/IMPACT_AT, 2);               // 가속하며 내리꽂는다
+      off  = -SWING_SWEEP * (1-e) * sgn;
+      dist = contact + raise * (1-e);
+      spin = -SWING_SPIN  * (1-e) * sgn;
+    }else{
+      const e = 1 - Math.pow(1 - (u-IMPACT_AT)/(1-IMPACT_AT), 3);   // 튕겨 돌아온다
+      off  = -SWING_SWEEP * 0.80 * e * sgn;
+      dist = contact + raise * 0.92 * e;
+      spin = -SWING_SPIN  * 0.55 * e * sgn;
+    }
+    const pa = hand.ang + off;
+    const hx = ball.x + Math.cos(pa)*dist, hy = ball.y + Math.sin(pa)*dist;
 
-    // 충격 이펙트 — 주먹 위에 그려야 가려지지 않는다. 맞은 자리에서 사방으로 튄다.
-    if(u < 0.5){
-      const a  = clamp(1 - u*2, 0, 1);
+    // 휘두른 궤적 (스윙 자국)
+    if(u < IMPACT_AT + 0.35){
+      const a0 = hand.ang - SWING_SWEEP*sgn;
+      const fade = u <= IMPACT_AT ? 0.30 : 0.30 * (1 - (u-IMPACT_AT)/0.35);
+      ctx.save();
+      ctx.globalAlpha = clamp(fade, 0, 1);
+      ctx.strokeStyle = '#fff'; ctx.lineCap = 'round';
+      ctx.lineWidth = fs*0.55;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, dist*0.92, Math.min(a0,pa), Math.max(a0,pa));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawTool(ctx, hx, hy, fs, pa + Math.PI + spin, hand.flash, sgn, tl.id);
+
+    // 충격 이펙트 — 도구 위에 그려야 가려지지 않는다. 맞은 자리에서 사방으로 튄다.
+    if(hand.flash > 0){
+      const f  = hand.flash, g = 1 - f;
       const cx = ball.x + ux*ball.r*0.88, cy = ball.y + uy*ball.r*0.88;
       ctx.save();
-      ctx.globalAlpha = a*0.9;
+      ctx.globalAlpha = f*0.9;
       ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, ball.r*0.030); ctx.lineCap='round';
       for(let i=0;i<9;i++){
-        const sa = hand.ang + (i-4)*0.42;              // 주먹 양옆으로 삐져나오게 넓게
-        const r0 = ball.r*(0.26 + u*0.30), r1 = r0 + ball.r*(0.16 + u*0.22);
+        const sa = hand.ang + (i-4)*0.42;              // 도구 양옆으로 삐져나오게 넓게
+        const r0 = ball.r*(0.26 + g*0.30), r1 = r0 + ball.r*(0.16 + g*0.22);
         ctx.beginPath();
         ctx.moveTo(cx + Math.cos(sa)*r0, cy + Math.sin(sa)*r0);
         ctx.lineTo(cx + Math.cos(sa)*r1, cy + Math.sin(sa)*r1);
         ctx.stroke();
       }
-      ctx.globalAlpha = a*0.6; ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(cx, cy, ball.r*(0.10 + u*0.26), 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = f*0.6; ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(cx, cy, ball.r*(0.10 + g*0.26), 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
   }
