@@ -630,6 +630,86 @@ function drawBall(c, x, y, r, colors, p=0, t=0, cracks=null, grabbed=false){
 }
 
 /* =========================================================
+   내려치는 주먹
+   ========================================================= */
+/** 둥근 사각형 경로 (roundRect 미지원 브라우저 대비) */
+function rr(c,x,y,w,h,r){
+  const m = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
+  c.beginPath();
+  c.moveTo(x+m,y);
+  c.lineTo(x+w-m,y); c.quadraticCurveTo(x+w,y,x+w,y+m);
+  c.lineTo(x+w,y+h-m); c.quadraticCurveTo(x+w,y+h,x+w-m,y+h);
+  c.lineTo(x+m,y+h); c.quadraticCurveTo(x,y+h,x,y+h-m);
+  c.lineTo(x,y+m); c.quadraticCurveTo(x,y,x+m,y);
+  c.closePath();
+}
+/**
+ * 주먹 그리기 — 로컬 좌표에서 +x 방향(주먹등)이 때리는 쪽이다.
+ * @param s    주먹 크기
+ * @param ang  때리는 방향
+ * @param hit  충격량 0~1 (맞는 순간 살짝 눌린다)
+ * @param flip 왼쪽에서 때릴 때 -1 — 회전만 하면 엄지가 위로 뒤집혀 보이므로 상하로 미러링한다
+ */
+function drawFist(c, x, y, s, ang, hit, flip){
+  const SKIN='#f7c49a', SHADE='#e0a071', LINE='#7d452a', HI='#ffe3c6', SLEEVE='#6f6ae6', SLEEVE2='#514cc9';
+  c.save();
+  c.translate(x,y);
+  c.rotate(ang);
+  c.scale(1 - hit*0.13, (1 + hit*0.11) * (flip || 1));   // 부딪히는 순간 앞뒤로 눌림
+  c.lineJoin='round'; c.lineCap='round';
+  c.lineWidth = s*0.075; c.strokeStyle = LINE;
+
+  // 그림자
+  c.save();
+  c.globalAlpha=.22; c.fillStyle='#000';
+  rr(c, -1.5*s, -0.62*s+s*0.14, 2.2*s, 1.3*s, 0.55*s); c.fill();
+  c.restore();
+
+  // 소매
+  const sg = c.createLinearGradient(0,-0.7*s,0,0.7*s);
+  sg.addColorStop(0,SLEEVE); sg.addColorStop(1,SLEEVE2);
+  c.fillStyle = sg;
+  rr(c, -2.6*s, -0.60*s, 1.5*s, 1.20*s, 0.20*s); c.fill(); c.stroke();
+  // 소맷단
+  c.fillStyle = SLEEVE2;
+  rr(c, -1.34*s, -0.64*s, 0.34*s, 1.28*s, 0.14*s); c.fill(); c.stroke();
+
+  // 주먹 몸통
+  const hg = c.createLinearGradient(0,-0.8*s,0,0.8*s);
+  hg.addColorStop(0,HI); hg.addColorStop(0.45,SKIN); hg.addColorStop(1,SHADE);
+  c.fillStyle = hg;
+  rr(c, -1.15*s, -0.70*s, 1.75*s, 1.40*s, 0.52*s); c.fill(); c.stroke();
+
+  // 접힌 손가락 네 마디
+  c.lineWidth = s*0.05;
+  for(let i=0;i<4;i++){
+    const fy = -0.58*s + i*0.31*s;
+    c.fillStyle = i%2 ? SKIN : '#fbd0ab';
+    rr(c, 0.04*s, fy, 0.60*s, 0.28*s, 0.13*s); c.fill(); c.stroke();
+  }
+  // 주먹등 능선
+  c.save();
+  c.globalAlpha=.35; c.strokeStyle=LINE; c.lineWidth=s*0.04;
+  c.beginPath(); c.moveTo(0.05*s,-0.55*s); c.lineTo(0.05*s,0.55*s); c.stroke();
+  c.restore();
+
+  // 엄지
+  c.save();
+  c.translate(-0.10*s, 0.40*s); c.rotate(-0.30);
+  c.fillStyle = SKIN; c.lineWidth = s*0.055;
+  rr(c, -0.30*s, -0.24*s, 1.02*s, 0.48*s, 0.24*s); c.fill(); c.stroke();
+  c.restore();
+
+  // 하이라이트
+  c.save();
+  c.globalAlpha=.5; c.fillStyle='#fff';
+  c.beginPath(); c.ellipse(-0.45*s,-0.40*s, 0.34*s, 0.15*s, -0.25, 0, Math.PI*2); c.fill();
+  c.restore();
+
+  c.restore();
+}
+
+/* =========================================================
    1단계 — 색 고르기
    ========================================================= */
 let picked = [];
@@ -683,7 +763,10 @@ $('#btnClear').addEventListener('click', ()=>{ picked=[]; syncPick(); });
    2단계 — 뿌시기
    ========================================================= */
 const W = cv.width, H = cv.height;      // 논리 해상도
-const ball = { x:W/2, y:H/2, vx:0, vy:0, r:150, squash:0, cracks:makeCracks(7), steer:0, struggle:0 };
+const ball = { x:W/2, y:H/2, vx:0, vy:0, r:150, squash:0, cracks:makeCracks(7), steer:0, struggle:0, knock:0 };
+/** 내려치는 주먹 — t는 1(타격 순간)에서 0(원위치)으로 줄어든다 */
+const hand = { t:0, side:1, ang:0 };
+const HAND_TIME = 0.20;   // 한 번 내려치고 되돌아오는 데 걸리는 시간(초)
 let particles = [];
 let pointer = { x:-999, y:-999, down:false };
 let lastT = performance.now(), rafId = 0;
@@ -710,7 +793,8 @@ function startLevel(){
 
   ball.r = ballRadius(S.level);
   ball.x = W/2; ball.y = H/2;
-  ball.squash = 0; ball.steer = 0; ball.struggle = 0;
+  ball.squash = 0; ball.steer = 0; ball.struggle = 0; ball.knock = 0;
+  hand.t = 0;
   ball.cracks = makeCracks(S.seed);
   const sp = ballSpeed(S.level);
   const a = Math.random()*Math.PI*2;
@@ -763,6 +847,12 @@ function hit(){
   S.hits++; S.totalHits++;
   ball.squash = 1;
   ball.struggle = 1;
+  ball.knock = 1;
+
+  // 주먹을 좌우 번갈아 내려친다 (연타처럼 보이도록)
+  hand.side = -hand.side;
+  hand.ang = (hand.side > 0 ? -0.62 : -(Math.PI - 0.62)) + (Math.random()-0.5)*0.22;
+  hand.t = 1;
   stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
   const prog = clamp(S.hits / S.need, 0, 1);
   smashSound(prog);                    // 누를 때마다 실제 부수는 타격음
@@ -924,9 +1014,11 @@ function update(dt){
     if(ball.y > H-pad){ ball.y = H-pad; ball.vy = -Math.abs(ball.vy); }
   }
 
-  // 눌림 애니메이션 / 몸부림 감쇠
+  // 눌림 애니메이션 / 몸부림 / 주먹 감쇠
   ball.squash   = Math.max(0, ball.squash - dt*5.5);
   ball.struggle = Math.max(0, ball.struggle - dt*3);
+  ball.knock    = Math.max(0, ball.knock - dt*7);
+  hand.t        = Math.max(0, hand.t - dt/HAND_TIME);
 
   // 파티클
   for(const p of particles){
@@ -959,14 +1051,19 @@ function render(t){
 
   const p = clamp(S.hits/S.need, 0, 1);
 
+  // 주먹이 오는 방향 — 공은 그 반대로 밀린다
+  const ux = Math.cos(hand.ang), uy = Math.sin(hand.ang);
+  const kn = ball.knock * ball.r * 0.10;
+  const bx = ball.x - ux*kn, by = ball.y - uy*kn;
+
   if(S.scene !== 'breaking'){
     const sq = ball.squash;
     const wob = ball.struggle * Math.sin(t*44) * ball.r * 0.05;
     ctx.save();
-    ctx.translate(ball.x + wob, ball.y);
+    ctx.translate(bx + wob, by);
     ctx.scale(1 + sq*0.09, 1 - sq*0.11);
-    ctx.translate(-ball.x, -ball.y);
-    drawBall(ctx, ball.x, ball.y, ball.r, S.colors, p, t, ball.cracks, S.grabbed && S.level>=MOVE_LEVEL);
+    ctx.translate(-bx, -by);
+    drawBall(ctx, bx, by, ball.r, S.colors, p, t, ball.cracks, S.grabbed && S.level>=MOVE_LEVEL);
     ctx.restore();
   }else{
     // 터진 후 잔해
@@ -984,6 +1081,38 @@ function render(t){
     ctx.fillStyle = pt.col;
     ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI*2); ctx.fill();
     ctx.restore();
+  }
+
+  // ---- 내려치는 주먹 ----
+  if(hand.t > 0 && S.scene !== 'ready'){
+    const u  = 1 - hand.t;                       // 0 = 때리는 순간, 1 = 다 올라감
+    const fs = clamp(ball.r*0.62, 46, 108);      // 공이 작아지면 주먹도 작아진다
+    const contact = ball.r + fs*0.42;
+    const back    = (ball.r + fs) * 1.15;        // 되돌아가는 거리
+    const d  = contact + back * (1 - Math.pow(1-u, 3));
+    const hx = ball.x + ux*d, hy = ball.y + uy*d;
+
+    drawFist(ctx, hx, hy, fs, hand.ang + Math.PI, clamp(1 - u*3.2, 0, 1), hand.side > 0 ? 1 : -1);
+
+    // 충격 이펙트 — 주먹 위에 그려야 가려지지 않는다. 맞은 자리에서 사방으로 튄다.
+    if(u < 0.5){
+      const a  = clamp(1 - u*2, 0, 1);
+      const cx = ball.x + ux*ball.r*0.88, cy = ball.y + uy*ball.r*0.88;
+      ctx.save();
+      ctx.globalAlpha = a*0.9;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, ball.r*0.030); ctx.lineCap='round';
+      for(let i=0;i<9;i++){
+        const sa = hand.ang + (i-4)*0.42;              // 주먹 양옆으로 삐져나오게 넓게
+        const r0 = ball.r*(0.26 + u*0.30), r1 = r0 + ball.r*(0.16 + u*0.22);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(sa)*r0, cy + Math.sin(sa)*r0);
+        ctx.lineTo(cx + Math.cos(sa)*r1, cy + Math.sin(sa)*r1);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = a*0.6; ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(cx, cy, ball.r*(0.10 + u*0.26), 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
   }
 
   // 커서 표시
