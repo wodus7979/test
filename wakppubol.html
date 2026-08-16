@@ -26,10 +26,11 @@
       radial-gradient(1200px 700px at 20% -10%, #35306b 0%, transparent 60%),
       radial-gradient(900px 600px at 110% 110%, #4a2b5e 0%, transparent 55%),
       linear-gradient(160deg,var(--bg1),var(--bg2));
-    display:flex;align-items:center;justify-content:center;
-    padding:16px;overflow:hidden;user-select:none;
+    display:flex;justify-content:center;
+    padding:16px;overflow-x:hidden;overflow-y:auto;user-select:none;
   }
-  .app{width:min(880px,100%)}
+  /* margin:auto 로 가운데 정렬 — align-items:center 는 내용이 화면보다 길 때 위가 잘린다 */
+  .app{width:min(880px,100%);margin:auto}
   .screen{display:none;animation:pop .28s ease}
   .screen.on{display:block}
   @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
@@ -332,9 +333,14 @@ const S = {
   hits:0, need:10, timeLeft:TIME_LIMIT,
   grabbed:false, missTime:0,
 };
+/** 저장소 — 브라우저가 막아 둔 경우(샌드박스, 시크릿 모드)에도 게임은 돌아가야 한다 */
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+};
 const best = {
-  lv: +(localStorage.getItem('wakppu_bestLv')||0),
-  sc: +(localStorage.getItem('wakppu_bestSc')||0)
+  lv: +(store.get('wakppu_bestLv')||0),
+  sc: +(store.get('wakppu_bestSc')||0)
 };
 $('#bestLv').textContent = best.lv;
 $('#bestSc').textContent = best.sc;
@@ -1191,8 +1197,8 @@ function fail(){
 
 function gameOver(){
   cancelAnimationFrame(rafId); rafId = 0;
-  if(S.level > best.lv){ best.lv = S.level; localStorage.setItem('wakppu_bestLv', best.lv); }
-  if(S.earned > best.sc){ best.sc = S.earned; localStorage.setItem('wakppu_bestSc', best.sc); }
+  if(S.level > best.lv){ best.lv = S.level; store.set('wakppu_bestLv', best.lv); }
+  if(S.earned > best.sc){ best.sc = S.earned; store.set('wakppu_bestSc', best.sc); }
   $('#bestLv').textContent = best.lv; $('#bestSc').textContent = best.sc;
   $('#stLv').textContent = S.level;
   $('#stSc').textContent = S.earned;
