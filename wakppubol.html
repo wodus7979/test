@@ -91,6 +91,32 @@
   .previewWrap{display:grid;place-items:center;gap:12px}
   #preview{width:200px;height:200px;filter:drop-shadow(0 14px 22px rgba(0,0,0,.45))}
 
+  /* ---------- 상점 ---------- */
+  .wallet{
+    background:linear-gradient(135deg,rgba(255,209,102,.2),rgba(255,154,139,.18));
+    border:1px solid rgba(255,209,102,.45);border-radius:999px;
+    padding:9px 18px;font-size:14px;font-weight:800;white-space:nowrap
+  }
+  .wallet b{color:var(--accent);font-size:19px}
+  .shopGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px;margin-top:20px}
+  .shop{
+    background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.12);
+    border-radius:16px;padding:14px 10px 12px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:7px;
+    transition:border-color .15s, transform .12s, background .15s
+  }
+  .shop.own{background:rgba(126,232,224,.08);border-color:rgba(126,232,224,.35)}
+  .shop.on{background:rgba(255,209,102,.13);border-color:var(--accent);transform:translateY(-3px)}
+  .shop canvas{width:104px;height:74px}
+  .shop .nm{font-size:16px;font-weight:800}
+  .shop .dm{font-size:12px;color:var(--accent2);font-weight:700}
+  .shop .ds{font-size:11px;color:var(--sub);line-height:1.5;min-height:32px}
+  .shop button{width:100%;padding:9px 6px;border-radius:10px;font-size:13px;font-weight:800}
+  .buy{background:linear-gradient(135deg,#ffd166,#ff9a8b);color:#2a2140}
+  .eq {background:rgba(255,255,255,.12);color:var(--txt);border:1px solid var(--panel-b)}
+  .now{background:rgba(255,209,102,.22);color:var(--accent);border:1px solid rgba(255,209,102,.5);cursor:default}
+  .no {background:rgba(255,255,255,.05);color:#75708f;cursor:not-allowed}
+
   /* ---------- 플레이 ---------- */
   .hud{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   .pill{
@@ -156,10 +182,12 @@
         <div class="rule"><div class="num">2</div><div><b>10초</b> 안에 <b>스페이스바</b>를 연타해서 껍질을 뿌신다.</div></div>
         <div class="rule"><div class="num">3</div><div>레벨이 오를수록 필요한 <b>연타 횟수가 증가</b>한다.</div></div>
         <div class="rule"><div class="num">4</div><div><b><span class="moveLv">5</span>레벨부터</b> 왁뿌볼이 도망간다! <b>마우스로 꽉 잡은 채로</b> 연타해야 인정된다. 놓치면 오히려 금이 아문다.</div></div>
+        <div class="rule"><div class="num">5</div><div>레벨을 깰 때마다 <b>100점</b>을 번다. 모은 점수로 <b>상점</b>에서 도구를 사면 한 방이 세진다.<br>
+          <span style="opacity:.75;font-size:13px">✊ 맨손 ×1.0 · 🔨 뿅망치 300점 ×1.3 · ⛏️ 돌망치 500점 ×1.6 · 🪓 은도끼 700점 ×2.0 · ✨ 금도끼 1000점 ×2.5</span></div></div>
       </div>
       <p class="sub" style="margin-bottom:16px">목숨 <b style="color:#ff6b81">♥♥♥</b> · 실패하면 같은 레벨을 다시 도전</p>
       <button class="btn" id="btnStart">게임 시작</button>
-      <p class="sub" style="margin-top:12px">최고 기록 · Lv <b id="bestLv">0</b> / <b id="bestSc">0</b>점</p>
+      <p class="sub" style="margin-top:12px">최고 기록 · Lv <b id="bestLv">0</b> · 누적 <b id="bestSc">0</b>점</p>
     </div>
   </section>
 
@@ -190,12 +218,31 @@
     </div>
   </section>
 
+  <!-- ===== 상점 ===== -->
+  <section id="scShop" class="screen">
+    <div class="card">
+      <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+        <div>
+          <h2>🛒 도구 상점</h2>
+          <p class="sub">레벨을 깰 때마다 <b style="color:var(--accent)">100점</b>을 법니다.
+             좋은 도구일수록 한 번 누를 때 더 세게 들어갑니다.</p>
+        </div>
+        <div class="wallet" style="margin-left:auto">보유 <b id="shopCoins">0</b>점</div>
+      </div>
+      <div class="shopGrid" id="shopGrid"></div>
+      <div class="row" style="margin-top:18px">
+        <button class="btn" id="btnNextLv">다음 레벨로 →</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== 2단계 : 뿌시기 ===== -->
   <section id="scPlay" class="screen">
     <div class="card" style="padding:18px">
       <div class="hud">
         <div class="pill">LEVEL <span id="hudLv">1</span></div>
-        <div class="pill">SCORE <span id="hudScore">0</span></div>
+        <div class="pill">💰 <span id="hudCoins">0</span>점</div>
+        <div class="pill" id="hudTool">✊ 맨손</div>
         <div class="pill hearts" id="hudHearts">♥♥♥</div>
         <div class="pill" id="hudMode" style="margin-left:auto">고정형</div>
       </div>
@@ -226,7 +273,7 @@
       <p class="sub" id="overMsg">왁뿌볼이 살아남았다...</p>
       <div class="stats">
         <div class="stat"><b id="stLv">1</b><small>도달 레벨</small></div>
-        <div class="stat"><b id="stSc">0</b><small>점수</small></div>
+        <div class="stat"><b id="stSc">0</b><small>누적 획득</small></div>
         <div class="stat"><b id="stHit">0</b><small>총 연타</small></div>
       </div>
       <div class="row">
@@ -266,7 +313,7 @@ const decayPerSec = lv => lv < MOVE_LEVEL ? 0 : 1.0 + (lv - MOVE_LEVEL) * 0.09;
 
 /* ---------- DOM ---------- */
 const $ = s => document.querySelector(s);
-const screens = { title:$('#scTitle'), craft:$('#scCraft'), play:$('#scPlay'), over:$('#scOver') };
+const screens = { title:$('#scTitle'), craft:$('#scCraft'), shop:$('#scShop'), play:$('#scPlay'), over:$('#scOver') };
 function show(name){ for(const k in screens) screens[k].classList.toggle('on', k===name); }
 
 const cv = $('#game'), ctx = cv.getContext('2d');
@@ -275,8 +322,12 @@ const stage = $('#stage'), overlay = $('#overlay');
 
 /* ---------- 전역 상태 ---------- */
 const S = {
-  scene:'title',        // title | craft | ready | play | breaking | fail
-  level:1, score:0, lives:MAX_LIVES, totalHits:0,
+  scene:'title',        // title | craft | shop | ready | play | breaking | fail
+  level:1, lives:MAX_LIVES, totalHits:0,
+  coins:0,              // 지갑 — 상점에서 쓰면 줄어든다
+  earned:0,             // 누적 획득 — 기록용이라 줄지 않는다
+  owned:['fist'],       // 보유 도구
+  tool:'fist',          // 장착 도구
   colors:[], seed:1,
   hits:0, need:10, timeLeft:TIME_LIMIT,
   grabbed:false, missTime:0,
@@ -392,13 +443,22 @@ function playClip(clip, rate, vol){
  * 녹음 샘플 7종 중 하나를 골라 재생하고, 아직 디코딩 전이면 합성음으로 대체한다.
  * @param p 진행도 0~1 (껍질이 얇아질수록 조금 더 높고 크게 울린다)
  */
-function smashSound(p){
+function smashSound(p, tool){
+  const tr = tool ? tool.rate : 1, tv = tool ? tool.vol : 1;
+  if(tool && tool.id === 'toy'){        // 뿅망치는 장난감답게 "뿅" 소리가 얹힌다
+    const a = ac();
+    if(a){
+      const t0 = a.currentTime;
+      tone(a, t0, { type:'sine', f0: 700, f1: 1500, vol:0.16, dec:0.09, atk:0.004 });
+      tone(a, t0+0.05, { type:'sine', f0: 1500, f1: 620, vol:0.13, dec:0.10, atk:0.004 });
+    }
+  }
   if(sfxBuf){
     let i = Math.floor(Math.random()*SFX_HITS.length);
     if(i === lastClip) i = (i+1) % SFX_HITS.length;   // 같은 소리 연속 방지
     lastClip = i;
-    const rate = 0.94 + Math.random()*0.12 + p*0.10;  // 깨질수록 살짝 높아짐
-    const vol  = 0.55 + p*0.45;                        // 깨질수록 커짐
+    const rate = (0.94 + Math.random()*0.12 + p*0.10) * tr;  // 깨질수록 살짝 높아짐
+    const vol  = (0.55 + p*0.45) * tv;                        // 깨질수록 커짐
     if(playClip(SFX_HITS[i], rate, vol)) return;
   }
   synthSmash(p);
@@ -630,8 +690,26 @@ function drawBall(c, x, y, r, colors, p=0, t=0, cracks=null, grabbed=false){
 }
 
 /* =========================================================
-   내려치는 주먹
+   도구 — 상점에서 사서 왁뿌볼을 내려친다
+   dmg  : 한 번 누를 때 들어가는 타격량 (맨손 1.0 기준)
+   scale: 주먹 크기 대비 그림 크기
+   reach: 원점에서 타격면까지의 거리 (크기 s의 배수)
    ========================================================= */
+const TOOLS = [
+  { id:'fist',   name:'맨손',   icon:'✊', price:0,    dmg:1.0, scale:1.00, reach:0.64,
+    rate:1.00, vol:1.00, desc:'기본 장비. 주먹으로 직접 내려친다.' },
+  { id:'toy',    name:'뿅망치', icon:'🔨', price:300,  dmg:1.3, scale:0.74, reach:1.30,
+    rate:1.14, vol:0.95, desc:'가볍고 경쾌하다. 누를 때마다 뿅 소리가 난다.' },
+  { id:'stone',  name:'돌망치', icon:'⛏️', price:500,  dmg:1.6, scale:0.72, reach:1.20,
+    rate:0.90, vol:1.10, desc:'묵직한 돌덩이. 한 방이 제법 아프다.' },
+  { id:'silver', name:'은도끼', icon:'🪓', price:700,  dmg:2.0, scale:0.70, reach:1.15,
+    rate:0.96, vol:1.15, desc:'날이 선 은도끼. 껍질이 쭉쭉 갈라진다.' },
+  { id:'gold',   name:'금도끼', icon:'✨', price:1000, dmg:2.5, scale:0.70, reach:1.15,
+    rate:0.88, vol:1.22, desc:'정직한 사람만 얻는다는 금도끼. 최강.' },
+];
+const TOOL = {}; TOOLS.forEach(t => TOOL[t.id] = t);
+const LEVEL_REWARD = 100;      // 레벨을 하나 깰 때마다 버는 돈
+
 /** 둥근 사각형 경로 (roundRect 미지원 브라우저 대비) */
 function rr(c,x,y,w,h,r){
   const m = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
@@ -643,71 +721,202 @@ function rr(c,x,y,w,h,r){
   c.lineTo(x,y+m); c.quadraticCurveTo(x,y,x+m,y);
   c.closePath();
 }
+
+const SKIN='#f7c49a', SHADE='#e0a071', LINE='#7d452a', HI='#ffe3c6',
+      SLEEVE='#6f6ae6', SLEEVE2='#514cc9', WOOD='#c98f52', WOOD2='#9a6532', WOODL='#5d3418';
+
+/** 자루를 쥔 손 + 자루 (로컬 좌표: +x가 때리는 쪽) */
+function drawGrip(c, s, woodA, woodB, woodLine){
+  const gx = -1.85*s;
+  c.lineJoin='round'; c.lineCap='round';
+
+  // 소매
+  const sg = c.createLinearGradient(0,-0.66*s,0,0.66*s);
+  sg.addColorStop(0,SLEEVE); sg.addColorStop(1,SLEEVE2);
+  c.fillStyle = sg; c.lineWidth = s*0.075; c.strokeStyle = LINE;
+  rr(c, gx-1.45*s, -0.60*s, 1.30*s, 1.20*s, 0.20*s); c.fill(); c.stroke();
+
+  // 손등
+  const hg = c.createLinearGradient(0,-0.7*s,0,0.7*s);
+  hg.addColorStop(0,HI); hg.addColorStop(0.45,SKIN); hg.addColorStop(1,SHADE);
+  c.fillStyle = hg;
+  rr(c, gx-0.62*s, -0.62*s, 1.24*s, 1.24*s, 0.44*s); c.fill(); c.stroke();
+
+  // 자루
+  const wg = c.createLinearGradient(0,-0.17*s,0,0.17*s);
+  wg.addColorStop(0,woodA); wg.addColorStop(1,woodB);
+  c.fillStyle = wg; c.strokeStyle = woodLine; c.lineWidth = s*0.06;
+  rr(c, -2.95*s, -0.16*s, 3.05*s, 0.32*s, 0.14*s); c.fill(); c.stroke();
+
+  // 자루를 감싼 손가락 세 마디
+  c.strokeStyle = LINE; c.lineWidth = s*0.05;
+  for(let i=0;i<3;i++){
+    c.fillStyle = i%2 ? SKIN : '#fbd0ab';
+    rr(c, gx-0.46*s + i*0.32*s, -0.34*s, 0.26*s, 0.68*s, 0.12*s); c.fill(); c.stroke();
+  }
+  // 엄지
+  c.save();
+  c.translate(gx+0.12*s, 0.40*s); c.rotate(-0.30);
+  c.fillStyle = SKIN; c.lineWidth = s*0.05;
+  rr(c, -0.34*s, -0.19*s, 0.80*s, 0.38*s, 0.19*s); c.fill(); c.stroke();
+  c.restore();
+}
+
 /**
- * 주먹 그리기 — 로컬 좌표에서 +x 방향(주먹등)이 때리는 쪽이다.
- * @param s    주먹 크기
+ * 도끼날 (은/금 공용)
+ * 위아래가 대칭이면 술잔처럼 보인다. 자루 쪽 목을 좁게 잡고
+ * 아래로 수염(beard)이 길게 흘러내리는 비대칭 형태로 그린다.
+ */
+function drawAxeHead(c, s, cA, cB, cLine, sparkle){
+  c.lineJoin='round'; c.lineWidth = s*0.07; c.strokeStyle = cLine;
+
+  // 자루 뒤쪽 머리(poll) — 작게
+  const pg = c.createLinearGradient(0,-0.34*s,0,0.34*s);
+  pg.addColorStop(0,cA); pg.addColorStop(1,cB);
+  c.fillStyle = pg;
+  rr(c, -0.44*s, -0.34*s, 0.52*s, 0.68*s, 0.08*s); c.fill(); c.stroke();
+
+  // 날 — 자루 축을 중심에 두면 술잔이 된다. 아래쪽으로 치우치게 매단다.
+  const bg = c.createLinearGradient(0,-0.7*s, 0.7*s,1.0*s);
+  bg.addColorStop(0,cA); bg.addColorStop(0.42,cB); bg.addColorStop(0.78,cA); bg.addColorStop(1,cB);
+  c.fillStyle = bg;
+  // 뒷면을 자루 높이만큼 곧게 세운다. 목이 잘록하면 종이나 술잔처럼 보인다.
+  c.beginPath();
+  c.moveTo(0.04*s,-0.72*s);
+  c.lineTo(0.82*s,-0.84*s);                             // 위 어깨
+  c.quadraticCurveTo(1.34*s, 0, 0.86*s, 0.86*s);        // 날 — 크게 볼록한 호
+  c.lineTo(0.04*s, 0.74*s);                             // 뒤쪽 아래
+  c.closePath(); c.fill(); c.stroke();
+
+  // 날 끝 광택 — 날을 따라 안쪽으로 한 줄
+  c.save();
+  c.globalAlpha=.75; c.strokeStyle='#fff'; c.lineWidth=s*0.08; c.lineCap='round';
+  c.beginPath();
+  c.moveTo(0.84*s,-0.62*s);
+  c.quadraticCurveTo(1.18*s, 0, 0.86*s, 0.64*s);
+  c.stroke();
+  c.restore();
+
+  // 자루가 박힌 목 부분
+  c.save();
+  c.globalAlpha=.4; c.strokeStyle=cLine; c.lineWidth=s*0.05;
+  c.beginPath(); c.moveTo(0.20*s,-0.55*s); c.lineTo(0.24*s,0.62*s); c.stroke();
+  c.restore();
+
+  if(sparkle){
+    c.save(); c.fillStyle='#fff'; c.globalAlpha=.9;
+    for(const [sx,sy,sr] of [[0.62,-0.42,0.09],[0.80,0.34,0.06],[0.34,0.12,0.05]]){
+      c.beginPath();
+      for(let i=0;i<4;i++){
+        const a=i*Math.PI/2;
+        c.lineTo(sx*s+Math.cos(a)*sr*s*2.6, sy*s+Math.sin(a)*sr*s*2.6);
+        c.lineTo(sx*s+Math.cos(a+Math.PI/4)*sr*s*0.7, sy*s+Math.sin(a+Math.PI/4)*sr*s*0.7);
+      }
+      c.closePath(); c.fill();
+    }
+    c.restore();
+  }
+}
+
+/** 도구별 그림 (로컬 좌표: +x가 때리는 쪽) */
+const TOOL_ART = {
+  fist(c,s){
+    c.lineJoin='round'; c.lineCap='round';
+    c.lineWidth = s*0.075; c.strokeStyle = LINE;
+    // 그림자
+    c.save(); c.globalAlpha=.22; c.fillStyle='#000';
+    rr(c, -1.5*s, -0.48*s, 2.2*s, 1.3*s, 0.55*s); c.fill(); c.restore();
+    // 소매
+    const sg = c.createLinearGradient(0,-0.7*s,0,0.7*s);
+    sg.addColorStop(0,SLEEVE); sg.addColorStop(1,SLEEVE2);
+    c.fillStyle = sg;
+    rr(c, -2.6*s, -0.60*s, 1.5*s, 1.20*s, 0.20*s); c.fill(); c.stroke();
+    c.fillStyle = SLEEVE2;
+    rr(c, -1.34*s, -0.64*s, 0.34*s, 1.28*s, 0.14*s); c.fill(); c.stroke();
+    // 주먹 몸통
+    const hg = c.createLinearGradient(0,-0.8*s,0,0.8*s);
+    hg.addColorStop(0,HI); hg.addColorStop(0.45,SKIN); hg.addColorStop(1,SHADE);
+    c.fillStyle = hg;
+    rr(c, -1.15*s, -0.70*s, 1.75*s, 1.40*s, 0.52*s); c.fill(); c.stroke();
+    // 접힌 손가락 네 마디
+    c.lineWidth = s*0.05;
+    for(let i=0;i<4;i++){
+      c.fillStyle = i%2 ? SKIN : '#fbd0ab';
+      rr(c, 0.04*s, -0.58*s + i*0.31*s, 0.60*s, 0.28*s, 0.13*s); c.fill(); c.stroke();
+    }
+    c.save(); c.globalAlpha=.35; c.strokeStyle=LINE; c.lineWidth=s*0.04;
+    c.beginPath(); c.moveTo(0.05*s,-0.55*s); c.lineTo(0.05*s,0.55*s); c.stroke(); c.restore();
+    // 엄지
+    c.save(); c.translate(-0.10*s, 0.40*s); c.rotate(-0.30);
+    c.fillStyle = SKIN; c.lineWidth = s*0.055;
+    rr(c, -0.30*s, -0.24*s, 1.02*s, 0.48*s, 0.24*s); c.fill(); c.stroke(); c.restore();
+    // 하이라이트
+    c.save(); c.globalAlpha=.5; c.fillStyle='#fff';
+    c.beginPath(); c.ellipse(-0.45*s,-0.40*s, 0.34*s, 0.15*s, -0.25, 0, Math.PI*2); c.fill(); c.restore();
+  },
+
+  toy(c,s){
+    drawGrip(c, s, '#7ad7ff', '#3aa8e0', '#1d6f9c');
+    // 말랑한 원통 머리
+    c.lineWidth = s*0.075; c.strokeStyle = '#a81d47'; c.lineJoin='round';
+    const g = c.createLinearGradient(0,-1.0*s,0,1.0*s);
+    g.addColorStop(0,'#ff8fb5'); g.addColorStop(0.5,'#ff4d84'); g.addColorStop(1,'#d92a63');
+    c.fillStyle = g;
+    rr(c, -0.30*s, -0.98*s, 1.55*s, 1.96*s, 0.58*s); c.fill(); c.stroke();
+    // 주름 밴드 두 줄
+    c.save(); c.globalAlpha=.30; c.fillStyle='#fff';
+    rr(c, 0.06*s, -0.92*s, 0.17*s, 1.84*s, 0.08*s); c.fill();
+    rr(c, 0.62*s, -0.92*s, 0.17*s, 1.84*s, 0.08*s); c.fill();
+    c.restore();
+    // 광택
+    c.save(); c.globalAlpha=.6; c.fillStyle='#fff';
+    c.beginPath(); c.ellipse(0.35*s,-0.55*s, 0.34*s, 0.17*s, -0.2, 0, Math.PI*2); c.fill(); c.restore();
+  },
+
+  stone(c,s){
+    drawGrip(c, s, WOOD, WOOD2, WOODL);
+    c.lineWidth = s*0.075; c.strokeStyle = '#42454e'; c.lineJoin='round';
+    const g = c.createLinearGradient(0,-0.9*s,0,0.9*s);
+    g.addColorStop(0,'#c6c9d3'); g.addColorStop(0.5,'#9aa0ad'); g.addColorStop(1,'#6d7280');
+    c.fillStyle = g;
+    // 살짝 찌그러진 돌덩이
+    c.beginPath();
+    c.moveTo(-0.34*s,-0.72*s);
+    c.lineTo(0.95*s,-0.86*s);
+    c.quadraticCurveTo(1.22*s,-0.30*s, 1.18*s, 0.34*s);
+    c.lineTo(0.88*s, 0.84*s);
+    c.lineTo(-0.34*s, 0.70*s);
+    c.closePath(); c.fill(); c.stroke();
+    // 깨진 자국
+    c.save(); c.globalAlpha=.5; c.fillStyle='#5f636f';
+    for(const [px,py,pr] of [[0.15,-0.30,0.13],[0.55,0.25,0.10],[0.75,-0.45,0.08],[0.30,0.50,0.07]]){
+      c.beginPath(); c.arc(px*s,py*s,pr*s,0,Math.PI*2); c.fill();
+    }
+    c.restore();
+    c.save(); c.globalAlpha=.45; c.fillStyle='#fff';
+    c.beginPath(); c.ellipse(0.25*s,-0.52*s, 0.30*s, 0.10*s, -0.1, 0, Math.PI*2); c.fill(); c.restore();
+  },
+
+  silver(c,s){ drawGrip(c, s, WOOD, WOOD2, WOODL); drawAxeHead(c, s, '#f2f6fb', '#9aa6b8', '#5b6474', false); },
+  gold(c,s){   drawGrip(c, s, WOOD, WOOD2, WOODL); drawAxeHead(c, s, '#fff0a8', '#e0a02a', '#9c6c10', true); },
+};
+
+/**
+ * 장착한 도구를 그린다.
+ * @param s    크기
  * @param ang  때리는 방향
  * @param hit  충격량 0~1 (맞는 순간 살짝 눌린다)
- * @param flip 왼쪽에서 때릴 때 -1 — 회전만 하면 엄지가 위로 뒤집혀 보이므로 상하로 미러링한다
+ * @param flip 왼쪽에서 때릴 때 -1 — 회전만 하면 손이 뒤집혀 보이므로 상하로 미러링한다
  */
-function drawFist(c, x, y, s, ang, hit, flip){
-  const SKIN='#f7c49a', SHADE='#e0a071', LINE='#7d452a', HI='#ffe3c6', SLEEVE='#6f6ae6', SLEEVE2='#514cc9';
+function drawTool(c, x, y, s, ang, hit, flip, id){
   c.save();
   c.translate(x,y);
   c.rotate(ang);
-  c.scale(1 - hit*0.13, (1 + hit*0.11) * (flip || 1));   // 부딪히는 순간 앞뒤로 눌림
-  c.lineJoin='round'; c.lineCap='round';
-  c.lineWidth = s*0.075; c.strokeStyle = LINE;
-
-  // 그림자
-  c.save();
-  c.globalAlpha=.22; c.fillStyle='#000';
-  rr(c, -1.5*s, -0.62*s+s*0.14, 2.2*s, 1.3*s, 0.55*s); c.fill();
-  c.restore();
-
-  // 소매
-  const sg = c.createLinearGradient(0,-0.7*s,0,0.7*s);
-  sg.addColorStop(0,SLEEVE); sg.addColorStop(1,SLEEVE2);
-  c.fillStyle = sg;
-  rr(c, -2.6*s, -0.60*s, 1.5*s, 1.20*s, 0.20*s); c.fill(); c.stroke();
-  // 소맷단
-  c.fillStyle = SLEEVE2;
-  rr(c, -1.34*s, -0.64*s, 0.34*s, 1.28*s, 0.14*s); c.fill(); c.stroke();
-
-  // 주먹 몸통
-  const hg = c.createLinearGradient(0,-0.8*s,0,0.8*s);
-  hg.addColorStop(0,HI); hg.addColorStop(0.45,SKIN); hg.addColorStop(1,SHADE);
-  c.fillStyle = hg;
-  rr(c, -1.15*s, -0.70*s, 1.75*s, 1.40*s, 0.52*s); c.fill(); c.stroke();
-
-  // 접힌 손가락 네 마디
-  c.lineWidth = s*0.05;
-  for(let i=0;i<4;i++){
-    const fy = -0.58*s + i*0.31*s;
-    c.fillStyle = i%2 ? SKIN : '#fbd0ab';
-    rr(c, 0.04*s, fy, 0.60*s, 0.28*s, 0.13*s); c.fill(); c.stroke();
-  }
-  // 주먹등 능선
-  c.save();
-  c.globalAlpha=.35; c.strokeStyle=LINE; c.lineWidth=s*0.04;
-  c.beginPath(); c.moveTo(0.05*s,-0.55*s); c.lineTo(0.05*s,0.55*s); c.stroke();
-  c.restore();
-
-  // 엄지
-  c.save();
-  c.translate(-0.10*s, 0.40*s); c.rotate(-0.30);
-  c.fillStyle = SKIN; c.lineWidth = s*0.055;
-  rr(c, -0.30*s, -0.24*s, 1.02*s, 0.48*s, 0.24*s); c.fill(); c.stroke();
-  c.restore();
-
-  // 하이라이트
-  c.save();
-  c.globalAlpha=.5; c.fillStyle='#fff';
-  c.beginPath(); c.ellipse(-0.45*s,-0.40*s, 0.34*s, 0.15*s, -0.25, 0, Math.PI*2); c.fill();
-  c.restore();
-
+  c.scale(1 - hit*0.13, (1 + hit*0.11) * (flip || 1));
+  (TOOL_ART[id] || TOOL_ART.fist)(c, s);
   c.restore();
 }
+
 
 /* =========================================================
    1단계 — 색 고르기
@@ -802,8 +1011,11 @@ function startLevel(){
   particles = [];
 
   const moving = S.level >= MOVE_LEVEL;
+  const tl = TOOL[S.tool] || TOOL.fist;
+  const presses = Math.ceil(S.need / tl.dmg);      // 지금 도구로 실제 눌러야 하는 횟수
   $('#hudLv').textContent = S.level;
-  $('#hudScore').textContent = S.score;
+  $('#hudCoins').textContent = S.coins;
+  $('#hudTool').textContent = tl.icon + ' ' + tl.name;
   $('#hudHearts').innerHTML = '♥'.repeat(S.lives) + '<span style="opacity:.25">♥</span>'.repeat(MAX_LIVES-S.lives);
   $('#hudMode').textContent = moving ? '🏃 이동형 Lv'+S.level : '고정형';
   $('#hudMode').style.color = moving ? '#ff6b81' : '';
@@ -814,7 +1026,8 @@ function startLevel(){
 
   overlay.classList.remove('hidden');
   $('#ovBig').textContent = 'LEVEL ' + S.level;
-  $('#ovSmall').innerHTML = '10초 안에 <b>' + S.need + '번</b> 연타!' +
+  $('#ovSmall').innerHTML = '10초 안에 <b>' + presses + '번</b> 연타!' +
+      ' <span style="opacity:.7">(' + tl.icon + ' ' + tl.name + ' · 한 방 ×' + tl.dmg.toFixed(1) + ')</span>' +
       (moving ? '<br>왁뿌볼이 도망칩니다 — 마우스로 잡으세요!' : '') +
       '<br><br>스페이스바(또는 클릭)로 시작';
   S.scene = 'ready';
@@ -844,7 +1057,8 @@ function hit(){
     return;
   }
 
-  S.hits++; S.totalHits++;
+  S.hits += (TOOL[S.tool] || TOOL.fist).dmg;   // 좋은 도구일수록 한 방이 세다
+  S.totalHits++;
   ball.squash = 1;
   ball.struggle = 1;
   ball.knock = 1;
@@ -855,7 +1069,7 @@ function hit(){
   hand.t = 1;
   stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
   const prog = clamp(S.hits / S.need, 0, 1);
-  smashSound(prog);                    // 누를 때마다 실제 부수는 타격음
+  smashSound(prog, TOOL[S.tool]);      // 누를 때마다 실제 부수는 타격음
 
   // 파편 튀기기
   for(let i=0;i<4;i++){
@@ -886,11 +1100,11 @@ function doBreak(){
       col: Math.random()<.28 ? '#ffffff' : S.colors[Math.floor(Math.random()*S.colors.length)]
     });
   }
-  const gain = S.level*100 + Math.round(S.timeLeft*20);
-  S.score += gain;
-  $('#hudScore').textContent = S.score;
+  S.coins  += LEVEL_REWARD;
+  S.earned += LEVEL_REWARD;
+  $('#hudCoins').textContent = S.coins;
   $('#hint').className = 'hint';
-  $('#hint').innerHTML = '<b>뿌셨다!</b> +' + gain + '점';
+  $('#hint').innerHTML = '<b>뿌셨다!</b> +' + LEVEL_REWARD + '점';
 }
 
 function levelCleared(){
@@ -899,8 +1113,9 @@ function levelCleared(){
   S.level++;
   overlay.classList.remove('hidden');
   $('#ovBig').textContent = 'CLEAR!';
-  $('#ovSmall').innerHTML = '다음 왁뿌볼을 만들어 볼까요?<br><br><span style="opacity:.7">잠시 후 색상표로 이동</span>';
-  setTimeout(()=>{ gotoCraft(); }, 900);
+  $('#ovSmall').innerHTML = '+' + LEVEL_REWARD + '점을 벌었다! (보유 ' + S.coins + '점)' +
+      '<br><br><span style="opacity:.7">잠시 후 상점으로 이동</span>';
+  setTimeout(()=>{ gotoShop(); }, 1100);
 }
 
 function fail(){
@@ -918,10 +1133,10 @@ function fail(){
 function gameOver(){
   cancelAnimationFrame(rafId); rafId = 0;
   if(S.level > best.lv){ best.lv = S.level; localStorage.setItem('wakppu_bestLv', best.lv); }
-  if(S.score > best.sc){ best.sc = S.score; localStorage.setItem('wakppu_bestSc', best.sc); }
+  if(S.earned > best.sc){ best.sc = S.earned; localStorage.setItem('wakppu_bestSc', best.sc); }
   $('#bestLv').textContent = best.lv; $('#bestSc').textContent = best.sc;
   $('#stLv').textContent = S.level;
-  $('#stSc').textContent = S.score;
+  $('#stSc').textContent = S.earned;
   $('#stHit').textContent = S.totalHits;
   $('#overMsg').textContent = S.level >= MOVE_LEVEL
       ? '도망다니는 왁뿌볼한테 결국 지고 말았다...'
@@ -1083,16 +1298,17 @@ function render(t){
     ctx.restore();
   }
 
-  // ---- 내려치는 주먹 ----
+  // ---- 내려치는 도구 ----
   if(hand.t > 0 && S.scene !== 'ready'){
-    const u  = 1 - hand.t;                       // 0 = 때리는 순간, 1 = 다 올라감
-    const fs = clamp(ball.r*0.62, 46, 108);      // 공이 작아지면 주먹도 작아진다
-    const contact = ball.r + fs*0.42;
-    const back    = (ball.r + fs) * 1.15;        // 되돌아가는 거리
+    const tl = TOOL[S.tool] || TOOL.fist;
+    const u  = 1 - hand.t;                              // 0 = 때리는 순간, 1 = 다 올라감
+    const fs = clamp(ball.r*0.62, 46, 108) * tl.scale;  // 공이 작아지면 도구도 작아진다
+    const contact = ball.r*0.93 + fs*tl.reach;          // 타격면이 껍질에 닿는 거리
+    const back    = (ball.r + fs) * 1.15;               // 되돌아가는 거리
     const d  = contact + back * (1 - Math.pow(1-u, 3));
     const hx = ball.x + ux*d, hy = ball.y + uy*d;
 
-    drawFist(ctx, hx, hy, fs, hand.ang + Math.PI, clamp(1 - u*3.2, 0, 1), hand.side > 0 ? 1 : -1);
+    drawTool(ctx, hx, hy, fs, hand.ang + Math.PI, clamp(1 - u*3.2, 0, 1), hand.side > 0 ? 1 : -1, tl.id);
 
     // 충격 이펙트 — 주먹 위에 그려야 가려지지 않는다. 맞은 자리에서 사방으로 튄다.
     if(u < 0.5){
@@ -1126,6 +1342,69 @@ function render(t){
 }
 
 /* =========================================================
+   상점
+   ========================================================= */
+/** 카드 안에 도구 그림을 그린다 */
+function drawToolIcon(cv2, id){
+  const c = cv2.getContext('2d');
+  const w = cv2.width, h = cv2.height;
+  c.clearRect(0,0,w,h);
+  const t = TOOL[id];
+  const s = (id === 'fist') ? 30 : 26;
+  // 자루까지 다 들어오도록 오른쪽에 치우쳐 그린다
+  c.save();
+  c.translate(w*0.70, h*0.52);
+  c.rotate(-0.42);
+  c.scale(1,1);
+  (TOOL_ART[id] || TOOL_ART.fist)(c, s * (id==='fist' ? 1 : 1.05));
+  c.restore();
+}
+
+function renderShop(){
+  $('#shopCoins').textContent = S.coins;
+  const grid = $('#shopGrid');
+  grid.innerHTML = '';
+  for(const t of TOOLS){
+    const owned = S.owned.includes(t.id);
+    const on = S.tool === t.id;
+    const el = document.createElement('div');
+    el.className = 'shop' + (on ? ' on' : owned ? ' own' : '');
+    const cvs = document.createElement('canvas');
+    cvs.width = 208; cvs.height = 148;      // 2배 해상도
+    cvs.style.width = '104px'; cvs.style.height = '74px';
+    el.appendChild(cvs);
+    const info = document.createElement('div');
+    info.innerHTML = `<div class="nm">${t.name}</div>
+      <div class="dm">타격력 ×${t.dmg.toFixed(1)}</div>
+      <div class="ds">${t.desc}</div>`;
+    el.appendChild(info);
+    const b = document.createElement('button');
+    if(on){        b.className='now'; b.textContent='장착중'; b.disabled = true; }
+    else if(owned){b.className='eq';  b.textContent='장착하기'; b.onclick = ()=>{ S.tool=t.id; beep(700,.09,'sine',.06,180); renderShop(); }; }
+    else if(S.coins >= t.price){
+      b.className='buy'; b.textContent=`${t.price}점에 사기`;
+      b.onclick = ()=>{
+        if(S.coins < t.price) return;         // 연타 방어
+        S.coins -= t.price; S.owned.push(t.id); S.tool = t.id;
+        beep(520,.09,'sine',.07,260); setTimeout(()=>beep(880,.12,'sine',.07,180), 90);
+        renderShop();
+      };
+    }
+    else{ b.className='no'; b.textContent=`🔒 ${t.price}점 · ${t.price-S.coins} 부족`; b.disabled = true; }
+    el.appendChild(b);
+    grid.appendChild(el);
+    drawToolIcon(cvs, t.id);
+  }
+}
+function gotoShop(){
+  S.scene = 'shop';
+  if(rafId){ cancelAnimationFrame(rafId); rafId = 0; }
+  renderShop();
+  show('shop');
+}
+$('#btnNextLv').addEventListener('click', ()=> gotoCraft());
+
+/* =========================================================
    화면 흐름
    ========================================================= */
 function gotoCraft(){
@@ -1142,7 +1421,8 @@ function gotoCraft(){
 
 $('#btnStart').addEventListener('click', ()=>{
   ac(); loadSfx(); beep(760,.1,'sine',.07,240);
-  S.level=1; S.score=0; S.lives=MAX_LIVES; S.totalHits=0;
+  S.level=1; S.lives=MAX_LIVES; S.totalHits=0;
+  S.coins=0; S.earned=0; S.owned=['fist']; S.tool='fist';
   picked = [];
   gotoCraft();
 });
@@ -1153,7 +1433,8 @@ $('#btnMake').addEventListener('click', ()=>{
   startLevel();
 });
 $('#btnRetry').addEventListener('click', ()=>{
-  S.level=1; S.score=0; S.lives=MAX_LIVES; S.totalHits=0;
+  S.level=1; S.lives=MAX_LIVES; S.totalHits=0;
+  S.coins=0; S.earned=0; S.owned=['fist']; S.tool='fist';
   gotoCraft();
 });
 $('#btnHome').addEventListener('click', ()=> show('title'));
