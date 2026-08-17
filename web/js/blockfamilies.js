@@ -340,7 +340,8 @@ defBlock('bedrock', '기반암', {
 defBlock('water', '물', {
   tex: { all: tex('water', { kind: 'water' }) },
   render: RENDER_LIQUID, solid: false, opaque: false, liquid: true, filter: 2,
-  hardness: -1, drop: null, placeOnly: true, seeThrough: true, group: 'nature'
+  hardness: -1, drop: null, placeOnly: true, seeThrough: true, translucent: true,
+  group: 'nature'
 });
 defBlock('lava', '용암', {
   tex: { all: tex('lava', { kind: 'lava' }) },

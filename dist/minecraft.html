@@ -481,6 +481,15 @@ body.touch .hand { display: none !important; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.file-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13px; color: #9fb0c8; }
+.file-row span { white-space: nowrap; }
+.file-row input[type=file] { flex: 1; min-width: 0; font-size: 12px; color: #9fb0c8; }
+.file-row input[type=file]::file-selector-button {
+  padding: 7px 12px; margin-right: 8px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 5px;
+  background: #26314a; color: #fff; font-size: 12px;
+}
+
 </style>
 </head>
 <body>
@@ -519,6 +528,11 @@ body.touch .hand { display: none !important; }
       <button id="btn-continue" type="button">이어하기</button>
     </div>
 
+    <label class="file-row">
+      <span>세계 파일 열기</span>
+      <input id="file-input" type="file" accept=".json,application/json">
+    </label>
+
     <div class="modes">
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
       <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
@@ -535,6 +549,7 @@ body.touch .hand { display: none !important; }
           <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>C</b> 전체 아이템 목록(창작)</li>
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장)</li>
+          <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
         <ul>
@@ -1253,7 +1268,8 @@ defBlock('bedrock', '기반암', {
 defBlock('water', '물', {
   tex: { all: tex('water', { kind: 'water' }) },
   render: RENDER_LIQUID, solid: false, opaque: false, liquid: true, filter: 2,
-  hardness: -1, drop: null, placeOnly: true, seeThrough: true, group: 'nature'
+  hardness: -1, drop: null, placeOnly: true, seeThrough: true, translucent: true,
+  group: 'nature'
 });
 defBlock('lava', '용암', {
   tex: { all: tex('lava', { kind: 'lava' }) },
@@ -5383,6 +5399,8 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
   this.updateLightingAt(x, y, z, old, id);
   this.markDirtyAround(x, y, z);
   this.blockUpdateAround(x, y, z);
+  // 이 칸이 바뀌었으니 주변 유체가 다시 흐를지 판단하게 한다
+  if (this.scheduleFluidAround) this.scheduleFluidAround(x, y, z);
 };
 
 World.prototype.markDirtyAround = function (x, y, z) {
@@ -5795,12 +5813,14 @@ World.prototype.blockUpdate = function (x, y, z) {
   const d = blockDef(id);
 
   if (d.gravity) {
-    let ny = y;
-    while (ny > 1 && this.getBlock(x, ny - 1, z) === 0) ny--;
-    if (ny !== y) {
+    const below = this.getBlock(x, y - 1, z);
+    const bd = blockDef(below);
+    // 아래가 비었거나 유체면 낙하 엔티티가 되어 실제로 떨어진다
+    if (below === 0 || bd.liquid || (!bd.solid && bd.render !== RENDER_CUBE)) {
       const m = this.getMeta(x, y, z);
       this.setBlock(x, y, z, 0);
-      this.setBlock(x, ny, z, id, m);
+      if (this.onFallingBlock) this.onFallingBlock(x, y, z, id, m);
+      else this.setBlock(x, Math.max(1, y - 1), z, id, m);
     }
     return;
   }
@@ -5944,7 +5964,9 @@ World.prototype.buildMesh = function (c) {
         if (d.render === RENDER_CROSS) {
           this.emitCross(_mv, _mi, wx, y, wz, d);
         } else if (d.render === RENDER_LIQUID) {
-          this.emitCube(_wv, _wi, wx, y, wz, id, d, true);
+          // 용암은 스스로 빛나므로 불투명 패스, 물은 반투명 패스
+          if (d.translucent) this.emitLiquid(_wv, _wi, wx, y, wz, id, d);
+          else this.emitLiquid(_mv, _mi, wx, y, wz, id, d);
         } else if (d.render === RENDER_BOXES) {
           if (d.translucent) this.emitBoxes(_wv, _wi, wx, y, wz, id, d, meta);
           else this.emitBoxes(_mv, _mi, wx, y, wz, id, d, meta);
@@ -6016,6 +6038,58 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
       if (cnt === 0) { skySum = this.getSky(nx, ny, nz); blkSum = this.getBlockLight(nx, ny, nz); cnt = 1; }
 
       pushVertex(varr, px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao);
+    }
+    iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+};
+
+// 유체: 단계에 따라 수면 높이가 달라지고, 꼭짓점 높이를 평균해 자연스럽게 기울어진다
+World.prototype.emitLiquid = function (varr, iarr, wx, wy, wz, id, d) {
+  const h00 = this.fluidCornerHeight(wx, wy, wz, 0, 0, id);
+  const h10 = this.fluidCornerHeight(wx, wy, wz, 1, 0, id);
+  const h11 = this.fluidCornerHeight(wx, wy, wz, 1, 1, id);
+  const h01 = this.fluidCornerHeight(wx, wy, wz, 0, 1, id);
+
+  function cornerH(px, pz) {
+    if (pz < 0.5) return px < 0.5 ? h00 : h10;
+    return px < 0.5 ? h01 : h11;
+  }
+
+  for (let f = 0; f < 6; f++) {
+    const face = FACES[f];
+    const nx = wx + face.normal[0], ny = wy + face.normal[1], nz = wz + face.normal[2];
+    const nid = this.getBlock(nx, ny, nz);
+    if (nid === id) continue;
+    if (blockDef(nid).opaque) continue;
+
+    const t = texUV(blockTexName(id, f));
+    const shadeF = FACE_SHADE[f];
+    const base = varr.length / 8;
+
+    const skyL = this.getSky(nx, ny, nz) / 15;
+    const blkL = Math.max(this.getBlockLight(nx, ny, nz), d.light) / 15;
+
+    for (let ci = 0; ci < 4; ci++) {
+      const tu = (ci === 1 || ci === 2) ? 1 : 0;
+      const tv = (ci === 2 || ci === 3) ? 1 : 0;
+      const ux = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
+      let uy = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
+      const uz = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
+      let fu = tu, fv = tv;
+
+      if (uy > 0.999) {
+        uy = cornerH(ux, uz);
+        // 세로축에 해당하는 텍스처 좌표를 실제 높이에 맞춘다
+        if (face.uAxis === 1) fu = uy;
+        else if (face.vAxis === 1) fv = uy;
+      }
+
+      const uvp = face.uv(fu, fv);
+      pushVertex(varr,
+        wx + ux, wy + uy, wz + uz,
+        t.u0 + (t.u1 - t.u0) * uvp[0],
+        t.v0 + (t.v1 - t.v0) * uvp[1],
+        skyL, blkL, shadeF);
     }
     iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -6168,6 +6242,376 @@ World.prototype.raycast = function (ox, oy, oz, dx, dy, dz, maxDist, liquidToo) 
 };
 
 const FACE_OFFSET = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+
+</script>
+<script>
+/* ==== js/fluids.js ==== */
+// fluids.js - 유체 물리. 물과 용암이 실제로 퍼지고, 떨어지고, 마르고, 서로 반응한다.
+//
+// 원본 마인크래프트와 같은 방식:
+//  - 수원(level 0)에서 시작해 옆으로 퍼질 때마다 단계가 1 내려가고 7이 되면 멈춘다 (물은 7칸)
+//  - 용암은 단계가 2씩 내려가므로 3칸만 퍼진다
+//  - 아래가 비어 있으면 먼저 떨어지고, 떨어지는 물은 다시 수원처럼 옆으로 퍼진다
+//  - 옆으로 퍼질 때는 '가장 가까운 구멍' 방향을 먼저 고른다 (그래서 물이 낭떠러지로 흘러간다)
+//  - 수원을 없애면 단계가 하나씩 올라가며 저절로 마른다
+//  - 수원 2개가 붙어 있으면 사이의 흐르는 물이 새 수원이 된다 (무한 물)
+'use strict';
+
+const FLUID_TICK = 0.05;                 // 1틱 = 0.05초 (원본과 동일)
+const MAX_FLUID_LEVEL = 7;
+const META_FLUID_LEVEL = 0x07;           // 유체는 메타의 하위 3비트를 단계로 쓴다
+const META_FLUID_FALLING = 0x08;         // 떨어지는 중
+const FLUID_UPDATES_PER_TICK = 200;      // 한 틱에 처리할 최대 갱신 수 (프레임 보호)
+const FLUID_SEARCH_RANGE = 5;            // 구멍 찾기 최대 거리
+
+const HORIZ = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+// 유체별 성질 (블록이 모두 정의된 뒤에 채운다)
+const FLUID_CONFIG = {};
+
+function initFluidConfig() {
+  FLUID_CONFIG[B.water] = { delay: 5, decay: 1, infinite: true, name: 'water' };
+  FLUID_CONFIG[B.lava] = { delay: 30, decay: 2, infinite: false, name: 'lava' };
+}
+
+// 물에 닿으면 굳는 콘크리트 가루
+const POWDER_TO_CONCRETE = {};
+function initPowderMap() {
+  DYE_COLORS.forEach(function (c) {
+    POWDER_TO_CONCRETE[B[c[0] + '_concrete_powder']] = B[c[0] + '_concrete'];
+  });
+}
+
+// ── 상태 ──────────────────────────────────────────────────────────────
+World.prototype.initFluids = function () {
+  this._fluidQueue = [];       // {x, y, z, due, key}
+  this._fluidPending = new Set();
+  this.fluidTick = 0;
+  this._fluidAccum = 0;
+};
+
+World.prototype.scheduleFluid = function (x, y, z, delay) {
+  if (y < 0 || y >= CHUNK_Y) return;
+  if (!this._fluidQueue) this.initFluids();
+  const key = x + ',' + y + ',' + z;
+  if (this._fluidPending.has(key)) return;
+  this._fluidPending.add(key);
+  this._fluidQueue.push({ x: x, y: y, z: z, due: this.fluidTick + (delay || 1), key: key });
+};
+
+// 어떤 칸이 바뀌었을 때 그 칸과 이웃 유체를 다시 살펴보게 만든다
+World.prototype.scheduleFluidAround = function (x, y, z) {
+  const self = this;
+  function maybe(px, py, pz) {
+    const id = self.getBlock(px, py, pz);
+    if (id !== 0 && FLUID_CONFIG[id]) self.scheduleFluid(px, py, pz, FLUID_CONFIG[id].delay);
+  }
+  maybe(x, y, z);
+  maybe(x + 1, y, z); maybe(x - 1, y, z);
+  maybe(x, y + 1, z); maybe(x, y - 1, z);
+  maybe(x, y, z + 1); maybe(x, y, z - 1);
+  // 위쪽으로 몇 칸은 더 살펴본다 (물기둥 아래를 파면 위 물이 다시 흘러야 한다)
+  for (let k = 2; k <= 3; k++) maybe(x, y + k, z);
+};
+
+// ── 조회 ──────────────────────────────────────────────────────────────
+World.prototype.isFluid = function (id) { return !!FLUID_CONFIG[id]; };
+
+World.prototype.fluidLevel = function (x, y, z) {
+  return this.getMeta(x, y, z) & META_FLUID_LEVEL;
+};
+
+World.prototype.isFluidFalling = function (x, y, z) {
+  return (this.getMeta(x, y, z) & META_FLUID_FALLING) !== 0;
+};
+
+// 유체가 이 칸을 차지할 수 있는가
+World.prototype.fluidCanReplace = function (x, y, z, id) {
+  if (y < 0 || y >= CHUNK_Y) return false;
+  const t = this.getBlock(x, y, z);
+  if (t === 0) return true;
+  if (t === id) return false;                 // 같은 유체는 따로 판단한다
+  const d = blockDef(t);
+  if (FLUID_CONFIG[t]) return false;          // 다른 유체는 반응으로 처리
+  // 풀·꽃·횃불·카펫·레일처럼 얇고 단단하지 않은 블록은 물에 씻겨 나간다
+  if (!d.solid && d.render !== RENDER_CUBE) return true;
+  if (d.render === RENDER_CROSS) return true;
+  return false;
+};
+
+// 씻겨 나가는 블록은 아이템을 떨어뜨린다
+World.prototype.fluidWashAway = function (x, y, z) {
+  const t = this.getBlock(x, y, z);
+  if (t === 0) return;
+  const d = blockDef(t);
+  if (d.drop && this.onBlockDrop) this.onBlockDrop(x, y, z, t);
+};
+
+// ── 갱신 루프 ─────────────────────────────────────────────────────────
+World.prototype.updateFluids = function (dt) {
+  if (!this._fluidQueue) this.initFluids();
+  this._fluidAccum += dt;
+  let ticks = 0;
+  while (this._fluidAccum >= FLUID_TICK && ticks < 4) {   // 한 프레임에 최대 4틱
+    this._fluidAccum -= FLUID_TICK;
+    this.fluidTick++;
+    this.runFluidTick();
+    ticks++;
+  }
+  if (this._fluidAccum > 0.5) this._fluidAccum = 0;       // 탭 전환 후 몰아치기 방지
+};
+
+World.prototype.runFluidTick = function () {
+  const q = this._fluidQueue;
+  if (!q.length) return;
+
+  const due = [];
+  const keep = [];
+  for (let i = 0; i < q.length; i++) {
+    if (q[i].due <= this.fluidTick && due.length < FLUID_UPDATES_PER_TICK) due.push(q[i]);
+    else keep.push(q[i]);
+  }
+  this._fluidQueue = keep;
+
+  for (let i = 0; i < due.length; i++) {
+    this._fluidPending.delete(due[i].key);
+    this.fluidUpdate(due[i].x, due[i].y, due[i].z);
+  }
+};
+
+// 한 칸의 유체를 다시 계산한다
+World.prototype.fluidUpdate = function (x, y, z) {
+  const id = this.getBlock(x, y, z);
+  const cfg = FLUID_CONFIG[id];
+  if (!cfg) return;
+
+  const meta = this.getMeta(x, y, z);
+  let level = meta & META_FLUID_LEVEL;
+  let falling = (meta & META_FLUID_FALLING) !== 0;
+  const wasSource = (level === 0 && !falling);
+
+  // 1) 다른 유체와 만났는지 확인
+  if (this.fluidReact(x, y, z, id, level)) return;
+
+  // 2) 수원이 아니면 주변에서 받는 단계를 다시 계산한다
+  if (!wasSource) {
+    let newLevel = MAX_FLUID_LEVEL + 1;
+    let newFalling = false;
+
+    // 위에서 떨어지는 유체가 있으면 그 칸은 '떨어지는 유체'가 된다
+    if (this.getBlock(x, y + 1, z) === id) {
+      newLevel = 0;
+      newFalling = true;
+    } else {
+      let sourceCount = 0;
+      for (let i = 0; i < 4; i++) {
+        const nx = x + HORIZ[i][0], nz = z + HORIZ[i][1];
+        if (this.getBlock(nx, y, nz) !== id) continue;
+        const nMeta = this.getMeta(nx, y, nz);
+        const nFalling = (nMeta & META_FLUID_FALLING) !== 0;
+        const nLevel = nFalling ? 0 : (nMeta & META_FLUID_LEVEL);
+        if (nLevel === 0 && !nFalling) sourceCount++;
+        const candidate = nLevel + cfg.decay;
+        if (candidate < newLevel) newLevel = candidate;
+      }
+      // 무한 물: 수원 2개가 붙어 있으면 새 수원이 된다
+      if (cfg.infinite && sourceCount >= 2) newLevel = 0;
+    }
+
+    if (newLevel > MAX_FLUID_LEVEL) {
+      // 더 이상 공급이 없다 → 마른다
+      this.setBlock(x, y, z, 0);
+      this.scheduleFluidAround(x, y, z);
+      return;
+    }
+    if (newLevel !== level || newFalling !== falling) {
+      level = newLevel;
+      falling = newFalling;
+      this.setFluidMeta(x, y, z, level | (falling ? META_FLUID_FALLING : 0));
+      // 내 단계가 바뀌면 이웃도 다시 판단해야 한다 (마르는 흐름이 번져 나간다)
+      this.scheduleFluidAround(x, y, z);
+    }
+  }
+
+  // 3) 아래로 떨어뜨린다
+  if (this.fluidCanReplace(x, y - 1, z, id)) {
+    this.fluidWashAway(x, y - 1, z);
+    this.setBlock(x, y - 1, z, id, META_FLUID_FALLING);
+    this.scheduleFluid(x, y - 1, z, cfg.delay);
+    return;
+  }
+  // 아래가 같은 유체인데 떨어지는 상태가 아니면 떨어지는 상태로 바꿔 준다
+  if (this.getBlock(x, y - 1, z) === id && !this.isFluidFalling(x, y - 1, z)) {
+    this.setFluidMeta(x, y - 1, z, META_FLUID_FALLING);
+    this.scheduleFluid(x, y - 1, z, cfg.delay);
+    return;
+  }
+
+  // 4) 옆으로 퍼진다
+  const spreadLevel = (falling ? 0 : level) + cfg.decay;
+  if (spreadLevel > MAX_FLUID_LEVEL) return;
+
+  const dirs = this.fluidFlowDirs(x, y, z, id);
+  for (let k = 0; k < dirs.length; k++) {
+    const i = dirs[k];
+    const nx = x + HORIZ[i][0], nz = z + HORIZ[i][1];
+    const target = this.getBlock(nx, y, nz);
+
+    if (target === id) {
+      // 이미 같은 유체가 있으면 더 낮은 단계로만 덮어쓴다
+      const tMeta = this.getMeta(nx, y, nz);
+      const tLevel = tMeta & META_FLUID_LEVEL;
+      const tFalling = (tMeta & META_FLUID_FALLING) !== 0;
+      if (!tFalling && tLevel > spreadLevel) {
+        this.setFluidMeta(nx, y, nz, spreadLevel);
+        this.scheduleFluid(nx, y, nz, cfg.delay);
+      }
+      continue;
+    }
+    if (this.fluidCanReplace(nx, y, nz, id)) {
+      this.fluidWashAway(nx, y, nz);
+      this.setBlock(nx, y, nz, id, spreadLevel);
+      this.scheduleFluid(nx, y, nz, cfg.delay);
+    }
+  }
+};
+
+// 블록 id는 그대로 두고 메타(단계)만 바꾼다 — 빛 계산을 다시 하지 않아 가볍다
+World.prototype.setFluidMeta = function (x, y, z, m) {
+  const cx = Math.floor(x / CHUNK_X), cz = Math.floor(z / CHUNK_Z);
+  const c = this.getChunk(cx, cz);
+  if (!c) return;
+  const i = idx(x - cx * CHUNK_X, y, z - cz * CHUNK_Z);
+  if (c.meta[i] === m) return;
+  c.meta[i] = m;
+  c.modified = true;
+  this.markDirtyAround(x, y, z);
+};
+
+// ── 물 ↔ 용암 반응 ────────────────────────────────────────────────────
+World.prototype.fluidReact = function (x, y, z, id, level) {
+  const isLava = (id === B.lava);
+  const other = isLava ? B.water : B.lava;
+  let touching = false;
+  for (let i = 0; i < 4 && !touching; i++) {
+    if (this.getBlock(x + HORIZ[i][0], y, z + HORIZ[i][1]) === other) touching = true;
+  }
+  if (!touching && this.getBlock(x, y + 1, z) === other) touching = true;
+  if (!touching && this.getBlock(x, y - 1, z) === other) touching = true;
+  if (!touching) return false;
+
+  if (isLava) {
+    // 물에 닿은 용암은 굳는다 (수원이면 흑요석, 흐르는 용암이면 조약돌)
+    this.setBlock(x, y, z, level === 0 ? B.obsidian : B.cobblestone);
+    if (this.onFluidHiss) this.onFluidHiss(x, y, z);
+    return true;
+  }
+  // 물이 용암 위로 흐르면 용암이 굳으므로, 물 쪽은 그대로 두고 용암을 다시 계산시킨다
+  for (let i = 0; i < 4; i++) {
+    const nx = x + HORIZ[i][0], nz = z + HORIZ[i][1];
+    if (this.getBlock(nx, y, nz) === B.lava) this.scheduleFluid(nx, y, nz, 1);
+  }
+  if (this.getBlock(x, y - 1, z) === B.lava) this.scheduleFluid(x, y - 1, z, 1);
+  return false;
+};
+
+// ── 흐를 방향 고르기 ──────────────────────────────────────────────────
+// 5칸 안에서 '아래로 떨어질 수 있는 곳'까지 가장 짧은 경로가 있는 방향들만 고른다.
+// 그래서 물이 평지에서는 사방으로 퍼지고, 낭떠러지가 있으면 그쪽으로 흘러간다.
+World.prototype.fluidFlowDirs = function (x, y, z, id) {
+  const start = [];
+  const visited = new Set();
+  visited.add('0,0');
+
+  for (let i = 0; i < 4; i++) {
+    const dx = HORIZ[i][0], dz = HORIZ[i][1];
+    if (!this.fluidCanReplace(x + dx, y, z + dz, id) && this.getBlock(x + dx, y, z + dz) !== id) continue;
+    start.push({ dx: dx, dz: dz, dir: i, dist: 1 });
+    visited.add(dx + ',' + dz);
+  }
+  if (!start.length) return [];
+
+  // 너비 우선 탐색으로 최단 구멍 거리를 찾는다
+  let bestDist = Infinity;
+  const bestDirs = [];
+  const queue = start.slice();
+  let head = 0;
+
+  while (head < queue.length) {
+    const n = queue[head++];
+    if (n.dist > bestDist) break;             // 이미 더 짧은 답을 찾았다
+
+    if (this.fluidCanReplace(x + n.dx, y - 1, z + n.dz, id)) {
+      if (n.dist < bestDist) { bestDist = n.dist; bestDirs.length = 0; }
+      if (bestDirs.indexOf(n.dir) < 0) bestDirs.push(n.dir);
+      continue;
+    }
+    if (n.dist >= FLUID_SEARCH_RANGE) continue;
+
+    for (let i = 0; i < 4; i++) {
+      const nx = n.dx + HORIZ[i][0], nz = n.dz + HORIZ[i][1];
+      const key = nx + ',' + nz;
+      if (visited.has(key)) continue;
+      const wx = x + nx, wz = z + nz;
+      if (!this.fluidCanReplace(wx, y, wz, id) && this.getBlock(wx, y, wz) !== id) continue;
+      visited.add(key);
+      queue.push({ dx: nx, dz: nz, dir: n.dir, dist: n.dist + 1 });
+    }
+  }
+
+  if (bestDirs.length) return bestDirs;
+  // 구멍이 없으면 갈 수 있는 모든 방향으로 퍼진다
+  return start.map(function (s) { return s.dir; });
+};
+
+// ── 렌더링용 높이 ─────────────────────────────────────────────────────
+// 단계에 따라 수면 높이가 달라진다 (원본과 같은 8/9 방식)
+World.prototype.fluidHeight = function (x, y, z, id) {
+  if (this.getBlock(x, y, z) !== id) return -1;
+  if (this.getBlock(x, y + 1, z) === id) return 1;      // 위에도 물이면 꽉 찬 칸
+  const meta = this.getMeta(x, y, z);
+  if (meta & META_FLUID_FALLING) return 1;
+  const level = meta & META_FLUID_LEVEL;
+  return (8 - level) / 9;
+};
+
+// 꼭짓점 높이: 그 꼭짓점에 닿는 네 칸의 높이를 평균해 수면을 자연스럽게 기울인다
+World.prototype.fluidCornerHeight = function (x, y, z, dx, dz, id) {
+  let sum = 0, count = 0;
+  for (let ox = dx - 1; ox <= dx; ox++) {
+    for (let oz = dz - 1; oz <= dz; oz++) {
+      // 위 칸이 같은 유체면 그 꼭짓점은 무조건 꽉 찬 높이
+      if (this.getBlock(x + ox, y + 1, z + oz) === id) return 1;
+      const h = this.fluidHeight(x + ox, y, z + oz, id);
+      if (h >= 0) { sum += h; count++; }
+      else if (blockDef(this.getBlock(x + ox, y, z + oz)).opaque) { sum += 1; count++; }
+    }
+  }
+  if (!count) return (8 - (this.getMeta(x, y, z) & META_FLUID_LEVEL)) / 9;
+  return sum / count;
+};
+
+// 흐르는 방향(플레이어를 밀어내는 힘). 주변 높이 차이로 기울기를 구한다.
+World.prototype.fluidPush = function (x, y, z, id) {
+  const h = this.fluidHeight(x, y, z, id);
+  if (h < 0) return null;
+  let vx = 0, vz = 0;
+  for (let i = 0; i < 4; i++) {
+    const dx = HORIZ[i][0], dz = HORIZ[i][1];
+    const nx = x + dx, nz = z + dz;
+    const nid = this.getBlock(nx, y, nz);
+    let nh;
+    if (nid === id) nh = this.fluidHeight(nx, y, nz, id);
+    else if (nid === 0) nh = 0;                 // 빈 칸 쪽으로 흐른다
+    else continue;                              // 막혀 있으면 영향 없음
+    const diff = h - nh;
+    vx += dx * diff;
+    vz += dz * diff;
+  }
+  const len = Math.hypot(vx, vz);
+  if (len < 1e-4) return null;
+  return [vx / len, vz / len];
+};
 
 </script>
 <script>
@@ -6418,11 +6862,33 @@ Player.prototype.update = function (dt, input) {
   if (this.dead) return;
   const w = this.world;
 
-  // 물 판정
-  const feetId = w.getBlock(Math.floor(this.x), Math.floor(this.y + 0.1), Math.floor(this.z));
-  const headId = w.getBlock(Math.floor(this.x), Math.floor(this.y + PLAYER_EYE), Math.floor(this.z));
-  this.inWater = blockDef(feetId).liquid;
+  // 유체 판정 — 수면 높이를 보고 판단하므로 얕게 흐르는 물에서는 헤엄치지 않는다
+  const bx = Math.floor(this.x), bz = Math.floor(this.z);
+  const feetY = Math.floor(this.y + 0.05);
+  const feetId = w.getBlock(bx, feetY, bz);
+  const feetDef = blockDef(feetId);
+  this.inWater = false;
+  this.inLava = false;
+  if (feetDef.liquid && w.fluidHeight) {
+    const surface = feetY + w.fluidHeight(bx, feetY, bz, feetId);
+    if (this.y + 0.05 < surface) {
+      if (feetId === B.lava) this.inLava = true; else this.inWater = true;
+    }
+  } else if (feetDef.liquid) {
+    this.inWater = true;
+  }
+  const headId = w.getBlock(bx, Math.floor(this.y + PLAYER_EYE), bz);
   this.headInWater = blockDef(headId).liquid;
+
+  // 흐르는 유체가 몸을 밀어낸다
+  if ((this.inWater || this.inLava) && w.fluidPush) {
+    const push = w.fluidPush(bx, feetY, bz, feetId);
+    if (push) {
+      const strength = this.inLava ? 3.5 : 10;
+      this.vx += push[0] * strength * dt;
+      this.vz += push[1] * strength * dt;
+    }
+  }
 
   // 이동 입력
   let fx = 0, fz = 0;
@@ -6443,6 +6909,7 @@ Player.prototype.update = function (dt, input) {
 
   let speed = this.sneaking ? SNEAK_SPEED : (this.sprinting ? SPRINT_SPEED : WALK_SPEED);
   if (this.flying) speed = FLY_SPEED * (this.sprinting ? 2 : 1);
+  else if (this.inLava) speed *= 0.25;
   else if (this.inWater) speed *= 0.55;
   if (!this.onGround && !this.flying && !this.inWater) speed *= 1.0;
 
@@ -6459,10 +6926,12 @@ Player.prototype.update = function (dt, input) {
     this.vx += (targetVx - this.vx) * Math.min(1, control * dt * 14);
     this.vz += (targetVz - this.vz) * Math.min(1, control * dt * 14);
 
-    if (this.inWater) {
-      this.vy -= GRAVITY * 0.28 * dt;
-      if (this.vy < -3) this.vy = -3;
-      if (input.jump) this.vy = 3.2;
+    if (this.inWater || this.inLava) {
+      const sink = this.inLava ? 0.45 : 0.28;
+      this.vy -= GRAVITY * sink * dt;
+      const maxSink = this.inLava ? -1.2 : -3;
+      if (this.vy < maxSink) this.vy = maxSink;
+      if (input.jump) this.vy = this.inLava ? 1.6 : 3.2;
       this.fallStart = null;
     } else {
       if (input.jump && this.onGround) {
@@ -7155,6 +7624,262 @@ function rayBox(ox, oy, oz, dx, dy, dz, x0, y0, z0, x1, y1, z1) {
   }
   return tmin;
 }
+
+</script>
+<script>
+/* ==== js/physics.js ==== */
+// physics.js - 블록 물리: 떨어지는 블록(모래·자갈·콘크리트 가루)과 TNT 폭발.
+'use strict';
+
+// ── 떨어지는 블록 ─────────────────────────────────────────────────────
+function FallingBlock(world, blockId, meta, x, y, z) {
+  this.world = world;
+  this.blockId = blockId;
+  this.meta = meta || 0;
+  this.x = x; this.y = y; this.z = z;
+  this.vy = 0;
+  this.age = 0;
+  this.dead = false;
+}
+
+// 이 칸이 낙하를 멈추게 하는가
+FallingBlock.prototype.blocked = function (bx, by, bz) {
+  if (by < 0) return true;
+  const id = this.world.getBlock(bx, by, bz);
+  if (id === 0) return false;
+  const d = blockDef(id);
+  if (d.liquid) return false;                          // 물·용암은 통과하며 밀어낸다
+  if (!d.solid && d.render !== RENDER_CUBE) return false; // 풀·횃불 등은 부수며 지나간다
+  return true;
+};
+
+FallingBlock.prototype.update = function (dt) {
+  if (this.dead) return;
+  this.age += dt;
+  this.vy -= MOB_GRAVITY * dt;
+  if (this.vy < -40) this.vy = -40;
+
+  const bx = Math.floor(this.x), bz = Math.floor(this.z);
+  let remain = -this.vy * dt;   // 이번 프레임에 내려갈 거리
+  // 한 칸씩 나눠 내려가 벽을 통과하지 않게 한다
+  while (remain > 0) {
+    const step = Math.min(remain, 0.5);
+    const ny = this.y - step;
+    if (this.blocked(bx, Math.floor(ny), bz)) {
+      this.y = Math.floor(this.y) < Math.floor(ny) ? Math.floor(this.y) : Math.floor(ny) + 1;
+      this.land();
+      return;
+    }
+    this.y = ny;
+    remain -= step;
+  }
+  if (this.y < -8) this.dead = true;
+};
+
+FallingBlock.prototype.land = function () {
+  const bx = Math.floor(this.x), bz = Math.floor(this.z);
+  const by = Math.max(0, Math.round(this.y));
+  const w = this.world;
+  const cur = w.getBlock(bx, by, bz);
+  const cd = blockDef(cur);
+
+  if (cur === 0 || cd.liquid || (!cd.solid && cd.render !== RENDER_CUBE)) {
+    if (cur !== 0 && cd.drop && w.onBlockDrop) w.onBlockDrop(bx, by, bz, cur);
+    // 콘크리트 가루가 물 위에 앉으면 굳는다
+    let placeId = this.blockId;
+    if (cd.liquid && cur === B.water && POWDER_TO_CONCRETE[placeId]) {
+      placeId = POWDER_TO_CONCRETE[placeId];
+    }
+    w.setBlock(bx, by, bz, placeId, this.meta);
+  } else {
+    // 착지 칸이 이미 찼으면 한 칸 위에 쌓는다 (여러 개가 동시에 떨어질 때)
+    const upId = w.getBlock(bx, by + 1, bz);
+    const ud = blockDef(upId);
+    if (by + 1 < CHUNK_Y && (upId === 0 || ud.liquid || (!ud.solid && ud.render !== RENDER_CUBE))) {
+      w.setBlock(bx, by + 1, bz, this.blockId, this.meta);
+    } else if (this.onCantPlace) {
+      this.onCantPlace(this.blockId, bx, by + 1, bz);
+    }
+  }
+  this.dead = true;
+};
+
+// ── 점화된 TNT ────────────────────────────────────────────────────────
+function PrimedTnt(world, x, y, z, fuse) {
+  this.world = world;
+  this.x = x; this.y = y; this.z = z;
+  this.vx = (Math.random() - 0.5) * 0.6;
+  this.vy = 2.2;
+  this.vz = (Math.random() - 0.5) * 0.6;
+  this.fuse = fuse === undefined ? 4 : fuse;
+  this.dead = false;
+  this.exploded = false;
+  this.age = 0;
+}
+
+PrimedTnt.prototype.solidAt = function (x, y, z) {
+  const id = this.world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
+  if (id === 0) return false;
+  const d = blockDef(id);
+  return d.solid && d.render === RENDER_CUBE;
+};
+
+PrimedTnt.prototype.update = function (dt) {
+  this.age += dt;
+  this.fuse -= dt;
+  this.vy -= MOB_GRAVITY * 0.6 * dt;
+
+  const nx = this.x + this.vx * dt;
+  const nz = this.z + this.vz * dt;
+  const ny = this.y + this.vy * dt;
+  if (!this.solidAt(nx, this.y + 0.2, this.z)) this.x = nx; else this.vx = 0;
+  if (!this.solidAt(this.x, this.y + 0.2, nz)) this.z = nz; else this.vz = 0;
+  if (!this.solidAt(this.x, ny, this.z)) this.y = ny;
+  else { this.y = Math.floor(ny) + 1; this.vy = 0; this.vx *= 0.7; this.vz *= 0.7; }
+
+  if (this.fuse <= 0) this.exploded = true;
+  if (this.y < -8) this.dead = true;
+};
+
+// ── 엔티티 매니저 확장 ────────────────────────────────────────────────
+EntityManager.prototype.spawnFallingBlock = function (x, y, z, blockId, meta) {
+  if (!this.falling) this.falling = [];
+  if (this.falling.length > 400) return null;      // 폭주 방지
+  const e = new FallingBlock(this.world, blockId, meta, x + 0.5, y, z + 0.5);
+  const self = this;
+  e.onCantPlace = function (id, bx, by, bz) {
+    const d = blockDef(id);
+    if (d.drop) self.dropItem(d.drop, d.dropCount, bx + 0.5, by + 0.2, bz + 0.5);
+  };
+  this.falling.push(e);
+  return e;
+};
+
+EntityManager.prototype.primeTnt = function (x, y, z, fuse) {
+  if (!this.tnt) this.tnt = [];
+  if (this.tnt.length > 80) return null;
+  const e = new PrimedTnt(this.world, x, y, z, fuse);
+  this.tnt.push(e);
+  return e;
+};
+
+// 폭발: 구 모양으로 블록을 부수고 주변을 밀어낸다
+EntityManager.prototype.explode = function (x, y, z, power, player) {
+  const w = this.world;
+  const R = Math.ceil(power * 1.3);
+  const removed = [];
+
+  for (let dy = -R; dy <= R; dy++) {
+    for (let dz = -R; dz <= R; dz++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        // 반지름을 조금씩 흔들어 울퉁불퉁한 구덩이를 만든다
+        if (dist > power * (0.78 + Math.random() * 0.44)) continue;
+        const bx = Math.floor(x) + dx, by = Math.floor(y) + dy, bz = Math.floor(z) + dz;
+        if (by < 1 || by >= CHUNK_Y) continue;
+        const id = w.getBlock(bx, by, bz);
+        if (id === 0) continue;
+        const d = blockDef(id);
+        if (d.liquid) continue;
+        if (d.hardness < 0 || d.hardness >= 50) continue;   // 기반암·흑요석은 버틴다
+        removed.push(bx, by, bz, id);
+      }
+    }
+  }
+
+  // 연쇄 폭발: 범위 안의 TNT는 짧은 도화선으로 점화한다
+  for (let i = 0; i < removed.length; i += 4) {
+    if (removed[i + 3] === B.tnt) {
+      w.setBlock(removed[i], removed[i + 1], removed[i + 2], 0);
+      this.primeTnt(removed[i] + 0.5, removed[i + 1], removed[i + 2] + 0.5, 0.2 + Math.random() * 0.6);
+    }
+  }
+  for (let i = 0; i < removed.length; i += 4) {
+    const id = removed[i + 3];
+    if (id === B.tnt) continue;
+    const bx = removed[i], by = removed[i + 1], bz = removed[i + 2];
+    if (w.getBlock(bx, by, bz) !== id) continue;
+    w.setBlock(bx, by, bz, 0);
+    const d = blockDef(id);
+    if (d.drop && Math.random() < 0.3) {
+      this.dropItem(d.drop, d.dropCount, bx + 0.5, by + 0.4, bz + 0.5);
+    }
+  }
+
+  // 플레이어 밀어내기 + 피해
+  if (player && !player.creative) {
+    const dx = player.x - x, dy = (player.y + 0.9) - y, dz = player.z - z;
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist < power * 2) {
+      const f = 1 - dist / (power * 2);
+      const len = Math.max(0.001, dist);
+      player.vx += (dx / len) * f * 22;
+      player.vy += (dy / len) * f * 14 + f * 6;
+      player.vz += (dz / len) * f * 22;
+      player.onGround = false;
+      player.hurt(Math.round(f * f * 30), 'TNT');
+    }
+  }
+
+  // 몹 밀어내기 + 피해
+  for (let i = 0; i < this.mobs.length; i++) {
+    const m = this.mobs[i];
+    const dx = m.x - x, dy = (m.y + 0.5) - y, dz = m.z - z;
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist >= power * 2) continue;
+    const f = 1 - dist / (power * 2);
+    const len = Math.max(0.001, dist);
+    m.vx += (dx / len) * f * 18;
+    m.vy += f * 12;
+    m.vz += (dz / len) * f * 18;
+    m.onGround = false;
+    m.hurt(Math.round(f * f * 40));
+  }
+
+  // 떨어진 아이템도 날려 보낸다
+  for (let i = 0; i < this.items.length; i++) {
+    const it = this.items[i];
+    const dx = it.x - x, dz = it.z - z;
+    const dist = Math.hypot(dx, it.y - y, dz);
+    if (dist >= power * 2) continue;
+    const f = 1 - dist / (power * 2);
+    const len = Math.max(0.001, dist);
+    it.vx += (dx / len) * f * 10;
+    it.vy += f * 8;
+    it.vz += (dz / len) * f * 10;
+  }
+
+  if (this.onExplosion) this.onExplosion(x, y, z, power);
+};
+
+// 매 프레임 물리 엔티티 갱신
+EntityManager.prototype.updatePhysics = function (dt, player) {
+  if (!this.falling) this.falling = [];
+  if (!this.tnt) this.tnt = [];
+
+  for (let i = this.falling.length - 1; i >= 0; i--) {
+    const e = this.falling[i];
+    e.update(dt);
+    // 떨어지는 블록에 깔리면 아프다
+    if (!e.dead && player && !player.creative) {
+      if (Math.abs(e.x - player.x) < 0.9 && Math.abs(e.z - player.z) < 0.9 &&
+          e.y - (player.y + PLAYER_HEIGHT) < 0.3 && e.y > player.y && e.vy < -8) {
+        player.hurt(2, '떨어지는 블록');
+      }
+    }
+    if (e.dead) this.falling.splice(i, 1);
+  }
+
+  for (let i = this.tnt.length - 1; i >= 0; i--) {
+    const e = this.tnt[i];
+    e.update(dt);
+    if (e.exploded) {
+      this.explode(e.x, e.y + 0.5, e.z, 4, player);
+      e.dead = true;
+    }
+    if (e.dead) this.tnt.splice(i, 1);
+  }
+};
 
 </script>
 <script>
@@ -7871,7 +8596,8 @@ Renderer.prototype.beginFrame = function (player, opts) {
   const eye = player.eyePos();
   mat4.perspective(this.proj, opts.fov * Math.PI / 180, this.aspect, 0.06, 1200);
   mat4.identity(this.view);
-  mat4.rotateX(this.view, this.view, -player.pitch);
+  if (opts.shakeX) mat4.rotateZ(this.view, this.view, opts.shakeX);
+  mat4.rotateX(this.view, this.view, -player.pitch + (opts.shakeY || 0));
   mat4.rotateY(this.view, this.view, -player.yaw);
   mat4.translate(this.view, this.view, [-eye[0], -eye[1], -eye[2]]);
   mat4.multiply(this.viewProj, this.proj, this.view);
@@ -8137,6 +8863,74 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
   gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
+};
+
+// 떨어지는 블록과 점화된 TNT (블록 텍스처를 쓴 정육면체)
+Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
+  const gl = this.gl;
+  const falling = mgr.falling || [];
+  const tnts = mgr.tnt || [];
+  if (!falling.length && !tnts.length) return;
+
+  _ev.length = 0; _ei.length = 0;
+
+  const list = [];
+  for (let i = 0; i < falling.length; i++) {
+    list.push({ x: falling[i].x, y: falling[i].y, z: falling[i].z, id: falling[i].blockId, flash: 0 });
+  }
+  for (let i = 0; i < tnts.length; i++) {
+    const t = tnts[i];
+    // 도화선이 짧아질수록 빠르게 번쩍인다
+    const rate = t.fuse < 1 ? 16 : (t.fuse < 2 ? 8 : 4);
+    list.push({ x: t.x, y: t.y, z: t.z, id: B.tnt, flash: (Math.floor(t.age * rate) % 2) });
+  }
+
+  for (let n = 0; n < list.length; n++) {
+    const e = list[n];
+    const dx = e.x - player.x, dz = e.z - player.z;
+    if (dx * dx + dz * dz > 90 * 90) continue;
+    if (!this.boxInFrustum(e.x - 0.6, e.y - 0.1, e.z - 0.6, e.x + 0.6, e.y + 1.1, e.z + 0.6)) continue;
+
+    const bx = Math.floor(e.x), by = Math.floor(e.y + 0.5), bz = Math.floor(e.z);
+    const sky = world.getSky(bx, by, bz) / 15;
+    const blk = e.flash ? 1 : world.getBlockLight(bx, by, bz) / 15;
+
+    for (let f = 0; f < 6; f++) {
+      const face = FACES[f];
+      const t = texUV(blockTexName(e.id, f));
+      const shadeF = e.flash ? 1 : FACE_SHADE[f];
+      const base = _ev.length / 8;
+      for (let ci = 0; ci < 4; ci++) {
+        const tu = (ci === 1 || ci === 2) ? 1 : 0;
+        const tv = (ci === 2 || ci === 3) ? 1 : 0;
+        const ux = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
+        const uy = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
+        const uz = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
+        const uvp = face.uv(tu, tv);
+        _ev.push(
+          e.x - 0.5 + ux, e.y + uy, e.z - 0.5 + uz,
+          t.u0 + (t.u1 - t.u0) * uvp[0],
+          t.v0 + (t.v1 - t.v0) * uvp[1],
+          sky, blk, shadeF);
+      }
+      _ei.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+
+  if (!_ei.length) return;
+
+  const p = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(p.u.uModel, false, this.model);
+  gl.uniform1f(p.u.uAlphaCut, 0.5);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
 };
 
 // ── 선택 외곽선 ───────────────────────────────────────────────────────
@@ -8911,6 +9705,7 @@ function Game(canvas) {
   this.lastPickTarget = null;
   this.frameTimes = [];
   this.useHeld = 0;
+  this.shake = 0;
   this.touch = { look: null, move: null, moveBase: null };
 }
 
@@ -8918,6 +9713,8 @@ function Game(canvas) {
 // 텍스처/아이콘은 한 번만 만들면 되므로 세계 생성과 분리한다.
 Game.prototype.initAssets = function () {
   if (this.assetsReady) return;
+  initFluidConfig();
+  initPowderMap();
   const atlas = buildAtlas();
   buildItemIcons(atlas.canvas);
   this.renderer.setAtlases(atlas.canvas, buildItemAtlasGL());
@@ -8957,6 +9754,15 @@ Game.prototype.setupCallbacks = function () {
     self.exitPointerLock();
   };
   this.player.onToolBreak = function () { self.ui.toast('도구가 부러졌습니다'); };
+
+  // 모래·자갈은 떨어지는 블록 엔티티가 된다
+  this.world.onFallingBlock = function (x, y, z, id, meta) {
+    self.entities.spawnFallingBlock(x, y, z, id, meta);
+  };
+  // 물이 용암을 굳힐 때 나는 소리
+  this.world.onFluidHiss = function () { self.playSound('hiss'); };
+  this.entities.onExplosion = function () { self.playSound('boom'); self.shake = 0.45; };
+  this.world.initFluids();
 };
 
 Game.prototype.bindInputOnce = function () {
@@ -9182,6 +9988,8 @@ Game.prototype.bindInput = function () {
         break;
       case 'KeyO':
         self.save(); break;
+      case 'KeyK':
+        self.exportSave(); break;
     }
   });
 
@@ -9556,6 +10364,19 @@ Game.prototype.interactBlock = function (hit) {
       return true;
     }
 
+    case 'tnt': {
+      const held = this.player.heldItem();
+      if (held && held.name === 'flint_and_steel') {
+        w.setBlock(hit.x, hit.y, hit.z, 0);
+        this.entities.primeTnt(hit.x + 0.5, hit.y, hit.z + 0.5, 4);
+        this.player.damageHeld(1);
+        this.playSound('hiss');
+        return true;
+      }
+      this.ui.toast('부싯돌과 부시로 점화할 수 있습니다');
+      return true;
+    }
+
     case 'eat_cake':
       if (this.player.hunger < 20) {
         this.player.hunger = Math.min(20, this.player.hunger + 2);
@@ -9642,13 +10463,24 @@ Game.prototype.playSound = function (kind) {
     if (ctx.state === 'suspended') ctx.resume();
     const o = ctx.createOscillator(), g = ctx.createGain();
     const now = ctx.currentTime;
+    let dur = 0.13, vol = 0.06;
     if (kind === 'break') { o.frequency.value = 180; o.type = 'square'; }
     else if (kind === 'place') { o.frequency.value = 320; o.type = 'triangle'; }
-    else { o.frequency.value = 240; o.type = 'sine'; }
-    g.gain.setValueAtTime(0.06, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    else if (kind === 'hiss') {
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(900, now);
+      o.frequency.exponentialRampToValueAtTime(200, now + 0.35);
+      dur = 0.36; vol = 0.045;
+    } else if (kind === 'boom') {
+      o.type = 'square';
+      o.frequency.setValueAtTime(120, now);
+      o.frequency.exponentialRampToValueAtTime(28, now + 0.6);
+      dur = 0.62; vol = 0.14;
+    } else { o.frequency.value = 240; o.type = 'sine'; }
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
     o.connect(g); g.connect(ctx.destination);
-    o.start(now); o.stop(now + 0.13);
+    o.start(now); o.stop(now + dur + 0.01);
   } catch (err) { /* 소리는 없어도 그만 */ }
 };
 
@@ -9711,7 +10543,8 @@ function rleDecode(pairs, length, Type) {
   return arr;
 }
 
-Game.prototype.save = function () {
+// 저장 데이터 만들기 (localStorage 저장과 파일 내보내기가 함께 쓴다)
+Game.prototype.buildSaveData = function () {
   const p = this.player;
   const chunks = {};
   this.world.chunks.forEach(function (c, key) {
@@ -9721,13 +10554,16 @@ Game.prototype.save = function () {
 
   const furnaces = {};
   this.furnaces.forEach(function (f, k) {
-    furnaces[k] = { input: f.input, fuel: f.fuel, output: f.output, burnTime: f.burnTime, burnMax: f.burnMax, progress: f.progress };
+    furnaces[k] = {
+      input: f.input, fuel: f.fuel, output: f.output,
+      burnTime: f.burnTime, burnMax: f.burnMax, progress: f.progress
+    };
   });
   const chests = {};
   this.chests.forEach(function (c, k) { chests[k] = c; });
 
-  const data = {
-    version: 1,
+  return {
+    version: 2,
     seed: this.world.seed,
     time: this.time,
     player: {
@@ -9741,12 +10577,49 @@ Game.prototype.save = function () {
     furnaces: furnaces,
     chests: chests
   };
+};
+
+// 이 환경에서 localStorage 를 쓸 수 있는가 (일부 웹뷰는 막혀 있다)
+Game.prototype.storageAvailable = function () {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-    this.ui.toast('저장했습니다');
+    localStorage.setItem('__wc_test', '1');
+    localStorage.removeItem('__wc_test');
+    return true;
+  } catch (e) { return false; }
+};
+
+Game.prototype.save = function (quiet) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(this.buildSaveData()));
+    if (!quiet) this.ui.toast('저장했습니다');
+    this.saveBroken = false;
     return true;
   } catch (e) {
-    this.ui.toast('저장 실패: ' + e.message);
+    if (!this.saveBroken) {
+      this.saveBroken = true;
+      this.ui.toast('자동 저장 실패 — K 키로 세계 파일을 내보내세요');
+    }
+    return false;
+  }
+};
+
+// 세계를 파일로 내려받는다 (웹뷰 저장이 막혀 있어도, PC로 옮길 때도 유용)
+Game.prototype.exportSave = function () {
+  try {
+    const json = JSON.stringify(this.buildSaveData());
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'webcraft-' + this.world.seed + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    this.ui.toast('세계 파일을 내려받았습니다 (' + Math.round(json.length / 1024) + 'KB)');
+    return true;
+  } catch (e) {
+    this.ui.toast('내보내기 실패: ' + e.message);
     return false;
   }
 };
@@ -9755,13 +10628,15 @@ Game.prototype.hasSave = function () {
   try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
 };
 
-Game.prototype.load = function () {
-  let data;
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return false;
-    data = JSON.parse(raw);
-  } catch (e) { return false; }
+Game.prototype.load = function (given) {
+  let data = given || null;
+  if (!data) {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      data = JSON.parse(raw);
+    } catch (e) { return false; }
+  }
 
   this.initAssets();
   this.world = new World(null);
@@ -9828,6 +10703,15 @@ Game.prototype.load = function () {
   return true;
 };
 
+// 내려받은 세계 파일로 이어하기
+Game.prototype.loadFromText = function (text) {
+  const data = JSON.parse(text);
+  if (!data || !data.player || !data.seed) throw new Error('세계 파일 형식이 아닙니다.');
+  try { localStorage.setItem(SAVE_KEY, text); } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+  this._pendingSave = data;
+  return this.load(data);
+};
+
 Game.prototype.deleteSave = function () {
   try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ }
 };
@@ -9850,7 +10734,7 @@ Game.prototype.start = function () {
   requestAnimationFrame(frame);
 
   // 60초마다 자동 저장
-  setInterval(function () { if (self.running) self.save(); }, 60000);
+  setInterval(function () { if (self.running) self.save(true); }, 60000);
 };
 
 Game.prototype.update = function (dt) {
@@ -9872,8 +10756,11 @@ Game.prototype.update = function (dt) {
   }
 
   const daylight = this.dayFactor();
+  this.world.updateFluids(dt);
   this.entities.update(dt, p, daylight);
+  this.entities.updatePhysics(dt, p);
   this.updateFurnaces(dt);
+  if (this.shake > 0) this.shake -= dt * 1.6;
 
   this.world.randomTick(p.x, p.z, 2);
   this.streamChunks(7);
@@ -9907,9 +10794,15 @@ Game.prototype.render = function (dt) {
   };
 
   const r = this.renderer;
+  // 폭발 직후 화면 흔들림
+  if (this.shake > 0) {
+    opts.shakeX = (Math.random() - 0.5) * this.shake * 0.06;
+    opts.shakeY = (Math.random() - 0.5) * this.shake * 0.06;
+  }
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawEntities(this.entities, this.world, p, opts);
+  r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
   if (!this.ui.open && !p.dead) {
@@ -9943,7 +10836,10 @@ Game.prototype.render = function (dt) {
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
       '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
-      '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length,
+      '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length +
+      '  낙하 ' + (this.entities.falling ? this.entities.falling.length : 0) +
+      '  TNT ' + (this.entities.tnt ? this.entities.tnt.length : 0),
+      '유체 대기 ' + (this.world._fluidQueue ? this.world._fluidQueue.length : 0),
       '체력 ' + p.health.toFixed(1) + '  허기 ' + p.hunger + '  방어 ' + p.armorPoints()
     ]);
   }
@@ -9988,6 +10884,7 @@ Game.prototype.render = function (dt) {
   }
 
   const loadingEl = document.getElementById('loading');
+  let pendingSaveText = null;
 
   function boot(mode) {
     errEl.textContent = '';
@@ -10002,7 +10899,10 @@ Game.prototype.render = function (dt) {
         window.game = game;
         game.settings.renderDistance = parseInt(rngDist.value, 10);
 
-        if (mode === 'continue') {
+        if (mode === 'file') {
+          if (!game.loadFromText(pendingSaveText)) throw new Error('세계 파일을 불러오지 못했습니다.');
+          game.ui.toast('세계 파일을 불러왔습니다');
+        } else if (mode === 'continue') {
           if (!game.load()) throw new Error('저장본을 불러오지 못했습니다.');
           game.ui.toast('불러왔습니다');
         } else {
@@ -10015,6 +10915,11 @@ Game.prototype.render = function (dt) {
 
         game.start();
         if (!isTouch) game.requestPointerLock();
+
+        // 저장소가 막힌 웹뷰라면 알려 준다
+        if (!game.storageAvailable()) {
+          game.ui.toast('이 환경은 자동 저장을 쓸 수 없습니다 — K 키로 세계 파일을 내보내세요');
+        }
 
         window.addEventListener('beforeunload', function () {
           try { game.save(); } catch (e) { /* 무시 */ }
@@ -10032,6 +10937,22 @@ Game.prototype.render = function (dt) {
 
   btnNew.addEventListener('click', function () { boot('new'); });
   btnContinue.addEventListener('click', function () { boot('continue'); });
+
+  // 내려받은 세계 파일로 이어하기
+  const fileInput = document.getElementById('file-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', function () {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        pendingSaveText = String(reader.result);
+        boot('file');
+      };
+      reader.onerror = function () { errEl.textContent = '파일을 읽지 못했습니다.'; };
+      reader.readAsText(f);
+    });
+  }
 
   seedInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') boot('new');

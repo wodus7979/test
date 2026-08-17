@@ -204,6 +204,8 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
   this.updateLightingAt(x, y, z, old, id);
   this.markDirtyAround(x, y, z);
   this.blockUpdateAround(x, y, z);
+  // 이 칸이 바뀌었으니 주변 유체가 다시 흐를지 판단하게 한다
+  if (this.scheduleFluidAround) this.scheduleFluidAround(x, y, z);
 };
 
 World.prototype.markDirtyAround = function (x, y, z) {
@@ -616,12 +618,14 @@ World.prototype.blockUpdate = function (x, y, z) {
   const d = blockDef(id);
 
   if (d.gravity) {
-    let ny = y;
-    while (ny > 1 && this.getBlock(x, ny - 1, z) === 0) ny--;
-    if (ny !== y) {
+    const below = this.getBlock(x, y - 1, z);
+    const bd = blockDef(below);
+    // 아래가 비었거나 유체면 낙하 엔티티가 되어 실제로 떨어진다
+    if (below === 0 || bd.liquid || (!bd.solid && bd.render !== RENDER_CUBE)) {
       const m = this.getMeta(x, y, z);
       this.setBlock(x, y, z, 0);
-      this.setBlock(x, ny, z, id, m);
+      if (this.onFallingBlock) this.onFallingBlock(x, y, z, id, m);
+      else this.setBlock(x, Math.max(1, y - 1), z, id, m);
     }
     return;
   }
@@ -765,7 +769,9 @@ World.prototype.buildMesh = function (c) {
         if (d.render === RENDER_CROSS) {
           this.emitCross(_mv, _mi, wx, y, wz, d);
         } else if (d.render === RENDER_LIQUID) {
-          this.emitCube(_wv, _wi, wx, y, wz, id, d, true);
+          // 용암은 스스로 빛나므로 불투명 패스, 물은 반투명 패스
+          if (d.translucent) this.emitLiquid(_wv, _wi, wx, y, wz, id, d);
+          else this.emitLiquid(_mv, _mi, wx, y, wz, id, d);
         } else if (d.render === RENDER_BOXES) {
           if (d.translucent) this.emitBoxes(_wv, _wi, wx, y, wz, id, d, meta);
           else this.emitBoxes(_mv, _mi, wx, y, wz, id, d, meta);
@@ -837,6 +843,58 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
       if (cnt === 0) { skySum = this.getSky(nx, ny, nz); blkSum = this.getBlockLight(nx, ny, nz); cnt = 1; }
 
       pushVertex(varr, px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao);
+    }
+    iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+};
+
+// 유체: 단계에 따라 수면 높이가 달라지고, 꼭짓점 높이를 평균해 자연스럽게 기울어진다
+World.prototype.emitLiquid = function (varr, iarr, wx, wy, wz, id, d) {
+  const h00 = this.fluidCornerHeight(wx, wy, wz, 0, 0, id);
+  const h10 = this.fluidCornerHeight(wx, wy, wz, 1, 0, id);
+  const h11 = this.fluidCornerHeight(wx, wy, wz, 1, 1, id);
+  const h01 = this.fluidCornerHeight(wx, wy, wz, 0, 1, id);
+
+  function cornerH(px, pz) {
+    if (pz < 0.5) return px < 0.5 ? h00 : h10;
+    return px < 0.5 ? h01 : h11;
+  }
+
+  for (let f = 0; f < 6; f++) {
+    const face = FACES[f];
+    const nx = wx + face.normal[0], ny = wy + face.normal[1], nz = wz + face.normal[2];
+    const nid = this.getBlock(nx, ny, nz);
+    if (nid === id) continue;
+    if (blockDef(nid).opaque) continue;
+
+    const t = texUV(blockTexName(id, f));
+    const shadeF = FACE_SHADE[f];
+    const base = varr.length / 8;
+
+    const skyL = this.getSky(nx, ny, nz) / 15;
+    const blkL = Math.max(this.getBlockLight(nx, ny, nz), d.light) / 15;
+
+    for (let ci = 0; ci < 4; ci++) {
+      const tu = (ci === 1 || ci === 2) ? 1 : 0;
+      const tv = (ci === 2 || ci === 3) ? 1 : 0;
+      const ux = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
+      let uy = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
+      const uz = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
+      let fu = tu, fv = tv;
+
+      if (uy > 0.999) {
+        uy = cornerH(ux, uz);
+        // 세로축에 해당하는 텍스처 좌표를 실제 높이에 맞춘다
+        if (face.uAxis === 1) fu = uy;
+        else if (face.vAxis === 1) fv = uy;
+      }
+
+      const uvp = face.uv(fu, fv);
+      pushVertex(varr,
+        wx + ux, wy + uy, wz + uz,
+        t.u0 + (t.u1 - t.u0) * uvp[0],
+        t.v0 + (t.v1 - t.v0) * uvp[1],
+        skyL, blkL, shadeF);
     }
     iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }

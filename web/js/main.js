@@ -61,6 +61,7 @@ function Game(canvas) {
   this.lastPickTarget = null;
   this.frameTimes = [];
   this.useHeld = 0;
+  this.shake = 0;
   this.touch = { look: null, move: null, moveBase: null };
 }
 
@@ -68,6 +69,8 @@ function Game(canvas) {
 // 텍스처/아이콘은 한 번만 만들면 되므로 세계 생성과 분리한다.
 Game.prototype.initAssets = function () {
   if (this.assetsReady) return;
+  initFluidConfig();
+  initPowderMap();
   const atlas = buildAtlas();
   buildItemIcons(atlas.canvas);
   this.renderer.setAtlases(atlas.canvas, buildItemAtlasGL());
@@ -107,6 +110,15 @@ Game.prototype.setupCallbacks = function () {
     self.exitPointerLock();
   };
   this.player.onToolBreak = function () { self.ui.toast('도구가 부러졌습니다'); };
+
+  // 모래·자갈은 떨어지는 블록 엔티티가 된다
+  this.world.onFallingBlock = function (x, y, z, id, meta) {
+    self.entities.spawnFallingBlock(x, y, z, id, meta);
+  };
+  // 물이 용암을 굳힐 때 나는 소리
+  this.world.onFluidHiss = function () { self.playSound('hiss'); };
+  this.entities.onExplosion = function () { self.playSound('boom'); self.shake = 0.45; };
+  this.world.initFluids();
 };
 
 Game.prototype.bindInputOnce = function () {
@@ -332,6 +344,8 @@ Game.prototype.bindInput = function () {
         break;
       case 'KeyO':
         self.save(); break;
+      case 'KeyK':
+        self.exportSave(); break;
     }
   });
 
@@ -706,6 +720,19 @@ Game.prototype.interactBlock = function (hit) {
       return true;
     }
 
+    case 'tnt': {
+      const held = this.player.heldItem();
+      if (held && held.name === 'flint_and_steel') {
+        w.setBlock(hit.x, hit.y, hit.z, 0);
+        this.entities.primeTnt(hit.x + 0.5, hit.y, hit.z + 0.5, 4);
+        this.player.damageHeld(1);
+        this.playSound('hiss');
+        return true;
+      }
+      this.ui.toast('부싯돌과 부시로 점화할 수 있습니다');
+      return true;
+    }
+
     case 'eat_cake':
       if (this.player.hunger < 20) {
         this.player.hunger = Math.min(20, this.player.hunger + 2);
@@ -792,13 +819,24 @@ Game.prototype.playSound = function (kind) {
     if (ctx.state === 'suspended') ctx.resume();
     const o = ctx.createOscillator(), g = ctx.createGain();
     const now = ctx.currentTime;
+    let dur = 0.13, vol = 0.06;
     if (kind === 'break') { o.frequency.value = 180; o.type = 'square'; }
     else if (kind === 'place') { o.frequency.value = 320; o.type = 'triangle'; }
-    else { o.frequency.value = 240; o.type = 'sine'; }
-    g.gain.setValueAtTime(0.06, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    else if (kind === 'hiss') {
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(900, now);
+      o.frequency.exponentialRampToValueAtTime(200, now + 0.35);
+      dur = 0.36; vol = 0.045;
+    } else if (kind === 'boom') {
+      o.type = 'square';
+      o.frequency.setValueAtTime(120, now);
+      o.frequency.exponentialRampToValueAtTime(28, now + 0.6);
+      dur = 0.62; vol = 0.14;
+    } else { o.frequency.value = 240; o.type = 'sine'; }
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
     o.connect(g); g.connect(ctx.destination);
-    o.start(now); o.stop(now + 0.13);
+    o.start(now); o.stop(now + dur + 0.01);
   } catch (err) { /* 소리는 없어도 그만 */ }
 };
 
@@ -861,7 +899,8 @@ function rleDecode(pairs, length, Type) {
   return arr;
 }
 
-Game.prototype.save = function () {
+// 저장 데이터 만들기 (localStorage 저장과 파일 내보내기가 함께 쓴다)
+Game.prototype.buildSaveData = function () {
   const p = this.player;
   const chunks = {};
   this.world.chunks.forEach(function (c, key) {
@@ -871,13 +910,16 @@ Game.prototype.save = function () {
 
   const furnaces = {};
   this.furnaces.forEach(function (f, k) {
-    furnaces[k] = { input: f.input, fuel: f.fuel, output: f.output, burnTime: f.burnTime, burnMax: f.burnMax, progress: f.progress };
+    furnaces[k] = {
+      input: f.input, fuel: f.fuel, output: f.output,
+      burnTime: f.burnTime, burnMax: f.burnMax, progress: f.progress
+    };
   });
   const chests = {};
   this.chests.forEach(function (c, k) { chests[k] = c; });
 
-  const data = {
-    version: 1,
+  return {
+    version: 2,
     seed: this.world.seed,
     time: this.time,
     player: {
@@ -891,12 +933,49 @@ Game.prototype.save = function () {
     furnaces: furnaces,
     chests: chests
   };
+};
+
+// 이 환경에서 localStorage 를 쓸 수 있는가 (일부 웹뷰는 막혀 있다)
+Game.prototype.storageAvailable = function () {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-    this.ui.toast('저장했습니다');
+    localStorage.setItem('__wc_test', '1');
+    localStorage.removeItem('__wc_test');
+    return true;
+  } catch (e) { return false; }
+};
+
+Game.prototype.save = function (quiet) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(this.buildSaveData()));
+    if (!quiet) this.ui.toast('저장했습니다');
+    this.saveBroken = false;
     return true;
   } catch (e) {
-    this.ui.toast('저장 실패: ' + e.message);
+    if (!this.saveBroken) {
+      this.saveBroken = true;
+      this.ui.toast('자동 저장 실패 — K 키로 세계 파일을 내보내세요');
+    }
+    return false;
+  }
+};
+
+// 세계를 파일로 내려받는다 (웹뷰 저장이 막혀 있어도, PC로 옮길 때도 유용)
+Game.prototype.exportSave = function () {
+  try {
+    const json = JSON.stringify(this.buildSaveData());
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'webcraft-' + this.world.seed + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    this.ui.toast('세계 파일을 내려받았습니다 (' + Math.round(json.length / 1024) + 'KB)');
+    return true;
+  } catch (e) {
+    this.ui.toast('내보내기 실패: ' + e.message);
     return false;
   }
 };
@@ -905,13 +984,15 @@ Game.prototype.hasSave = function () {
   try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
 };
 
-Game.prototype.load = function () {
-  let data;
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return false;
-    data = JSON.parse(raw);
-  } catch (e) { return false; }
+Game.prototype.load = function (given) {
+  let data = given || null;
+  if (!data) {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      data = JSON.parse(raw);
+    } catch (e) { return false; }
+  }
 
   this.initAssets();
   this.world = new World(null);
@@ -978,6 +1059,15 @@ Game.prototype.load = function () {
   return true;
 };
 
+// 내려받은 세계 파일로 이어하기
+Game.prototype.loadFromText = function (text) {
+  const data = JSON.parse(text);
+  if (!data || !data.player || !data.seed) throw new Error('세계 파일 형식이 아닙니다.');
+  try { localStorage.setItem(SAVE_KEY, text); } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+  this._pendingSave = data;
+  return this.load(data);
+};
+
 Game.prototype.deleteSave = function () {
   try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ }
 };
@@ -1000,7 +1090,7 @@ Game.prototype.start = function () {
   requestAnimationFrame(frame);
 
   // 60초마다 자동 저장
-  setInterval(function () { if (self.running) self.save(); }, 60000);
+  setInterval(function () { if (self.running) self.save(true); }, 60000);
 };
 
 Game.prototype.update = function (dt) {
@@ -1022,8 +1112,11 @@ Game.prototype.update = function (dt) {
   }
 
   const daylight = this.dayFactor();
+  this.world.updateFluids(dt);
   this.entities.update(dt, p, daylight);
+  this.entities.updatePhysics(dt, p);
   this.updateFurnaces(dt);
+  if (this.shake > 0) this.shake -= dt * 1.6;
 
   this.world.randomTick(p.x, p.z, 2);
   this.streamChunks(7);
@@ -1057,9 +1150,15 @@ Game.prototype.render = function (dt) {
   };
 
   const r = this.renderer;
+  // 폭발 직후 화면 흔들림
+  if (this.shake > 0) {
+    opts.shakeX = (Math.random() - 0.5) * this.shake * 0.06;
+    opts.shakeY = (Math.random() - 0.5) * this.shake * 0.06;
+  }
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawEntities(this.entities, this.world, p, opts);
+  r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
   if (!this.ui.open && !p.dead) {
@@ -1093,7 +1192,10 @@ Game.prototype.render = function (dt) {
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
       '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
-      '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length,
+      '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length +
+      '  낙하 ' + (this.entities.falling ? this.entities.falling.length : 0) +
+      '  TNT ' + (this.entities.tnt ? this.entities.tnt.length : 0),
+      '유체 대기 ' + (this.world._fluidQueue ? this.world._fluidQueue.length : 0),
       '체력 ' + p.health.toFixed(1) + '  허기 ' + p.hunger + '  방어 ' + p.armorPoints()
     ]);
   }

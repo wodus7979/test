@@ -244,11 +244,33 @@ Player.prototype.update = function (dt, input) {
   if (this.dead) return;
   const w = this.world;
 
-  // 물 판정
-  const feetId = w.getBlock(Math.floor(this.x), Math.floor(this.y + 0.1), Math.floor(this.z));
-  const headId = w.getBlock(Math.floor(this.x), Math.floor(this.y + PLAYER_EYE), Math.floor(this.z));
-  this.inWater = blockDef(feetId).liquid;
+  // 유체 판정 — 수면 높이를 보고 판단하므로 얕게 흐르는 물에서는 헤엄치지 않는다
+  const bx = Math.floor(this.x), bz = Math.floor(this.z);
+  const feetY = Math.floor(this.y + 0.05);
+  const feetId = w.getBlock(bx, feetY, bz);
+  const feetDef = blockDef(feetId);
+  this.inWater = false;
+  this.inLava = false;
+  if (feetDef.liquid && w.fluidHeight) {
+    const surface = feetY + w.fluidHeight(bx, feetY, bz, feetId);
+    if (this.y + 0.05 < surface) {
+      if (feetId === B.lava) this.inLava = true; else this.inWater = true;
+    }
+  } else if (feetDef.liquid) {
+    this.inWater = true;
+  }
+  const headId = w.getBlock(bx, Math.floor(this.y + PLAYER_EYE), bz);
   this.headInWater = blockDef(headId).liquid;
+
+  // 흐르는 유체가 몸을 밀어낸다
+  if ((this.inWater || this.inLava) && w.fluidPush) {
+    const push = w.fluidPush(bx, feetY, bz, feetId);
+    if (push) {
+      const strength = this.inLava ? 3.5 : 10;
+      this.vx += push[0] * strength * dt;
+      this.vz += push[1] * strength * dt;
+    }
+  }
 
   // 이동 입력
   let fx = 0, fz = 0;
@@ -269,6 +291,7 @@ Player.prototype.update = function (dt, input) {
 
   let speed = this.sneaking ? SNEAK_SPEED : (this.sprinting ? SPRINT_SPEED : WALK_SPEED);
   if (this.flying) speed = FLY_SPEED * (this.sprinting ? 2 : 1);
+  else if (this.inLava) speed *= 0.25;
   else if (this.inWater) speed *= 0.55;
   if (!this.onGround && !this.flying && !this.inWater) speed *= 1.0;
 
@@ -285,10 +308,12 @@ Player.prototype.update = function (dt, input) {
     this.vx += (targetVx - this.vx) * Math.min(1, control * dt * 14);
     this.vz += (targetVz - this.vz) * Math.min(1, control * dt * 14);
 
-    if (this.inWater) {
-      this.vy -= GRAVITY * 0.28 * dt;
-      if (this.vy < -3) this.vy = -3;
-      if (input.jump) this.vy = 3.2;
+    if (this.inWater || this.inLava) {
+      const sink = this.inLava ? 0.45 : 0.28;
+      this.vy -= GRAVITY * sink * dt;
+      const maxSink = this.inLava ? -1.2 : -3;
+      if (this.vy < maxSink) this.vy = maxSink;
+      if (input.jump) this.vy = this.inLava ? 1.6 : 3.2;
       this.fallStart = null;
     } else {
       if (input.jump && this.onGround) {

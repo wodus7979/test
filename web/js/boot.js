@@ -34,6 +34,7 @@
   }
 
   const loadingEl = document.getElementById('loading');
+  let pendingSaveText = null;
 
   function boot(mode) {
     errEl.textContent = '';
@@ -48,7 +49,10 @@
         window.game = game;
         game.settings.renderDistance = parseInt(rngDist.value, 10);
 
-        if (mode === 'continue') {
+        if (mode === 'file') {
+          if (!game.loadFromText(pendingSaveText)) throw new Error('세계 파일을 불러오지 못했습니다.');
+          game.ui.toast('세계 파일을 불러왔습니다');
+        } else if (mode === 'continue') {
           if (!game.load()) throw new Error('저장본을 불러오지 못했습니다.');
           game.ui.toast('불러왔습니다');
         } else {
@@ -61,6 +65,11 @@
 
         game.start();
         if (!isTouch) game.requestPointerLock();
+
+        // 저장소가 막힌 웹뷰라면 알려 준다
+        if (!game.storageAvailable()) {
+          game.ui.toast('이 환경은 자동 저장을 쓸 수 없습니다 — K 키로 세계 파일을 내보내세요');
+        }
 
         window.addEventListener('beforeunload', function () {
           try { game.save(); } catch (e) { /* 무시 */ }
@@ -78,6 +87,22 @@
 
   btnNew.addEventListener('click', function () { boot('new'); });
   btnContinue.addEventListener('click', function () { boot('continue'); });
+
+  // 내려받은 세계 파일로 이어하기
+  const fileInput = document.getElementById('file-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', function () {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        pendingSaveText = String(reader.result);
+        boot('file');
+      };
+      reader.onerror = function () { errEl.textContent = '파일을 읽지 못했습니다.'; };
+      reader.readAsText(f);
+    });
+  }
 
   seedInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') boot('new');

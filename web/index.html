@@ -45,6 +45,11 @@
       <button id="btn-continue" type="button">이어하기</button>
     </div>
 
+    <label class="file-row">
+      <span>세계 파일 열기</span>
+      <input id="file-input" type="file" accept=".json,application/json">
+    </label>
+
     <div class="modes">
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
       <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
@@ -61,6 +66,7 @@
           <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>C</b> 전체 아이템 목록(창작)</li>
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장)</li>
+          <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
         <ul>
@@ -91,8 +97,10 @@
 <script src="js/itemicons.js"></script>
 <script src="js/glutil.js"></script>
 <script src="js/world.js"></script>
+<script src="js/fluids.js"></script>
 <script src="js/player.js"></script>
 <script src="js/mobs.js"></script>
+<script src="js/physics.js"></script>
 <script src="js/crafting.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/ui.js"></script>

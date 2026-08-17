@@ -164,7 +164,8 @@ Renderer.prototype.beginFrame = function (player, opts) {
   const eye = player.eyePos();
   mat4.perspective(this.proj, opts.fov * Math.PI / 180, this.aspect, 0.06, 1200);
   mat4.identity(this.view);
-  mat4.rotateX(this.view, this.view, -player.pitch);
+  if (opts.shakeX) mat4.rotateZ(this.view, this.view, opts.shakeX);
+  mat4.rotateX(this.view, this.view, -player.pitch + (opts.shakeY || 0));
   mat4.rotateY(this.view, this.view, -player.yaw);
   mat4.translate(this.view, this.view, [-eye[0], -eye[1], -eye[2]]);
   mat4.multiply(this.viewProj, this.proj, this.view);
@@ -430,6 +431,74 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
   gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
+};
+
+// 떨어지는 블록과 점화된 TNT (블록 텍스처를 쓴 정육면체)
+Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
+  const gl = this.gl;
+  const falling = mgr.falling || [];
+  const tnts = mgr.tnt || [];
+  if (!falling.length && !tnts.length) return;
+
+  _ev.length = 0; _ei.length = 0;
+
+  const list = [];
+  for (let i = 0; i < falling.length; i++) {
+    list.push({ x: falling[i].x, y: falling[i].y, z: falling[i].z, id: falling[i].blockId, flash: 0 });
+  }
+  for (let i = 0; i < tnts.length; i++) {
+    const t = tnts[i];
+    // 도화선이 짧아질수록 빠르게 번쩍인다
+    const rate = t.fuse < 1 ? 16 : (t.fuse < 2 ? 8 : 4);
+    list.push({ x: t.x, y: t.y, z: t.z, id: B.tnt, flash: (Math.floor(t.age * rate) % 2) });
+  }
+
+  for (let n = 0; n < list.length; n++) {
+    const e = list[n];
+    const dx = e.x - player.x, dz = e.z - player.z;
+    if (dx * dx + dz * dz > 90 * 90) continue;
+    if (!this.boxInFrustum(e.x - 0.6, e.y - 0.1, e.z - 0.6, e.x + 0.6, e.y + 1.1, e.z + 0.6)) continue;
+
+    const bx = Math.floor(e.x), by = Math.floor(e.y + 0.5), bz = Math.floor(e.z);
+    const sky = world.getSky(bx, by, bz) / 15;
+    const blk = e.flash ? 1 : world.getBlockLight(bx, by, bz) / 15;
+
+    for (let f = 0; f < 6; f++) {
+      const face = FACES[f];
+      const t = texUV(blockTexName(e.id, f));
+      const shadeF = e.flash ? 1 : FACE_SHADE[f];
+      const base = _ev.length / 8;
+      for (let ci = 0; ci < 4; ci++) {
+        const tu = (ci === 1 || ci === 2) ? 1 : 0;
+        const tv = (ci === 2 || ci === 3) ? 1 : 0;
+        const ux = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
+        const uy = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
+        const uz = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
+        const uvp = face.uv(tu, tv);
+        _ev.push(
+          e.x - 0.5 + ux, e.y + uy, e.z - 0.5 + uz,
+          t.u0 + (t.u1 - t.u0) * uvp[0],
+          t.v0 + (t.v1 - t.v0) * uvp[1],
+          sky, blk, shadeF);
+      }
+      _ei.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+
+  if (!_ei.length) return;
+
+  const p = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(p.u.uModel, false, this.model);
+  gl.uniform1f(p.u.uAlphaCut, 0.5);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
 };
 
 // ── 선택 외곽선 ───────────────────────────────────────────────────────

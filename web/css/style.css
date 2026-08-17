@@ -470,3 +470,12 @@ body.touch .hand { display: none !important; }
   animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.file-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13px; color: #9fb0c8; }
+.file-row span { white-space: nowrap; }
+.file-row input[type=file] { flex: 1; min-width: 0; font-size: 12px; color: #9fb0c8; }
+.file-row input[type=file]::file-selector-button {
+  padding: 7px 12px; margin-right: 8px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 5px;
+  background: #26314a; color: #fff; font-size: 12px;
+}
