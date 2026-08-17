@@ -490,6 +490,12 @@ body.touch .hand { display: none !important; }
   background: #26314a; color: #fff; font-size: 12px;
 }
 
+.version {
+  margin: -12px 0 16px; font-size: 12px; color: #6f8299;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.version b { color: #9fd06a; font-weight: 600; }
+
 </style>
 </head>
 <body>
@@ -517,6 +523,7 @@ body.touch .hand { display: none !important; }
   <div class="title-box">
     <h1>WebCraft</h1>
     <p class="sub">웹뷰에서 도는 자바 마인크래프트 스타일 복셀 게임<br>외부 라이브러리 없이 순수 WebGL로 처음부터 제작</p>
+    <p class="version" id="version-line"></p>
 
     <label class="seed-row">
       <span>시드</span>
@@ -9671,6 +9678,11 @@ function facingFromYaw(yaw) {
   return ((q % 4) + 4 + 2) % 4;
 }
 
+// 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
+const GAME_VERSION = 'v3';
+const GAME_BUILD = '2026-08-17';
+const GAME_FEATURES = '흐르는 물 · 블록 795 · 아이템 1239';
+
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
 const SAVE_KEY = 'webcraft.save.v2';
@@ -10828,6 +10840,7 @@ Game.prototype.render = function (dt) {
     const avg = this.frameTimes.reduce(function (a, b) { return a + b; }, 0) / this.frameTimes.length;
     const t = ((this.time % DAY_LENGTH) / DAY_LENGTH * 24);
     this.ui.setDebug([
+      'WebCraft ' + GAME_VERSION + ' (' + GAME_BUILD + ')',
       'FPS ' + (1 / avg).toFixed(0) + '  (' + (avg * 1000).toFixed(1) + 'ms)',
       'XYZ ' + p.x.toFixed(2) + ' / ' + p.y.toFixed(2) + ' / ' + p.z.toFixed(2),
       '청크 ' + Math.floor(p.x / CHUNK_X) + ', ' + Math.floor(p.z / CHUNK_Z) +
@@ -10860,6 +10873,12 @@ Game.prototype.render = function (dt) {
   const chkCreative = document.getElementById('chk-creative');
   const rngDist = document.getElementById('rng-dist');
   const distVal = document.getElementById('dist-val');
+
+  // 버전 표시 (지금 열고 있는 파일이 최신인지 바로 알 수 있게)
+  const versionEl = document.getElementById('version-line');
+  if (versionEl) {
+    versionEl.innerHTML = '버전 <b>' + GAME_VERSION + '</b> · 빌드 ' + GAME_BUILD + ' · ' + GAME_FEATURES;
+  }
 
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');

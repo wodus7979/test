@@ -27,6 +27,11 @@ function facingFromYaw(yaw) {
   return ((q % 4) + 4 + 2) % 4;
 }
 
+// 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
+const GAME_VERSION = 'v3';
+const GAME_BUILD = '2026-08-17';
+const GAME_FEATURES = '흐르는 물 · 블록 795 · 아이템 1239';
+
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
 const SAVE_KEY = 'webcraft.save.v2';
@@ -1184,6 +1189,7 @@ Game.prototype.render = function (dt) {
     const avg = this.frameTimes.reduce(function (a, b) { return a + b; }, 0) / this.frameTimes.length;
     const t = ((this.time % DAY_LENGTH) / DAY_LENGTH * 24);
     this.ui.setDebug([
+      'WebCraft ' + GAME_VERSION + ' (' + GAME_BUILD + ')',
       'FPS ' + (1 / avg).toFixed(0) + '  (' + (avg * 1000).toFixed(1) + 'ms)',
       'XYZ ' + p.x.toFixed(2) + ' / ' + p.y.toFixed(2) + ' / ' + p.z.toFixed(2),
       '청크 ' + Math.floor(p.x / CHUNK_X) + ', ' + Math.floor(p.z / CHUNK_Z) +

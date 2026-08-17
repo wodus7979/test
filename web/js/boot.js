@@ -11,6 +11,12 @@
   const rngDist = document.getElementById('rng-dist');
   const distVal = document.getElementById('dist-val');
 
+  // 버전 표시 (지금 열고 있는 파일이 최신인지 바로 알 수 있게)
+  const versionEl = document.getElementById('version-line');
+  if (versionEl) {
+    versionEl.innerHTML = '버전 <b>' + GAME_VERSION + '</b> · 빌드 ' + GAME_BUILD + ' · ' + GAME_FEATURES;
+  }
+
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
 
