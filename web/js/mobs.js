@@ -66,6 +66,32 @@ const MOB_TYPES = {
       { x: 2 * S, y: 0, z: 0, w: 4 * S, h: 12 * S, d: 4 * S, tex: 'mob_zombie_pants', leg: 1 }
     ]
   },
+  creeper: {
+    kr: '크리퍼', hostile: true, health: 20, speed: 1.05, width: 0.6, height: 1.7,
+    damage: 6, drops: [['gunpowder', 0, 2]],
+    parts: [
+      { x: 0, y: 6 * S, z: 0, w: 8 * S, h: 12 * S, d: 4 * S, tex: 'mob_creeper' },
+      { x: 0, y: 18 * S, z: 0, w: 8 * S, h: 8 * S, d: 8 * S, tex: 'mob_creeper', front: 'mob_creeper_face' },
+      { x: -2 * S, y: 0, z: 4 * S, w: 4 * S, h: 6 * S, d: 4 * S, tex: 'mob_creeper', leg: 0 },
+      { x: 2 * S, y: 0, z: 4 * S, w: 4 * S, h: 6 * S, d: 4 * S, tex: 'mob_creeper', leg: 1 },
+      { x: -2 * S, y: 0, z: -4 * S, w: 4 * S, h: 6 * S, d: 4 * S, tex: 'mob_creeper', leg: 1 },
+      { x: 2 * S, y: 0, z: -4 * S, w: 4 * S, h: 6 * S, d: 4 * S, tex: 'mob_creeper', leg: 0 }
+    ]
+  },
+  spider: {
+    kr: '거미', hostile: true, health: 16, speed: 1.4, width: 1.4, height: 0.9,
+    damage: 2, drops: [['string', 0, 2], ['spider_eye', 0, 1]],
+    parts: [
+      { x: 0, y: 3 * S, z: -3 * S, w: 10 * S, h: 8 * S, d: 12 * S, tex: 'mob_spider' },
+      { x: 0, y: 4 * S, z: 6 * S, w: 8 * S, h: 8 * S, d: 8 * S, tex: 'mob_spider', front: 'mob_spider_face' },
+      { x: -7 * S, y: 0, z: 2 * S, w: 6 * S, h: 4 * S, d: 2 * S, tex: 'mob_spider', leg: 0 },
+      { x: 7 * S, y: 0, z: 2 * S, w: 6 * S, h: 4 * S, d: 2 * S, tex: 'mob_spider', leg: 1 },
+      { x: -7 * S, y: 0, z: -2 * S, w: 6 * S, h: 4 * S, d: 2 * S, tex: 'mob_spider', leg: 1 },
+      { x: 7 * S, y: 0, z: -2 * S, w: 6 * S, h: 4 * S, d: 2 * S, tex: 'mob_spider', leg: 0 },
+      { x: -7 * S, y: 0, z: -6 * S, w: 6 * S, h: 4 * S, d: 2 * S, tex: 'mob_spider', leg: 0 },
+      { x: 7 * S, y: 0, z: -6 * S, w: 6 * S, h: 4 * S, d: 2 * S, tex: 'mob_spider', leg: 1 }
+    ]
+  },
   skeleton: {
     kr: '스켈레톤', hostile: true, health: 20, speed: 1.2, width: 0.6, height: 1.95,
     damage: 2, drops: [['bone', 0, 2], ['arrow', 0, 2]],
@@ -347,7 +373,8 @@ EntityManager.prototype.trySpawn = function (player) {
     const light = Math.max(sky * this.daylight, w.getBlockLight(x, y, z));
 
     if (night && this.countHostile() < this.maxHostile && light < 5) {
-      const type = Math.random() < 0.6 ? 'zombie' : 'skeleton';
+      const HOSTILE_TYPES = ['zombie', 'zombie', 'skeleton', 'skeleton', 'creeper', 'spider'];
+      const type = HOSTILE_TYPES[(Math.random() * HOSTILE_TYPES.length) | 0];
       this.spawnMob(type, x + 0.5, y, z + 0.5);
       return;
     }

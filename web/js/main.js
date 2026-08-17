@@ -1,17 +1,43 @@
 // main.js - 게임 루프, 입력, 상호작용, 저장/불러오기.
 'use strict';
 
-// 블록 종류별 선택 상자 크기 (식물은 실제 모양에 맞춰 작게)
-function outlineBox(id) {
+// 선택 외곽선: 블록의 실제 모양을 감싸는 상자
+function outlineBox(world, x, y, z, id) {
   const d = blockDef(id);
   if (d.render === RENDER_CROSS) return [0.15, 0, 0.15, 0.85, 0.9, 0.85];
-  if (d.render === RENDER_TORCH) return [0.4, 0, 0.4, 0.6, 0.72, 0.6];
-  return null;
+  if (d.render !== RENDER_BOXES) return null;
+  const boxes = world.blockRenderBoxes(x, y, z, id, world.getMeta(x, y, z));
+  if (!boxes || !boxes.length) return null;
+  const o = boxes[0].slice();
+  for (let i = 1; i < boxes.length; i++) {
+    const b = boxes[i];
+    if (b[0] < o[0]) o[0] = b[0];
+    if (b[1] < o[1]) o[1] = b[1];
+    if (b[2] < o[2]) o[2] = b[2];
+    if (b[3] > o[3]) o[3] = b[3];
+    if (b[4] > o[4]) o[4] = b[4];
+    if (b[5] > o[5]) o[5] = b[5];
+  }
+  return o;
+}
+
+// 플레이어가 보는 방향 -> 블록 회전값 (0=+Z 1=+X 2=-Z 3=-X)
+function facingFromYaw(yaw) {
+  const q = Math.round(yaw / (Math.PI / 2));
+  return ((q % 4) + 4 + 2) % 4;
 }
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
-const SAVE_KEY = 'webcraft.save.v1';
+const SAVE_KEY = 'webcraft.save.v2';
+
+// 씨앗 아이템 -> 심었을 때 나오는 작물 블록
+const CROP_BY_SEED = {
+  wheat_seeds: B.wheat_stage0,
+  beetroot_seeds: B.beetroots_stage0,
+  carrot: B.carrots_stage0,
+  potato: B.potatoes_stage0
+};
 
 function Game(canvas) {
   this.canvas = canvas;
@@ -44,8 +70,7 @@ Game.prototype.initAssets = function () {
   if (this.assetsReady) return;
   const atlas = buildAtlas();
   buildItemIcons(atlas.canvas);
-  const itemAtlas = buildItemAtlas();
-  this.renderer.setAtlases(atlas.canvas, itemAtlas);
+  this.renderer.setAtlases(atlas.canvas, buildItemAtlasGL());
   this.assetsReady = true;
 };
 
@@ -252,7 +277,22 @@ Game.prototype.bindInput = function () {
   window.addEventListener('keydown', function (e) {
     if (e.code === 'F5' || (e.ctrlKey && e.code === 'KeyR')) return;
     const act = keyMap[e.code];
-    if (act) { self.input[act] = true; e.preventDefault(); }
+    if (act) {
+      // 스페이스 두 번 = 비행 전환 (창작 모드)
+      if (e.code === 'Space' && !self.input.jump) {
+        const now = performance.now();
+        if (self.player.creative && self._lastSpace && now - self._lastSpace < 320) {
+          self.player.flying = !self.player.flying;
+          self.player.vy = 0;
+          self.ui.toast(self.player.flying ? '비행 켜짐' : '비행 꺼짐');
+          self._lastSpace = 0;
+        } else {
+          self._lastSpace = now;
+        }
+      }
+      self.input[act] = true;
+      e.preventDefault();
+    }
 
     if (e.code >= 'Digit1' && e.code <= 'Digit9') {
       self.player.selected = parseInt(e.code.slice(5), 10) - 1;
@@ -557,38 +597,17 @@ Game.prototype.onUse = function () {
   const held = p.heldItem();
   const heldDef = held ? itemDef(held.name) : null;
 
-  // 1) 블록 사용 (제작대/화로/상자)
-  if (hit.hit && !this.input.sneak) {
-    const id = hit.id;
-    if (id === B.crafting_table) { this.ui.openScreen('crafting'); this.exitPointerLock(); return; }
-    if (id === B.furnace) {
-      const key = hit.x + ',' + hit.y + ',' + hit.z;
-      if (!this.furnaces.has(key)) {
-        this.furnaces.set(key, { input: null, fuel: null, output: null, burnTime: 0, burnMax: 0, progress: 0 });
-      }
-      this.ui.openScreen('furnace', this.furnaces.get(key));
-      this.exitPointerLock();
-      return;
-    }
-    if (id === B.chest) {
-      const key = hit.x + ',' + hit.y + ',' + hit.z;
-      if (!this.chests.has(key)) this.chests.set(key, new Array(27).fill(null));
-      this.ui.openScreen('chest', this.chests.get(key));
-      this.exitPointerLock();
-      return;
-    }
-  }
+  // 1) 블록 상호작용 (제작대·화로·상자·문·침대...)
+  if (hit.hit && !this.input.sneak && this.interactBlock(hit)) return;
 
   if (!held) return;
 
   // 2) 먹기
-  if (heldDef.food) {
-    if (p.eat()) { this.ui.toast(heldDef.kr + ' 먹음'); return; }
-  }
+  if (heldDef.food && p.eat()) return;
 
   // 3) 괭이로 경작지 만들기
   if (heldDef.tool && heldDef.tool.kind === 'hoe' && hit.hit) {
-    if ((hit.id === B.grass_block || hit.id === B.dirt) && hit.face === 2) {
+    if ((hit.id === B.grass_block || hit.id === B.dirt || hit.id === B.coarse_dirt) && hit.face === 2) {
       this.world.setBlock(hit.x, hit.y, hit.z, B.farmland);
       p.damageHeld(1);
       return;
@@ -596,30 +615,32 @@ Game.prototype.onUse = function () {
   }
 
   // 4) 씨앗 심기
-  if (held.name === 'wheat_seeds' && hit.hit && hit.id === B.farmland && hit.face === 2) {
-    if (this.world.getBlock(hit.x, hit.y + 1, hit.z) === 0) {
-      this.world.setBlock(hit.x, hit.y + 1, hit.z, B.wheat_stage0);
+  if (heldDef.place === 'crop' && hit.hit && hit.id === B.farmland && hit.face === 2) {
+    const crop = CROP_BY_SEED[held.name];
+    if (crop && this.world.getBlock(hit.x, hit.y + 1, hit.z) === 0) {
+      this.world.setBlock(hit.x, hit.y + 1, hit.z, crop);
       p.consumeHeld(1);
       return;
     }
   }
 
   // 5) 양동이
-  if (held.name === 'bucket' && hit.hit) {
-    const liq = this.world.raycast(p.eyePos()[0], p.eyePos()[1], p.eyePos()[2],
-      p.lookDir()[0], p.lookDir()[1], p.lookDir()[2], 5, true);
+  const e = p.eyePos(), dir = p.lookDir();
+  if (held.name === 'bucket') {
+    const liq = this.world.raycast(e[0], e[1], e[2], dir[0], dir[1], dir[2], 5, true);
     if (liq.hit && blockDef(liq.id).liquid) {
+      const filled = liq.id === B.lava ? 'lava_bucket' : 'water_bucket';
       this.world.setBlock(liq.x, liq.y, liq.z, 0);
       p.consumeHeld(1);
-      p.addItem('water_bucket', 1);
+      p.addItem(filled, 1);
       return;
     }
   }
-  if (held.name === 'water_bucket' && hit.hit) {
+  if ((held.name === 'water_bucket' || held.name === 'lava_bucket') && hit.hit) {
     const off = FACE_OFFSET[hit.face];
     const tx = hit.x + off[0], ty = hit.y + off[1], tz = hit.z + off[2];
     if (this.world.getBlock(tx, ty, tz) === 0) {
-      this.world.setBlock(tx, ty, tz, B.water);
+      this.world.setBlock(tx, ty, tz, held.name === 'lava_bucket' ? B.lava : B.water);
       p.consumeHeld(1);
       p.addItem('bucket', 1);
       return;
@@ -628,37 +649,122 @@ Game.prototype.onUse = function () {
 
   // 6) 블록 설치
   if (!heldDef.block || !hit.hit) return;
+  this.placeBlock(hit, heldDef.block);
+};
+
+// 블록별 상호작용. 처리했으면 true
+Game.prototype.interactBlock = function (hit) {
+  const w = this.world;
+  const d = blockDef(hit.id);
+  const key = hit.x + ',' + hit.y + ',' + hit.z;
+
+  switch (d.interact) {
+    case 'crafting':
+      this.ui.openScreen('crafting');
+      this.exitPointerLock();
+      return true;
+
+    case 'furnace':
+      if (!this.furnaces.has(key)) {
+        this.furnaces.set(key, { input: null, fuel: null, output: null, burnTime: 0, burnMax: 0, progress: 0 });
+      }
+      this.ui.openScreen('furnace', this.furnaces.get(key));
+      this.exitPointerLock();
+      return true;
+
+    case 'chest':
+      if (!this.chests.has(key)) this.chests.set(key, new Array(27).fill(null));
+      this.ui.openScreen('chest', this.chests.get(key));
+      this.exitPointerLock();
+      return true;
+
+    case 'open': {
+      const m = w.getMeta(hit.x, hit.y, hit.z);
+      w.setMeta(hit.x, hit.y, hit.z, m ^ META_OPEN);
+      if (d.tall) {
+        const dy = (m & META_HALF2) ? -1 : 1;
+        if (w.getBlock(hit.x, hit.y + dy, hit.z) === hit.id) {
+          w.setMeta(hit.x, hit.y + dy, hit.z, w.getMeta(hit.x, hit.y + dy, hit.z) ^ META_OPEN);
+        }
+      }
+      this.playSound('place');
+      return true;
+    }
+
+    case 'toggle':
+      w.setMeta(hit.x, hit.y, hit.z, w.getMeta(hit.x, hit.y, hit.z) ^ META_OPEN);
+      this.playSound('place');
+      return true;
+
+    case 'sleep': {
+      if (this.dayFactor() > 0.35) { this.ui.toast('낮에는 잠들 수 없습니다'); return true; }
+      // 다음 아침으로 시간을 넘긴다
+      this.time = (Math.floor(this.time / DAY_LENGTH) + 1) * DAY_LENGTH + DAY_LENGTH * 0.06;
+      this.player.spawnX = hit.x; this.player.spawnY = hit.y + 1; this.player.spawnZ = hit.z;
+      this.player.heal(2);
+      this.ui.toast('잘 잤습니다 — 아침이 되었습니다');
+      return true;
+    }
+
+    case 'eat_cake':
+      if (this.player.hunger < 20) {
+        this.player.hunger = Math.min(20, this.player.hunger + 2);
+        this.world.setBlock(hit.x, hit.y, hit.z, 0);
+        return true;
+      }
+      return false;
+  }
+  return false;
+};
+
+Game.prototype.placeBlock = function (hit, blockId) {
+  const p = this.player;
+  const w = this.world;
+  const def = blockDef(blockId);
   const off = FACE_OFFSET[hit.face];
   const tx = hit.x + off[0], ty = hit.y + off[1], tz = hit.z + off[2];
   if (ty < 0 || ty >= CHUNK_Y) return;
 
-  const target = this.world.getBlock(tx, ty, tz);
+  const target = w.getBlock(tx, ty, tz);
   if (target !== 0 && !blockDef(target).liquid) return;
 
-  const def = blockDef(heldDef.block);
-  // 지지가 필요한 블록은 아래가 단단해야 한다
+  // 방향 / 위아래 절반
+  let meta = 0;
+  if (def.facing) meta |= facingFromYaw(p.yaw);
+  if (def.halfable && hit.face === 3) meta |= META_TOP;
+
+  // 지지가 필요한 블록
   if (def.needsSupport) {
-    const below = this.world.getBlock(tx, ty - 1, tz);
+    const below = w.getBlock(tx, ty - 1, tz);
     const bd = blockDef(below);
-    const ok = below !== 0 && (bd.opaque || below === B.farmland || below === heldDef.block);
+    const ok = below !== 0 && (bd.opaque || below === B.farmland || below === blockId ||
+      (bd.render === RENDER_BOXES && bd.solid));
     if (!ok) return;
   }
 
-  // 플레이어와 겹치면 설치 불가
+  // 플레이어·몹과 겹치면 설치 불가
   if (def.solid) {
     const b = p.aabb(p.x, p.y, p.z);
     if (b.x1 > tx && b.x0 < tx + 1 && b.y1 > ty && b.y0 < ty + 1 && b.z1 > tz && b.z0 < tz + 1) return;
-    let blocked = false;
     for (let i = 0; i < this.entities.mobs.length; i++) {
       const m = this.entities.mobs[i];
       const hw = m.def.width / 2;
       if (m.x + hw > tx && m.x - hw < tx + 1 && m.y + m.def.height > ty && m.y < ty + 1 &&
-          m.z + hw > tz && m.z - hw < tz + 1) { blocked = true; break; }
+          m.z + hw > tz && m.z - hw < tz + 1) return;
     }
-    if (blocked) return;
   }
 
-  this.world.setBlock(tx, ty, tz, heldDef.block);
+  if (def.tall) {
+    // 문처럼 두 칸을 차지하는 블록
+    if (w.getBlock(tx, ty + 1, tz) !== 0) return;
+    w.setBlock(tx, ty + 1, tz, blockId, meta | META_HALF2, true);
+    w.setBlock(tx, ty, tz, blockId, meta);
+    w.updateLightingAt(tx, ty + 1, tz, 0, blockId);
+    w.blockUpdateAround(tx, ty + 1, tz);
+  } else {
+    w.setBlock(tx, ty, tz, blockId, meta);
+  }
+
   p.consumeHeld(1);
   this.playSound('place');
 };
@@ -745,8 +851,8 @@ function rleEncode(arr) {
   return out;
 }
 
-function rleDecode(pairs, length) {
-  const arr = new Uint8Array(length);
+function rleDecode(pairs, length, Type) {
+  const arr = new (Type || Uint8Array)(length);
   let p = 0;
   for (let i = 0; i < pairs.length; i += 2) {
     const v = pairs[i], n = pairs[i + 1];
@@ -760,7 +866,7 @@ Game.prototype.save = function () {
   const chunks = {};
   this.world.chunks.forEach(function (c, key) {
     if (!c.modified) return;
-    chunks[key] = rleEncode(c.blocks);
+    chunks[key] = { b: rleEncode(c.blocks), m: rleEncode(c.meta) };
   });
 
   const furnaces = {};
@@ -858,7 +964,8 @@ Game.prototype.load = function () {
     origGen(c);
     const saved = self.savedChunks[c.cx + ',' + c.cz];
     if (saved) {
-      c.blocks.set(rleDecode(saved, c.blocks.length));
+      c.blocks.set(rleDecode(saved.b, c.blocks.length, Uint16Array));
+      if (saved.m) c.meta.set(rleDecode(saved.m, c.meta.length, Uint8Array));
       c.modified = true;
       c.decorated = true; // 저장본에 이미 장식이 포함됨
       for (let lz = 0; lz < CHUNK_Z; lz++) {
@@ -957,7 +1064,7 @@ Game.prototype.render = function (dt) {
 
   if (!this.ui.open && !p.dead) {
     const hit = p.pick(5);
-    if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(hit.id));
+    if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }
   r.drawChunks(this.world, p, opts, 'water');
 
@@ -985,7 +1092,7 @@ Game.prototype.render = function (dt) {
       '삼각형 ' + (r.stats.tris | 0),
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
-      '바이옴 ' + ['바다', '해변', '평원', '숲', '사막', '산', '설원'][this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
+      '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
       '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length,
       '체력 ' + p.health.toFixed(1) + '  허기 ' + p.hunger + '  방어 ' + p.armorPoints()
     ]);

@@ -21,7 +21,7 @@
 
   // 저장본 유무에 따라 이어하기 버튼 활성화
   let hasSave = false;
-  try { hasSave = !!localStorage.getItem('webcraft.save.v1'); } catch (e) { hasSave = false; }
+  try { hasSave = !!localStorage.getItem('webcraft.save.v2'); } catch (e) { hasSave = false; }
   btnContinue.disabled = !hasSave;
   if (!hasSave) btnContinue.title = '저장된 세계가 없습니다';
 
@@ -29,14 +29,19 @@
     console.error(e);
     errEl.textContent = '오류: ' + (e && e.message ? e.message : e);
     titleEl.style.display = 'flex';
+    const l = document.getElementById('loading');
+    if (l) l.classList.remove('show');
   }
+
+  const loadingEl = document.getElementById('loading');
 
   function boot(mode) {
     errEl.textContent = '';
     titleEl.style.display = 'none';
+    loadingEl.classList.add('show');
 
-    // 무거운 초기화 전에 화면을 한 번 그려준다
-    setTimeout(function () {
+    // 텍스처/아이콘 1200여 장을 만드는 동안 로딩 화면을 보여준다
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
       try {
         const canvas = document.getElementById('game');
         const game = new Game(canvas);
@@ -65,8 +70,10 @@
         });
       } catch (e) {
         fail(e);
+      } finally {
+        loadingEl.classList.remove('show');
       }
-    }, 30);
+    }); });
   }
 
   btnNew.addEventListener('click', function () { boot('new'); });

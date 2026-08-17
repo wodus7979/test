@@ -28,6 +28,8 @@
 </div>
 
 <!-- 시작 화면 -->
+<div id="loading"><div class="spin"></div><p>세계를 만들고 있습니다…</p></div>
+
 <div id="title">
   <div class="title-box">
     <h1>WebCraft</h1>
@@ -56,7 +58,8 @@
           <li><b>WASD</b> 이동 · <b>Space</b> 점프 · <b>Shift</b> 웅크리기 · <b>Ctrl</b> 달리기</li>
           <li><b>마우스</b> 시점 · <b>좌클릭</b> 캐기/공격 · <b>우클릭</b> 설치/사용/먹기</li>
           <li><b>1~9</b> 또는 <b>휠</b> 핫바 선택 · <b>Q</b> 버리기 (Ctrl+Q 전부)</li>
-          <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>F</b> 비행(창작) · <b>C</b> 아이템 목록(창작)</li>
+          <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>C</b> 전체 아이템 목록(창작)</li>
+          <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장)</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -81,7 +84,9 @@
 
 <script src="js/noise.js"></script>
 <script src="js/blocks.js"></script>
+<script src="js/blockfamilies.js"></script>
 <script src="js/items.js"></script>
+<script src="js/itemlist.js"></script>
 <script src="js/textures.js"></script>
 <script src="js/itemicons.js"></script>
 <script src="js/glutil.js"></script>

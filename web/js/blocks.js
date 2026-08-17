@@ -1,241 +1,186 @@
-// blocks.js - 블록 레지스트리. 원본 마인크래프트의 블록 목록/성질을 재현.
+// blocks.js - 블록 레지스트리 코어. 모양(모델), 성질, 텍스처 요청을 정의한다.
+// 실제 블록 목록은 이 파일 뒤쪽과 blockfamilies.js 에서 만든다.
 'use strict';
 
-// 렌더 방식
-const RENDER_CUBE = 0;   // 일반 정육면체
-const RENDER_CROSS = 1;  // X자 (꽃, 풀, 묘목)
-const RENDER_LIQUID = 2; // 액체 (물)
-const RENDER_TORCH = 3;  // 횃불(가는 기둥)
+// ── 렌더 방식 ─────────────────────────────────────────────────────────
+const RENDER_CUBE = 0;    // 꽉 찬 정육면체
+const RENDER_CROSS = 1;   // X자 (꽃, 풀, 묘목)
+const RENDER_LIQUID = 2;  // 액체
+const RENDER_BOXES = 3;   // 상자 여러 개로 이루어진 모델 (계단, 반블록, 담장...)
 
-// 도구 종류
-const TOOL_NONE = 0, TOOL_PICKAXE = 1, TOOL_AXE = 2, TOOL_SHOVEL = 3, TOOL_SHEARS = 4, TOOL_SWORD = 5;
+// 이웃에 따라 모양이 달라지는 특수 모양
+const SHAPE_STATIC = 0;   // 고정된 상자 목록
+const SHAPE_STAIRS = 1;
+const SHAPE_FENCE = 2;
+const SHAPE_WALL = 3;
+const SHAPE_PANE = 4;
 
-// 채굴 등급 (도구 재질)
-const TIER = { none: 0, wood: 1, gold: 1, stone: 2, iron: 3, diamond: 4 };
+// ── 도구 ──────────────────────────────────────────────────────────────
+const TOOL_NONE = 0, TOOL_PICKAXE = 1, TOOL_AXE = 2, TOOL_SHOVEL = 3;
+const TOOL_SHEARS = 4, TOOL_SWORD = 5, TOOL_HOE = 6;
 
-const BLOCKS = [];      // id -> 정의
-const BLOCK_BY_NAME = {}; // name -> 정의
-const B = {};           // name -> id (숏컷)
+const TIER = { none: 0, wood: 1, gold: 1, stone: 2, iron: 3, diamond: 4, netherite: 5 };
 
-function defBlock(id, name, kr, opts) {
+// ── 메타(블록 상태) 비트 ──────────────────────────────────────────────
+const META_FACING = 0x03;  // 0=+Z 1=-X 2=-Z 3=+X
+const META_TOP = 0x04;     // 반블록/계단이 위쪽에 붙음
+const META_OPEN = 0x08;    // 문/트랩도어/울타리문 열림
+const META_HALF2 = 0x10;   // 문·침대의 윗부분 / 뒷부분
+
+// ── 상자 모델 헬퍼 (0~16 픽셀 단위) ──────────────────────────────────
+function box(x0, y0, z0, x1, y1, z1) {
+  return [x0 / 16, y0 / 16, z0 / 16, x1 / 16, y1 / 16, z1 / 16];
+}
+
+const SHAPES = {
+  full: [box(0, 0, 0, 16, 16, 16)],
+  slab: [box(0, 0, 0, 16, 8, 16)],
+  layer: [box(0, 0, 0, 16, 2, 16)],
+  carpet: [box(0, 0, 0, 16, 1, 16)],
+  plate: [box(1, 0, 1, 15, 1, 15)],
+  button: [box(5, 0, 5, 11, 2, 11)],
+  trapdoor: [box(0, 0, 0, 16, 3, 16)],
+  door: [box(0, 0, 0, 16, 16, 3)],
+  bed: [box(0, 0, 0, 16, 9, 16)],
+  cake: [box(1, 0, 1, 15, 8, 15)],
+  pot: [box(5, 0, 5, 11, 6, 11)],
+  torch: [box(7, 0, 7, 9, 10, 9)],
+  candle: [box(7, 0, 7, 9, 6, 9)],
+  lantern: [box(5, 0, 5, 11, 9, 11)],
+  chain: [box(6.5, 0, 6.5, 9.5, 16, 9.5)],
+  rod: [box(6, 0, 6, 10, 16, 10)],
+  ladder: [box(0, 0, 13, 16, 16, 16)],
+  rail: [box(0, 0, 0, 16, 1, 16)],
+  hopper: [box(0, 10, 0, 16, 16, 16), box(4, 4, 4, 12, 10, 12)],
+  anvil: [box(2, 0, 2, 14, 4, 14), box(4, 4, 5, 12, 10, 11), box(0, 10, 3, 16, 16, 13)],
+  cauldron: [box(0, 0, 0, 16, 3, 16), box(0, 3, 0, 2, 16, 16), box(14, 3, 0, 16, 16, 16),
+    box(2, 3, 0, 14, 16, 2), box(2, 3, 14, 14, 16, 16)],
+  brewing: [box(7, 0, 7, 9, 16, 9), box(1, 0, 1, 15, 2, 15)],
+  enchant: [box(0, 0, 0, 16, 12, 16)],
+  stonecutter: [box(0, 0, 0, 16, 9, 16)],
+  grindstone: [box(2, 4, 4, 14, 16, 12)],
+  campfire: [box(0, 0, 0, 16, 4, 16)],
+  lectern: [box(0, 0, 0, 16, 2, 16), box(4, 2, 4, 12, 10, 12)],
+  sign: [box(0, 4, 7, 16, 16, 9)],
+  banner: [box(7, 0, 7, 9, 16, 9)],
+  end_portal_frame: [box(0, 0, 0, 16, 13, 16)],
+  pointed: [box(5, 0, 5, 11, 16, 11)],
+  amethyst_cluster: [box(5, 0, 5, 11, 12, 11)],
+  sculk_vein: [box(0, 0, 0, 16, 1, 16)],
+  lily: [box(1, 0, 1, 15, 1, 15)],
+  turtle_egg: [box(5, 0, 5, 11, 7, 11)],
+  conduit: [box(5, 5, 5, 11, 11, 11)],
+  piston_head: [box(0, 12, 0, 16, 16, 16), box(6, 0, 6, 10, 12, 10)],
+  daylight: [box(0, 0, 0, 16, 6, 16)],
+  repeater: [box(0, 0, 0, 16, 2, 16), box(3, 2, 2, 5, 5, 4), box(3, 2, 11, 5, 5, 13)],
+  bell: [box(5, 4, 5, 11, 12, 11), box(4, 12, 4, 12, 16, 12)],
+  flower_pot: [box(5, 0, 5, 11, 6, 11)],
+  scaffold: [box(0, 14, 0, 16, 16, 16), box(0, 0, 0, 2, 14, 2), box(14, 0, 0, 16, 14, 2),
+    box(0, 0, 14, 2, 14, 16), box(14, 0, 14, 16, 14, 16)]
+};
+
+// 계단(정면이 +Z일 때). 회전은 렌더러가 메타를 보고 처리한다.
+const STAIR_BOXES = [box(0, 0, 0, 16, 8, 16), box(0, 8, 8, 16, 16, 16)];
+// 담장 기둥/가로대
+const FENCE_POST = box(6, 0, 6, 10, 16, 10);
+const FENCE_ARM_Z = [box(7, 3, 10, 9, 15, 16), box(7, 3, 10, 9, 15, 16)];
+// 벽 기둥
+const WALL_POST = box(4, 0, 4, 12, 16, 12);
+// 유리판 중심
+const PANE_POST = box(7, 0, 7, 9, 16, 9);
+
+// ── 텍스처 요청 ───────────────────────────────────────────────────────
+// textures.js 가 읽어서 실제 픽셀을 그린다. 같은 이름은 한 번만 등록된다.
+const TEX_SPEC = {};
+function tex(name, spec) {
+  if (!TEX_SPEC[name]) TEX_SPEC[name] = spec;
+  return name;
+}
+
+// ── 레지스트리 ────────────────────────────────────────────────────────
+const BLOCKS = [];
+const BLOCK_BY_NAME = {};
+const B = {};
+let _nextBlockId = 1;
+
+function defBlock(name, kr, opts) {
   opts = opts || {};
-  const tex = opts.tex || {};
-  const all = tex.all !== undefined ? tex.all : name;
+  const t = opts.tex || {};
+  const all = t.all !== undefined ? t.all : name;
+  const render = opts.render !== undefined ? opts.render : RENDER_CUBE;
+  const isCube = render === RENDER_CUBE;
+
   const def = {
-    id: id,
+    id: _nextBlockId++,
     name: name,
     kr: kr,
-    // 면별 텍스처 이름 (top, bottom, north, south, east, west 순서로 조회)
-    texTop: tex.top !== undefined ? tex.top : all,
-    texBottom: tex.bottom !== undefined ? tex.bottom : all,
-    texSide: tex.side !== undefined ? tex.side : all,
-    render: opts.render !== undefined ? opts.render : RENDER_CUBE,
-    solid: opts.solid !== undefined ? opts.solid : true,        // 충돌 여부
-    opaque: opts.opaque !== undefined ? opts.opaque : true,     // 빛/면 컬링 차단
-    cutout: !!opts.cutout,        // 알파 컷아웃 (유리, 잎, 꽃)
+    texTop: t.top !== undefined ? t.top : all,
+    texBottom: t.bottom !== undefined ? t.bottom : all,
+    texSide: t.side !== undefined ? t.side : all,
+    render: render,
+    shape: opts.shape !== undefined ? opts.shape : SHAPE_STATIC,
+    boxes: opts.boxes || (render === RENDER_BOXES ? SHAPES.full : null),
+    solid: opts.solid !== undefined ? opts.solid : true,
+    // opaque = 빛을 완전히 막고 이웃 면을 가린다 (꽉 찬 정육면체만)
+    opaque: opts.opaque !== undefined ? opts.opaque : isCube,
+    cutout: !!opts.cutout,
     liquid: !!opts.liquid,
-    light: opts.light || 0,       // 발광 레벨 0~15
-    filter: opts.filter || 0,     // 빛 감쇠 (물 등)
+    light: opts.light || 0,
+    filter: opts.filter || 0,
     hardness: opts.hardness !== undefined ? opts.hardness : 1,
     tool: opts.tool || TOOL_NONE,
-    tier: opts.tier || 0,         // 필요 도구 등급 (0이면 맨손 가능)
-    drop: opts.drop !== undefined ? opts.drop : name, // 드랍 아이템 이름 (null이면 없음)
+    tier: opts.tier || 0,
+    drop: opts.drop !== undefined ? opts.drop : name,
     dropCount: opts.dropCount || 1,
     dropChance: opts.dropChance !== undefined ? opts.dropChance : 1,
     silkOnly: !!opts.silkOnly,
-    gravity: !!opts.gravity,      // 모래/자갈처럼 떨어짐
+    gravity: !!opts.gravity,
     flammable: !!opts.flammable,
-    placeOnly: !!opts.placeOnly,  // 아이템으로 존재하지 않음
+    placeOnly: !!opts.placeOnly,
     needsSupport: !!opts.needsSupport,
-    fuel: opts.fuel || 0,         // 화로 연료 시간(틱)
+    fuel: opts.fuel || 0,
+    damage: opts.damage || 0,
+    // 설치할 때 바라보는 방향을 메타에 기록
+    facing: !!opts.facing,
+    // 아래/위 절반 선택 (반블록, 계단, 트랩도어)
+    halfable: !!opts.halfable,
+    openable: !!opts.openable,
+    tall: !!opts.tall,           // 2칸 높이 (문, 침대는 가로 2칸)
+    interact: opts.interact || null,
+    group: opts.group || 'misc',  // 창작 모드 분류
+    kr_group: opts.kr_group || null,
+    variantOf: opts.variantOf || null,
     stack: opts.stack || 64,
-    damage: opts.damage || 0      // 밟았을 때 피해 (선인장)
+    seeThrough: !!opts.seeThrough, // 유리처럼 뒤가 보임 (같은 종류끼리 면 생략)
+    translucent: !!opts.translucent // 반투명 (알파 블렌딩 패스로 그린다)
   };
-  BLOCKS[id] = def;
+  BLOCKS[def.id] = def;
   BLOCK_BY_NAME[name] = def;
-  B[name] = id;
+  B[name] = def.id;
   return def;
 }
 
-// ── 0: 공기 ───────────────────────────────────────────────────────────
-defBlock(0, 'air', '공기', {
-  render: -1, solid: false, opaque: false, hardness: 0, drop: null, placeOnly: true
-});
-
-// ── 기본 지형 ─────────────────────────────────────────────────────────
-defBlock(1, 'stone', '돌', { hardness: 1.5, tool: TOOL_PICKAXE, tier: 1, drop: 'cobblestone' });
-defBlock(2, 'grass_block', '잔디 블록', {
-  tex: { top: 'grass_top', bottom: 'dirt', side: 'grass_side' },
-  hardness: 0.6, tool: TOOL_SHOVEL, drop: 'dirt'
-});
-defBlock(3, 'dirt', '흙', { hardness: 0.5, tool: TOOL_SHOVEL });
-defBlock(4, 'cobblestone', '조약돌', { hardness: 2, tool: TOOL_PICKAXE, tier: 1 });
-defBlock(5, 'oak_planks', '참나무 판자', { hardness: 2, tool: TOOL_AXE, flammable: true, fuel: 300 });
-defBlock(6, 'bedrock', '기반암', { hardness: -1, drop: null });
-defBlock(7, 'sand', '모래', { hardness: 0.5, tool: TOOL_SHOVEL, gravity: true });
-defBlock(8, 'gravel', '자갈', { hardness: 0.6, tool: TOOL_SHOVEL, gravity: true, drop: 'gravel' });
-defBlock(9, 'oak_log', '참나무 원목', {
-  tex: { top: 'oak_log_top', bottom: 'oak_log_top', side: 'oak_log' },
-  hardness: 2, tool: TOOL_AXE, flammable: true, fuel: 300
-});
-defBlock(10, 'oak_leaves', '참나무 잎', {
-  hardness: 0.2, opaque: false, cutout: true, tool: TOOL_SHEARS,
-  drop: 'oak_sapling', dropChance: 0.06, filter: 1, flammable: true
-});
-defBlock(11, 'glass', '유리', { hardness: 0.3, opaque: false, cutout: true, drop: null, silkOnly: true });
-defBlock(12, 'water', '물', {
-  render: RENDER_LIQUID, solid: false, opaque: false, liquid: true, filter: 2,
-  hardness: -1, drop: null, placeOnly: true
-});
-
-// ── 광석 ──────────────────────────────────────────────────────────────
-defBlock(13, 'coal_ore', '석탄 광석', { hardness: 3, tool: TOOL_PICKAXE, tier: 1, drop: 'coal' });
-defBlock(14, 'iron_ore', '철 광석', { hardness: 3, tool: TOOL_PICKAXE, tier: 2 });
-defBlock(15, 'gold_ore', '금 광석', { hardness: 3, tool: TOOL_PICKAXE, tier: 3 });
-defBlock(16, 'diamond_ore', '다이아몬드 광석', { hardness: 3, tool: TOOL_PICKAXE, tier: 3, drop: 'diamond' });
-defBlock(17, 'redstone_ore', '레드스톤 광석', {
-  hardness: 3, tool: TOOL_PICKAXE, tier: 3, drop: 'redstone', dropCount: 4
-});
-defBlock(18, 'lapis_ore', '청금석 광석', {
-  hardness: 3, tool: TOOL_PICKAXE, tier: 2, drop: 'lapis_lazuli', dropCount: 6
-});
-defBlock(19, 'emerald_ore', '에메랄드 광석', { hardness: 3, tool: TOOL_PICKAXE, tier: 3, drop: 'emerald' });
-
-// ── 기능 블록 ─────────────────────────────────────────────────────────
-defBlock(20, 'crafting_table', '제작대', {
-  tex: { top: 'crafting_table_top', bottom: 'oak_planks', side: 'crafting_table_side' },
-  hardness: 2.5, tool: TOOL_AXE, flammable: true, fuel: 300
-});
-defBlock(21, 'furnace', '화로', {
-  tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_front' },
-  hardness: 3.5, tool: TOOL_PICKAXE, tier: 1
-});
-defBlock(22, 'chest', '상자', {
-  tex: { top: 'chest_top', bottom: 'chest_top', side: 'chest_side' },
-  hardness: 2.5, tool: TOOL_AXE, flammable: true, fuel: 300
-});
-defBlock(23, 'torch', '횃불', {
-  render: RENDER_TORCH, solid: false, opaque: false, cutout: true, light: 14,
-  hardness: 0, needsSupport: true
-});
-
-// ── 건축 블록 ─────────────────────────────────────────────────────────
-defBlock(24, 'sandstone', '사암', {
-  tex: { top: 'sandstone_top', bottom: 'sandstone_bottom', side: 'sandstone' },
-  hardness: 0.8, tool: TOOL_PICKAXE, tier: 1
-});
-defBlock(25, 'bricks', '벽돌', { hardness: 2, tool: TOOL_PICKAXE, tier: 1 });
-defBlock(26, 'stone_bricks', '돌 벽돌', { hardness: 1.5, tool: TOOL_PICKAXE, tier: 1 });
-defBlock(27, 'mossy_cobblestone', '이끼 낀 조약돌', { hardness: 2, tool: TOOL_PICKAXE, tier: 1 });
-defBlock(28, 'obsidian', '흑요석', { hardness: 50, tool: TOOL_PICKAXE, tier: 4 });
-defBlock(29, 'snow_block', '눈 블록', { hardness: 0.2, tool: TOOL_SHOVEL, drop: 'snowball', dropCount: 4 });
-defBlock(30, 'ice', '얼음', { hardness: 0.5, tool: TOOL_PICKAXE, opaque: false, cutout: true, drop: null, silkOnly: true });
-defBlock(31, 'cactus', '선인장', { hardness: 0.4, opaque: false, cutout: true, damage: 1 });
-defBlock(32, 'clay', '점토', { hardness: 0.6, tool: TOOL_SHOVEL, drop: 'clay_ball', dropCount: 4 });
-defBlock(33, 'pumpkin', '호박', {
-  tex: { top: 'pumpkin_top', bottom: 'pumpkin_top', side: 'pumpkin_side' },
-  hardness: 1, tool: TOOL_AXE
-});
-defBlock(34, 'melon', '수박', {
-  tex: { top: 'melon_top', bottom: 'melon_top', side: 'melon_side' },
-  hardness: 1, tool: TOOL_AXE, drop: 'melon_slice', dropCount: 5
-});
-defBlock(35, 'bookshelf', '책장', {
-  tex: { top: 'oak_planks', bottom: 'oak_planks', side: 'bookshelf' },
-  hardness: 1.5, tool: TOOL_AXE, drop: 'book', dropCount: 3, flammable: true, fuel: 300
-});
-defBlock(36, 'tnt', 'TNT', {
-  tex: { top: 'tnt_top', bottom: 'tnt_bottom', side: 'tnt_side' }, hardness: 0
-});
-defBlock(37, 'iron_block', '철 블록', { hardness: 5, tool: TOOL_PICKAXE, tier: 2 });
-defBlock(38, 'gold_block', '금 블록', { hardness: 3, tool: TOOL_PICKAXE, tier: 3 });
-defBlock(39, 'diamond_block', '다이아몬드 블록', { hardness: 5, tool: TOOL_PICKAXE, tier: 3 });
-defBlock(40, 'emerald_block', '에메랄드 블록', { hardness: 5, tool: TOOL_PICKAXE, tier: 3 });
-defBlock(41, 'lapis_block', '청금석 블록', { hardness: 3, tool: TOOL_PICKAXE, tier: 2 });
-defBlock(42, 'coal_block', '석탄 블록', { hardness: 5, tool: TOOL_PICKAXE, tier: 1, fuel: 16000 });
-defBlock(43, 'redstone_block', '레드스톤 블록', { hardness: 5, tool: TOOL_PICKAXE, tier: 2 });
-defBlock(44, 'glowstone', '발광석', { hardness: 0.3, light: 15, drop: 'glowstone_dust', dropCount: 3 });
-defBlock(45, 'netherrack', '네더랙', { hardness: 0.4, tool: TOOL_PICKAXE, tier: 1 });
-defBlock(46, 'soul_sand', '소울 모래', { hardness: 0.5, tool: TOOL_SHOVEL });
-
-// ── 다른 나무 ─────────────────────────────────────────────────────────
-defBlock(47, 'birch_log', '자작나무 원목', {
-  tex: { top: 'birch_log_top', bottom: 'birch_log_top', side: 'birch_log' },
-  hardness: 2, tool: TOOL_AXE, flammable: true, fuel: 300
-});
-defBlock(48, 'birch_leaves', '자작나무 잎', {
-  hardness: 0.2, opaque: false, cutout: true, tool: TOOL_SHEARS,
-  drop: 'birch_sapling', dropChance: 0.06, filter: 1, flammable: true
-});
-defBlock(49, 'birch_planks', '자작나무 판자', { hardness: 2, tool: TOOL_AXE, flammable: true, fuel: 300 });
-defBlock(50, 'spruce_log', '가문비나무 원목', {
-  tex: { top: 'spruce_log_top', bottom: 'spruce_log_top', side: 'spruce_log' },
-  hardness: 2, tool: TOOL_AXE, flammable: true, fuel: 300
-});
-defBlock(51, 'spruce_leaves', '가문비나무 잎', {
-  hardness: 0.2, opaque: false, cutout: true, tool: TOOL_SHEARS,
-  drop: 'spruce_sapling', dropChance: 0.06, filter: 1, flammable: true
-});
-defBlock(52, 'spruce_planks', '가문비나무 판자', { hardness: 2, tool: TOOL_AXE, flammable: true, fuel: 300 });
-
-// ── 식물 ──────────────────────────────────────────────────────────────
-const PLANT = {
-  render: RENDER_CROSS, solid: false, opaque: false, cutout: true,
-  hardness: 0, needsSupport: true
+// 공기(0번)
+BLOCKS[0] = {
+  id: 0, name: 'air', kr: '공기', texTop: 'stone', texBottom: 'stone', texSide: 'stone',
+  render: -1, shape: SHAPE_STATIC, boxes: null, solid: false, opaque: false, cutout: false,
+  liquid: false, light: 0, filter: 0, hardness: 0, tool: 0, tier: 0, drop: null,
+  dropCount: 0, dropChance: 0, silkOnly: false, gravity: false, flammable: false,
+  placeOnly: true, needsSupport: false, fuel: 0, damage: 0, facing: false,
+  halfable: false, openable: false, tall: false, interact: null, group: 'misc',
+  stack: 64, seeThrough: false
 };
-defBlock(53, 'dandelion', '민들레', PLANT);
-defBlock(54, 'poppy', '양귀비', PLANT);
-defBlock(55, 'tall_grass', '풀', Object.assign({}, PLANT, {
-  drop: 'wheat_seeds', dropChance: 0.125, tool: TOOL_SHEARS
-}));
-defBlock(56, 'red_mushroom', '빨간 버섯', PLANT);
-defBlock(57, 'brown_mushroom', '갈색 버섯', Object.assign({}, PLANT, { light: 1 }));
-defBlock(58, 'dead_bush', '죽은 덤불', Object.assign({}, PLANT, { drop: 'stick', tool: TOOL_SHEARS }));
-defBlock(59, 'sugar_cane', '사탕수수', Object.assign({}, PLANT, { drop: 'sugar_cane' }));
-defBlock(60, 'oak_sapling', '참나무 묘목', PLANT);
-defBlock(61, 'birch_sapling', '자작나무 묘목', PLANT);
-defBlock(62, 'spruce_sapling', '가문비나무 묘목', PLANT);
-
-// ── 농사 ──────────────────────────────────────────────────────────────
-defBlock(63, 'farmland', '경작지', {
-  tex: { top: 'farmland', bottom: 'dirt', side: 'dirt' },
-  hardness: 0.6, tool: TOOL_SHOVEL, drop: 'dirt', placeOnly: true
-});
-// 밀 4단계
-for (let s = 0; s < 4; s++) {
-  defBlock(64 + s, 'wheat_stage' + s, '밀 (' + s + '단계)', Object.assign({}, PLANT, {
-    drop: s === 3 ? 'wheat' : 'wheat_seeds', dropCount: s === 3 ? 1 : 1, placeOnly: true
-  }));
-}
-
-// ── 양털 16색 ─────────────────────────────────────────────────────────
-const WOOL_COLORS = [
-  ['white', '하양'], ['orange', '주황'], ['magenta', '자홍'], ['light_blue', '하늘'],
-  ['yellow', '노랑'], ['lime', '연두'], ['pink', '분홍'], ['gray', '회색'],
-  ['light_gray', '밝은 회색'], ['cyan', '청록'], ['purple', '보라'], ['blue', '파랑'],
-  ['brown', '갈색'], ['green', '초록'], ['red', '빨강'], ['black', '검정']
-];
-WOOL_COLORS.forEach(function (c, i) {
-  defBlock(68 + i, c[0] + '_wool', c[1] + ' 양털', {
-    hardness: 0.8, tool: TOOL_SHEARS, flammable: true
-  });
-});
-
-defBlock(84, 'sponge', '스펀지', { hardness: 0.6 });
-defBlock(85, 'note_block', '소리 블록', {
-  tex: { all: 'note_block' }, hardness: 0.8, tool: TOOL_AXE, flammable: true
-});
-
-const MAX_BLOCK_ID = 85;
+BLOCK_BY_NAME.air = BLOCKS[0];
+B.air = 0;
 
 // ── 헬퍼 ──────────────────────────────────────────────────────────────
 function blockDef(id) { return BLOCKS[id] || BLOCKS[0]; }
+function isAir(id) { return id === 0; }
 function isSolid(id) { return blockDef(id).solid; }
 function isOpaque(id) { return blockDef(id).opaque; }
-function isAir(id) { return id === 0; }
 function isLiquid(id) { return blockDef(id).liquid; }
 
-// 면(face)에 쓸 텍스처 이름. face: 0=+X 1=-X 2=+Y 3=-Y 4=+Z 5=-Z
+// face: 0=+X 1=-X 2=+Y 3=-Y 4=+Z 5=-Z
 function blockTexName(id, face) {
   const d = blockDef(id);
   if (face === 2) return d.texTop;
@@ -243,12 +188,52 @@ function blockTexName(id, face) {
   return d.texSide;
 }
 
-// 이웃 블록이 보일 때 현재 면을 그려야 하는가
 function shouldDrawFace(self, neighbor) {
-  const n = blockDef(neighbor);
   if (neighbor === 0) return true;
-  if (n.render === RENDER_CROSS || n.render === RENDER_TORCH) return true;
-  if (self === neighbor) return false;              // 같은 블록끼리는 면 생략 (물/유리/잎)
-  if (!n.opaque) return true;
+  const n = blockDef(neighbor);
+  if (!n.opaque) {
+    // 유리·잎처럼 같은 종류끼리는 맞닿은 면을 생략해 깔끔하게 보이게 한다
+    if (self === neighbor && n.seeThrough) return false;
+    return true;
+  }
   return false;
+}
+
+// 충돌/선택에 쓰는 상자 목록 (0~1 정규화 좌표)
+function blockBoxes(id, meta) {
+  const d = blockDef(id);
+  if (!d.solid) return null;
+  if (d.render !== RENDER_BOXES) return SHAPES.full;
+  if (d.shape === SHAPE_STAIRS) return rotateBoxes(STAIR_BOXES, meta);
+  if (d.shape === SHAPE_FENCE || d.shape === SHAPE_WALL || d.shape === SHAPE_PANE) {
+    // 충돌은 기둥 + 전체 가로폭으로 단순화 (지나갈 수 없게)
+    return [box(0, 0, 0, 16, d.shape === SHAPE_PANE ? 16 : 24, 16)];
+  }
+  return rotateBoxes(d.boxes, meta);
+}
+
+// 메타의 facing/top 에 맞춰 상자를 돌린다
+function rotateBoxes(boxes, meta) {
+  meta = meta || 0;
+  const facing = meta & META_FACING;
+  const top = !!(meta & META_TOP);
+  if (!facing && !top) return boxes;
+  const out = [];
+  for (let i = 0; i < boxes.length; i++) {
+    let b = boxes[i];
+    if (top) b = [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5]];
+    for (let r = 0; r < facing; r++) {
+      // Y축 90° 회전: (x,z) -> (z, 1-x)
+      b = [b[2], b[1], 1 - b[3], b[5], b[4], 1 - b[0]];
+    }
+    out.push(b);
+  }
+  return out;
+}
+
+// 두 AABB가 겹치는지
+function boxOverlap(a, bx, by, bz, min, max) {
+  return a[0] + bx < max[0] && a[3] + bx > min[0] &&
+    a[1] + by < max[1] && a[4] + by > min[1] &&
+    a[2] + bz < max[2] && a[5] + bz > min[2];
 }

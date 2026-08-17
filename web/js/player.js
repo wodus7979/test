@@ -155,16 +155,31 @@ Player.prototype.aabb = function (x, y, z) {
   };
 };
 
+// 블록마다 실제 모양(상자 목록)으로 충돌을 검사한다 — 계단·반블록을 제대로 밟을 수 있다
 Player.prototype.collides = function (x, y, z) {
   const b = this.aabb(x, y, z);
+  const min = [b.x0, b.y0, b.z0], max = [b.x1, b.y1, b.z1];
   const x0 = Math.floor(b.x0), x1 = Math.floor(b.x1 - 1e-6);
-  const y0 = Math.floor(b.y0), y1 = Math.floor(b.y1 - 1e-6);
+  const y0 = Math.floor(b.y0) - 1, y1 = Math.floor(b.y1 - 1e-6); // 담장은 1.5칸이라 한 칸 아래도 본다
   const z0 = Math.floor(b.z0), z1 = Math.floor(b.z1 - 1e-6);
+  const w = this.world;
+
   for (let yy = y0; yy <= y1; yy++) {
     for (let zz = z0; zz <= z1; zz++) {
       for (let xx = x0; xx <= x1; xx++) {
-        const id = this.world.getBlock(xx, yy, zz);
-        if (id !== 0 && blockDef(id).solid) return true;
+        const id = w.getBlock(xx, yy, zz);
+        if (id === 0) continue;
+        const d = blockDef(id);
+        if (!d.solid) continue;
+        if (d.render === RENDER_CUBE) {
+          if (yy >= Math.floor(b.y0)) return true;
+          continue;
+        }
+        const boxes = blockBoxes(id, w.getMeta(xx, yy, zz));
+        if (!boxes) continue;
+        for (let i = 0; i < boxes.length; i++) {
+          if (boxOverlap(boxes[i], xx, yy, zz, min, max)) return true;
+        }
       }
     }
   }

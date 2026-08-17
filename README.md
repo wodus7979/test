@@ -2,7 +2,7 @@
 >
 > | 프로젝트 | 위치 | 설명 |
 > | --- | --- | --- |
-> | WebCraft | [`web/`](web/README.md) · `dist/minecraft.html` | 웹뷰에서 도는 마인크래프트 스타일 복셀 게임 (외부 라이브러리 없이 순수 WebGL) |
+> | WebCraft | [`web/`](web/README.md) · `dist/minecraft.html` | 웹뷰에서 도는 마인크래프트 스타일 복셀 게임 — 블록 795종·아이템 1239종·제작 912가지, 외부 라이브러리 없이 순수 WebGL |
 > | 황산벌 전투 퀴즈 | `hwangsanbeol_quiz.html` · `hwangsanbeol_quiz.py` | 아래 문서 참고 |
 
 ---

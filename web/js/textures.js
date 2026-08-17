@@ -1,42 +1,51 @@
 // textures.js - 블록 텍스처를 코드로 직접 그린다(외부 이미지 파일 없음).
-// 16x16 픽셀 타일을 16x16 격자(256x256) 아틀라스에 배치한다.
+// blocks.js 의 TEX_SPEC 에 등록된 요청을 종류별 생성기로 그려 아틀라스에 배치한다.
 'use strict';
 
-const TILE = 16;          // 타일 한 변 픽셀
-const ATLAS_TILES = 16;   // 아틀라스 한 변 타일 수
-const ATLAS_SIZE = TILE * ATLAS_TILES;
+const TILE = 16;
+const ATLAS_TILES = 32;                    // 32x32 = 1024칸
+const ATLAS_SIZE = TILE * ATLAS_TILES;     // 512x512
 
-// '#rrggbb' 또는 '#rrggbbaa' -> [r,g,b,a]
+// '#rrggbb' -> [r,g,b,a]
 function hex(c) {
   if (Array.isArray(c)) return c;
-  let s = c.replace('#', '');
+  let s = String(c).replace('#', '');
   if (s.length === 3) s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
   const n = parseInt(s.substring(0, 6), 16);
   const a = s.length >= 8 ? parseInt(s.substring(6, 8), 16) : 255;
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
 }
 
+function clamp255(v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
 function shade(c, amt) {
   c = hex(c);
+  return [clamp255(c[0] + amt), clamp255(c[1] + amt), clamp255(c[2] + amt), c[3]];
+}
+
+function withAlpha(c, a) { c = hex(c); return [c[0], c[1], c[2], a]; }
+
+// 색을 섞는다
+function mixc(a, b, t) {
+  a = hex(a); b = hex(b);
   return [
-    Math.max(0, Math.min(255, c[0] + amt)),
-    Math.max(0, Math.min(255, c[1] + amt)),
-    Math.max(0, Math.min(255, c[2] + amt)),
-    c[3]
+    a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t,
+    a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t
   ];
 }
 
-// 16x16 픽셀 버퍼
+// ── 픽셀 버퍼 ─────────────────────────────────────────────────────────
 function Pix(size) {
   this.w = size || TILE;
   this.data = new Uint8ClampedArray(this.w * this.w * 4);
 }
 
 Pix.prototype.set = function (x, y, c) {
+  x |= 0; y |= 0;
   if (x < 0 || y < 0 || x >= this.w || y >= this.w) return;
   c = hex(c);
   const i = (y * this.w + x) * 4;
-  if (c[3] === 255) {
+  if (c[3] >= 255) {
     this.data[i] = c[0]; this.data[i + 1] = c[1]; this.data[i + 2] = c[2]; this.data[i + 3] = 255;
   } else if (c[3] > 0) {
     const a = c[3] / 255, ia = 1 - a;
@@ -62,550 +71,910 @@ Pix.prototype.rect = function (x, y, w, h, c) {
   return this;
 };
 
-// 픽셀마다 밝기를 살짝 흔들어 마인크래프트 특유의 거친 질감을 만든다
+Pix.prototype.frame = function (x, y, w, h, c) {
+  for (let i = 0; i < w; i++) { this.set(x + i, y, c); this.set(x + i, y + h - 1, c); }
+  for (let j = 0; j < h; j++) { this.set(x, y + j, c); this.set(x + w - 1, y + j, c); }
+  return this;
+};
+
+// 픽셀마다 밝기를 흔들어 거친 질감을 만든다
 Pix.prototype.noise = function (rnd, base, amount, step) {
   step = step || 1;
   for (let y = 0; y < this.w; y++) {
     for (let x = 0; x < this.w; x++) {
-      const n = (Math.floor(rnd() * (amount * 2 + 1)) - amount);
-      const q = Math.round(n / step) * step;
-      this.set(x, y, shade(base, q));
+      const n = Math.floor(rnd() * (amount * 2 + 1)) - amount;
+      this.set(x, y, shade(base, Math.round(n / step) * step));
     }
   }
   return this;
 };
 
-// 얼룩 뿌리기
 Pix.prototype.speckle = function (rnd, c, count, size) {
   size = size || 1;
   for (let i = 0; i < count; i++) {
-    const x = Math.floor(rnd() * this.w), y = Math.floor(rnd() * this.w);
-    this.rect(x, y, size, size, c);
+    this.rect(Math.floor(rnd() * this.w), Math.floor(rnd() * this.w), size, size, c);
   }
   return this;
 };
 
-// 문자열 아트로 그리기. lines: 16개 문자열, pal: {문자: 색}
+// 알파 일괄 지정
+Pix.prototype.alpha = function (a) {
+  for (let i = 3; i < this.data.length; i += 4) {
+    if (this.data[i] > 0) this.data[i] = a;
+  }
+  return this;
+};
+
+// 문자열 아트
 Pix.prototype.art = function (lines, pal) {
   for (let y = 0; y < lines.length; y++) {
     const row = lines[y];
     for (let x = 0; x < row.length; x++) {
       const ch = row[x];
       if (ch === ' ' || ch === '.') continue;
-      const c = pal[ch];
-      if (c) this.set(x, y, c);
+      if (pal[ch]) this.set(x, y, pal[ch]);
     }
   }
   return this;
 };
 
-// ── 아틀라스 ──────────────────────────────────────────────────────────
-const TEXTURES = {};   // name -> {index, u0,v0,u1,v1}
-const TEX_ORDER = [];
-let _texGens = {};
+// ── 종류별 생성기 ─────────────────────────────────────────────────────
+// 각 생성기는 (p, rnd, spec) 를 받아 16x16 픽셀을 채운다.
+const KIND = {};
 
-function defTex(name, fn) { _texGens[name] = fn; TEX_ORDER.push(name); }
+KIND.noise = function (p, rnd, s) { p.noise(rnd, s.color, s.amt || 10, s.step || 3); };
 
-// ── 블록 텍스처 정의 ──────────────────────────────────────────────────
-function registerBlockTextures() {
-  // 단순 노이즈 블록
-  const simple = [
-    ['stone', '#7a7a7a', 10],
-    ['dirt', '#866043', 12],
-    ['grass_top', '#63a02c', 12],
-    ['sand', '#dbd3a0', 8],
-    ['netherrack', '#6f2c2c', 14],
-    ['soul_sand', '#544031', 10],
-    ['clay', '#a0a6b4', 8],
-    ['snow_block', '#f0fafa', 6],
-    ['sponge', '#c7c34a', 14]
-  ];
-  simple.forEach(function (s) {
-    defTex(s[0], function (p, rnd) { p.noise(rnd, s[1], s[2], 3); });
-  });
+KIND.speck = function (p, rnd, s) {
+  p.noise(rnd, s.color, s.amt || 8, 3);
+  p.speckle(rnd, s.spot, s.count || 22, 1);
+  p.speckle(rnd, shade(s.spot, -14), 12, 1);
+};
 
-  defTex('cobblestone', function (p, rnd) {
-    p.noise(rnd, '#7d7d7d', 8, 4);
-    // 돌덩이 사이 어두운 틈
-    const seams = [[0, 5], [5, 0], [11, 6], [3, 11], [8, 12]];
-    for (let i = 0; i < 60; i++) {
-      const x = Math.floor(rnd() * 16), y = Math.floor(rnd() * 16);
-      p.set(x, y, shade('#5a5a5a', Math.floor(rnd() * 20) - 10));
-    }
-    seams.forEach(function (s) {
-      for (let k = 0; k < 5; k++) p.set((s[0] + k) % 16, s[1], '#4a4a4a');
-    });
-    for (let x = 0; x < 16; x++) { p.set(x, 0, '#5c5c5c'); p.set(x, 15, '#5c5c5c'); }
-  });
+KIND.smooth = function (p, rnd, s) {
+  p.noise(rnd, s.color, 4, 2);
+  p.rect(0, 0, 16, 1, shade(s.color, 10));
+  p.rect(0, 15, 16, 1, shade(s.color, -12));
+};
 
-  defTex('gravel', function (p, rnd) {
-    p.noise(rnd, '#837f7d', 16, 6);
-    p.speckle(rnd, '#5b5856', 26);
-    p.speckle(rnd, '#a5a09c', 20);
-  });
+KIND.cut = function (p, rnd, s) {
+  p.noise(rnd, s.color, 5, 2);
+  p.rect(0, 7, 16, 1, shade(s.color, -22));
+  p.rect(0, 15, 16, 1, shade(s.color, -22));
+  p.rect(7, 0, 1, 8, shade(s.color, -22));
+  p.rect(7, 8, 1, 8, shade(s.color, -22));
+};
 
-  defTex('bedrock', function (p, rnd) {
-    p.noise(rnd, '#575757', 22, 8);
-    p.speckle(rnd, '#2b2b2b', 24, 2);
-    p.speckle(rnd, '#8a8a8a', 12);
-  });
-
-  defTex('grass_side', function (p, rnd) {
-    // 위쪽은 잔디, 아래는 흙, 경계는 들쭉날쭉
-    p.noise(rnd, '#866043', 12, 3);
-    for (let x = 0; x < 16; x++) {
-      const h = 3 + Math.floor(rnd() * 3);
-      for (let y = 0; y < h; y++) p.set(x, y, shade('#63a02c', Math.floor(rnd() * 16) - 8));
-      p.set(x, h, shade('#4e7d24', Math.floor(rnd() * 10) - 5));
-    }
-  });
-
-  // 판자류
-  function planks(color) {
-    return function (p, rnd) {
-      p.noise(rnd, color, 8, 3);
-      // 가로 결
-      for (let y = 0; y < 16; y++) {
-        if (y % 4 === 3) for (let x = 0; x < 16; x++) p.set(x, y, shade(color, -34));
-        else if (y % 4 === 0) for (let x = 0; x < 16; x++) p.set(x, y, shade(color, 10));
-      }
-      // 못 자국
-      [[2, 1], [13, 5], [6, 9], [10, 13]].forEach(function (n) {
-        p.set(n[0], n[1], shade(color, -22));
-      });
-    };
+KIND.cobble = function (p, rnd, s) {
+  p.noise(rnd, s.color, 8, 4);
+  for (let i = 0; i < 70; i++) {
+    p.set(Math.floor(rnd() * 16), Math.floor(rnd() * 16), shade(s.color, Math.floor(rnd() * 24) - 22));
   }
-  defTex('oak_planks', planks('#b58b52'));
-  defTex('birch_planks', planks('#d7cb8d'));
-  defTex('spruce_planks', planks('#775a35'));
+  [[0, 5], [5, 0], [11, 6], [3, 11], [8, 12]].forEach(function (sm) {
+    for (let k = 0; k < 5; k++) p.set((sm[0] + k) % 16, sm[1], shade(s.color, -48));
+  });
+  for (let x = 0; x < 16; x++) { p.set(x, 0, shade(s.color, -34)); p.set(x, 15, shade(s.color, -34)); }
+  if (s.moss) p.speckle(rnd, '#4e6b3c', 30, 1);
+};
 
-  // 원목류
-  function logSide(bark, dark) {
-    return function (p, rnd) {
-      p.noise(rnd, bark, 8, 3);
-      for (let x = 0; x < 16; x++) {
-        if (x % 5 === 0 || x % 7 === 3) for (let y = 0; y < 16; y++) p.set(x, y, shade(dark, Math.floor(rnd() * 8) - 4));
-      }
-      for (let i = 0; i < 10; i++) {
-        const x = Math.floor(rnd() * 16), y = Math.floor(rnd() * 14);
-        p.set(x, y, shade(dark, -10)); p.set(x, y + 1, shade(dark, -10));
-      }
-    };
+KIND.gravel = function (p, rnd) {
+  p.noise(rnd, '#837f7d', 16, 6);
+  p.speckle(rnd, '#5b5856', 26);
+  p.speckle(rnd, '#a5a09c', 20);
+};
+
+KIND.bedrock = function (p, rnd) {
+  p.noise(rnd, '#575757', 22, 8);
+  p.speckle(rnd, '#2b2b2b', 24, 2);
+  p.speckle(rnd, '#8a8a8a', 12);
+};
+
+// 잔디/포드졸 등 옆면: 위쪽 몇 픽셀만 다른 색
+KIND.grass_side_c = function (p, rnd, s) {
+  p.noise(rnd, s.base, 12, 3);
+  for (let x = 0; x < 16; x++) {
+    const h = 3 + Math.floor(rnd() * 3);
+    for (let y = 0; y < h; y++) p.set(x, y, shade(s.top, Math.floor(rnd() * 16) - 8));
+    p.set(x, h, shade(s.top, -22));
   }
-  function logTop(inner, bark) {
-    return function (p, rnd) {
-      p.noise(rnd, inner, 8, 3);
-      // 나이테
-      for (let y = 0; y < 16; y++) {
-        for (let x = 0; x < 16; x++) {
-          const dx = x - 7.5, dy = y - 7.5;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d > 7.0) p.set(x, y, shade(bark, Math.floor(rnd() * 8) - 4));
-          else if (Math.abs(d - 4.5) < 0.6 || Math.abs(d - 2.2) < 0.5) p.set(x, y, shade(inner, -28));
-        }
-      }
-    };
+};
+
+KIND.farmland = function (p, rnd) {
+  p.noise(rnd, '#6b4a2c', 8, 3);
+  p.rect(0, 3, 16, 2, '#4e341d');
+  p.rect(0, 10, 16, 2, '#4e341d');
+};
+
+KIND.water = function (p, rnd) {
+  p.noise(rnd, '#2f5fd0', 12, 4);
+  p.alpha(190);
+};
+
+KIND.lava = function (p, rnd) {
+  p.noise(rnd, '#d84a12', 22, 6);
+  p.speckle(rnd, '#ffd24a', 20, 2);
+  p.speckle(rnd, '#8a2408', 14, 2);
+};
+
+KIND.ice = function (p, rnd) {
+  p.noise(rnd, '#8fb8f0', 10, 4);
+  for (let i = 0; i < 6; i++) {
+    const x = Math.floor(rnd() * 12), y = Math.floor(rnd() * 12);
+    for (let k = 0; k < 4; k++) p.set(x + k, y + k, '#c8e2ff');
   }
-  defTex('oak_log', logSide('#9a7645', '#6d5333'));
-  defTex('oak_log_top', logTop('#b28b55', '#6d5333'));
-  defTex('birch_log', function (p, rnd) {
-    p.noise(rnd, '#d5d0c8', 6, 3);
-    for (let i = 0; i < 9; i++) {
-      const y = Math.floor(rnd() * 16), x = Math.floor(rnd() * 12);
-      const w = 2 + Math.floor(rnd() * 3);
-      p.rect(x, y, w, 1, '#4a4438');
-    }
-  });
-  defTex('birch_log_top', logTop('#d3c8a0', '#b8b0a2'));
-  defTex('spruce_log', logSide('#6b4f2c', '#4a3620'));
-  defTex('spruce_log_top', logTop('#8a6a3f', '#4a3620'));
+  p.alpha(205);
+};
 
-  // 잎 (컷아웃 구멍 포함)
-  function leaves(color) {
-    return function (p, rnd) {
-      for (let y = 0; y < 16; y++) {
-        for (let x = 0; x < 16; x++) {
-          const r = rnd();
-          if (r < 0.13) continue; // 투명 구멍
-          p.set(x, y, shade(color, Math.floor(rnd() * 34) - 17));
-        }
-      }
-    };
+KIND.obsidian = function (p, rnd) {
+  p.noise(rnd, '#150d1f', 8, 3);
+  p.speckle(rnd, '#3d2a58', 16);
+  p.speckle(rnd, '#0a0610', 12);
+};
+
+KIND.crying_obsidian = function (p, rnd) {
+  KIND.obsidian(p, rnd);
+  p.speckle(rnd, '#5a2ad0', 12, 2);
+  p.speckle(rnd, '#8a4af0', 6);
+};
+
+KIND.magma = function (p, rnd) {
+  p.noise(rnd, '#3a1a10', 10, 4);
+  for (let i = 0; i < 26; i++) {
+    p.rect(Math.floor(rnd() * 14), Math.floor(rnd() * 14), 2, 2, shade('#e06a1a', Math.floor(rnd() * 40) - 20));
   }
-  defTex('oak_leaves', leaves('#3f7a25'));
-  defTex('birch_leaves', leaves('#5f9b3e'));
-  defTex('spruce_leaves', leaves('#2f5a2a'));
+};
 
-  defTex('glass', function (p, rnd) {
-    for (let x = 0; x < 16; x++) {
-      p.set(x, 0, '#d6f0f5'); p.set(x, 15, '#d6f0f5');
-      p.set(0, x, '#d6f0f5'); p.set(15, x, '#d6f0f5');
-    }
-    p.set(1, 1, '#eafcff'); p.set(2, 1, '#eafcff'); p.set(1, 2, '#eafcff');
-    // 옅은 반사
-    for (let i = 0; i < 5; i++) p.set(11 - i, 3 + i, '#ffffff55');
-    for (let i = 0; i < 3; i++) p.set(6 - i, 9 + i, '#ffffff44');
-  });
+KIND.glowstone = function (p, rnd) {
+  p.noise(rnd, '#a5813e', 14, 4);
+  p.speckle(rnd, '#ffe9a8', 22, 2);
+  p.speckle(rnd, '#fff6d0', 10);
+};
 
-  defTex('water', function (p, rnd) {
-    p.noise(rnd, '#2f5fd0', 12, 4);
-    for (let y = 0; y < 16; y++) {
-      for (let x = 0; x < 16; x++) {
-        const c = p.get(x, y);
-        c[3] = 190;
-        p.data[(y * 16 + x) * 4 + 3] = 190;
-      }
-    }
-  });
-
-  defTex('ice', function (p, rnd) {
-    p.noise(rnd, '#8fb8f0', 10, 4);
-    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) p.data[(y * 16 + x) * 4 + 3] = 205;
-    for (let i = 0; i < 6; i++) {
-      const x = Math.floor(rnd() * 12), y = Math.floor(rnd() * 12);
-      for (let k = 0; k < 4; k++) p.set(x + k, y + k, '#c8e2ffcc');
-    }
-  });
-
-  // 광석: 돌 배경 + 광물 얼룩
-  function ore(color, dark) {
-    return function (p, rnd) {
-      p.noise(rnd, '#7a7a7a', 10, 3);
-      const blobs = 4 + Math.floor(rnd() * 2);
-      for (let i = 0; i < blobs; i++) {
-        const bx = 1 + Math.floor(rnd() * 12), by = 1 + Math.floor(rnd() * 12);
-        const w = 2 + Math.floor(rnd() * 2), h = 2 + Math.floor(rnd() * 2);
-        for (let y = 0; y < h; y++) {
-          for (let x = 0; x < w; x++) {
-            if (rnd() < 0.15) continue;
-            p.set(bx + x, by + y, (x === 0 || y === 0) ? color : dark);
-          }
-        }
-      }
-    };
+KIND.sea_lantern = function (p, rnd) {
+  p.noise(rnd, '#a8c8c0', 8, 3);
+  for (let i = 0; i < 5; i++) {
+    p.rect(1 + Math.floor(rnd() * 11), 1 + Math.floor(rnd() * 11), 4, 4, '#e0f8f0');
   }
-  defTex('coal_ore', ore('#3a3a3a', '#1c1c1c'));
-  defTex('iron_ore', ore('#d8a883', '#b2795a'));
-  defTex('gold_ore', ore('#fcee4b', '#dcaf1e'));
-  defTex('diamond_ore', ore('#79f2e8', '#43c9c0'));
-  defTex('redstone_ore', ore('#e63b2e', '#a41d14'));
-  defTex('lapis_ore', ore('#3a63c9', '#22408f'));
-  defTex('emerald_ore', ore('#43e06a', '#1fa346'));
+  p.speckle(rnd, '#6f9a92', 14);
+};
 
-  defTex('coal_block', function (p, rnd) { p.noise(rnd, '#191919', 12, 4); p.speckle(rnd, '#3a3a3a', 18); });
-  defTex('iron_block', function (p, rnd) {
-    p.noise(rnd, '#dcdcdc', 6, 3);
-    p.rect(0, 0, 16, 1, '#f2f2f2'); p.rect(0, 15, 16, 1, '#a8a8a8');
-    p.speckle(rnd, '#c0c0c0', 10);
-  });
-  defTex('gold_block', function (p, rnd) {
-    p.noise(rnd, '#f8d838', 8, 3);
-    p.rect(0, 0, 16, 1, '#ffef8a'); p.rect(0, 15, 16, 1, '#c9a413');
-  });
-  defTex('diamond_block', function (p, rnd) {
-    p.noise(rnd, '#5decdc', 8, 3);
-    [[3, 3], [10, 4], [5, 10], [11, 11]].forEach(function (d) {
-      p.rect(d[0], d[1], 3, 3, '#ffffff'); p.rect(d[0] + 1, d[1] + 1, 1, 1, '#9ff6ec');
-    });
-  });
-  defTex('emerald_block', function (p, rnd) {
-    p.noise(rnd, '#2fd45f', 10, 3);
-    p.speckle(rnd, '#8bf7a8', 14); p.speckle(rnd, '#14883a', 12);
-  });
-  defTex('lapis_block', function (p, rnd) {
-    p.noise(rnd, '#2c50b0', 14, 4); p.speckle(rnd, '#8fb0f5', 16);
-  });
-  defTex('redstone_block', function (p, rnd) {
-    p.noise(rnd, '#c31f14', 14, 4); p.speckle(rnd, '#ff5a4a', 16);
-  });
-
-  defTex('glowstone', function (p, rnd) {
-    p.noise(rnd, '#a5813e', 14, 4);
-    p.speckle(rnd, '#ffe9a8', 22, 2);
-    p.speckle(rnd, '#fff6d0', 10);
-  });
-
-  defTex('obsidian', function (p, rnd) {
-    p.noise(rnd, '#150d1f', 8, 3);
-    p.speckle(rnd, '#3d2a58', 16);
-    p.speckle(rnd, '#0a0610', 12);
-  });
-
-  defTex('bricks', function (p, rnd) {
-    p.fill('#9a9a95');
-    for (let row = 0; row < 4; row++) {
-      const y = row * 4;
-      const off = (row % 2) * 4;
-      for (let b = 0; b < 4; b++) {
-        const x = (off + b * 8) % 16;
-        p.rect(x, y, 7, 3, shade('#96513a', Math.floor(rnd() * 14) - 7));
-        if (x > 9) p.rect(0, y, x + 7 - 16, 3, shade('#96513a', Math.floor(rnd() * 14) - 7));
+KIND.ore = function (p, rnd, s) {
+  p.noise(rnd, s.base, 10, 3);
+  const blobs = 4 + Math.floor(rnd() * 2);
+  for (let i = 0; i < blobs; i++) {
+    const bx = 1 + Math.floor(rnd() * 12), by = 1 + Math.floor(rnd() * 12);
+    const w = 2 + Math.floor(rnd() * 2), h = 2 + Math.floor(rnd() * 2);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (rnd() < 0.15) continue;
+        p.set(bx + x, by + y, (x === 0 || y === 0) ? s.color : s.dark);
       }
     }
-  });
+  }
+};
 
-  defTex('stone_bricks', function (p, rnd) {
-    p.noise(rnd, '#7d7d7d', 8, 3);
-    p.rect(0, 7, 16, 1, '#5e5e5e');
-    p.rect(0, 15, 16, 1, '#5e5e5e');
-    p.rect(7, 0, 1, 8, '#5e5e5e');
-    p.rect(3, 8, 1, 8, '#5e5e5e');
-    p.rect(12, 8, 1, 8, '#5e5e5e');
-  });
+KIND.metal = function (p, rnd, s) {
+  p.noise(rnd, s.color, 6, 3);
+  p.rect(0, 0, 16, 1, shade(s.color, 16));
+  p.rect(0, 15, 16, 1, shade(s.color, -20));
+  p.rect(0, 0, 1, 16, shade(s.color, 10));
+  p.rect(15, 0, 1, 16, shade(s.color, -14));
+  p.speckle(rnd, shade(s.color, -10), 8);
+};
 
-  defTex('mossy_cobblestone', function (p, rnd) {
-    p.noise(rnd, '#6f7a63', 10, 4);
-    p.speckle(rnd, '#5b6b4d', 40);
-    p.speckle(rnd, '#8b9a7c', 22);
-    for (let x = 0; x < 16; x++) { p.set(x, 0, '#4e5a42'); p.set(x, 15, '#4e5a42'); }
-  });
+KIND.chiseled = function (p, rnd, s) {
+  p.noise(rnd, s.color, 5, 2);
+  p.frame(0, 0, 16, 16, shade(s.color, -26));
+  p.frame(2, 2, 12, 12, shade(s.color, -18));
+  p.rect(6, 4, 4, 8, shade(s.color, 12));
+  p.rect(7, 6, 2, 4, shade(s.color, -20));
+};
 
-  defTex('sandstone', function (p, rnd) {
-    p.noise(rnd, '#dcd3a2', 6, 3);
-    p.rect(0, 0, 16, 2, shade('#dcd3a2', 12));
-    p.rect(0, 14, 16, 2, shade('#dcd3a2', -14));
-    for (let y = 4; y < 14; y += 4) p.rect(0, y, 16, 1, shade('#dcd3a2', -18));
-  });
-  defTex('sandstone_top', function (p, rnd) { p.noise(rnd, '#e2d9a8', 6, 3); });
-  defTex('sandstone_bottom', function (p, rnd) { p.noise(rnd, '#c9c095', 8, 3); });
+KIND.grate = function (p, rnd, s) {
+  p.noise(rnd, s.color, 6, 3);
+  for (let y = 2; y < 16; y += 5) p.rect(0, y, 16, 2, [0, 0, 0, 0]);
+  for (let x = 2; x < 16; x += 5) p.rect(x, 0, 2, 16, [0, 0, 0, 0]);
+  // 격자 살
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (p.get(x, y)[3] === 0) continue;
+    p.set(x, y, shade(s.color, ((x + y) % 4 === 0) ? -14 : 4));
+  }
+};
 
-  defTex('crafting_table_top', function (p, rnd) {
-    p.noise(rnd, '#a3703f', 8, 3);
-    p.rect(0, 0, 16, 1, '#6d4a26'); p.rect(0, 15, 16, 1, '#6d4a26');
-    p.rect(0, 0, 1, 16, '#6d4a26'); p.rect(15, 0, 1, 16, '#6d4a26');
-    p.rect(0, 7, 16, 1, '#6d4a26'); p.rect(7, 0, 1, 16, '#6d4a26');
-    p.rect(3, 3, 2, 2, '#7f5a30'); p.rect(11, 3, 2, 2, '#7f5a30');
-    p.rect(3, 11, 2, 2, '#7f5a30'); p.rect(11, 11, 2, 2, '#7f5a30');
-  });
-  defTex('crafting_table_side', function (p, rnd) {
-    p.noise(rnd, '#b58b52', 8, 3);
-    for (let y = 0; y < 16; y++) if (y % 4 === 3) p.rect(0, y, 16, 1, '#8a6236');
-    // 톱과 도구 실루엣
-    p.rect(2, 5, 12, 1, '#6d4a26');
-    p.rect(4, 6, 2, 6, '#5d3f20');
-    p.rect(10, 6, 3, 4, '#5d3f20');
-  });
-
-  defTex('furnace_top', function (p, rnd) {
-    p.noise(rnd, '#7d7d7d', 8, 3);
-    p.rect(0, 0, 16, 1, '#5e5e5e'); p.rect(0, 15, 16, 1, '#5e5e5e');
-    p.rect(4, 4, 8, 8, '#6a6a6a');
-  });
-  defTex('furnace_front', function (p, rnd) {
-    p.noise(rnd, '#7d7d7d', 8, 3);
-    p.rect(3, 5, 10, 8, '#3d3d3d');
-    p.rect(4, 6, 8, 6, '#242424');
-    p.rect(4, 10, 8, 2, '#5a5a5a');
-    p.rect(2, 3, 12, 1, '#5e5e5e');
-  });
-
-  defTex('chest_top', function (p, rnd) {
-    p.noise(rnd, '#9a6b34', 8, 3);
-    p.rect(0, 0, 16, 1, '#6b4720'); p.rect(0, 15, 16, 1, '#6b4720');
-    p.rect(0, 0, 1, 16, '#6b4720'); p.rect(15, 0, 1, 16, '#6b4720');
-  });
-  defTex('chest_side', function (p, rnd) {
-    p.noise(rnd, '#9a6b34', 8, 3);
-    p.rect(0, 5, 16, 1, '#6b4720');
-    p.rect(0, 0, 16, 1, '#6b4720'); p.rect(0, 15, 16, 1, '#6b4720');
-    p.rect(7, 6, 2, 3, '#dcc44a');  // 자물쇠
-    p.rect(7, 4, 2, 2, '#b39a30');
-  });
-
-  defTex('bookshelf', function (p, rnd) {
-    p.noise(rnd, '#b58b52', 8, 3);
-    p.rect(0, 0, 16, 2, '#8a6236'); p.rect(0, 14, 16, 2, '#8a6236');
-    p.rect(0, 7, 16, 2, '#8a6236');
-    const colors = ['#a13a2f', '#2f5aa1', '#3f8a3a', '#a1892f', '#7a3aa1', '#a1552f'];
-    [2, 9].forEach(function (y0) {
-      let x = 0;
-      while (x < 16) {
-        const w = 1 + (rnd() < 0.4 ? 1 : 0);
-        const c = colors[Math.floor(rnd() * colors.length)];
-        p.rect(x, y0, w, 5, c);
-        p.rect(x, y0, w, 1, shade(c, 26));
-        x += w + 1;
-      }
-    });
-  });
-
-  defTex('tnt_top', function (p, rnd) {
-    p.noise(rnd, '#c9403a', 8, 3);
-    p.rect(0, 0, 16, 1, '#8a2a26'); p.rect(0, 15, 16, 1, '#8a2a26');
-    p.rect(6, 5, 4, 6, '#e8e8e8');
-  });
-  defTex('tnt_bottom', function (p, rnd) { p.noise(rnd, '#7d5a3a', 8, 3); });
-  defTex('tnt_side', function (p, rnd) {
-    p.noise(rnd, '#c9403a', 8, 3);
-    p.rect(0, 5, 16, 6, '#f0f0f0');
-    p.rect(0, 5, 16, 1, '#c9c9c9'); p.rect(0, 10, 16, 1, '#c9c9c9');
-    // TNT 글자
-    p.art([
-      '................', '................', '................', '................',
-      '................',
-      '..#.#..###..#..#',
-      '..#.#...#...##.#',
-      '..###...#...#.##',
-      '..#.#...#...#..#',
-      '..#.#...#...#..#',
-      '................'
-    ], { '#': '#1a1a1a' });
-  });
-
-  defTex('pumpkin_top', function (p, rnd) {
-    p.noise(rnd, '#c07615', 8, 3);
-    for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#9a5c0e');
-    p.rect(6, 6, 4, 4, '#7a5a2a');
-  });
-  defTex('pumpkin_side', function (p, rnd) {
-    p.noise(rnd, '#d4820f', 8, 3);
-    for (let x = 2; x < 16; x += 4) p.rect(x, 1, 1, 14, '#a5620a');
-    p.rect(0, 0, 16, 1, '#a5620a'); p.rect(0, 15, 16, 1, '#a5620a');
-  });
-
-  defTex('melon_top', function (p, rnd) {
-    p.noise(rnd, '#3f7a1f', 10, 4); p.speckle(rnd, '#2f5f16', 20);
-  });
-  defTex('melon_side', function (p, rnd) {
-    p.noise(rnd, '#4f8f24', 8, 3);
-    for (let x = 1; x < 16; x += 5) {
-      for (let y = 0; y < 16; y++) p.set(x + (y % 3 === 0 ? 1 : 0), y, '#2f5f16');
-    }
-    p.rect(0, 0, 16, 1, '#2f5f16'); p.rect(0, 15, 16, 1, '#2f5f16');
-  });
-
-  defTex('cactus', function (p, rnd) {
-    p.noise(rnd, '#3f7a2a', 8, 3);
-    p.rect(0, 0, 1, 16, '#2c5a1c'); p.rect(15, 0, 1, 16, '#2c5a1c');
+KIND.stone_bricks = function (p, rnd, s) {
+  p.noise(rnd, s.color, 7, 3);
+  const line = shade(s.color, -30);
+  p.rect(0, 7, 16, 1, line);
+  p.rect(0, 15, 16, 1, line);
+  p.rect(7, 0, 1, 8, line);
+  p.rect(3, 8, 1, 8, line);
+  p.rect(12, 8, 1, 8, line);
+  if (s.cracked) {
     for (let i = 0; i < 12; i++) {
-      const x = 2 + Math.floor(rnd() * 12), y = Math.floor(rnd() * 16);
-      p.set(x, y, '#c8d8a0');
+      const x = Math.floor(rnd() * 15), y = Math.floor(rnd() * 15);
+      p.set(x, y, shade(s.color, -40));
+      p.set(x + 1, y + 1, shade(s.color, -40));
     }
-  });
+  }
+};
 
-  defTex('farmland', function (p, rnd) {
-    p.noise(rnd, '#6b4a2c', 8, 3);
-    p.rect(0, 3, 16, 2, '#4e341d');
-    p.rect(0, 10, 16, 2, '#4e341d');
-  });
+KIND.bricks = function (p, rnd, s) {
+  p.fill(s.mortar);
+  for (let row = 0; row < 4; row++) {
+    const y = row * 4;
+    const off = (row % 2) * 4;
+    for (let b = -1; b < 3; b++) {
+      const x = off + b * 8;
+      p.rect(x, y, 7, 3, shade(s.color, Math.floor(rnd() * 14) - 7));
+    }
+  }
+};
 
-  defTex('note_block', function (p, rnd) {
-    p.noise(rnd, '#5d3f20', 8, 3);
-    p.rect(0, 0, 16, 1, '#8a6236'); p.rect(0, 15, 16, 1, '#3a2712');
-    p.art([
-      '................', '................', '................',
-      '.......###......', '.......#.#......', '.......#........',
-      '.......#........', '......##........', '.....###........',
-      '......##........', '................'
-    ], { '#': '#e0d8c8' });
-  });
+KIND.tiles = function (p, rnd, s) {
+  p.noise(rnd, s.color, 6, 3);
+  const line = shade(s.color, -28);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, line);
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, line);
+  if (s.cracked) p.speckle(rnd, shade(s.color, -38), 16);
+};
 
-  // 양털 16색
-  const WOOL_HEX = {
-    white: '#e9ecec', orange: '#f07613', magenta: '#bd44b3', light_blue: '#3ab3da',
-    yellow: '#f8c527', lime: '#70b919', pink: '#ed8dac', gray: '#3e4447',
-    light_gray: '#8e8e86', cyan: '#158991', purple: '#792aac', blue: '#35399d',
-    brown: '#724728', green: '#546d1b', red: '#a12722', black: '#141519'
-  };
-  Object.keys(WOOL_HEX).forEach(function (k) {
-    defTex(k + '_wool', function (p, rnd) {
-      p.noise(rnd, WOOL_HEX[k], 12, 4);
-      p.speckle(rnd, shade(WOOL_HEX[k], -20), 22);
-      p.speckle(rnd, shade(WOOL_HEX[k], 18), 18);
-    });
-  });
+KIND.pillar_side = function (p, rnd, s) {
+  p.noise(rnd, s.color, 7, 3);
+  p.rect(0, 0, 16, 2, shade(s.color, 12));
+  p.rect(0, 14, 16, 2, shade(s.color, -16));
+  for (let x = 3; x < 16; x += 5) p.rect(x, 2, 1, 12, shade(s.color, -14));
+};
 
-  // ── 식물(십자) 텍스처 ───────────────────────────────────────────────
-  defTex('dandelion', function (p) {
-    p.art([
-      '................', '................', '......yy........', '.....yYYy.......',
-      '.....yYYy.......', '......yy........', '.......g........', '......gg........',
-      '.....g.g........', '.......g........', '......gGg.......', '.......g........',
-      '.......g........', '......gg........', '................', '................'
-    ], { y: '#e8d84a', Y: '#f8f06a', g: '#3f7a25', G: '#5a9a35' });
+KIND.sandstone = function (p, rnd, s) {
+  p.noise(rnd, s.color, 6, 3);
+  p.rect(0, 0, 16, 2, shade(s.color, 12));
+  p.rect(0, 14, 16, 2, shade(s.color, -14));
+  for (let y = 4; y < 14; y += 4) p.rect(0, y, 16, 1, shade(s.color, -18));
+};
+
+KIND.honeycomb = function (p, rnd) {
+  p.fill('#e0a12a');
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const x = col * 4 + (row % 2 ? 2 : 0), y = row * 4;
+      p.rect(x, y + 1, 3, 2, '#c07a12');
+    }
+  }
+  p.speckle(rnd, '#f0c04a', 12);
+};
+
+KIND.vein = function (p, rnd, s) {
+  for (let i = 0; i < 46; i++) {
+    const x = Math.floor(rnd() * 16), y = Math.floor(rnd() * 16);
+    p.set(x, y, shade(s.color, Math.floor(rnd() * 24) - 12));
+    if (rnd() < 0.5) p.set(x + 1, y, shade(s.color, -8));
+  }
+};
+
+KIND.glass = function (p, rnd, s) {
+  const edge = s.color ? shade(s.color, 30) : '#d6f0f5';
+  for (let x = 0; x < 16; x++) {
+    p.set(x, 0, edge); p.set(x, 15, edge); p.set(0, x, edge); p.set(15, x, edge);
+  }
+  if (s.color) {
+    for (let y = 1; y < 15; y++) for (let x = 1; x < 15; x++) p.set(x, y, s.color);
+    p.alpha(150);
+  } else {
+    p.set(1, 1, '#eafcff'); p.set(2, 1, '#eafcff'); p.set(1, 2, '#eafcff');
+    for (let i = 0; i < 5; i++) p.set(11 - i, 3 + i, withAlpha('#ffffff', 90));
+    for (let i = 0; i < 3; i++) p.set(6 - i, 9 + i, withAlpha('#ffffff', 70));
+  }
+};
+
+// 목재
+KIND.planks = function (p, rnd, s) {
+  p.noise(rnd, s.color, 8, 3);
+  for (let y = 0; y < 16; y++) {
+    if (y % 4 === 3) p.rect(0, y, 16, 1, shade(s.color, -34));
+    else if (y % 4 === 0) p.rect(0, y, 16, 1, shade(s.color, 10));
+  }
+  [[2, 1], [13, 5], [6, 9], [10, 13]].forEach(function (n) {
+    p.set(n[0], n[1], shade(s.color, -22));
   });
-  defTex('poppy', function (p) {
-    p.art([
-      '................', '................', '......rr........', '.....rRRr.......',
-      '.....rRkr.......', '......rr........', '.......g........', '......gg........',
-      '.....g.g........', '.......g........', '......gGg.......', '.......g........',
-      '.......g........', '......gg........', '................', '................'
-    ], { r: '#c02c22', R: '#e8483a', k: '#2a1a1a', g: '#3f7a25', G: '#5a9a35' });
-  });
-  defTex('tall_grass', function (p, rnd) {
-    for (let x = 1; x < 15; x += 2) {
-      const h = 5 + Math.floor(rnd() * 7);
-      for (let y = 0; y < h; y++) {
-        p.set(x + (y > h - 3 ? (x < 8 ? -1 : 1) : 0), 15 - y, shade('#4a8a2a', Math.floor(rnd() * 20) - 10));
+};
+
+KIND.log_side = function (p, rnd, s) {
+  p.noise(rnd, s.bark, 8, 3);
+  for (let x = 0; x < 16; x++) {
+    if (x % 5 === 0 || x % 7 === 3) {
+      for (let y = 0; y < 16; y++) p.set(x, y, shade(s.dark, Math.floor(rnd() * 8) - 4));
+    }
+  }
+  for (let i = 0; i < 10; i++) {
+    const x = Math.floor(rnd() * 16), y = Math.floor(rnd() * 14);
+    p.set(x, y, shade(s.dark, -10)); p.set(x, y + 1, shade(s.dark, -10));
+  }
+};
+
+KIND.log_top = function (p, rnd, s) {
+  p.noise(rnd, s.inner, 8, 3);
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const dx = x - 7.5, dy = y - 7.5;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 7.0) p.set(x, y, shade(s.bark, Math.floor(rnd() * 8) - 4));
+      else if (Math.abs(d - 4.5) < 0.6 || Math.abs(d - 2.2) < 0.5) p.set(x, y, shade(s.inner, -28));
+    }
+  }
+};
+
+KIND.stripped = function (p, rnd, s) {
+  p.noise(rnd, s.color, 7, 3);
+  for (let x = 0; x < 16; x++) {
+    if (x % 6 === 2) for (let y = 0; y < 16; y++) p.set(x, y, shade(s.color, -18));
+  }
+  p.speckle(rnd, shade(s.color, -12), 10);
+};
+
+KIND.mosaic = function (p, rnd, s) {
+  p.noise(rnd, s.color, 7, 3);
+  const line = shade(s.color, -28);
+  p.rect(0, 7, 16, 1, line); p.rect(0, 15, 16, 1, line);
+  for (let x = 0; x < 8; x += 2) p.rect(x, 0, 1, 7, line);
+  for (let x = 8; x < 16; x += 2) p.rect(x, 8, 1, 7, line);
+};
+
+KIND.leaves = function (p, rnd, s) {
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      if (rnd() < 0.13) continue;
+      p.set(x, y, shade(s.color, Math.floor(rnd() * 34) - 17));
+    }
+  }
+};
+
+KIND.sapling = function (p, rnd, s) {
+  p.art([
+    '................', '................', '................', '.....ggg........',
+    '....ggggg.......', '...gg.g.gg......', '....ggggg.......', '.....ggg........',
+    '......g.........', '......s.........', '......s.........', '......s.........',
+    '.....sss........', '................', '................', '................'
+  ], { g: s.color, s: '#6b4f2c' });
+};
+
+KIND.door = function (p, rnd, s) {
+  if (s.metal) {
+    p.noise(rnd, s.color, 5, 2);
+    p.frame(0, 0, 16, 16, shade(s.color, -30));
+    p.rect(2, 2, 5, 5, shade(s.color, -18));
+    p.rect(9, 2, 5, 5, shade(s.color, -18));
+    p.rect(3, 11, 3, 1, shade(s.color, -40));
+  } else {
+    KIND.planks(p, rnd, s);
+    p.frame(0, 0, 16, 16, shade(s.color, -34));
+    // 창
+    p.rect(3, 2, 10, 5, shade(s.color, -40));
+    p.rect(4, 3, 8, 3, withAlpha('#c8e8f0', 200));
+    p.rect(11, 11, 2, 2, shade(s.color, -44)); // 손잡이
+  }
+};
+
+KIND.trapdoor = function (p, rnd, s) {
+  if (s.metal) {
+    p.noise(rnd, s.color, 5, 2);
+    for (let y = 3; y < 16; y += 5) p.rect(1, y, 14, 2, [0, 0, 0, 0]);
+    p.frame(0, 0, 16, 16, shade(s.color, -30));
+  } else {
+    KIND.planks(p, rnd, s);
+    p.frame(0, 0, 16, 16, shade(s.color, -34));
+    p.rect(0, 5, 16, 1, shade(s.color, -30));
+    p.rect(0, 10, 16, 1, shade(s.color, -30));
+  }
+};
+
+// 색상 계열
+KIND.wool = function (p, rnd, s) {
+  p.noise(rnd, s.color, 12, 4);
+  p.speckle(rnd, shade(s.color, -20), 22);
+  p.speckle(rnd, shade(s.color, 18), 18);
+};
+
+KIND.concrete = function (p, rnd, s) { p.noise(rnd, s.color, 5, 2); };
+
+KIND.powder = function (p, rnd, s) {
+  p.noise(rnd, mixc(s.color, '#ffffff', 0.18), 14, 5);
+  p.speckle(rnd, shade(s.color, -14), 18);
+};
+
+KIND.terracotta = function (p, rnd, s) {
+  p.noise(rnd, s.color, 8, 3);
+  p.speckle(rnd, shade(s.color, -16), 14);
+  p.speckle(rnd, shade(s.color, 12), 10);
+};
+
+KIND.glazed = function (p, rnd, s) {
+  const light = mixc(s.color, '#ffffff', 0.45);
+  const dark = mixc(s.color, '#000000', 0.25);
+  p.fill(light);
+  // 대각 무늬
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      if (((x + y) >> 2) % 2 === 0) p.set(x, y, s.color);
+    }
+  }
+  p.frame(0, 0, 16, 16, dark);
+  p.rect(6, 6, 4, 4, dark);
+  p.rect(7, 7, 2, 2, light);
+};
+
+KIND.bed_top = function (p, rnd, s) {
+  p.noise(rnd, s.color, 8, 3);
+  p.rect(2, 1, 12, 6, mixc(s.color, '#ffffff', 0.4)); // 베개
+  p.frame(0, 0, 16, 16, shade(s.color, -24));
+};
+
+KIND.bed_side = function (p, rnd, s) {
+  p.noise(rnd, s.color, 8, 3);
+  p.rect(0, 11, 16, 5, '#9a7645');   // 나무 틀
+  p.rect(0, 0, 16, 1, mixc(s.color, '#ffffff', 0.3));
+};
+
+KIND.shulker = function (p, rnd, s) {
+  p.noise(rnd, mixc(s.color, '#a08aa0', 0.3), 8, 3);
+  p.rect(0, 0, 16, 5, mixc(s.color, '#ffffff', 0.25));
+  p.frame(0, 0, 16, 16, shade(s.color, -34));
+  p.rect(5, 5, 6, 3, shade(s.color, -28));
+};
+
+KIND.candle = function (p, rnd, s) {
+  p.art([
+    '................', '................', '................', '................',
+    '.......f........', '......fFf.......', '.......f........', '......www.......',
+    '......www.......', '......www.......', '......www.......', '......www.......',
+    '......www.......', '......www.......', '......www.......', '................'
+  ], { f: '#ff9c22', F: '#ffe98a', w: s.color });
+};
+
+// 식물
+KIND.flower = function (p, rnd, s) {
+  const petal = s.color, bright = mixc(s.color, '#ffffff', 0.35);
+  p.art([
+    '................', '................', '......pp........', '.....pPPp.......',
+    '.....pPPp.......', '......pp........', '.......g........', '......gg........',
+    '.....g.g........', '.......g........', '......gGg.......', '.......g........',
+    '.......g........', '......gg........', '................', '................'
+  ], { p: petal, P: bright, g: '#3f7a25', G: '#5a9a35' });
+};
+
+KIND.grass_plant = function (p, rnd, s) {
+  for (let x = 1; x < 15; x += 2) {
+    const h = 5 + Math.floor(rnd() * 7);
+    for (let y = 0; y < h; y++) {
+      p.set(x + (y > h - 3 ? (x < 8 ? -1 : 1) : 0), 15 - y, shade(s.color, Math.floor(rnd() * 20) - 10));
+    }
+  }
+};
+
+KIND.dead_bush = function (p) {
+  p.art([
+    '................', '................', '.......#........', '....#..#..#.....',
+    '....#.###.#.....', '.....##.##......', '......###.......', '.....#.#.#......',
+    '....#..#..#.....', '.......#........', '.......#........', '.......#........',
+    '......###.......', '................', '................', '................'
+  ], { '#': '#6b5426' });
+};
+
+KIND.mushroom = function (p, rnd, s) {
+  p.art([
+    '................', '................', '................', '.....cccc.......',
+    '....cScccc......', '...cccccSc......', '...cSccccc......', '....ccccc.......',
+    '.....www........', '.....w.w........', '.....www........', '.....www........',
+    '....wwwww.......', '................', '................', '................'
+  ], { c: s.color, S: s.spot, w: '#e0d6c8' });
+};
+
+KIND.cane = function (p, rnd, s) {
+  for (let x = 5; x < 11; x++) {
+    for (let y = 0; y < 16; y++) {
+      if ((x === 5 || x === 10) && rnd() < 0.5) continue;
+      p.set(x, y, shade(s.color, (y % 4 === 0 ? -20 : 0) + Math.floor(rnd() * 12) - 6));
+    }
+  }
+};
+
+KIND.cactus = function (p, rnd) {
+  p.noise(rnd, '#3f7a2a', 8, 3);
+  p.rect(0, 0, 1, 16, '#2c5a1c'); p.rect(15, 0, 1, 16, '#2c5a1c');
+  for (let i = 0; i < 12; i++) p.set(2 + Math.floor(rnd() * 12), Math.floor(rnd() * 16), '#c8d8a0');
+};
+
+KIND.vine = function (p, rnd, s) {
+  for (let x = 0; x < 16; x++) {
+    if (rnd() < 0.25) continue;
+    const h = 6 + Math.floor(rnd() * 10);
+    for (let y = 0; y < h; y++) {
+      if (rnd() < 0.18) continue;
+      p.set(x, y, shade(s.color, Math.floor(rnd() * 24) - 12));
+    }
+  }
+};
+
+KIND.lily = function (p, rnd) {
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const dx = x - 7.5, dy = y - 7.5;
+      if (Math.sqrt(dx * dx + dy * dy) > 7.4) continue;
+      if (x > 7 && y > 11) continue; // 갈라진 틈
+      p.set(x, y, shade('#2f7a2a', Math.floor(rnd() * 20) - 10));
+    }
+  }
+};
+
+KIND.crop = function (p, rnd, s) {
+  const t = s.stages > 1 ? s.stage / (s.stages - 1) : 1;
+  const col = mixc(s.early, s.late, t);
+  const h = 4 + Math.round(t * 9);
+  for (let x = 2; x < 15; x += 4) {
+    for (let y = 0; y < h; y++) p.set(x, 15 - y, col);
+    if (s.stage === s.stages - 1) {
+      for (let y = 0; y < 5; y++) {
+        p.set(x - 1, 15 - h + y + 1, mixc(col, '#ffffff', 0.25));
+        p.set(x + 1, 15 - h + y + 1, mixc(col, '#ffffff', 0.25));
       }
     }
-  });
-  defTex('dead_bush', function (p, rnd) {
-    p.art([
-      '................', '................', '.......#........', '....#..#..#.....',
-      '....#.###.#.....', '.....##.##......', '......###.......', '.....#.#.#......',
-      '....#..#..#.....', '.......#........', '.......#........', '.......#........',
-      '......###.......', '................', '................', '................'
-    ], { '#': '#6b5426' });
-  });
-  defTex('red_mushroom', function (p) {
-    p.art([
-      '................', '................', '................', '.....rrrr.......',
-      '....rRrRrr......', '...rrRrrRr......', '...rRrrrRr......', '....rrrrr.......',
-      '.....www........', '.....w.w........', '.....www........', '.....www........',
-      '....wwwww.......', '................', '................', '................'
-    ], { r: '#c62d24', R: '#f0f0f0', w: '#e0d6c8' });
-  });
-  defTex('brown_mushroom', function (p) {
-    p.art([
-      '................', '................', '................', '.....bbbb.......',
-      '....bbBbbb......', '...bbbbbBb......', '...bBbbbbb......', '....bbbbb.......',
-      '.....www........', '.....w.w........', '.....www........', '.....www........',
-      '....wwwww.......', '................', '................', '................'
-    ], { b: '#8a6a4a', B: '#a5825d', w: '#d8cbb8' });
-  });
-  defTex('sugar_cane', function (p, rnd) {
-    for (let x = 5; x < 11; x++) {
-      for (let y = 0; y < 16; y++) {
-        if (x === 5 || x === 10) { if (rnd() < 0.5) continue; }
-        p.set(x, y, shade('#8fbf5a', (y % 4 === 0 ? -20 : 0) + Math.floor(rnd() * 12) - 6));
-      }
+  }
+};
+
+KIND.hay = function (p, rnd) {
+  p.noise(rnd, '#b09a2a', 10, 3);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#7a6a14');
+  p.rect(0, 0, 1, 16, '#8a7a1a'); p.rect(15, 0, 1, 16, '#8a7a1a');
+};
+
+// 호박·수박
+KIND.pumpkin_top = function (p, rnd) {
+  p.noise(rnd, '#c07615', 8, 3);
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#9a5c0e');
+  p.rect(6, 6, 4, 4, '#7a5a2a');
+};
+KIND.pumpkin_side = function (p, rnd) {
+  p.noise(rnd, '#d4820f', 8, 3);
+  for (let x = 2; x < 16; x += 4) p.rect(x, 1, 1, 14, '#a5620a');
+  p.rect(0, 0, 16, 1, '#a5620a'); p.rect(0, 15, 16, 1, '#a5620a');
+};
+KIND.carved_pumpkin = function (p, rnd, s) {
+  KIND.pumpkin_side(p, rnd);
+  const face = s.light ? '#ffe07a' : '#3a2408';
+  p.art([
+    '................', '................', '................',
+    '...##......##...', '...###....###...', '....##....##....',
+    '................', '.....######.....', '................',
+    '...#.######.#...', '...##.####.##...', '....#.####.#....',
+    '................', '................', '................', '................'
+  ], { '#': face });
+};
+KIND.melon_side = function (p, rnd) {
+  p.noise(rnd, '#4f8f24', 8, 3);
+  for (let x = 1; x < 16; x += 5) {
+    for (let y = 0; y < 16; y++) p.set(x + (y % 3 === 0 ? 1 : 0), y, '#2f5f16');
+  }
+  p.rect(0, 0, 16, 1, '#2f5f16'); p.rect(0, 15, 16, 1, '#2f5f16');
+};
+
+// 기능 블록
+KIND.crafting_top = function (p, rnd) {
+  p.noise(rnd, '#a3703f', 8, 3);
+  p.frame(0, 0, 16, 16, '#6d4a26');
+  p.rect(0, 7, 16, 1, '#6d4a26'); p.rect(7, 0, 1, 16, '#6d4a26');
+  [[3, 3], [11, 3], [3, 11], [11, 11]].forEach(function (c) { p.rect(c[0], c[1], 2, 2, '#7f5a30'); });
+};
+KIND.crafting_side = function (p, rnd) {
+  KIND.planks(p, rnd, { color: '#b58b52' });
+  p.rect(2, 5, 12, 1, '#6d4a26');
+  p.rect(4, 6, 2, 6, '#5d3f20');
+  p.rect(10, 6, 3, 4, '#5d3f20');
+};
+KIND.furnace_top = function (p, rnd) {
+  p.noise(rnd, '#7d7d7d', 8, 3);
+  p.rect(0, 0, 16, 1, '#5e5e5e'); p.rect(0, 15, 16, 1, '#5e5e5e');
+  p.rect(4, 4, 8, 8, '#6a6a6a');
+};
+KIND.furnace_front = function (p, rnd, s) {
+  const base = s.wood ? '#5d4a34' : '#7d7d7d';
+  p.noise(rnd, base, 8, 3);
+  p.rect(3, 5, 10, 8, '#3d3d3d');
+  p.rect(4, 6, 8, 6, '#242424');
+  p.rect(4, 10, 8, 2, shade(base, -20));
+  p.rect(2, 3, 12, 1, shade(base, -26));
+  if (s.metal) { p.rect(2, 1, 12, 2, '#8a8a8d'); p.rect(0, 6, 3, 4, '#8a8a8d'); p.rect(13, 6, 3, 4, '#8a8a8d'); }
+};
+KIND.chest_top = function (p, rnd, s) {
+  const c = s.color || '#9a6b34';
+  p.noise(rnd, c, 8, 3);
+  p.frame(0, 0, 16, 16, shade(c, -40));
+};
+KIND.chest_side = function (p, rnd, s) {
+  const c = s.color || '#9a6b34';
+  p.noise(rnd, c, 8, 3);
+  p.rect(0, 5, 16, 1, shade(c, -40));
+  p.rect(0, 0, 16, 1, shade(c, -40)); p.rect(0, 15, 16, 1, shade(c, -40));
+  p.rect(7, 6, 2, 3, '#dcc44a');
+  p.rect(7, 4, 2, 2, '#b39a30');
+};
+KIND.barrel_top = function (p, rnd) {
+  p.noise(rnd, '#8a6a3a', 8, 3);
+  p.frame(0, 0, 16, 16, '#5d4526');
+  p.rect(6, 6, 4, 4, '#4a3620');
+};
+KIND.barrel_side = function (p, rnd) {
+  KIND.planks(p, rnd, { color: '#8a6a3a' });
+  p.rect(0, 2, 16, 1, '#4a3620'); p.rect(0, 13, 16, 1, '#4a3620');
+};
+KIND.bookshelf = function (p, rnd) {
+  KIND.planks(p, rnd, { color: '#b58b52' });
+  p.rect(0, 0, 16, 2, '#8a6236'); p.rect(0, 14, 16, 2, '#8a6236');
+  p.rect(0, 7, 16, 2, '#8a6236');
+  const cols = ['#a13a2f', '#2f5aa1', '#3f8a3a', '#a1892f', '#7a3aa1', '#a1552f'];
+  [2, 9].forEach(function (y0) {
+    let x = 0;
+    while (x < 16) {
+      const w = 1 + (rnd() < 0.4 ? 1 : 0);
+      const c = cols[Math.floor(rnd() * cols.length)];
+      p.rect(x, y0, w, 5, c);
+      p.rect(x, y0, w, 1, shade(c, 26));
+      x += w + 1;
     }
   });
-  function sapling(leafColor) {
-    return function (p, rnd) {
-      p.art([
-        '................', '................', '................', '.....ggg........',
-        '....ggggg.......', '...gg.g.gg......', '....ggggg.......', '.....ggg........',
-        '......g.........', '......s.........', '......s.........', '......s.........',
-        '.....sss........', '................', '................', '................'
-      ], { g: leafColor, s: '#6b4f2c' });
-    };
+};
+KIND.chiseled_bookshelf = function (p, rnd) {
+  KIND.planks(p, rnd, { color: '#b58b52' });
+  p.rect(0, 7, 16, 1, '#6d4a26');
+  for (let i = 0; i < 3; i++) p.rect(i * 5 + 4, 0, 1, 16, '#6d4a26');
+  p.rect(1, 1, 3, 5, '#a13a2f'); p.rect(6, 1, 3, 5, '#2f5aa1');
+  p.rect(11, 9, 3, 5, '#3f8a3a');
+};
+KIND.tnt_top = function (p, rnd) {
+  p.noise(rnd, '#c9403a', 8, 3);
+  p.rect(0, 0, 16, 1, '#8a2a26'); p.rect(0, 15, 16, 1, '#8a2a26');
+  p.rect(6, 5, 4, 6, '#e8e8e8');
+};
+KIND.tnt_side = function (p, rnd) {
+  p.noise(rnd, '#c9403a', 8, 3);
+  p.rect(0, 5, 16, 6, '#f0f0f0');
+  p.rect(0, 5, 16, 1, '#c9c9c9'); p.rect(0, 10, 16, 1, '#c9c9c9');
+  p.art([
+    '................', '................', '................', '................',
+    '................', '..#.#..###..#..#', '..#.#...#...##.#',
+    '..###...#...#.##', '..#.#...#...#..#', '..#.#...#...#..#', '................'
+  ], { '#': '#1a1a1a' });
+};
+KIND.torch = function (p, rnd, s) {
+  p.art([
+    '................', '................', '................', '................',
+    '................', '.......ff.......', '......fFFf......', '......fFFf......',
+    '.......ss.......', '.......ss.......', '.......ss.......', '.......SS.......',
+    '.......ss.......', '.......ss.......', '.......SS.......', '................'
+  ], { f: s.flame, F: mixc(s.flame, '#ffffff', 0.55), s: '#8a6236', S: '#6b4720' });
+};
+KIND.lantern = function (p, rnd, s) {
+  p.art([
+    '................', '.......##.......', '......#..#......', '.......##.......',
+    '.....mmmmmm.....', '....m######m....', '....m#FFFF#m....', '....m#FffF#m....',
+    '....m#FffF#m....', '....m#FFFF#m....', '....m######m....', '.....mmmmmm.....',
+    '......m..m......', '................', '................', '................'
+  ], { '#': '#5a4a30', m: '#3f3324', F: s.color, f: mixc(s.color, '#ffffff', 0.6) });
+};
+KIND.chain = function (p) {
+  p.art([
+    '.......##.......', '......#..#......', '......#..#......', '.......##.......',
+    '.......##.......', '......#..#......', '......#..#......', '.......##.......',
+    '.......##.......', '......#..#......', '......#..#......', '.......##.......',
+    '.......##.......', '......#..#......', '......#..#......', '.......##.......'
+  ], { '#': '#4a4a4d' });
+};
+KIND.end_rod = function (p) {
+  p.art([
+    '......ww........', '.....wWWw.......', '.....wWWw.......', '......ww........',
+    '......pp........', '......pp........', '......pp........', '......pp........',
+    '......pp........', '......pp........', '......pp........', '......pp........',
+    '......pp........', '......pp........', '......pp........', '......pp........'
+  ], { w: '#e0d8f0', W: '#ffffff', p: '#c8b8e0' });
+};
+KIND.ladder = function (p) {
+  p.art([
+    '.##..........##.', '.##..........##.', '.##############.', '.##..........##.',
+    '.##..........##.', '.##..........##.', '.##############.', '.##..........##.',
+    '.##..........##.', '.##..........##.', '.##############.', '.##..........##.',
+    '.##..........##.', '.##..........##.', '.##############.', '.##..........##.'
+  ], { '#': '#9a7645' });
+};
+KIND.scaffold = function (p, rnd) {
+  p.noise(rnd, '#c2a93a', 8, 3);
+  p.rect(2, 2, 12, 12, [0, 0, 0, 0]);
+  p.frame(2, 2, 12, 12, '#8a7a20');
+};
+KIND.cake_top = function (p, rnd) {
+  p.noise(rnd, '#f0f0f0', 6, 2);
+  p.speckle(rnd, '#e05a5a', 12);
+  p.frame(0, 0, 16, 16, '#d8d8d8');
+};
+KIND.cake_side = function (p, rnd) {
+  p.noise(rnd, '#c8a882', 6, 2);
+  p.rect(0, 0, 16, 4, '#f0f0f0');
+  p.rect(0, 4, 16, 1, '#e05a5a');
+};
+KIND.flower_pot = function (p, rnd) {
+  p.noise(rnd, '#96513a', 8, 3);
+  p.rect(0, 0, 16, 3, '#a5603f');
+  p.rect(3, 3, 10, 13, '#7d3c28');
+};
+KIND.cauldron = function (p, rnd) {
+  p.noise(rnd, '#4a4a4d', 6, 3);
+  p.rect(0, 0, 16, 2, '#6a6a6d');
+  p.rect(0, 14, 16, 2, '#3a3a3d');
+  p.rect(2, 4, 2, 10, '#5a5a5d'); p.rect(12, 4, 2, 10, '#5a5a5d');
+};
+KIND.brewing = function (p, rnd) {
+  p.art([
+    '.......##.......', '.......##.......', '......####......', '.....#FFFF#.....',
+    '.....#FFFF#.....', '......####......', '.......##.......', '.......##.......',
+    '.......##.......', '......#..#......', '.....#....#.....', '....########....',
+    '...##########...', '...##########...', '....########....', '................'
+  ], { '#': '#6a5a4a', F: '#e0c86a' });
+};
+KIND.enchant_top = function (p, rnd) {
+  p.noise(rnd, '#a01f22', 10, 3);
+  p.frame(0, 0, 16, 16, '#151020');
+  p.rect(4, 4, 8, 8, '#c82f2a');
+  p.speckle(rnd, '#f0e070', 8);
+};
+KIND.enchant_side = function (p, rnd) {
+  p.noise(rnd, '#150d1f', 8, 3);
+  p.rect(0, 0, 16, 4, '#a01f22');
+  p.speckle(rnd, '#3d2a58', 12);
+};
+KIND.anvil_top = function (p, rnd) {
+  p.noise(rnd, '#5a5a5d', 6, 3);
+  p.frame(0, 0, 16, 16, '#3a3a3d');
+  p.rect(4, 2, 8, 12, '#4a4a4d');
+  p.speckle(rnd, '#6a6a6d', 8);
+};
+KIND.grindstone = function (p, rnd) {
+  p.noise(rnd, '#7a7a7d', 6, 3);
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const dx = x - 7.5, dy = y - 7.5;
+      if (Math.sqrt(dx * dx + dy * dy) < 6) p.set(x, y, shade('#9a9a9d', Math.floor(rnd() * 12) - 6));
+    }
   }
-  defTex('oak_sapling', sapling('#3f7a25'));
-  defTex('birch_sapling', sapling('#6aa84f'));
-  defTex('spruce_sapling', sapling('#2f5a2a'));
-
-  // 밀 성장 단계
-  for (let s = 0; s < 4; s++) {
-    (function (stage) {
-      defTex('wheat_stage' + stage, function (p, rnd) {
-        const h = 5 + stage * 3;
-        const col = stage < 2 ? '#4a8a2a' : (stage === 2 ? '#8aa02a' : '#d8c04a');
-        for (let x = 2; x < 15; x += 4) {
-          for (let y = 0; y < h; y++) p.set(x, 15 - y, col);
-          if (stage === 3) {
-            for (let y = 0; y < 5; y++) {
-              p.set(x - 1, 15 - h + y + 1, '#e8d060');
-              p.set(x + 1, 15 - h + y + 1, '#e8d060');
-            }
-          }
-        }
-      });
-    })(s);
+  p.rect(0, 0, 16, 2, '#9a7645'); p.rect(0, 14, 16, 2, '#9a7645');
+};
+KIND.stonecutter_top = function (p, rnd) {
+  p.noise(rnd, '#8a8a8d', 6, 3);
+  p.rect(7, 1, 2, 14, '#d8d8dc');
+  p.frame(0, 0, 16, 16, '#5a5a5d');
+};
+KIND.beehive = function (p, rnd, s) {
+  p.noise(rnd, s.natural ? '#a0762a' : '#b08a4a', 8, 3);
+  p.rect(0, 0, 16, 3, shade(s.natural ? '#a0762a' : '#b08a4a', -22));
+  p.rect(0, 13, 16, 3, shade(s.natural ? '#a0762a' : '#b08a4a', -22));
+  p.rect(5, 6, 6, 4, '#4a3a1a');
+  p.speckle(rnd, '#e0b83a', 10);
+};
+KIND.campfire = function (p, rnd, s) {
+  p.noise(rnd, '#6b4f2c', 10, 3);
+  for (let i = 0; i < 22; i++) {
+    p.set(Math.floor(rnd() * 16), Math.floor(rnd() * 16), rnd() < 0.5 ? s.flame : mixc(s.flame, '#ffffff', 0.5));
   }
+  p.rect(0, 0, 16, 2, '#4a3620');
+};
+KIND.jukebox_top = function (p, rnd) {
+  KIND.planks(p, rnd, { color: '#6b4f2c' });
+  p.rect(4, 4, 8, 8, '#2a2a2a');
+  p.rect(7, 7, 2, 2, '#c8c8c8');
+};
+KIND.note_block = function (p, rnd) {
+  p.noise(rnd, '#5d3f20', 8, 3);
+  p.rect(0, 0, 16, 1, '#8a6236'); p.rect(0, 15, 16, 1, '#3a2712');
+  p.art([
+    '................', '................', '................',
+    '.......###......', '.......#.#......', '.......#........',
+    '.......#........', '......##........', '.....###........',
+    '......##........', '................'
+  ], { '#': '#e0d8c8' });
+};
+KIND.beacon = function (p, rnd) {
+  p.noise(rnd, '#3a5a5a', 6, 3);
+  p.rect(3, 3, 10, 10, '#1a2a2a');
+  p.rect(5, 5, 6, 6, '#7ee0e0');
+  p.rect(6, 6, 4, 4, '#ffffff');
+  p.frame(0, 0, 16, 16, '#5a7a7a');
+};
+KIND.cluster = function (p, rnd, s) {
+  p.art([
+    '................', '................', '.......c........', '......ccc.......',
+    '.....ccCcc......', '.....ccCcc......', '....cccCccc.....', '....cccCccc.....',
+    '...ccccCcccc....', '...ccccCcccc....', '....cccccccc....', '.....cccccc.....',
+    '......cccc......', '................', '................', '................'
+  ], { c: s.color, C: mixc(s.color, '#ffffff', 0.55) });
+};
+KIND.lever = function (p, rnd) {
+  p.art([
+    '................', '................', '................', '................',
+    '................', '.......s........', '.......s........', '......ss........',
+    '......ss........', '.....cccccc.....', '....cccccccc....', '....cccccccc....',
+    '.....cccccc.....', '................', '................', '................'
+  ], { s: '#9a7645', c: '#7a7a7d' });
+};
+KIND.lamp = function (p, rnd) {
+  p.noise(rnd, '#8a6a3a', 8, 3);
+  p.rect(3, 3, 10, 10, '#f0c04a');
+  p.rect(5, 5, 6, 6, '#fff0a0');
+  p.frame(0, 0, 16, 16, '#5a4a2a');
+};
+KIND.target = function (p, rnd) {
+  p.noise(rnd, '#e8e4d8', 6, 2);
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const d = Math.sqrt((x - 7.5) * (x - 7.5) + (y - 7.5) * (y - 7.5));
+      if (d < 2) p.set(x, y, '#c8302a');
+      else if (d < 4) p.set(x, y, '#e8e4d8');
+      else if (d < 6) p.set(x, y, '#c8302a');
+    }
+  }
+};
+KIND.daylight = function (p, rnd) {
+  p.noise(rnd, '#2a2a30', 6, 2);
+  p.rect(1, 1, 14, 14, '#3a4a6a');
+  p.speckle(rnd, '#6a8ac8', 14);
+  p.frame(0, 0, 16, 16, '#9a7645');
+};
+KIND.repeater = function (p, rnd, s) {
+  p.noise(rnd, s.color, 6, 2);
+  p.rect(3, 2, 2, 3, '#8a8a8d');
+  p.rect(3, 11, 2, 3, '#8a8a8d');
+  p.rect(7, 1, 2, 14, '#c02a1a');
+};
+KIND.observer = function (p, rnd) {
+  p.noise(rnd, '#5a5a5d', 6, 3);
+  p.rect(3, 3, 10, 10, '#3a3a3d');
+  p.rect(5, 5, 6, 6, '#c02a1a');
+  p.frame(0, 0, 16, 16, '#6a6a6d');
+};
+KIND.piston_side = function (p, rnd) {
+  p.noise(rnd, '#8a8a8d', 6, 3);
+  p.rect(0, 0, 16, 4, '#b0a080');
+  p.rect(0, 4, 16, 1, '#5a5a5d');
+  for (let y = 6; y < 16; y += 4) p.rect(0, y, 16, 1, '#6a6a6d');
+};
+KIND.dispenser = function (p, rnd, s) {
+  p.noise(rnd, '#7a7a7d', 8, 3);
+  const w = s.small ? 4 : 6;
+  p.rect(8 - w / 2, 8 - w / 2, w, w, '#2a2a2a');
+  p.frame(2, 2, 12, 12, '#5a5a5d');
+};
+KIND.rail = function (p, rnd, s) {
+  p.rect(0, 0, 16, 16, [0, 0, 0, 0]);
+  p.rect(3, 0, 2, 16, s.powered ? '#c8952a' : '#8a8a8d');
+  p.rect(11, 0, 2, 16, s.powered ? '#c8952a' : '#8a8a8d');
+  for (let y = 1; y < 16; y += 4) p.rect(1, y, 14, 2, '#6b4f2c');
+};
+KIND.bars = function (p) {
+  p.rect(0, 0, 16, 16, [0, 0, 0, 0]);
+  [1, 6, 11].forEach(function (x) { p.rect(x, 0, 2, 16, '#5a5a5d'); });
+  p.rect(0, 0, 16, 2, '#6a6a6d'); p.rect(0, 14, 16, 2, '#6a6a6d');
+};
+KIND.pointed = function (p, rnd, s) {
+  p.art([
+    '.......##.......', '.......##.......', '......####......', '......####......',
+    '.....######.....', '.....######.....', '.....######.....', '....########....',
+    '....########....', '....########....', '...##########...', '...##########...',
+    '...##########...', '...##########...', '..############..', '..############..'
+  ], { '#': s.color });
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (p.get(x, y)[3] > 0) p.set(x, y, shade(s.color, Math.floor(rnd() * 16) - 8));
+  }
+};
 
-  // ── 몹 텍스처 ───────────────────────────────────────────────────────
+// ── 손으로 그린 특수 텍스처와 몹 스킨 ────────────────────────────────
+const EXTRA_TEX = {};
+function defTex(name, fn) { EXTRA_TEX[name] = fn; }
+
+function registerExtraTextures() {
   function skin(base, spot, spots) {
     return function (p, rnd) {
       p.noise(rnd, base, 6, 3);
@@ -615,9 +984,9 @@ function registerBlockTextures() {
   defTex('mob_pig', skin('#e8a0a0', '#d08a8a', 8));
   defTex('mob_pig_face', function (p, rnd) {
     p.noise(rnd, '#e8a0a0', 6, 3);
-    p.rect(4, 6, 8, 6, '#d0787f');       // 코
+    p.rect(4, 6, 8, 6, '#d0787f');
     p.rect(6, 8, 1, 2, '#8a4a50'); p.rect(9, 8, 1, 2, '#8a4a50');
-    p.rect(2, 2, 3, 3, '#2b2b2b'); p.rect(11, 2, 3, 3, '#2b2b2b'); // 눈
+    p.rect(2, 2, 3, 3, '#2b2b2b'); p.rect(11, 2, 3, 3, '#2b2b2b');
   });
   defTex('mob_cow', skin('#3a2c22', '#f0f0f0', 14));
   defTex('mob_cow_face', function (p, rnd) {
@@ -636,8 +1005,8 @@ function registerBlockTextures() {
   defTex('mob_chicken_face', function (p, rnd) {
     p.noise(rnd, '#f0f0f0', 6, 3);
     p.rect(3, 4, 3, 3, '#c04030'); p.rect(10, 4, 3, 3, '#c04030');
-    p.rect(6, 8, 4, 4, '#f0a020');  // 부리
-    p.rect(5, 1, 6, 3, '#c03028');  // 볏
+    p.rect(6, 8, 4, 4, '#f0a020');
+    p.rect(5, 1, 6, 3, '#c03028');
   });
   defTex('mob_chicken_beak', function (p, rnd) { p.noise(rnd, '#f0a020', 8, 3); });
   defTex('mob_zombie', skin('#3f6b3a', '#356030', 10));
@@ -655,58 +1024,70 @@ function registerBlockTextures() {
     p.rect(5, 10, 6, 1, '#8a8a8a');
     p.rect(6, 11, 1, 2, '#8a8a8a'); p.rect(9, 11, 1, 2, '#8a8a8a');
   });
-
-  defTex('torch', function (p) {
-    p.art([
-      '................', '................', '................', '................',
-      '................', '.......ff.......', '......fFFf......', '......fFFf......',
-      '.......ss.......', '.......ss.......', '.......ss.......', '.......SS.......',
-      '.......ss.......', '.......ss.......', '.......SS.......', '................'
-    ], { f: '#ff9c22', F: '#ffe98a', s: '#8a6236', S: '#6b4720' });
+  defTex('mob_creeper', skin('#4f9c3a', '#3d7a2c', 14));
+  defTex('mob_creeper_face', function (p, rnd) {
+    p.noise(rnd, '#4f9c3a', 6, 3);
+    p.rect(3, 4, 3, 3, '#101010'); p.rect(10, 4, 3, 3, '#101010');
+    p.rect(6, 7, 4, 4, '#101010');
+    p.rect(5, 10, 2, 3, '#101010'); p.rect(9, 10, 2, 3, '#101010');
+  });
+  defTex('mob_spider', skin('#38241d', '#2a1a14', 10));
+  defTex('mob_spider_face', function (p, rnd) {
+    p.noise(rnd, '#38241d', 6, 3);
+    p.rect(3, 5, 2, 2, '#c02a2a'); p.rect(6, 5, 2, 2, '#c02a2a');
+    p.rect(9, 5, 2, 2, '#c02a2a'); p.rect(12, 5, 2, 2, '#c02a2a');
   });
 }
 
-// ── 아틀라스 생성 ─────────────────────────────────────────────────────
+// ── 아틀라스 ──────────────────────────────────────────────────────────
+const TEXTURES = {};
+
 function buildAtlas() {
-  _texGens = {};
-  TEX_ORDER.length = 0;
-  registerBlockTextures();
+  registerExtraTextures();
 
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_SIZE; canvas.height = ATLAS_SIZE;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, ATLAS_SIZE, ATLAS_SIZE);
 
+  const names = Object.keys(TEX_SPEC).concat(Object.keys(EXTRA_TEX));
   let index = 0;
-  TEX_ORDER.forEach(function (name) {
+  const missing = [];
+
+  names.forEach(function (name) {
     if (TEXTURES[name]) return;
+    if (index >= ATLAS_TILES * ATLAS_TILES) { missing.push(name); return; }
+
     const p = new Pix(TILE);
     const rnd = makeRandom(hashSeed(name) ^ 0x9e3779b9);
-    _texGens[name](p, rnd);
+    if (EXTRA_TEX[name]) {
+      EXTRA_TEX[name](p, rnd);
+    } else {
+      const spec = TEX_SPEC[name];
+      const gen = KIND[spec.kind];
+      if (gen) gen(p, rnd, spec);
+      else p.noise(rnd, '#b040c0', 20, 6);   // 빠진 종류는 눈에 띄는 색으로
+    }
 
     const img = ctx.createImageData(TILE, TILE);
     img.data.set(p.data);
     const tx = index % ATLAS_TILES, ty = Math.floor(index / ATLAS_TILES);
     ctx.putImageData(img, tx * TILE, ty * TILE);
 
-    // 0.5텍셀 안쪽으로 넣어 이웃 타일 번짐 방지
     const inset = 0.5 / ATLAS_SIZE;
     TEXTURES[name] = {
       index: index,
-      u0: tx / ATLAS_TILES + inset,
-      v0: ty / ATLAS_TILES + inset,
-      u1: (tx + 1) / ATLAS_TILES - inset,
-      v1: (ty + 1) / ATLAS_TILES - inset,
-      canvasX: tx * TILE,
-      canvasY: ty * TILE
+      u0: tx / ATLAS_TILES + inset, v0: ty / ATLAS_TILES + inset,
+      u1: (tx + 1) / ATLAS_TILES - inset, v1: (ty + 1) / ATLAS_TILES - inset,
+      canvasX: tx * TILE, canvasY: ty * TILE
     };
     index++;
   });
 
+  if (missing.length) console.warn('아틀라스 칸이 부족합니다:', missing.length + '개');
   return { canvas: canvas, ctx: ctx, count: index };
 }
 
-let ATLAS = null;
 function texUV(name) {
   return TEXTURES[name] || TEXTURES['stone'];
 }

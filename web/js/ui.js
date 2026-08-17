@@ -1,15 +1,17 @@
-// ui.js - HUD와 화면(인벤토리, 제작대, 화로, 사망, 도감).
+// ui.js - HUD와 화면(인벤토리, 제작대, 화로, 상자, 창작 모드 아이템, 사망).
 'use strict';
 
 function UI(game) {
   this.game = game;
   this.player = game.player;
-  this.cursor = null;          // 마우스에 들고 있는 스택
-  this.open = null;            // null | 'inventory' | 'crafting' | 'furnace' | 'creative'
+  this.cursor = null;
+  this.open = null;   // null | inventory | crafting | furnace | chest | creative
   this.craftGrid = new Array(9).fill(null);
   this.craftSize = 2;
-  this.furnace = null;         // 열려 있는 화로 데이터
-  this.toasts = [];
+  this.furnace = null;
+  this.chest = null;
+  this.creativeTab = 'building';
+  this.creativeQuery = '';
   this.el = {};
   this.build();
 }
@@ -20,6 +22,9 @@ UI.prototype.build = function () {
   const root = document.getElementById('ui');
   this.el.root = root;
 
+  // 아이템 스프라이트 시트를 CSS 변수로 한 번만 등록
+  document.documentElement.style.setProperty('--items', 'url(' + iconAtlasURL() + ')');
+
   function div(cls, parent, html) {
     const d = document.createElement('div');
     if (cls) d.className = cls;
@@ -27,18 +32,13 @@ UI.prototype.build = function () {
     (parent || root).appendChild(d);
     return d;
   }
-  this.div = div;
 
-  // 조준점
   this.el.crosshair = div('crosshair');
-
-  // 체력/허기/산소
   this.el.stats = div('stats');
   this.el.hearts = div('bar hearts', this.el.stats);
   this.el.hunger = div('bar hunger', this.el.stats);
   this.el.air = div('bar air', this.el.stats);
 
-  // 핫바
   this.el.hotbar = div('hotbar');
   this.el.hotbarSlots = [];
   for (let i = 0; i < HOTBAR_SIZE; i++) {
@@ -48,52 +48,37 @@ UI.prototype.build = function () {
     this.el.hotbarSlots.push(s);
   }
 
-  // 들고 있는 아이템 이름
   this.el.heldName = div('held-name');
-
-  // 화면 하단 알림
   this.el.toasts = div('toasts');
-
-  // 피해 화면 효과
   this.el.hurt = div('hurt-overlay');
-  // 물속 효과
   this.el.water = div('water-overlay');
 
-  // 손에 든 아이템 (1인칭)
   this.el.hand = div('hand');
-  this.el.handImg = document.createElement('img');
-  this.el.hand.appendChild(this.el.handImg);
+  this.el.handIcon = div('ic hand-icon', this.el.hand);
 
-  // 디버그
   this.el.debug = div('debug');
   this.el.debug.style.display = 'none';
 
-  // ── 인벤토리 화면 ──
   this.el.screen = div('screen');
   this.el.screen.style.display = 'none';
   this.el.panel = div('panel', this.el.screen);
 
-  // 커서 아이템
   this.el.cursor = div('cursor-item');
   this.el.cursor.style.display = 'none';
 
-  // 사망 화면
   this.el.death = div('death');
   this.el.death.style.display = 'none';
   this.el.death.innerHTML =
-    '<h1>사망했습니다</h1><p id="death-cause"></p>' +
-    '<button id="respawn-btn">리스폰</button>';
+    '<h1>사망했습니다</h1><p id="death-cause"></p><button id="respawn-btn">리스폰</button>';
 
-  // 슬롯 클릭 처리 (이벤트 위임)
   root.addEventListener('mousedown', function (ev) {
     const slot = ev.target.closest ? ev.target.closest('.slot') : null;
     if (!slot || !self.open) return;
     ev.preventDefault();
     self.slotClick(slot, ev.button === 2 ? 'right' : 'left', ev.shiftKey);
   });
-  root.addEventListener('contextmenu', function (ev) {
-    if (self.open) ev.preventDefault();
-  });
+  root.addEventListener('contextmenu', function (ev) { if (self.open) ev.preventDefault(); });
+
   document.addEventListener('mousemove', function (ev) {
     self.mouseX = ev.clientX; self.mouseY = ev.clientY;
     if (self.cursor) {
@@ -102,17 +87,12 @@ UI.prototype.build = function () {
     }
   });
 
-  // 핫바 클릭으로 선택
   this.el.hotbarSlots.forEach(function (s, i) {
-    s.addEventListener('click', function () {
-      if (!self.open) self.player.selected = i;
-    });
+    s.addEventListener('click', function () { if (!self.open) self.player.selected = i; });
   });
 
-  document.getElementById('ui').addEventListener('click', function (ev) {
-    if (ev.target && ev.target.id === 'respawn-btn') {
-      self.game.respawn();
-    }
+  root.addEventListener('click', function (ev) {
+    if (ev.target && ev.target.id === 'respawn-btn') self.game.respawn();
   });
 };
 
@@ -120,28 +100,27 @@ UI.prototype.build = function () {
 UI.prototype.renderSlot = function (el, stack, selected) {
   el.classList.toggle('selected', !!selected);
   if (!stack) {
-    if (el.dataset.filled === '1') { el.innerHTML = ''; el.dataset.filled = '0'; }
+    if (el.dataset.sig !== '') { el.innerHTML = ''; el.dataset.sig = ''; el.title = ''; }
     return;
   }
   const sig = stack.name + ':' + stack.count + ':' + (stack.durability === undefined ? '-' : stack.durability);
   if (el.dataset.sig === sig) return;
   el.dataset.sig = sig;
-  el.dataset.filled = '1';
 
-  let html = '<img src="' + itemIconURL(stack.name) + '" alt="">';
+  let html = '<i class="ic" style="' + iconStyle(stack.name) + '"></i>';
   if (stack.count > 1) html += '<span class="count">' + stack.count + '</span>';
   const d = itemDef(stack.name);
   const maxDur = d && (d.tool ? d.tool.durability : (d.armor ? d.armor.durability : 0));
   if (maxDur && stack.durability !== undefined && stack.durability < maxDur) {
     const pct = Math.max(0, stack.durability / maxDur);
-    const hue = Math.floor(pct * 120);
-    html += '<span class="dur"><i style="width:' + (pct * 100) + '%;background:hsl(' + hue + ',90%,45%)"></i></span>';
+    html += '<span class="dur"><i style="width:' + (pct * 100) + '%;background:hsl(' +
+      Math.floor(pct * 120) + ',90%,45%)"></i></span>';
   }
   el.innerHTML = html;
   el.title = itemDisplayName(stack.name);
 };
 
-// ── 컨테이너 접근 ─────────────────────────────────────────────────────
+// ── 컨테이너 ──────────────────────────────────────────────────────────
 UI.prototype.getSlot = function (container, index) {
   const p = this.player;
   switch (container) {
@@ -171,8 +150,19 @@ UI.prototype.setSlot = function (container, index, stack) {
   }
 };
 
+// 창작 모드 목록 (탭 + 검색으로 걸러진 결과)
+UI.prototype.creativeItems = function () {
+  const q = this.creativeQuery.trim().toLowerCase();
+  const tab = this.creativeTab;
+  return ITEM_LIST.filter(function (it) {
+    if (q) return it.kr.toLowerCase().indexOf(q) >= 0 || it.name.indexOf(q) >= 0;
+    return it.group === tab;
+  });
+};
+
 UI.prototype.creativeStack = function (index) {
-  const item = ITEM_LIST[index];
+  const list = this._creativeCache || [];
+  const item = list[index];
   if (!item) return null;
   return { name: item.name, count: maxStack(item.name) };
 };
@@ -183,17 +173,16 @@ UI.prototype.slotClick = function (el, button, shift) {
   const index = parseInt(el.dataset.index, 10);
   const p = this.player;
 
-  // 창작 모드 아이템 목록: 클릭하면 무한 공급
   if (container === 'creative') {
     const st = this.creativeStack(index);
     if (!st) return;
     if (button === 'right') st.count = 1;
+    if (shift) { p.addItem(st.name, st.count); return; }
     this.cursor = p.makeStack(st.name, st.count);
     this.updateCursor();
     return;
   }
 
-  // 제작 결과칸
   if (container === 'result') {
     if (!this.craftResult) return;
     const res = this.craftResult;
@@ -210,14 +199,12 @@ UI.prototype.slotClick = function (el, button, shift) {
     return;
   }
 
-  // 화로 결과칸: 꺼내기만 가능
   if (container === 'fout') {
-    const out = this.furnace.output;
+    const out = this.furnace && this.furnace.output;
     if (!out) return;
     if (this.cursor) {
       if (this.cursor.name !== out.name) return;
-      const room = maxStack(out.name) - this.cursor.count;
-      const take = Math.min(room, out.count);
+      const take = Math.min(maxStack(out.name) - this.cursor.count, out.count);
       this.cursor.count += take;
       out.count -= take;
       if (out.count <= 0) this.furnace.output = null;
@@ -229,7 +216,6 @@ UI.prototype.slotClick = function (el, button, shift) {
     return;
   }
 
-  // 시프트 클릭: 인벤토리 <-> 창 사이 빠른 이동
   if (shift) {
     this.shiftMove(container, index);
     this.updateCraftResult();
@@ -238,7 +224,6 @@ UI.prototype.slotClick = function (el, button, shift) {
 
   const cur = this.getSlot(container, index);
 
-  // 방어구 칸 제한
   if (container === 'armor' && this.cursor) {
     const d = itemDef(this.cursor.name);
     if (!d || !d.armor || d.armor.slot !== index) return;
@@ -246,19 +231,16 @@ UI.prototype.slotClick = function (el, button, shift) {
 
   if (button === 'right') {
     if (this.cursor) {
-      // 1개씩 놓기
       if (!cur) {
-        this.setSlot(container, index, p.makeStack(this.cursor.name, 1));
-        if (this.cursor.durability !== undefined) {
-          this.getSlot(container, index).durability = this.cursor.durability;
-        }
+        const one = p.makeStack(this.cursor.name, 1);
+        if (this.cursor.durability !== undefined) one.durability = this.cursor.durability;
+        this.setSlot(container, index, one);
         this.cursor.count--;
       } else if (cur.name === this.cursor.name && cur.count < maxStack(cur.name)) {
         cur.count++; this.cursor.count--;
       }
       if (this.cursor.count <= 0) this.cursor = null;
     } else if (cur) {
-      // 절반 집기
       const half = Math.ceil(cur.count / 2);
       this.cursor = p.makeStack(cur.name, half);
       this.cursor.durability = cur.durability;
@@ -267,8 +249,7 @@ UI.prototype.slotClick = function (el, button, shift) {
     }
   } else {
     if (this.cursor && cur && cur.name === this.cursor.name && maxStack(cur.name) > 1) {
-      const room = maxStack(cur.name) - cur.count;
-      const move = Math.min(room, this.cursor.count);
+      const move = Math.min(maxStack(cur.name) - cur.count, this.cursor.count);
       cur.count += move; this.cursor.count -= move;
       if (this.cursor.count <= 0) this.cursor = null;
     } else {
@@ -287,15 +268,13 @@ UI.prototype.shiftMove = function (container, index) {
   if (!st) return;
 
   if (container === 'inv') {
-    // 열린 창이 있으면 그쪽으로
     if (this.open === 'furnace') {
       const d = itemDef(st.name);
       const target = (d && d.fuel > 0 && !smeltResult(st.name)) ? 'ffuel' : 'fin';
       const cur = this.getSlot(target, 0);
       if (!cur) { this.setSlot(target, 0, st); this.setSlot('inv', index, null); return; }
       if (cur.name === st.name) {
-        const room = maxStack(cur.name) - cur.count;
-        const move = Math.min(room, st.count);
+        const move = Math.min(maxStack(cur.name) - cur.count, st.count);
         cur.count += move; st.count -= move;
         if (st.count <= 0) this.setSlot('inv', index, null);
       }
@@ -305,8 +284,7 @@ UI.prototype.shiftMove = function (container, index) {
       for (let i = 0; i < 27; i++) {
         const cur = this.chest[i];
         if (cur && cur.name === st.name && cur.count < maxStack(st.name)) {
-          const room = maxStack(st.name) - cur.count;
-          const move = Math.min(room, st.count);
+          const move = Math.min(maxStack(st.name) - cur.count, st.count);
           cur.count += move; st.count -= move;
           if (st.count <= 0) { this.setSlot('inv', index, null); return; }
         }
@@ -322,13 +300,11 @@ UI.prototype.shiftMove = function (container, index) {
       this.setSlot('inv', index, null);
       return;
     }
-    // 핫바 <-> 저장칸 이동
     const from = index < HOTBAR_SIZE ? HOTBAR_SIZE : 0;
     const to = index < HOTBAR_SIZE ? INV_SIZE : HOTBAR_SIZE;
     for (let i = from; i < to; i++) {
       if (p.inventory[i] && p.inventory[i].name === st.name) {
-        const room = maxStack(st.name) - p.inventory[i].count;
-        const move = Math.min(room, st.count);
+        const move = Math.min(maxStack(st.name) - p.inventory[i].count, st.count);
         p.inventory[i].count += move; st.count -= move;
         if (st.count <= 0) { p.inventory[index] = null; return; }
       }
@@ -339,7 +315,6 @@ UI.prototype.shiftMove = function (container, index) {
     return;
   }
 
-  // 창 -> 인벤토리
   const left = p.addItem(st.name, st.count);
   if (left === 0) this.setSlot(container, index, null);
   else st.count = left;
@@ -354,7 +329,6 @@ UI.prototype.updateCraftResult = function () {
   }
   const rec = findRecipe(grid, size);
   this.craftResult = rec ? { name: rec.result, count: rec.count } : null;
-  this.currentRecipe = rec;
 };
 
 UI.prototype.consumeCraftIngredients = function () {
@@ -366,7 +340,6 @@ UI.prototype.consumeCraftIngredients = function () {
   }
 };
 
-// 제작 칸에 남은 재료를 인벤토리로 돌려준다
 UI.prototype.returnCraftItems = function () {
   for (let i = 0; i < 9; i++) {
     const s = this.craftGrid[i];
@@ -376,7 +349,7 @@ UI.prototype.returnCraftItems = function () {
   this.updateCursor();
 };
 
-// ── 화면 열기/닫기 ────────────────────────────────────────────────────
+// ── 화면 ──────────────────────────────────────────────────────────────
 UI.prototype.openScreen = function (kind, data) {
   this.open = kind;
   this.craftSize = (kind === 'crafting') ? 3 : 2;
@@ -423,18 +396,20 @@ UI.prototype.buildScreen = function () {
       s.className = 'slot';
       s.dataset.container = container;
       s.dataset.index = (offset || 0) + i;
+      s.dataset.sig = '';
       g.appendChild(s);
       self.screenSlots.push(s);
     }
     parent.appendChild(g);
     return g;
   }
+  this._grid = grid;
 
   const title = document.createElement('h2');
   title.textContent = this.open === 'crafting' ? '제작대'
     : this.open === 'furnace' ? '화로'
       : this.open === 'chest' ? '상자'
-        : this.open === 'creative' ? '창작 모드 아이템' : '인벤토리';
+        : this.open === 'creative' ? '창작 모드 — 모든 아이템' : '인벤토리';
   panel.appendChild(title);
 
   const top = document.createElement('div');
@@ -446,7 +421,6 @@ UI.prototype.buildScreen = function () {
     const wrap = document.createElement('div');
     wrap.className = 'furnace-layout';
     s.appendChild(wrap);
-
     const col = document.createElement('div');
     col.className = 'furnace-col';
     wrap.appendChild(col);
@@ -457,40 +431,22 @@ UI.prototype.buildScreen = function () {
     col.appendChild(flame);
     this.el.flame = flame.querySelector('i');
     grid('g1', 1, 'ffuel', 0, col);
-
     const arrow = document.createElement('div');
     arrow.className = 'arrow';
     arrow.innerHTML = '<i></i>';
     wrap.appendChild(arrow);
     this.el.smeltArrow = arrow.querySelector('i');
-
     grid('g1 out', 1, 'fout', 0, wrap);
   } else if (this.open === 'chest') {
-    const s = section('보관함', top);
-    grid('g-inv', 27, 'chest', 0, s);
+    grid('g-inv', 27, 'chest', 0, section('보관함', top));
   } else if (this.open === 'creative') {
-    const s = section('모든 아이템 (클릭해서 집기)', top);
-    const g = document.createElement('div');
-    g.className = 'grid creative-grid';
-    for (let i = 0; i < ITEM_LIST.length; i++) {
-      const sl = document.createElement('div');
-      sl.className = 'slot';
-      sl.dataset.container = 'creative';
-      sl.dataset.index = i;
-      g.appendChild(sl);
-      this.screenSlots.push(sl);
-    }
-    s.appendChild(g);
+    this.buildCreative(top);
   } else {
-    // 인벤토리 / 제작대
-    const armorSec = section('장비', top);
-    grid('g-armor', 4, 'armor', 0, armorSec);
-
+    grid('g-armor', 4, 'armor', 0, section('장비', top));
     const craftSec = section(this.craftSize === 3 ? '제작 (3×3)' : '제작 (2×2)', top);
     const cw = document.createElement('div');
     cw.className = 'craft-layout';
     craftSec.appendChild(cw);
-
     const cg = document.createElement('div');
     cg.className = 'grid craft' + this.craftSize;
     for (let r = 0; r < this.craftSize; r++) {
@@ -499,12 +455,12 @@ UI.prototype.buildScreen = function () {
         s.className = 'slot';
         s.dataset.container = 'craft';
         s.dataset.index = r * 3 + c;
+        s.dataset.sig = '';
         cg.appendChild(s);
         this.screenSlots.push(s);
       }
     }
     cw.appendChild(cg);
-
     const arrow = document.createElement('div');
     arrow.className = 'arrow static';
     arrow.innerHTML = '→';
@@ -512,40 +468,116 @@ UI.prototype.buildScreen = function () {
     grid('g1 out', 1, 'result', 0, cw);
   }
 
-  // 인벤토리 본체
-  const invSec = section('가방', panel);
-  grid('g-inv', 27, 'inv', 9, invSec);
-  const hotSec = section('', panel);
-  grid('g-hot', 9, 'inv', 0, hotSec);
+  grid('g-inv', 27, 'inv', 9, section('가방', panel));
+  grid('g-hot', 9, 'inv', 0, section('', panel));
 
   const hint = document.createElement('p');
   hint.className = 'hint';
-  hint.textContent = 'E 또는 ESC로 닫기 · 클릭: 집기/놓기 · 우클릭: 반개/1개 · Shift+클릭: 빠른 이동';
+  hint.textContent = this.open === 'creative'
+    ? '클릭: 한 묶음 집기 · 우클릭: 1개 · Shift+클릭: 가방으로 바로 담기 · E/ESC로 닫기'
+    : 'E 또는 ESC로 닫기 · 클릭: 집기/놓기 · 우클릭: 반개/1개 · Shift+클릭: 빠른 이동';
   panel.appendChild(hint);
 };
 
+// 창작 모드: 탭 + 검색 + 아이템 격자
+UI.prototype.buildCreative = function (parent) {
+  const self = this;
+  const wrap = document.createElement('div');
+  wrap.className = 'creative-wrap';
+  parent.appendChild(wrap);
+
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  ITEM_GROUPS.forEach(function (g) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = g[1];
+    b.className = 'tab' + (self.creativeTab === g[0] && !self.creativeQuery ? ' on' : '');
+    b.addEventListener('click', function () {
+      self.creativeTab = g[0];
+      self.creativeQuery = '';
+      self.buildScreen();
+      self.refreshScreen();
+    });
+    tabs.appendChild(b);
+  });
+  wrap.appendChild(tabs);
+
+  const searchRow = document.createElement('div');
+  searchRow.className = 'search-row';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = '아이템 검색 (예: 계단, 다이아, wool)';
+  input.value = this.creativeQuery;
+  input.addEventListener('input', function () {
+    self.creativeQuery = input.value;
+    self.rebuildCreativeGrid();
+  });
+  input.addEventListener('keydown', function (e) { e.stopPropagation(); });
+  searchRow.appendChild(input);
+  const countEl = document.createElement('span');
+  countEl.className = 'count-label';
+  searchRow.appendChild(countEl);
+  wrap.appendChild(searchRow);
+  this.el.creativeCount = countEl;
+  this.el.creativeInput = input;
+
+  const gridEl = document.createElement('div');
+  gridEl.className = 'grid creative-grid';
+  wrap.appendChild(gridEl);
+  this.el.creativeGrid = gridEl;
+  this.rebuildCreativeGrid();
+};
+
+UI.prototype.rebuildCreativeGrid = function () {
+  const list = this.creativeItems();
+  this._creativeCache = list;
+  const gridEl = this.el.creativeGrid;
+  if (!gridEl) return;
+
+  // 창작 모드 격자 슬롯은 별도로 관리 (탭 전환 때만 다시 만든다)
+  this.screenSlots = this.screenSlots.filter(function (s) {
+    return s.dataset.container !== 'creative';
+  });
+  gridEl.innerHTML = '';
+
+  const max = Math.min(list.length, 600);
+  for (let i = 0; i < max; i++) {
+    const s = document.createElement('div');
+    s.className = 'slot';
+    s.dataset.container = 'creative';
+    s.dataset.index = i;
+    s.dataset.sig = '';
+    gridEl.appendChild(s);
+    this.screenSlots.push(s);
+  }
+  if (this.el.creativeCount) {
+    this.el.creativeCount.textContent = list.length + '개' +
+      (list.length > max ? ' (앞의 ' + max + '개 표시)' : '');
+  }
+  this.refreshScreen();
+};
+
 UI.prototype.refreshScreen = function () {
-  if (!this.open) return;
+  if (!this.open || !this.screenSlots) return;
   for (let i = 0; i < this.screenSlots.length; i++) {
     const el = this.screenSlots[i];
     const st = this.getSlot(el.dataset.container, parseInt(el.dataset.index, 10));
-    el.dataset.sig = '';
     this.renderSlot(el, st, false);
   }
   if (this.open === 'furnace' && this.furnace) {
     const f = this.furnace;
-    if (this.el.flame) this.el.flame.style.height = (f.burnTime > 0 ? (f.burnTime / Math.max(1, f.burnMax)) * 100 : 0) + '%';
+    if (this.el.flame) {
+      this.el.flame.style.height = (f.burnTime > 0 ? (f.burnTime / Math.max(1, f.burnMax)) * 100 : 0) + '%';
+    }
     if (this.el.smeltArrow) this.el.smeltArrow.style.width = ((f.progress / 200) * 100) + '%';
   }
 };
 
 UI.prototype.updateCursor = function () {
-  if (!this.cursor) {
-    this.el.cursor.style.display = 'none';
-    return;
-  }
+  if (!this.cursor) { this.el.cursor.style.display = 'none'; return; }
   this.el.cursor.style.display = 'block';
-  this.el.cursor.innerHTML = '<img src="' + itemIconURL(this.cursor.name) + '">' +
+  this.el.cursor.innerHTML = '<i class="ic" style="' + iconStyle(this.cursor.name) + '"></i>' +
     (this.cursor.count > 1 ? '<span class="count">' + this.cursor.count + '</span>' : '');
   this.el.cursor.style.left = (this.mouseX || 0) + 'px';
   this.el.cursor.style.top = (this.mouseY || 0) + 'px';
@@ -553,7 +585,6 @@ UI.prototype.updateCursor = function () {
 
 // ── HUD ───────────────────────────────────────────────────────────────
 UI.prototype.toast = function (text) {
-  this.toasts.push({ text: text, t: 3 });
   const d = document.createElement('div');
   d.className = 'toast';
   d.textContent = text;
@@ -564,23 +595,20 @@ UI.prototype.toast = function (text) {
   }, 2200);
 };
 
-UI.prototype.updateHUD = function (dt) {
+UI.prototype.updateHUD = function () {
   const p = this.player;
 
-  // 핫바
   for (let i = 0; i < HOTBAR_SIZE; i++) {
     this.renderSlot(this.el.hotbarSlots[i], p.inventory[i], i === p.selected);
   }
 
-  // 하트 (반칸 단위)
   const hearts = Math.ceil(p.health);
   if (this._lastHealth !== hearts) {
     this._lastHealth = hearts;
     let html = '';
     for (let i = 0; i < 10; i++) {
       const v = p.health - i * 2;
-      const cls = v >= 2 ? 'full' : (v >= 1 ? 'half' : 'empty');
-      html += '<span class="heart ' + cls + '"></span>';
+      html += '<span class="heart ' + (v >= 2 ? 'full' : (v >= 1 ? 'half' : 'empty')) + '"></span>';
     }
     this.el.hearts.innerHTML = html;
   }
@@ -590,13 +618,11 @@ UI.prototype.updateHUD = function (dt) {
     let html = '';
     for (let i = 0; i < 10; i++) {
       const v = p.hunger - i * 2;
-      const cls = v >= 2 ? 'full' : (v >= 1 ? 'half' : 'empty');
-      html += '<span class="food ' + cls + '"></span>';
+      html += '<span class="food ' + (v >= 2 ? 'full' : (v >= 1 ? 'half' : 'empty')) + '"></span>';
     }
     this.el.hunger.innerHTML = html;
   }
 
-  // 산소가 가득이면 -1 로 두어 "숨겨진 상태"를 캐시와 구분한다
   const bubbles = p.air >= 300 ? -1 : Math.ceil(p.air / 30);
   if (this._lastAir !== bubbles) {
     this._lastAir = bubbles;
@@ -609,7 +635,6 @@ UI.prototype.updateHUD = function (dt) {
 
   this.el.stats.style.display = p.creative ? 'none' : 'flex';
 
-  // 들고 있는 아이템 이름 표시
   const held = p.heldItem();
   const name = held ? itemDisplayName(held.name) : '';
   if (this._lastHeldName !== name) {
@@ -620,12 +645,14 @@ UI.prototype.updateHUD = function (dt) {
     if (name) this.el.heldName.classList.add('show');
   }
 
-  // 손에 든 아이템 그림
   if (held) {
-    const url = itemIconURL(held.name);
-    if (this.el.handImg.getAttribute('src') !== url) this.el.handImg.src = url;
+    if (this._handName !== held.name) {
+      this._handName = held.name;
+      this.el.handIcon.setAttribute('style', iconStyle(held.name));
+    }
     this.el.hand.style.display = 'block';
   } else {
+    this._handName = null;
     this.el.hand.style.display = 'none';
   }
   const swing = this.game.swingTimer > 0 ? Math.sin((1 - this.game.swingTimer / 0.25) * Math.PI) : 0;
@@ -633,20 +660,14 @@ UI.prototype.updateHUD = function (dt) {
   this.el.hand.style.transform =
     'translate(' + (bob - swing * 40) + 'px,' + (Math.abs(bob) * 0.6 + swing * 30) + 'px) rotate(' + (-swing * 30) + 'deg)';
 
-  // 피격 효과
   this.el.hurt.style.opacity = p.hurtTimer > 0 ? Math.min(0.45, p.hurtTimer) : 0;
   this.el.water.style.opacity = p.headInWater ? 0.45 : 0;
-
-  // 사망
   this.el.death.style.display = p.dead ? 'flex' : 'none';
 
   if (this.open) this.refreshScreen();
 };
 
-UI.prototype.setDebug = function (lines) {
-  this.el.debug.innerHTML = lines.join('<br>');
-};
-
+UI.prototype.setDebug = function (lines) { this.el.debug.innerHTML = lines.join('<br>'); };
 UI.prototype.toggleDebug = function () {
   const d = this.el.debug;
   d.style.display = d.style.display === 'none' ? 'block' : 'none';
