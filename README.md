@@ -1,3 +1,12 @@
+> **이 저장소의 프로젝트**
+>
+> | 프로젝트 | 위치 | 설명 |
+> | --- | --- | --- |
+> | WebCraft | [`web/`](web/README.md) · `dist/minecraft.html` | 웹뷰에서 도는 마인크래프트 스타일 복셀 게임 (외부 라이브러리 없이 순수 WebGL) |
+> | 황산벌 전투 퀴즈 | `hwangsanbeol_quiz.html` · `hwangsanbeol_quiz.py` | 아래 문서 참고 |
+
+---
+
 # 황산벌 전투 역사 퀴즈
 
 초등학생이 풀 수 있는 **황산벌 전투(660년)** 객관식 퀴즈입니다.

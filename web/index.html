@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#7fb2ff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>WebCraft — 웹뷰 마인크래프트</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui"></div>
+
+<!-- 채굴 진행 -->
+<div id="crack"></div>
+
+<!-- 터치 조작 -->
+<div id="touch-stick"><div id="touch-knob"></div></div>
+<div id="touch-buttons">
+  <button id="btn-inv" type="button">가방</button>
+  <button id="btn-fly" type="button">비행</button>
+  <button id="btn-sneak" type="button">웅크리기</button>
+  <button id="btn-jump" type="button">점프</button>
+</div>
+
+<!-- 시작 화면 -->
+<div id="title">
+  <div class="title-box">
+    <h1>WebCraft</h1>
+    <p class="sub">웹뷰에서 도는 자바 마인크래프트 스타일 복셀 게임<br>외부 라이브러리 없이 순수 WebGL로 처음부터 제작</p>
+
+    <label class="seed-row">
+      <span>시드</span>
+      <input id="seed-input" type="text" placeholder="비워두면 무작위" autocomplete="off">
+    </label>
+
+    <div class="btn-row">
+      <button id="btn-new" type="button" class="primary">새 세계 만들기</button>
+      <button id="btn-continue" type="button">이어하기</button>
+    </div>
+
+    <div class="modes">
+      <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
+      <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
+    </div>
+
+    <details class="help">
+      <summary>조작법 / 게임 안내</summary>
+      <div class="help-body">
+        <h4>PC</h4>
+        <ul>
+          <li><b>WASD</b> 이동 · <b>Space</b> 점프 · <b>Shift</b> 웅크리기 · <b>Ctrl</b> 달리기</li>
+          <li><b>마우스</b> 시점 · <b>좌클릭</b> 캐기/공격 · <b>우클릭</b> 설치/사용/먹기</li>
+          <li><b>1~9</b> 또는 <b>휠</b> 핫바 선택 · <b>Q</b> 버리기 (Ctrl+Q 전부)</li>
+          <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>F</b> 비행(창작) · <b>C</b> 아이템 목록(창작)</li>
+          <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장)</li>
+        </ul>
+        <h4>모바일 / 웹뷰</h4>
+        <ul>
+          <li>화면 <b>왼쪽</b>을 끌면 조이스틱, <b>오른쪽</b>을 끌면 시점 이동</li>
+          <li>오른쪽 <b>짧게 탭</b> = 설치/사용, <b>길게 누르기</b> = 캐기</li>
+          <li>오른쪽 아래 버튼으로 점프·웅크리기·가방</li>
+        </ul>
+        <h4>진행 순서 (원본과 동일)</h4>
+        <ul>
+          <li>나무를 캐서 <b>판자 → 막대기 → 제작대</b>를 만든다</li>
+          <li>나무 곡괭이로 돌을 캐고 <b>돌 도구</b>와 <b>화로</b>를 만든다</li>
+          <li>석탄으로 <b>횃불</b>을 만들어 동굴을 탐험하고 철·금·다이아몬드를 캔다</li>
+          <li>밤에는 좀비와 스켈레톤이 나온다. 집을 짓고 문 대신 블록으로 막자</li>
+        </ul>
+      </div>
+    </details>
+
+    <p id="title-error" class="error"></p>
+  </div>
+</div>
+
+<script src="js/noise.js"></script>
+<script src="js/blocks.js"></script>
+<script src="js/items.js"></script>
+<script src="js/textures.js"></script>
+<script src="js/itemicons.js"></script>
+<script src="js/glutil.js"></script>
+<script src="js/world.js"></script>
+<script src="js/player.js"></script>
+<script src="js/mobs.js"></script>
+<script src="js/crafting.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>
