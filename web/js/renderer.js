@@ -365,72 +365,183 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
 };
 
 // 떨어진 아이템: 카메라를 향하는 얇은 판
+// ── 떨어진 아이템 (3D) ────────────────────────────────────────────────
+// 블록은 진짜 정육면체로, 도구·재료는 아이콘을 밀어낸 두께 있는 판으로
+// 그린다. Y축으로 천천히 돌면서 위아래로 살짝 떠오른다 (원작과 동일).
+const ITEM_SPIN = 1.1;        // 초당 회전(라디안)
+const ITEM_FLAT_SIZE = 0.44;  // 납작 아이템 크기
+const ITEM_CUBE_SIZE = 0.32;  // 블록 아이템 한 변
+const ITEM_DRAW_LIMIT = 160;  // 한 프레임에 그릴 최대 개수
+const ITEM_LOD_STACK = 12 * 12;   // 이 거리 안에서만 개수만큼 겹쳐 그린다
+const ITEM_LOD_MESH = 22 * 22;    // 이 거리 밖은 납작한 판 두 장으로 (가벼움)
+const ITEM_VERT_BUDGET = 42000;   // 한 프레임 아이템 정점 상한
+
+// 여러 개가 쌓이면 마인크래프트처럼 겹쳐 보이게 한다
+function itemStackCount(n) {
+  if (n >= 48) return 4;
+  if (n >= 32) return 3;
+  if (n >= 16) return 2;
+  return 1;
+}
+// 겹칠 때 쓰는 어긋남 (아이템 크기 기준 비율)
+const ITEM_STACK_OFF = [
+  [0, 0, 0], [0.18, 0.02, 0.12], [-0.16, 0.04, -0.1], [0.06, 0.06, -0.2]
+];
+
+const _iv = [], _ii = [];   // 정육면체(블록 아틀라스) 배치용
+
 Renderer.prototype.drawItems = function (mgr, world, player, opts) {
   const gl = this.gl;
-  _ev.length = 0; _ei.length = 0;
+  _ev.length = 0; _ei.length = 0;   // 납작 아이템 (아이템 아틀라스)
+  _iv.length = 0; _ii.length = 0;   // 블록 아이템 (블록 아틀라스)
 
-  // 언제나 카메라를 바라보게 한다 (옆에서 보면 사라지는 문제 방지)
-  const rc = Math.cos(player.yaw), rs = Math.sin(player.yaw);
+  // 멀리 있는 간이 판은 늘 카메라를 바라보게 한다 (옆에서 사라지지 않게)
+  const prc = Math.cos(player.yaw), prs = Math.sin(player.yaw);
 
-  for (let i = 0; i < mgr.items.length; i++) {
+  let drawn = 0;
+  for (let i = 0; i < mgr.items.length && drawn < ITEM_DRAW_LIMIT; i++) {
     const it = mgr.items[i];
     const dx = it.x - player.x, dz = it.z - player.z;
-    if (dx * dx + dz * dz > 64 * 64) continue;
-    const t = itemUV(it.name);
-    if (!t) continue;
-    const bob = Math.sin(it.age * 3) * 0.06 + 0.14;
-    const size = 0.42;
-    const sky = world.getSky(Math.floor(it.x), Math.floor(it.y + 0.2), Math.floor(it.z)) / 15;
-    const blk = world.getBlockLight(Math.floor(it.x), Math.floor(it.y + 0.2), Math.floor(it.z)) / 15;
+    const d2 = dx * dx + dz * dz;
+    if (d2 > 64 * 64) continue;
+    if (!this.boxInFrustum(it.x - 0.5, it.y - 0.2, it.z - 0.5,
+                           it.x + 0.5, it.y + 0.8, it.z + 0.5)) continue;
 
-    // 카메라를 향한 세로 판
-    const corners = [[-1, 0], [1, 0], [1, 1], [-1, 1]];
-    const base = _ev.length / 8;
-    for (let c = 0; c < 4; c++) {
-      const lx = corners[c][0] * size * 0.5;
-      const ly = corners[c][1] * size;
-      const wx = lx * rc, wz = -lx * rs;
-      _ev.push(
-        it.x + wx, it.y + bob + ly, it.z + wz,
-        c === 0 || c === 3 ? t.u0 : t.u1,
-        c === 0 || c === 1 ? t.v1 : t.v0,
-        sky, blk, 1
-      );
+    const def = itemDef(it.name);
+    const bid = def && def.block;
+    const isCube = bid && blockDef(bid).render === RENDER_CUBE;
+    // 멀리 있는 납작 아이템은 옆면까지 세울 필요가 없다
+    const far = !isCube && d2 > ITEM_LOD_MESH;
+    const mesh = (isCube || far) ? null : itemMesh(it.name);
+    if (!isCube && !far && !mesh) continue;
+    drawn++;
+
+    const bob = Math.sin(it.age * 3) * 0.06 + 0.1;
+    const ang = it.age * ITEM_SPIN;
+    const rc = Math.cos(ang), rs = Math.sin(ang);
+    const bx = Math.floor(it.x), by = Math.floor(it.y + 0.2), bz = Math.floor(it.z);
+    const sky = world.getSky(bx, by, bz) / 15;
+    const blk = world.getBlockLight(bx, by, bz) / 15;
+    // 가까이 있을 때만 개수만큼 겹쳐 보여 준다
+    let copies = d2 < ITEM_LOD_STACK ? itemStackCount(it.count || 1) : 1;
+    // 정점 예산 (16비트 인덱스뿐인 기기에서는 65535를 넘으면 안 된다)
+    const cap = this.uintExt ? ITEM_VERT_BUDGET : 60000;
+    const need = isCube ? 24 : (far ? 8 : mesh.v.length / 6);
+    const used = _ev.length / 8 + _iv.length / 8;
+    if (used + need * copies > cap) {
+      copies = 1;
+      if (used + need > cap) break;
     }
-    _ei.push(base, base + 1, base + 2, base, base + 2, base + 3);
-    // 뒷면
-    const b2 = _ev.length / 8;
-    for (let c = 3; c >= 0; c--) {
-      const lx = corners[c][0] * size * 0.5;
-      const ly = corners[c][1] * size;
-      const wx = lx * rc, wz = -lx * rs;
-      _ev.push(
-        it.x + wx, it.y + bob + ly, it.z + wz,
-        c === 0 || c === 3 ? t.u0 : t.u1,
-        c === 0 || c === 1 ? t.v1 : t.v0,
-        sky, blk, 1
-      );
+
+    for (let c = 0; c < copies; c++) {
+      const off = ITEM_STACK_OFF[c];
+      if (isCube) this.emitItemCube(_iv, _ii, it, bid, off, rc, rs, bob, sky, blk);
+      else if (far) this.emitItemFlat(_ev, _ei, it, off, prc, prs, bob, sky, blk);
+      else this.emitItemMesh(_ev, _ei, mesh, it, off, rc, rs, bob, sky, blk);
     }
-    _ei.push(b2, b2 + 1, b2 + 2, b2, b2 + 2, b2 + 3);
   }
 
-  if (_ei.length === 0) return;
+  if (!_ei.length && !_ii.length) return;
 
   const p = this.setupTerrainProgram(opts);
   mat4.identity(this.model);
   gl.uniformMatrix4fv(p.u.uModel, false, this.model);
   gl.uniform1f(p.u.uAlphaCut, 0.5);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, this.itemTex);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.itemBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
-  this.bindTerrainAttribs(this.itemBuf);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.itemIdxBuf);
-  const idx = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
-  gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
+  // 1) 블록 아이템 — 블록 아틀라스 그대로
+  if (_ii.length) {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_iv), gl.DYNAMIC_DRAW);
+    this.bindTerrainAttribs(this.entityBuf);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+    const ia = this.uintExt ? new Uint32Array(_ii) : new Uint16Array(_ii);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ia, gl.DYNAMIC_DRAW);
+    gl.drawElements(gl.TRIANGLES, ia.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  }
+
+  // 2) 납작 아이템 — 아이콘 아틀라스
+  if (_ei.length) {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.itemTex);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.itemBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+    this.bindTerrainAttribs(this.itemBuf);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.itemIdxBuf);
+    const fa = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, fa, gl.DYNAMIC_DRAW);
+    gl.drawElements(gl.TRIANGLES, fa.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+    gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
+  }
+};
+
+// 블록 아이템 → 작은 정육면체 (6면 각각 제 텍스처를 쓴다)
+Renderer.prototype.emitItemCube = function (v, ind, it, bid, off, rc, rs, bob, sky, blk) {
+  const s = ITEM_CUBE_SIZE;
+  const cx = it.x + off[0] * s, cz = it.z + off[2] * s;
+  const cy = it.y + bob + off[1] * s + s * 0.5;
+
+  for (let f = 0; f < 6; f++) {
+    const face = FACES[f];
+    const t = texUV(blockTexName(bid, f));
+    const shade = FACE_SHADE[f];
+    const base = v.length / 8;
+    for (let ci = 0; ci < 4; ci++) {
+      const tu = (ci === 1 || ci === 2) ? 1 : 0;
+      const tv = (ci === 2 || ci === 3) ? 1 : 0;
+      const lx = (face.origin[0] + face.u[0] * tu + face.v[0] * tv - 0.5) * s;
+      const ly = (face.origin[1] + face.u[1] * tu + face.v[1] * tv - 0.5) * s;
+      const lz = (face.origin[2] + face.u[2] * tu + face.v[2] * tv - 0.5) * s;
+      const uvp = face.uv(tu, tv);
+      v.push(
+        cx + lx * rc + lz * rs, cy + ly, cz - lx * rs + lz * rc,
+        t.u0 + (t.u1 - t.u0) * uvp[0],
+        t.v0 + (t.v1 - t.v0) * uvp[1],
+        sky, blk, shade);
+    }
+    ind.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+};
+
+// 도구·재료 → 아이콘을 밀어낸 입체 판
+Renderer.prototype.emitItemMesh = function (v, ind, mesh, it, off, rc, rs, bob, sky, blk) {
+  const s = ITEM_FLAT_SIZE;
+  const cx = it.x + off[0] * s, cz = it.z + off[2] * s;
+  const cy = it.y + bob + off[1] * s + s * 0.5;
+
+  const src = mesh.v, base = v.length / 8;
+  for (let i = 0; i < src.length; i += 6) {
+    const lx = src[i] * s, ly = src[i + 1] * s, lz = src[i + 2] * s;
+    v.push(
+      cx + lx * rc + lz * rs, cy + ly, cz - lx * rs + lz * rc,
+      src[i + 3], src[i + 4], sky, blk, src[i + 5]);
+  }
+  const si = mesh.idx;
+  for (let i = 0; i < si.length; i++) ind.push(base + si[i]);
+};
+
+// 먼 거리용 — 앞뒤 두 장짜리 간이 판 (옆에서 봐도 사라지지 않게 양면)
+Renderer.prototype.emitItemFlat = function (v, ind, it, off, rc, rs, bob, sky, blk) {
+  const t = itemUV(it.name);
+  if (!t) return;
+  const s = ITEM_FLAT_SIZE;
+  const cx = it.x + off[0] * s, cz = it.z + off[2] * s;
+  const cy = it.y + bob + off[1] * s;
+  const corners = [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 1]];
+
+  for (let side = 0; side < 2; side++) {
+    const base = v.length / 8;
+    for (let n = 0; n < 4; n++) {
+      const c = corners[side === 0 ? n : 3 - n];
+      const lx = c[0] * s;
+      v.push(
+        cx + lx * rc, cy + c[1] * s, cz - lx * rs,
+        c[0] < 0 ? t.u0 : t.u1, c[1] > 0 ? t.v0 : t.v1,
+        sky, blk, side === 0 ? 1 : 0.88);
+    }
+    ind.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
 };
 
 // 떨어지는 블록과 점화된 TNT (블록 텍스처를 쓴 정육면체)

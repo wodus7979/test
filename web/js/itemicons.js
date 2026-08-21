@@ -910,3 +910,136 @@ function buildItemAtlasGL() {
   ctx.drawImage(src, 0, 0, size, size);
   return out;
 }
+
+// ── 3D 아이템 메시 ────────────────────────────────────────────────────
+// 마인크래프트는 떨어진 아이템을 납작한 그림이 아니라 "두께가 있는 판"으로
+// 그린다. 아이콘 타일의 알파를 16×16 마스크로 읽어, 테두리 픽셀마다
+// 옆면을 세워 진짜 입체로 만든다. 아이템 종류마다 한 번만 계산해 캐시한다.
+
+const ITEM_MESH_RES = 16;          // 아이콘을 몇 칸으로 볼 것인가
+const ITEM_MESH_THICK = 1.5 / 16;  // 두께 (블록 1칸 = 1.0 기준)
+const ITEM_MESH_CACHE = {};
+let ICON_PIXELS = null;
+
+// 아이콘 아틀라스 픽셀을 딱 한 번만 읽어 둔다 (getImageData 는 느리다)
+function iconAtlasPixels() {
+  if (ICON_PIXELS) return ICON_PIXELS;
+  if (!ICON_ATLAS_CANVAS) return null;
+  const ctx = ICON_ATLAS_CANVAS.getContext('2d', { willReadFrequently: true });
+  ICON_PIXELS = ctx.getImageData(0, 0, ICON_ATLAS_CANVAS.width, ICON_ATLAS_CANVAS.height);
+  return ICON_PIXELS;
+}
+
+// 면 방향별 밝기 (돌아갈 때 입체감이 살도록)
+const ITEM_FACE_SHADE = { front: 1.0, back: 0.88, side: 0.74, top: 1.0, bottom: 0.58 };
+
+// name -> { v: Float32Array(x,y,z,u,v,shade …), idx: Uint16Array }
+// 로컬 좌표는 가로·세로 -0.5~0.5, 두께는 ±ITEM_MESH_THICK/2.
+function itemMesh(name) {
+  const hit = ITEM_MESH_CACHE[name];
+  if (hit !== undefined) return hit;
+
+  const img = iconAtlasPixels();
+  const idx = ICON_INDEX[name];
+  if (!img || idx === undefined) { ITEM_MESH_CACHE[name] = null; return null; }
+
+  const n = ICON_ATLAS_TILES;
+  const col = idx % n, row = Math.floor(idx / n);
+  const R = ITEM_MESH_RES;
+  const step = ICON_SIZE / R;
+  const W = img.width, data = img.data;
+
+  // 1) 알파 마스크
+  const mask = new Uint8Array(R * R);
+  for (let py = 0; py < R; py++) {
+    const ay = Math.floor(row * ICON_SIZE + py * step + step * 0.5);
+    for (let px = 0; px < R; px++) {
+      const ax = Math.floor(col * ICON_SIZE + px * step + step * 0.5);
+      mask[py * R + px] = data[(ay * W + ax) * 4 + 3] > 128 ? 1 : 0;
+    }
+  }
+  const at = function (px, py) {
+    if (px < 0 || py < 0 || px >= R || py >= R) return 0;
+    return mask[py * R + px];
+  };
+
+  // 2) 기하 만들기
+  const v = [], ind = [];
+  const t = ITEM_MESH_THICK * 0.5;
+  // 아이콘 칸(0~R) -> 아틀라스 UV
+  const uAt = function (px) { return (col + px / R) / n; };
+  const vAt = function (py) { return (row + py / R) / n; };
+  // 앞뒤 면은 타일 전체를 쓰되 이웃 아이콘이 번지지 않게 여유를 준다
+  const uv = itemUV(name);
+
+  function quad(pts, shade) {
+    const b = v.length / 6;
+    for (let i = 0; i < 4; i++) {
+      const p = pts[i];
+      v.push(p[0], p[1], p[2], p[3], p[4], shade);
+    }
+    ind.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  }
+
+  // 앞면 (+Z) / 뒷면 (-Z)
+  const face = [
+    [-0.5, -0.5, uv.u0, uv.v1], [0.5, -0.5, uv.u1, uv.v1],
+    [0.5, 0.5, uv.u1, uv.v0], [-0.5, 0.5, uv.u0, uv.v0]
+  ];
+  quad(face.map(function (c) { return [c[0], c[1], t, c[2], c[3]]; }), ITEM_FACE_SHADE.front);
+  quad(face.slice().reverse().map(function (c) { return [c[0], c[1], -t, c[2], c[3]]; }),
+       ITEM_FACE_SHADE.back);
+
+  const X = function (px) { return px / R - 0.5; };
+  const Y = function (py) { return 0.5 - py / R; };
+
+  // 좌·우 옆면 — 세로로 이어진 구간을 한 장으로 합친다
+  for (let px = 0; px < R; px++) {
+    for (const dir of [-1, 1]) {
+      const x = dir < 0 ? X(px) : X(px + 1);
+      let py = 0;
+      while (py < R) {
+        if (!at(px, py) || at(px + dir, py)) { py++; continue; }
+        let end = py;
+        while (end + 1 < R && at(px, end + 1) && !at(px + dir, end + 1)) end++;
+        const yTop = Y(py), yBot = Y(end + 1);
+        const u = uAt(px + 0.5), v0 = vAt(py), v1 = vAt(end + 1);
+        if (dir < 0) {
+          quad([[x, yBot, -t, u, v1], [x, yBot, t, u, v1],
+                [x, yTop, t, u, v0], [x, yTop, -t, u, v0]], ITEM_FACE_SHADE.side);
+        } else {
+          quad([[x, yBot, t, u, v1], [x, yBot, -t, u, v1],
+                [x, yTop, -t, u, v0], [x, yTop, t, u, v0]], ITEM_FACE_SHADE.side);
+        }
+        py = end + 1;
+      }
+    }
+  }
+
+  // 위·아래 옆면 — 가로로 이어진 구간을 한 장으로 합친다
+  for (let py = 0; py < R; py++) {
+    for (const dir of [-1, 1]) {
+      const y = dir < 0 ? Y(py) : Y(py + 1);
+      let px = 0;
+      while (px < R) {
+        if (!at(px, py) || at(px, py + dir)) { px++; continue; }
+        let end = px;
+        while (end + 1 < R && at(end + 1, py) && !at(end + 1, py + dir)) end++;
+        const x0 = X(px), x1 = X(end + 1);
+        const vv = vAt(py + 0.5), u0 = uAt(px), u1 = uAt(end + 1);
+        if (dir < 0) {
+          quad([[x0, y, t, u0, vv], [x1, y, t, u1, vv],
+                [x1, y, -t, u1, vv], [x0, y, -t, u0, vv]], ITEM_FACE_SHADE.top);
+        } else {
+          quad([[x0, y, -t, u0, vv], [x1, y, -t, u1, vv],
+                [x1, y, t, u1, vv], [x0, y, t, u0, vv]], ITEM_FACE_SHADE.bottom);
+        }
+        px = end + 1;
+      }
+    }
+  }
+
+  const mesh = { v: new Float32Array(v), idx: new Uint16Array(ind), quads: ind.length / 6 };
+  ITEM_MESH_CACHE[name] = mesh;
+  return mesh;
+}
