@@ -156,6 +156,45 @@ Minimap.prototype.draw = function () {
     }
   }
 
+  // ── 도시 ──
+  const cities = w.cities ? w.cities() : [];
+  for (let i = 0; i < cities.length; i++) {
+    const ct = cities[i];
+    let m = toMap(ct.x, ct.z);
+    const dxm = m[0] - half, dzm = m[1] - half;
+    const dd = Math.hypot(dxm, dzm);
+    if (dd > half - 10) {
+      const k = (half - 10) / dd;
+      m = [half + dxm * k, half + dzm * k];
+    }
+    ctx.fillStyle = '#d9a7f0';
+    ctx.strokeStyle = 'rgba(0,0,0,.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.rect(m[0] - 3.5, m[1] - 3.5, 7, 7);
+    ctx.fill(); ctx.stroke();
+    ctx.font = 'bold 8px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    ctx.fillText(ct.name, m[0] + 1, m[1] - 6);
+    ctx.fillStyle = '#f0dcff';
+    ctx.fillText(ct.name, m[0], m[1] - 7);
+  }
+
+  // ── 열차 ──
+  const trains = g.entities.trains || [];
+  for (let i = 0; i < trains.length; i++) {
+    const t = trains[i];
+    const m = toMap(t.x, t.z);
+    if (m[0] < 3 || m[0] > S - 3 || m[1] < 3 || m[1] > S - 3) continue;
+    ctx.save();
+    ctx.translate(m[0], m[1]);
+    ctx.rotate(-t.yaw);
+    ctx.fillStyle = t.rider ? '#ff9f5f' : '#8fd8ff';
+    ctx.fillRect(-1.6, -5, 3.2, 10);
+    ctx.restore();
+  }
+
   // ── 비행기 ──
   const planes = g.entities.planes || [];
   for (let i = 0; i < planes.length; i++) {

@@ -364,3 +364,25 @@ defFurn('potted_fern', '작은 화분', [
   box(5.5, 6, 5.5, 10.5, 7, 10.5, 'f_soil'),
   box(3, 6, 3, 13, 13, 13, 'f_leaf')
 ], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.5 });
+
+// ── 열차 표면 (train.js 가 쓰는 엔티티 텍스처) ────────────────────────
+defFurnTex('tr_body', function (p, rnd) {
+  p.noise(rnd, '#e8ebef', 4, 4);
+  p.rect(0, 0, 16, 1, '#c9ced6');
+});
+defFurnTex('tr_win', function (p, rnd) {
+  p.noise(rnd, '#e8ebef', 4, 4);
+  p.rect(0, 4, 16, 8, '#1d2a3a');
+  for (let x = 1; x < 16; x += 5) p.rect(x, 4, 1, 8, '#e8ebef');
+  p.rect(0, 4, 16, 1, '#39536e');
+});
+defFurnTex('tr_roof', function (p, rnd) { p.noise(rnd, '#9aa1ab', 5, 3); });
+defFurnTex('tr_skirt', function (p, rnd) { p.noise(rnd, '#343a43', 5, 3); });
+defFurnTex('tr_stripe', function (p, rnd) { p.noise(rnd, '#2f6fc4', 5, 4); });
+defFurnTex('tr_face', function (p, rnd) {
+  p.noise(rnd, '#e8ebef', 4, 4);
+  p.rect(2, 3, 12, 6, '#1d2a3a');       // 앞 유리
+  p.rect(1, 11, 4, 3, '#fff3c0');       // 전조등
+  p.rect(11, 11, 4, 3, '#fff3c0');
+  p.rect(0, 14, 16, 2, '#2f6fc4');
+});

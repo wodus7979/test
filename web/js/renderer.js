@@ -629,6 +629,51 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   this.stats.tris += idxArr.length / 3;
 };
 
+// ── 열차 ──────────────────────────────────────────────────────────────
+Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
+  const list = mgr.trains;
+  if (!list || !list.length) return;
+  const gl = this.gl;
+  _ev.length = 0; _ei.length = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    const dx = t.x - player.x, dz = t.z - player.z;
+    if (dx * dx + dz * dz > 520 * 520) continue;
+    if (!this.boxInFrustum(t.x - 16, t.y - 4, t.z - 16, t.x + 16, t.y + 4, t.z + 16)) continue;
+
+    const bx = Math.floor(t.x), by = Math.floor(t.y), bz = Math.floor(t.z);
+    const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 3), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    const light = [Math.max(sky, 0.55), Math.max(blk, 0.35)];
+
+    const cy = Math.cos(t.yaw), sy = Math.sin(t.yaw);
+    for (let k = 0; k < TRAIN_BOXES.length; k++) {
+      const b = TRAIN_BOXES[k];
+      const bh = b.h;
+      const transform = function (px, py, pz) {
+        const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+        return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+      };
+      emitBox(_ev, _ei, t.x, t.y, t.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+    }
+  }
+
+  if (!_ei.length) return;
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.stats.tris += idxArr.length / 3;
+};
+
 // ── 낙하산 ────────────────────────────────────────────────────────────
 // 1인칭이라 플레이어는 안 보이지만, 위를 보면 머리 위 캐노피가 보인다.
 const CHUTE_BOXES = [

@@ -481,16 +481,18 @@ function buildAirportPlan(world, def, index) {
       const a = (k / tries) * Math.PI * 2 + ring * 1.3;
       const cx = tx + Math.round(Math.cos(a) * step);
       const cz = tz + Math.round(Math.sin(a) * step);
-      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0;
+      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0;
       for (let dz = -AP_Z; dz <= AP_Z; dz += 12) {
         for (let dx = -AP_X; dx <= AP_X; dx += 12) {
           const h = world.heightAt(cx + dx, cz + dz);
           const b = world.biomeAt(cx + dx, cz + dz, h);
           if (h <= SEA_LEVEL + 1 || b === BIOME.OCEAN || b === BIOME.MOUNTAINS) bad++;
+          if (b === BIOME.SNOWY) snowy++;
           lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
         }
       }
       if (!n || bad > n * 0.08 || hi - lo > 18) continue;
+      if (snowy > n * (0.2 + ring * 0.08)) continue;   // 눈밭은 뒤로 미룬다
       best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3) };
       break;
     }

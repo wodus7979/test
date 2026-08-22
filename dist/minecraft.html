@@ -737,7 +737,13 @@ body.touch .hand { display: none !important; }
               <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기(공중이면 낙하산)</li>
           <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li>목적지까지 <b>500블록</b>이 남으면 <b>자동 착륙 승인 창</b>이 뜬다 — <b>Y</b> 승인, <b>N</b> 취소</li>
-          <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다</li>
+          <li>공항마다 <b>도시</b>가 하나씩 딸려 있다 — 인천 송도, <b>롯데타워</b>가 선 김포 도심,
+              돌담과 귤밭이 있는 <b>제주시</b>. 지도에 네모로 표시된다</li>
+          <li>터미널 옆 <b>공항철도역</b>에서 <b>고가 열차</b>가 도시까지 오간다.
+              열차에 <b>우클릭</b>하면 타고, <b>Shift</b>로 내린다</li>
+          <li>공항 안은 의자·소파·카운터·진열장 같은 <b>진짜 가구</b>로 꾸며져 있다 (창작 모드 <b>가구</b> 탭)</li>
+          <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다.
+              하늘이 두 배로 높아져 <b>고도 150</b>까지 올라갈 수 있다</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -2921,6 +2927,28 @@ defFurn('potted_fern', '작은 화분', [
   box(5.5, 6, 5.5, 10.5, 7, 10.5, 'f_soil'),
   box(3, 6, 3, 13, 13, 13, 'f_leaf')
 ], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.5 });
+
+// ── 열차 표면 (train.js 가 쓰는 엔티티 텍스처) ────────────────────────
+defFurnTex('tr_body', function (p, rnd) {
+  p.noise(rnd, '#e8ebef', 4, 4);
+  p.rect(0, 0, 16, 1, '#c9ced6');
+});
+defFurnTex('tr_win', function (p, rnd) {
+  p.noise(rnd, '#e8ebef', 4, 4);
+  p.rect(0, 4, 16, 8, '#1d2a3a');
+  for (let x = 1; x < 16; x += 5) p.rect(x, 4, 1, 8, '#e8ebef');
+  p.rect(0, 4, 16, 1, '#39536e');
+});
+defFurnTex('tr_roof', function (p, rnd) { p.noise(rnd, '#9aa1ab', 5, 3); });
+defFurnTex('tr_skirt', function (p, rnd) { p.noise(rnd, '#343a43', 5, 3); });
+defFurnTex('tr_stripe', function (p, rnd) { p.noise(rnd, '#2f6fc4', 5, 4); });
+defFurnTex('tr_face', function (p, rnd) {
+  p.noise(rnd, '#e8ebef', 4, 4);
+  p.rect(2, 3, 12, 6, '#1d2a3a');       // 앞 유리
+  p.rect(1, 11, 4, 3, '#fff3c0');       // 전조등
+  p.rect(11, 11, 4, 3, '#fff3c0');
+  p.rect(0, 14, 16, 2, '#2f6fc4');
+});
 
 </script>
 <script>
@@ -6570,7 +6598,6 @@ Chunk.prototype.setBlockLight = function (x, y, z, v) {
 function World(seed) {
   this.seed = (seed === undefined || seed === null || seed === '') ? (Math.random() * 1e9) | 0 : hashSeed(seed);
   this.chunks = new Map();
-  this.lightTop = SEA_LEVEL;   // 지금까지 본 블록 중 가장 높은 칸 (조명 비용을 줄이는 기준)
   this.pending = [];
   this.pHeight = new Perlin(this.seed + 1);
   this.pDetail = new Perlin(this.seed + 2);
@@ -6674,10 +6701,7 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
   c.blocks[i] = id;
   c.meta[i] = newMeta;
   c.modified = true;
-  if (id !== 0 && y >= c.topY) {
-    c.topY = Math.min(CHUNK_Y, y + 1);
-    if (c.topY > this.lightTop) this.lightTop = c.topY;
-  }
+  if (id !== 0 && y >= c.topY) c.topY = Math.min(CHUNK_Y, y + 1);
 
   if (skipUpdate) return;
   this.updateHeightMap(c, lx, lz);
@@ -6796,6 +6820,7 @@ World.prototype.generateChunk = function (c) {
 
   this.generateOres(c, rnd);
   c.generated = true;
+  this.computeTopY(c);
   for (let lz = 0; lz < CHUNK_Z; lz++) {
     for (let lx = 0; lx < CHUNK_X; lx++) this.updateHeightMap(c, lx, lz);
   }
@@ -6843,7 +6868,6 @@ World.prototype.computeTopY = function (c) {
   let last = -1;
   for (let i = b.length - 1; i >= 0; i--) { if (b[i] !== 0) { last = i; break; } }
   c.topY = last < 0 ? 1 : Math.min(CHUNK_Y, Math.floor(last / (CHUNK_X * CHUNK_Z)) + 2);
-  if (c.topY > this.lightTop) this.lightTop = c.topY;
   return c.topY;
 };
 
@@ -6855,6 +6879,8 @@ World.prototype.decorateChunk = function (c) {
   if (this.paintVillage) c.hasVillage = this.paintVillage(c);
   // 공항은 마을보다 뒤 (부지를 통째로 밀어 버린다)
   if (this.paintAirport) c.hasAirport = this.paintAirport(c);
+  // 도시와 고가 철로는 공항 다음 (공항 부지 밖에 선다)
+  if (this.paintCity) c.hasCity = this.paintCity(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
   if (this.snowChunk) this.snowChunk(c);
   this.computeTopY(c);
@@ -6974,10 +7000,18 @@ World.prototype.placeDecorations = function (into, cx, cz) {
 World.prototype.initialLight = function (c) {
   const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
   const q = this._skyQueue;
-  // 세상에서 가장 높은 블록보다 위는 어디서나 하늘빛 15다.
+  // 이웃까지 통틀어 가장 높은 블록보다 위는 어디서나 하늘빛 15다.
   // 그 구간은 값만 채우고 전파 대기열에는 넣지 않는다 —
   // 덕분에 하늘을 아무리 높여도 조명 비용이 늘지 않는다.
-  const cap = Math.min(CHUNK_Y - 1, Math.max(this.lightTop, c.topY) + 1);
+  // (이웃 3×3 을 함께 보는 이유: 옆 청크의 높은 건물이 드리우는 그늘까지 챙기려고)
+  let cap = c.topY;
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const n = this.getChunk(c.cx + dx, c.cz + dz);
+      if (n && n.generated && n.topY > cap) cap = n.topY;
+    }
+  }
+  cap = Math.min(CHUNK_Y - 1, cap + 1);
   if (cap < CHUNK_Y - 1) {
     c.light.fill(0xf0, (cap + 1) * CHUNK_X * CHUNK_Z, CHUNK_X * CHUNK_Y * CHUNK_Z);
   }
@@ -8909,16 +8943,18 @@ function buildAirportPlan(world, def, index) {
       const a = (k / tries) * Math.PI * 2 + ring * 1.3;
       const cx = tx + Math.round(Math.cos(a) * step);
       const cz = tz + Math.round(Math.sin(a) * step);
-      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0;
+      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0;
       for (let dz = -AP_Z; dz <= AP_Z; dz += 12) {
         for (let dx = -AP_X; dx <= AP_X; dx += 12) {
           const h = world.heightAt(cx + dx, cz + dz);
           const b = world.biomeAt(cx + dx, cz + dz, h);
           if (h <= SEA_LEVEL + 1 || b === BIOME.OCEAN || b === BIOME.MOUNTAINS) bad++;
+          if (b === BIOME.SNOWY) snowy++;
           lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
         }
       }
       if (!n || bad > n * 0.08 || hi - lo > 18) continue;
+      if (snowy > n * (0.2 + ring * 0.08)) continue;   // 눈밭은 뒤로 미룬다
       best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3) };
       break;
     }
@@ -9015,6 +9051,710 @@ World.prototype.paintAirport = function (c) {
     // 2) 건물·포장
     const a = p.ops.get(c.cx + ',' + c.cz);
     if (!a) continue;
+    for (let i = 0; i < a.length; i += VOP) {
+      const lx = a[i], y0 = a[i + 1], lz = a[i + 2];
+      const id = a[i + 3], meta = a[i + 4], force = a[i + 5], run = a[i + 6];
+      for (let k = 0; k < run; k++) {
+        const y = y0 + k;
+        if (y < 0 || y >= CHUNK_Y) continue;
+        const j = idx(lx, y, lz);
+        if (!force) {
+          const cur = c.blocks[j];
+          if (cur !== 0 && cur !== B.water) continue;
+        }
+        c.blocks[j] = id;
+        c.meta[j] = meta;
+      }
+    }
+  }
+  return touched;
+};
+
+</script>
+<script>
+/* ==== js/city.js ==== */
+// city.js - 공항마다 딸린 도시. 격자 도로 위에 건물이 서고,
+// 고가 철로가 도시와 공항을 잇는다.
+// 김포 옆은 롯데타워를 중심으로 한 고층 스카이라인, 제주 옆은
+// 검은 현무암 돌담과 귤밭이 있는 낮은 제주 시가지다.
+'use strict';
+
+const CITY_R = 86;          // 도시 반지름
+const CITY_MARGIN = 30;     // 원래 지형으로 이어 붙이는 띠
+const CITY_CLEAR_H = 26;    // 지면 위로 이만큼 치운다
+const CITY_DIST = 340;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
+const CITY_GRID = 26;       // 격자 간격
+const ROAD_HALF = 3;        // 도로 반폭
+const RAIL_UP = 12;         // 고가 철로 높이
+const RAIL_HALF = 3;        // 고가 상판 반폭
+
+// ── 도시 색채 ─────────────────────────────────────────────────────────
+let CSTYLE = null;
+function initCityStyles() {
+  if (CSTYLE) return;
+  const common = {
+    road: B.black_concrete, dash: B.white_concrete,
+    walk: B.light_gray_concrete, curb: B.smooth_stone,
+    lamp: B.sea_lantern, post: B.iron_bars,
+    plaza: B.smooth_quartz, grass: B.grass_block, soil: B.dirt,
+    water: B.water
+  };
+  CSTYLE = {
+    // 송도풍 신도시 — 유리 커튼월과 공원
+    modern: Object.assign({}, common, {
+      kr: '신도시',
+      wall: B.white_concrete, trim: B.light_gray_concrete,
+      glass: B.light_blue_stained_glass, floor: B.smooth_quartz,
+      roof: B.gray_concrete, base: B.polished_andesite,
+      accent: B.cyan_concrete,
+      heights: [16, 38], tall: 4, tallH: [40, 56]
+    }),
+    // 김포 도심 — 롯데타워와 고층 빌딩들
+    skyline: Object.assign({}, common, {
+      kr: '도심',
+      wall: B.light_gray_concrete, trim: B.smooth_quartz,
+      glass: B.light_blue_stained_glass, floor: B.smooth_quartz,
+      roof: B.gray_concrete, base: B.polished_andesite,
+      accent: B.blue_concrete,
+      heights: [16, 40], tall: 10, tallH: [44, 70]
+    }),
+    // 제주 — 흰 벽에 주황 기와, 검은 현무암 돌담
+    jeju: Object.assign({}, common, {
+      kr: '제주시',
+      wall: B.white_concrete, trim: B.smooth_quartz,
+      glass: B.glass_pane, floor: B.smooth_quartz,
+      roof: B.orange_terracotta, roofStairs: B.brick_stairs,
+      base: B.blackstone, stone: B.blackstone, stoneAlt: B.basalt,
+      accent: B.orange_concrete,
+      heights: [8, 20], tall: 2, tallH: [24, 34]
+    })
+  };
+}
+
+// 공항마다 붙는 도시
+const CITY_DEFS = {
+  ICN: { name: '인천 송도', style: 'modern' },
+  GMP: { name: '김포 도심', style: 'skyline' },
+  CJU: { name: '제주시', style: 'jeju' }
+};
+
+// ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
+function cityFlatWeight(dx, dz) {
+  const d = Math.hypot(dx, dz);
+  if (d <= CITY_R) return 1;
+  if (d >= CITY_R + CITY_MARGIN) return 0;
+  const t = (d - CITY_R) / CITY_MARGIN;
+  return 1 - t * t * (3 - 2 * t);
+}
+
+// ── 건물 ──────────────────────────────────────────────────────────────
+// 속이 빈 껍데기만 세운다. 층마다 띠 한 줄 + 유리 세 줄로 세로 run 을 묶어
+// 도면 용량을 아낀다.
+function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
+  opts = opts || {};
+  const gy = plan.y;
+  const set = function (x, y, z, id, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1);
+  };
+  h = Math.max(4, Math.min(h, CHUNK_Y - 18 - gy));
+  const bands = Math.max(1, Math.ceil(h / 4));
+  const taperTo = opts.taperTo;
+  let lastHw = hw0, lastHd = hd0;
+
+  for (let b = 0; b < bands; b++) {
+    const y0 = 1 + b * 4;
+    let hw = hw0, hd = hd0;
+    if (taperTo !== undefined && bands > 1) {
+      const t = b / (bands - 1);
+      hw = Math.max(taperTo, Math.round(hw0 - (hw0 - taperTo) * t));
+      hd = Math.max(taperTo, Math.round(hd0 - (hd0 - taperTo) * t));
+    }
+    lastHw = hw; lastHd = hd;
+    for (let dz = -hd; dz <= hd; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        const edge = Math.abs(dx) === hw || Math.abs(dz) === hd;
+        if (!edge) {
+          // 층이 좁아지는 자리에는 테라스 바닥을 깐다
+          if (b === 0) set(cx + dx, 0, cz + dz, st.base);
+          continue;
+        }
+        const corner = Math.abs(dx) === hw && Math.abs(dz) === hd;
+        set(cx + dx, y0, cz + dz, st.trim);
+        set(cx + dx, y0 + 1, cz + dz, corner ? st.wall : st.glass, 3);
+      }
+    }
+    // 좁아진 만큼 아래층 지붕을 덮는다
+    if (b > 0 && (hw < lastHw || true)) {
+      const pw = taperTo !== undefined && bands > 1
+        ? Math.max(taperTo, Math.round(hw0 - (hw0 - taperTo) * ((b - 1) / (bands - 1)))) : hw;
+      const pd = taperTo !== undefined && bands > 1
+        ? Math.max(taperTo, Math.round(hd0 - (hd0 - taperTo) * ((b - 1) / (bands - 1)))) : hd;
+      for (let dz = -pd; dz <= pd; dz++) {
+        for (let dx = -pw; dx <= pw; dx++) {
+          if (Math.abs(dx) <= hw && Math.abs(dz) <= hd) continue;
+          set(cx + dx, y0, cz + dz, st.roof);
+        }
+      }
+    }
+  }
+
+  // 옥상
+  const top = 1 + bands * 4;
+  for (let dz = -lastHd; dz <= lastHd; dz++) {
+    for (let dx = -lastHw; dx <= lastHw; dx++) set(cx + dx, top, cz + dz, st.roof);
+  }
+  for (let dz = -lastHd; dz <= lastHd; dz++) {
+    for (let dx = -lastHw; dx <= lastHw; dx++) {
+      if (Math.abs(dx) !== lastHw && Math.abs(dz) !== lastHd) continue;
+      set(cx + dx, top + 1, cz + dz, B.iron_bars);
+    }
+  }
+  // 항공 장애등 — 밤에 빨갛게 빛난다
+  set(cx, top + 1, cz, B.red_concrete);
+  set(cx, top + 2, cz, B.glowstone);
+  if (opts.spire) {
+    for (let k = 1; k <= opts.spire; k++) set(cx, top + 2 + k, cz, st.trim);
+    set(cx, top + 2 + opts.spire + 1, cz, B.sea_lantern);
+    set(cx, top + 2 + opts.spire + 2, cz, B.glowstone);
+  }
+  // 1층 로비 — 길 쪽으로 유리문을 낸다
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let y = 1; y <= 3; y++) {
+      set(cx + dx, y, cz + hd0, 0);
+      set(cx + dx, y, cz - hd0, 0);
+    }
+  }
+  return top;
+}
+
+// 제주식 낮은 집 — 흰 벽에 주황 기와 박공지붕
+function jejuHouse(plan, cx, cz, hw, hd, h, st, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      set(cx + dx, 0, cz + dz, st.floor);
+      const edge = Math.abs(dx) === hw || Math.abs(dz) === hd;
+      if (!edge) continue;
+      set(cx + dx, 1, cz + dz, st.stone, 0, 2);              // 현무암 기단
+      for (let y = 3; y <= h; y++) {
+        const win = (y % 3 === 1) && Math.abs(dx) !== hw && ((dz + dx) & 1) === 0;
+        set(cx + dx, y, cz + dz, win ? st.glass : st.wall);
+      }
+    }
+  }
+  // 주황 기와 모임지붕 — 처마가 조금 튀어나오고 위로 갈수록 좁아진다
+  const kMax = Math.min(3, Math.min(hw, hd) + 1);
+  for (let k = 0; k <= kMax; k++) {
+    const y = h + 1 + k;
+    const rw = hw + 1 - k, rd = hd + 1 - k;
+    if (rw < 0 || rd < 0) break;
+    for (let dz = -rd; dz <= rd; dz++) {
+      for (let dx = -rw; dx <= rw; dx++) {
+        const edge = Math.abs(dx) === rw || Math.abs(dz) === rd;
+        if (edge || k === kMax) set(cx + dx, y, cz + dz, st.roof);
+      }
+    }
+  }
+  // 현관
+  set(cx, 3, cz + hd, 0); set(cx, 4, cz + hd, 0);
+  set(cx, 3, cz + hd, B.oak_door, 0);
+  set(cx, 4, cz + hd, B.oak_door, META_HALF2);
+  set(cx - 1, 5, cz + hd, B.lantern);
+  set(cx + 1, 5, cz + hd, B.lantern);
+}
+
+// 돌하르방 — 제주 어귀의 현무암 석상
+function dolHareubang(plan, x, z, st) {
+  const gy = plan.y;
+  const set = function (dx, y, dz, id) { plan.set(plan.x + x + dx, gy + y, plan.z + z + dz, id, 0, true); };
+  set(0, 1, 0, st.stoneAlt);          // 받침
+  set(0, 2, 0, st.stone);             // 몸통
+  set(0, 3, 0, st.stone);
+  set(-1, 2, 0, st.stoneAlt);         // 팔
+  set(1, 2, 0, st.stoneAlt);
+  set(0, 4, 0, B.polished_blackstone); // 얼굴
+  set(0, 5, 0, st.stone);             // 벙거지
+  set(0, 6, 0, st.stoneAlt);
+}
+
+// 귤밭
+function tangerineGrove(plan, cx, cz, hw, hd, st, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true); };
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 0, cz + dz, st.grass);
+  }
+  for (let dz = -hd + 1; dz <= hd - 1; dz += 3) {
+    for (let dx = -hw + 1; dx <= hw - 1; dx += 3) {
+      if (rnd() < 0.2) continue;
+      set(cx + dx, 1, cz + dz, B.oak_log);
+      set(cx + dx, 2, cz + dz, B.oak_log);
+      for (let z2 = -1; z2 <= 1; z2++) {
+        for (let x2 = -1; x2 <= 1; x2++) {
+          set(cx + dx + x2, 3, cz + dz + z2, (x2 === 0 && z2 === 0) ? B.oak_log : B.oak_leaves);
+          if (Math.abs(x2) + Math.abs(z2) === 1) set(cx + dx + x2, 4, cz + dz + z2, B.oak_leaves);
+        }
+      }
+      set(cx + dx, 4, cz + dz, B.oak_leaves);
+      // 익은 귤
+      if (rnd() < 0.7) set(cx + dx + 1, 3, cz + dz, st.accent);
+      if (rnd() < 0.7) set(cx + dx, 3, cz + dz - 1, st.accent);
+    }
+  }
+  // 밭을 두르는 현무암 돌담
+  if (st.stone) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      plan.set(plan.x + cx + dx, gy + 1, plan.z + cz - hd, st.stone, 0, true, 2);
+      plan.set(plan.x + cx + dx, gy + 1, plan.z + cz + hd, st.stone, 0, true, 2);
+    }
+    for (let dz = -hd; dz <= hd; dz++) {
+      plan.set(plan.x + cx - hw, gy + 1, plan.z + cz + dz, st.stone, 0, true, 2);
+      plan.set(plan.x + cx + hw, gy + 1, plan.z + cz + dz, st.stone, 0, true, 2);
+    }
+  }
+}
+
+// 공원
+function cityPark(plan, cx, cz, hw, hd, st, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta) { plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true); };
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      const path = Math.abs(dx) < 2 || Math.abs(dz) < 2;
+      set(cx + dx, 0, cz + dz, path ? st.plaza : st.grass);
+    }
+  }
+  // 연못
+  for (let dz = -3; dz <= 3; dz++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      if (Math.hypot(dx, dz) > 3.2) continue;
+      set(cx + dx + hw - 5, 0, cz + dz + hd - 5, B.water);
+    }
+  }
+  for (let k = 0; k < 10; k++) {
+    const tx = cx + Math.round((rnd() * 2 - 1) * (hw - 2));
+    const tz = cz + Math.round((rnd() * 2 - 1) * (hd - 2));
+    if (Math.abs(tx - cx) < 3 || Math.abs(tz - cz) < 3) continue;
+    for (let y = 1; y <= 4; y++) set(tx, y, tz, B.oak_log);
+    for (let z2 = -2; z2 <= 2; z2++) {
+      for (let x2 = -2; x2 <= 2; x2++) {
+        if (Math.abs(x2) + Math.abs(z2) > 3) continue;
+        set(tx + x2, 5, tz + z2, B.oak_leaves);
+        if (Math.abs(x2) + Math.abs(z2) <= 1) set(tx + x2, 6, tz + z2, B.oak_leaves);
+      }
+    }
+  }
+  for (const b of [[-hw + 3, 0], [hw - 3, 0], [0, -hd + 3], [0, hd - 3]]) {
+    set(cx + b[0], 1, cz + b[1], B.airport_bench, b[1] === 0 ? (b[0] < 0 ? 1 : 3) : (b[1] < 0 ? 0 : 2));
+  }
+  set(cx, 1, cz, B.floor_lamp);
+}
+
+// ── 도로 격자 ─────────────────────────────────────────────────────────
+// 가운데를 지나는 큰길을 기준으로 CITY_GRID 마다 길이 난다.
+function cityGridLines() {
+  const lines = [];
+  for (let k = -3; k <= 3; k++) {
+    const g = k * CITY_GRID;
+    if (Math.abs(g) < CITY_R - 6) lines.push(g);
+  }
+  return lines;
+}
+
+function cityRoads(plan, st) {
+  const gy = plan.y, R = CITY_R;
+  const set = function (x, y, z, id, meta) { plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true); };
+  const lines = cityGridLines();
+  plan.roadLines = lines;
+
+  function strip(a0, a1, b, horiz) {
+    for (let a = a0; a <= a1; a++) {
+      for (let w = -ROAD_HALF - 2; w <= ROAD_HALF + 2; w++) {
+        const x = horiz ? a : b + w;
+        const z = horiz ? b + w : a;
+        if (Math.hypot(x, z) > R - 1) continue;
+        const road = Math.abs(w) <= ROAD_HALF;
+        let id = road ? st.road : st.walk;
+        if (road && w === 0 && ((a + 4000) % 6) < 3) id = st.dash;   // 중앙선
+        if (Math.abs(w) === ROAD_HALF + 1) id = st.curb;
+        set(x, 0, z, id);
+        // 도로 위는 비워 둔다
+        plan.set(plan.x + x, gy + 1, plan.z + z, 0, 0, true, 8);
+      }
+    }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    strip(-R, R, lines[i], true);
+    strip(-R, R, lines[i], false);
+  }
+  // 가로등 — 교차로에서 두 개가 겹치지 않게 사이를 띄운다
+  const nearCross = function (a) {
+    for (let k = 0; k < lines.length; k++) if (Math.abs(a - lines[k]) < 9) return true;
+    return false;
+  };
+  const lamp = function (x, z) {
+    if (Math.hypot(x, z) > R - 3) return;
+    plan.set(plan.x + x, gy + 1, plan.z + z, st.post, 0, true, 5);
+    set(x, 6, z, st.lamp);
+  };
+  for (let i = 0; i < lines.length; i++) {
+    for (let a = -R + 6; a < R - 6; a += 13) {
+      if (nearCross(a)) continue;
+      for (const s2 of [-1, 1]) {
+        lamp(a, lines[i] + s2 * (ROAD_HALF + 2));
+        lamp(lines[i] + s2 * (ROAD_HALF + 2), a);
+      }
+    }
+  }
+}
+
+// ── 고가 철로 ─────────────────────────────────────────────────────────
+// 공항 터미널 옆 승강장에서 도시 중앙역까지 곧게 잇는다.
+function railRun(plan, x0, z0, x1, z1, ry, st) {
+  const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
+  const horiz = (z0 === z1);
+  const a0 = Math.min(horiz ? x0 : z0, horiz ? x1 : z1);
+  const a1 = Math.max(horiz ? x0 : z0, horiz ? x1 : z1);
+  const b = horiz ? z0 : x0;
+  const w = plan.world;
+
+  for (let a = a0; a <= a1; a++) {
+    for (let d = -RAIL_HALF; d <= RAIL_HALF; d++) {
+      const x = horiz ? a : b + d;
+      const z = horiz ? b + d : a;
+      set(x, ry, z, Math.abs(d) === RAIL_HALF ? st.trim : st.walk);       // 상판
+      // 상판 위로 통로를 비운다 (언덕을 만나면 뚫고 지나간다)
+      plan.set(x, ry + 1, z, 0, 0, true, 9);
+      if (Math.abs(d) === RAIL_HALF) {
+        set(x, ry + 1, z, B.iron_bars);
+        set(x, ry + 2, z, B.iron_bars);
+      } else if (Math.abs(d) === 1) {
+        set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);        // 레일
+      }
+    }
+    // 교각
+    if ((a - a0) % 9 === 0) {
+      const px = horiz ? a : b, pz = horiz ? b : a;
+      const g = w.heightAt(px, pz);
+      for (const d of [-2, 2]) {
+        const qx = horiz ? px : px + d, qz = horiz ? pz + d : pz;
+        const h = ry - 1 - Math.max(1, g);
+        if (h > 0) plan.set(qx, Math.max(1, g), qz, st.post, 0, true, h + 1);
+      }
+      set(horiz ? px : px - 3, ry - 1, horiz ? pz - 3 : pz, st.post);
+      set(horiz ? px : px + 3, ry - 1, horiz ? pz + 3 : pz, st.post);
+    }
+  }
+}
+
+// 승강장 — 지붕과 계단, 벤치와 발권기까지
+function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
+  const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
+  const L = 14;   // 승강장 길이 (철로 방향)
+  for (let a = -L; a <= L; a++) {
+    for (let d = -6; d <= 6; d++) {
+      const x = faceX ? cx + a : cx + d;
+      const z = faceX ? cz + d : cz + a;
+      plan.set(x, ry + 1, z, 0, 0, true, 8);
+      set(x, ry, z, Math.abs(d) <= RAIL_HALF ? st.walk : st.plaza);
+      if (Math.abs(d) === 6) {
+        for (let y = ry + 1; y <= ry + 5; y++) set(x, y, z, (y === ry + 1 || y === ry + 5) ? st.trim : B.glass_pane);
+      }
+      if (Math.abs(d) === 5 && Math.abs(a) === L) {
+        for (let y = ry + 1; y <= ry + 5; y++) set(x, y, z, st.trim);
+      }
+    }
+    // 지붕
+    for (let d = -7; d <= 7; d++) {
+      const x = faceX ? cx + a : cx + d;
+      const z = faceX ? cz + d : cz + a;
+      set(x, ry + 6, z, st.roof || st.trim);
+    }
+  }
+  // 조명·의자·발권기
+  for (let a = -L + 3; a <= L - 3; a += 4) {
+    for (const d of [-5, 5]) {
+      const x = faceX ? cx + a : cx + d;
+      const z = faceX ? cz + d : cz + a;
+      set(x, ry + 5, z, B.ceiling_panel);
+      set(x, ry + 1, z, B.airport_bench, faceX ? (d < 0 ? 0 : 2) : (d < 0 ? 1 : 3));
+    }
+  }
+  for (const a of [-L + 2, L - 2]) {
+    const x = faceX ? cx + a : cx - 5;
+    const z = faceX ? cz - 5 : cz + a;
+    set(x, ry + 1, z, B.checkin_kiosk, faceX ? 0 : 1);
+    set(faceX ? x : x + 10, ry + 1, faceX ? z + 10 : z, B.trash_bin);
+  }
+  set(faceX ? cx : cx - 6, ry + 4, faceX ? cz - 6 : cz, B.airport_sign, faceX ? 0 : 1);
+  set(faceX ? cx : cx + 6, ry + 4, faceX ? cz + 6 : cz, B.airport_sign, faceX ? 2 : 3);
+  for (let d = -2; d <= 2; d++) {
+    set(faceX ? cx + d : cx - 6, ry + 3, faceX ? cz - 6 : cz + d, B.flight_board, faceX ? 0 : 1);
+  }
+
+  // 지상으로 내려가는 계단탑
+  const sx = faceX ? cx + L + 2 : cx + 7;
+  const sz = faceX ? cz + 7 : cz + L + 2;
+  for (let y = gy; y <= ry; y++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
+        set(sx + dx, y, sz + dz, edge ? st.trim : 0);
+      }
+    }
+    set(sx, y, sz + 1, B.ladder, 0);
+  }
+  for (let dz = -2; dz <= 2; dz++) {
+    for (let dx = -2; dx <= 2; dx++) set(sx + dx, gy, sz + dz, st.plaza);
+  }
+  set(sx - 1, gy + 1, sz - 2, 0); set(sx, gy + 1, sz - 2, 0); set(sx + 1, gy + 1, sz - 2, 0);
+  set(sx - 1, gy + 2, sz - 2, 0); set(sx, gy + 2, sz - 2, 0); set(sx + 1, gy + 2, sz - 2, 0);
+  set(sx, ry + 1, sz, 0); set(sx, ry + 2, sz, 0);
+  return { x: sx, y: gy, z: sz };
+}
+
+// ── 도시 하나 짓기 ────────────────────────────────────────────────────
+function buildCityPlan(world, ap, index) {
+  initCityStyles();
+  const def = CITY_DEFS[ap.code] || { name: ap.code + ' 시가지', style: 'modern' };
+  const st = CSTYLE[def.style];
+  const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + ap.code));
+
+  // 활주로 축을 따라(±X) 공항에서 떨어진 평평한 자리를 찾는다.
+  // 옆으로도 조금씩 밀어 보며 바다·산을 피한다.
+  let best = null;
+  for (let ring = 0; ring <= 9 && !best; ring++) {
+    const dist = CITY_DIST + ring * 55;
+    for (let k = 0; k < 10 && !best; k++) {
+      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 60);
+      for (const sx of [1, -1]) {
+        const cx = ap.x + sx * dist;
+        const cz = ap.z + lateral;
+        let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0;
+        for (let dz = -CITY_R; dz <= CITY_R; dz += 11) {
+          for (let dx = -CITY_R; dx <= CITY_R; dx += 11) {
+            if (Math.hypot(dx, dz) > CITY_R) continue;
+            const h = world.heightAt(cx + dx, cz + dz);
+            const bi = world.biomeAt(cx + dx, cz + dz, h);
+            if (h <= SEA_LEVEL + 1 || bi === BIOME.OCEAN || bi === BIOME.MOUNTAINS) bad++;
+            if (bi === BIOME.SNOWY) snowy++;
+            lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
+          }
+        }
+        const badLimit = n * (0.02 + ring * 0.015);
+        if (!n || bad > badLimit || hi - lo > 14 + ring * 2) continue;
+        if (snowy > n * (0.15 + ring * 0.08)) continue;   // 눈밭은 뒤로 미룬다
+        best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
+        break;
+      }
+    }
+  }
+  if (!best) return null;
+
+  const plan = new VillagePlan(world, best.x, best.z, best.y, st, rnd);
+  plan.isCity = true;
+  plan.code = ap.code;
+  plan.name = def.name;
+  plan.styleName = def.style;
+  plan.index = index;
+  plan.people = [];
+  plan.airport = ap;
+
+  const gy = best.y;
+  const put = function (x, z, job) {
+    plan.people.push({ x: best.x + x + 0.5, y: gy + 1, z: best.z + z + 0.5, job: job || null });
+  };
+
+  cityRoads(plan, st);
+
+  // ── 구획 나누기 ──
+  const lines = plan.roadLines;
+  const lots = [];
+  for (let i = 0; i + 1 < lines.length; i++) {
+    for (let j = 0; j + 1 < lines.length; j++) {
+      const lx = (lines[i] + lines[i + 1]) / 2;
+      const lz = (lines[j] + lines[j + 1]) / 2;
+      if (Math.hypot(lx, lz) > CITY_R - 15) continue;
+      lots.push({ x: lx, z: lz, d: Math.hypot(lx, lz) });
+    }
+  }
+  lots.sort(function (a, b) { return a.d - b.d; });
+  const half = Math.floor((CITY_GRID - (ROAD_HALF + 2) * 2) / 2);   // 구획 반폭
+
+  // ── 중앙 광장 ──
+  const plaza = lots.shift();
+  for (let dz = -half; dz <= half; dz++) {
+    for (let dx = -half; dx <= half; dx++) {
+      plan.set(best.x + plaza.x + dx, gy, best.z + plaza.z + dz, st.plaza, 0, true);
+    }
+  }
+
+  let tallLeft = st.tall;
+  const parks = [];
+  for (let i = 0; i < lots.length; i++) {
+    const lot = lots[i];
+    const isPark = (i % 7 === 3);
+    if (isPark) { parks.push(lot); continue; }
+    // 구획 바닥을 포장한다 (건물이 잔디 위에 뜬 것처럼 보이지 않게)
+    for (let dz = -half - 2; dz <= half + 2; dz++) {
+      for (let dx = -half - 2; dx <= half + 2; dx++) {
+        plan.set(best.x + lot.x + dx, gy, best.z + lot.z + dz,
+          (Math.abs(dx) > half || Math.abs(dz) > half) ? st.walk : st.plaza, 0, true);
+      }
+    }
+    const hw = half - 1 - ((rnd() * 2) | 0);
+    const hd = half - 1 - ((rnd() * 2) | 0);
+    let h;
+    if (tallLeft > 0) { h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0])); tallLeft--; }
+    else h = st.heights[0] + Math.round(rnd() * (st.heights[1] - st.heights[0]));
+
+    if (def.style === 'jeju' && h <= 22) {
+      jejuHouse(plan, lot.x, lot.z, hw, hd, h, st, rnd);
+    } else {
+      cityTower(plan, lot.x, lot.z, hw, hd, h, st, {});
+    }
+    // 길가 사람들
+    if (rnd() < 0.8) put(lot.x + hw + 3, lot.z, null);
+    if (rnd() < 0.5) put(lot.x, lot.z + hd + 3, null);
+  }
+
+  // ── 랜드마크 ──
+  if (def.style === 'skyline') {
+    // 롯데타워 — 위로 갈수록 좁아지고 첨탑이 솟는다. 도시에서 가장 높다.
+    const lotteH = Math.min(88, CHUNK_Y - 18 - gy);
+    cityTower(plan, plaza.x, plaza.z, 8, 8, lotteH, st, { taperTo: 2, spire: 10 });
+    plan.landmark = { x: best.x + plaza.x, y: gy + lotteH + 15, z: best.z + plaza.z, name: '롯데타워' };
+    for (let k = 0; k < 8; k++) {
+      put(plaza.x + Math.round((rnd() * 2 - 1) * half), plaza.z + Math.round((rnd() * 2 - 1) * half), null);
+    }
+  } else if (def.style === 'jeju') {
+    // 제주 어귀의 돌하르방과 정자
+    for (const s2 of [-1, 1]) {
+      dolHareubang(plan, plaza.x + s2 * (half - 2), plaza.z - half + 2, st);
+      dolHareubang(plan, plaza.x + s2 * (half - 2), plaza.z + half - 2, st);
+    }
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        plan.set(best.x + plaza.x + dx, gy + 7, best.z + plaza.z + dz, st.roof, 0, true);
+      }
+    }
+    for (const c of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) {
+      plan.set(best.x + plaza.x + c[0], gy + 1, best.z + plaza.z + c[1], st.stone, 0, true, 6);
+    }
+    plan.set(best.x + plaza.x, gy + 6, best.z + plaza.z, B.sea_lantern, 0, true);
+    plan.landmark = { x: best.x + plaza.x, y: gy + 8, z: best.z + plaza.z, name: '제주 정자' };
+    for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 4, null);
+  } else {
+    const towerH = Math.min(62, CHUNK_Y - 18 - gy);
+    cityTower(plan, plaza.x, plaza.z, 6, 6, towerH, st, { taperTo: 3, spire: 6 });
+    plan.landmark = { x: best.x + plaza.x, y: gy + towerH + 11, z: best.z + plaza.z, name: '전망탑' };
+    for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 5, null);
+  }
+
+  // ── 공원과 밭 ──
+  for (let i = 0; i < parks.length; i++) {
+    const lot = parks[i];
+    if (def.style === 'jeju') tangerineGrove(plan, lot.x, lot.z, half, half, st, rnd);
+    else cityPark(plan, lot.x, lot.z, half, half, st, rnd);
+    put(lot.x, lot.z + 2, 'farmer');
+  }
+
+  // ── 철도 ──
+  const side = best.side || 1;
+  const railY = Math.max(ap.y, gy) + RAIL_UP;
+  const apStX = ap.x + side * 86, apStZ = ap.z;
+  const cityStX = best.x - side * CITY_GRID * 2, cityStZ = best.z;
+  const bendX = Math.round((apStX + cityStX) / 2);
+
+  railRun(plan, apStX + side * 15, apStZ, bendX, apStZ, railY, st);
+  if (cityStZ !== apStZ) {
+    railRun(plan, bendX, apStZ, bendX, cityStZ, railY, st);
+    railRun(plan, bendX, cityStZ, cityStX - side * 15, cityStZ, railY, st);
+  } else {
+    railRun(plan, bendX, apStZ, cityStX - side * 15, cityStZ, railY, st);
+  }
+  const apGate = railStation(plan, apStX, apStZ, railY, ap.y, st, ap.code, true);
+  const cityGate = railStation(plan, cityStX, cityStZ, railY, gy, st, def.name, true);
+
+  plan.rail = {
+    y: railY + 1,
+    pts: cityStZ === apStZ
+      ? [[apStX, apStZ], [cityStX, cityStZ]]
+      : [[apStX, apStZ], [bendX, apStZ], [bendX, cityStZ], [cityStX, cityStZ]]
+  };
+  plan.stations = [
+    { x: apStX, z: apStZ, y: railY + 1, name: ap.name + ' 역', gate: apGate },
+    { x: cityStX, z: cityStZ, y: railY + 1, name: def.name + ' 역', gate: cityGate }
+  ];
+  put(cityStX - best.x, cityStZ - best.z + 8, null);
+
+  plan.freeze();
+  return plan;
+}
+
+// ── 월드 연결 ─────────────────────────────────────────────────────────
+World.prototype.cities = function () {
+  if (this._cities) return this._cities;
+  this._cities = [];
+  if (!this.airports) return this._cities;
+  const aps = this.airports();
+  for (let i = 0; i < aps.length; i++) {
+    let p = null;
+    try { p = buildCityPlan(this, aps[i], i); }
+    catch (e) { console.warn('도시 생성 실패', aps[i].code, e); }
+    if (p) { this._cities.push(p); aps[i].city = p; }
+  }
+  return this._cities;
+};
+
+World.prototype.nearestCity = function (x, z) {
+  const list = this.cities();
+  let best = null, bd = Infinity;
+  for (let i = 0; i < list.length; i++) {
+    const d = Math.hypot(list[i].x - x, list[i].z - z);
+    if (d < bd) { bd = d; best = list[i]; }
+  }
+  return best ? { plan: best, dist: bd } : null;
+};
+
+// 청크에 도시를 찍는다. 땅 고르기는 도시 원 안에서만 한다.
+// 철로는 도시 밖까지 뻗으므로 도면(ops)은 거리와 상관없이 항상 적용한다.
+World.prototype.paintCity = function (c) {
+  const list = this.cities();
+  if (!list.length) return false;
+  const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
+  let touched = false;
+
+  for (let n = 0; n < list.length; n++) {
+    const p = list[n];
+    // 1) 땅 고르기 (도시 원 근처만)
+    if (Math.abs(bx + 8 - p.x) <= CITY_R + CITY_MARGIN + 16 &&
+        Math.abs(bz + 8 - p.z) <= CITY_R + CITY_MARGIN + 16) {
+      touched = true;
+      for (let lz = 0; lz < CHUNK_Z; lz++) {
+        for (let lx = 0; lx < CHUNK_X; lx++) {
+          const wx = bx + lx, wz = bz + lz;
+          const wgt = cityFlatWeight(wx - p.x, wz - p.z);
+          if (wgt <= 0) continue;
+          const nat = this.heightAt(wx, wz);
+          const target = Math.round(nat + (p.y - nat) * wgt);
+          for (let y = target + 1; y <= target + CITY_CLEAR_H && y < CHUNK_Y; y++) {
+            c.blocks[idx(lx, y, lz)] = 0;
+            c.meta[idx(lx, y, lz)] = 0;
+          }
+          if (target >= 1 && target < CHUNK_Y) c.blocks[idx(lx, target, lz)] = p.style.grass;
+          for (let y = Math.max(1, target - 5); y < target; y++) c.blocks[idx(lx, y, lz)] = p.style.soil;
+        }
+      }
+    }
+
+    // 2) 건물·도로·철로
+    const a = p.ops.get(c.cx + ',' + c.cz);
+    if (!a) continue;
+    touched = true;
     for (let i = 0; i < a.length; i += VOP) {
       const lx = a[i], y0 = a[i + 1], lz = a[i + 2];
       const id = a[i + 3], meta = a[i + 4], force = a[i + 5], run = a[i + 6];
@@ -11148,6 +11888,238 @@ EntityManager.prototype.nearestOtherPlane = function (self) {
 
 </script>
 <script>
+/* ==== js/train.js ==== */
+// train.js - 도시와 공항을 잇는 고가 전동열차.
+// 선로는 city.js 가 놓고, 열차는 그 위를 오가는 엔티티다.
+// 가까이 가서 우클릭(또는 F)하면 타고, 웅크리면 내린다.
+'use strict';
+
+const TRAIN_MAX = 17;        // 최고 속도 (블록/초)
+const TRAIN_ACC = 3.2;
+const TRAIN_BRAKE = 2.6;
+const TRAIN_DWELL = 9;       // 역에서 서 있는 시간(초)
+const TRAIN_RIDE = 1.6;      // 선로 위 동체 중심 높이
+const TRAIN_CAR = 13;        // 한 량 길이
+const TRAIN_SEAT_Y = -0.4;
+
+// 생김새 — 상자마다 {x,y,z} 는 가운데. 앞은 +Z.
+const TRAIN_BOXES = (function () {
+  const out = [];
+  for (const zc of [-6.8, 6.8]) {
+    out.push({ x: 0, y: -0.2, z: zc, w: 3.2, h: 2.6, d: 12.2, tex: 'tr_body' });
+    out.push({ x: 0, y: 0.55, z: zc, w: 3.32, h: 1.1, d: 11.0, tex: 'tr_win' });
+    out.push({ x: 0, y: 1.25, z: zc, w: 3.0, h: 0.6, d: 11.8, tex: 'tr_roof' });
+    out.push({ x: 0, y: -1.7, z: zc, w: 2.8, h: 0.7, d: 11.4, tex: 'tr_skirt' });
+    out.push({ x: 0, y: -0.95, z: zc, w: 3.36, h: 0.36, d: 11.4, tex: 'tr_stripe' });
+    out.push({ x: 0, y: -2.2, z: zc - 3.8, w: 2.4, h: 0.9, d: 2.4, tex: 'tr_skirt' });
+    out.push({ x: 0, y: -2.2, z: zc + 3.8, w: 2.4, h: 0.9, d: 2.4, tex: 'tr_skirt' });
+    out.push({ x: 0, y: 1.75, z: zc, w: 1.8, h: 0.2, d: 0.5, tex: 'tr_skirt' });   // 팬터그래프
+  }
+  // 앞뒤 운전실
+  out.push({ x: 0, y: -0.1, z: 13.4, w: 2.9, h: 2.2, d: 1.6, tex: 'tr_body', front: 'tr_face' });
+  out.push({ x: 0, y: -0.1, z: -13.4, w: 2.9, h: 2.2, d: 1.6, tex: 'tr_body', front: 'tr_face' });
+  return out;
+})();
+
+// ── 노선 ──────────────────────────────────────────────────────────────
+function TrainRoute(rail, stations, name) {
+  this.y = rail.y;
+  this.name = name;
+  this.stations = stations || [];
+  this.segs = [];
+  this.len = 0;
+  const pts = rail.pts;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const x0 = pts[i][0], z0 = pts[i][1], x1 = pts[i + 1][0], z1 = pts[i + 1][1];
+    const dx = x1 - x0, dz = z1 - z0;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.5) continue;
+    this.segs.push({ x0: x0, z0: z0, dx: dx / len, dz: dz / len, len: len, yaw: Math.atan2(dx, dz) });
+    this.len += len;
+  }
+}
+
+// 시작점에서 s 만큼 간 자리
+TrainRoute.prototype.at = function (s) {
+  s = Math.max(0, Math.min(this.len, s));
+  let rest = s;
+  for (let i = 0; i < this.segs.length; i++) {
+    const g = this.segs[i];
+    if (rest <= g.len || i === this.segs.length - 1) {
+      const t = Math.min(rest, g.len);
+      return { x: g.x0 + g.dx * t, z: g.z0 + g.dz * t, yaw: g.yaw };
+    }
+    rest -= g.len;
+  }
+  return { x: this.segs.length ? this.segs[0].x0 : 0, z: this.segs.length ? this.segs[0].z0 : 0, yaw: 0 };
+};
+
+// ── 열차 ──────────────────────────────────────────────────────────────
+function Train(world, route, s, dir) {
+  this.world = world;
+  this.route = route;
+  this.s = s;
+  this.dir = dir || 1;
+  this.speed = 0;
+  this.dwell = 2 + Math.random() * 4;
+  this.rider = null;
+  this.yaw = 0;
+  const p = route.at(s);
+  this.x = p.x; this.y = route.y + TRAIN_RIDE; this.z = p.z;
+}
+
+Train.prototype.update = function (dt) {
+  const r = this.route;
+  if (this.dwell > 0) {
+    this.dwell -= dt;
+    this.speed = 0;
+  } else {
+    const remain = this.dir > 0 ? (r.len - this.s) : this.s;
+    // 남은 거리에 맞춰 미리 감속한다 (역에 부드럽게 선다)
+    const want = Math.min(TRAIN_MAX, Math.sqrt(Math.max(0, remain) * 2 * TRAIN_BRAKE));
+    const d = want - this.speed;
+    this.speed += Math.max(-TRAIN_BRAKE * dt, Math.min(TRAIN_ACC * dt, d));
+    this.speed = Math.max(0, this.speed);
+    this.s += this.dir * this.speed * dt;
+    if (remain <= 0.6 && this.speed < 0.8) {
+      this.s = this.dir > 0 ? r.len : 0;
+      this.speed = 0;
+      this.dwell = TRAIN_DWELL;
+      this.dir = -this.dir;
+    }
+  }
+  const p = r.at(this.s);
+  this.x = p.x; this.z = p.z;
+  this.y = r.y + TRAIN_RIDE;
+  this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+};
+
+Train.prototype.seatPos = function () {
+  return [this.x, this.y + TRAIN_SEAT_Y, this.z];
+};
+
+// 지금 어느 역에 서 있나
+Train.prototype.atStation = function () {
+  for (let i = 0; i < this.route.stations.length; i++) {
+    const st = this.route.stations[i];
+    if (Math.hypot(st.x - this.x, st.z - this.z) < 16) return st;
+  }
+  return null;
+};
+
+Train.prototype.nextStation = function () {
+  const list = this.route.stations;
+  if (!list.length) return null;
+  return this.dir > 0 ? list[list.length - 1] : list[0];
+};
+
+Train.prototype.board = function (player) {
+  if (this.rider) return false;
+  this.rider = player;
+  player.onTrain = this;
+  player.vx = player.vy = player.vz = 0;
+  return true;
+};
+
+Train.prototype.unboard = function () {
+  const p = this.rider;
+  if (!p) return;
+  this.rider = null;
+  p.onTrain = null;
+  // 승강장 쪽으로 내려 준다
+  const side = [Math.cos(this.yaw), 0, -Math.sin(this.yaw)];
+  p.x = this.x + side[0] * 4.5;
+  p.z = this.z + side[2] * 4.5;
+  p.y = this.route.y;
+  p.vx = p.vy = p.vz = 0;
+  p.fallStart = p.y;
+};
+
+// 타고 있는 동안 몸을 좌석에 붙여 둔다
+Train.prototype.seatPlayer = function (p) {
+  const s = this.seatPos();
+  p.x = s[0]; p.y = s[1]; p.z = s[2];
+  p.vx = p.vy = p.vz = 0;
+  p.onGround = true;
+  p.fallStart = p.y;
+};
+
+// ── 엔티티 관리 ───────────────────────────────────────────────────────
+EntityManager.prototype.trainRoutes = function () {
+  if (this._routes) return this._routes;
+  this._routes = [];
+  const w = this.world;
+  if (!w.cities) return this._routes;
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.rail || !c.rail.pts || c.rail.pts.length < 2) continue;
+    this._routes.push(new TrainRoute(c.rail, c.stations, c.name));
+  }
+  return this._routes;
+};
+
+EntityManager.prototype.updateTrains = function (dt, player, game) {
+  if (!this.trains) this.trains = [];
+  const routes = this.trainRoutes();
+
+  // 가까운 노선에는 열차 두 대를 (양쪽 끝에서 마주 오게) 띄운다
+  for (let i = 0; i < routes.length; i++) {
+    const r = routes[i];
+    const mid = r.at(r.len / 2);
+    if (Math.hypot(mid.x - player.x, mid.z - player.z) > r.len / 2 + 420) continue;
+    let here = 0;
+    for (let k = 0; k < this.trains.length; k++) if (this.trains[k].route === r) here++;
+    while (here < 2) {
+      this.trains.push(new Train(this.world, r, here === 0 ? 0 : r.len, here === 0 ? 1 : -1));
+      here++;
+    }
+  }
+
+  for (let i = this.trains.length - 1; i >= 0; i--) {
+    const t = this.trains[i];
+    t.update(dt);
+    if (t.rider) t.seatPlayer(t.rider);
+    // 아주 멀어지면 치운다 (다시 오면 새로 만든다)
+    if (!t.rider && Math.hypot(t.x - player.x, t.z - player.z) > 900) this.trains.splice(i, 1);
+  }
+};
+
+// 시선에 걸리는 열차
+EntityManager.prototype.pickTrain = function (ox, oy, oz, dx, dy, dz, maxDist) {
+  if (!this.trains) return null;
+  let best = null, bestT = maxDist;
+  for (let i = 0; i < this.trains.length; i++) {
+    const t = this.trains[i];
+    if (t.rider) continue;
+    if (Math.hypot(t.x - ox, t.z - oz) > maxDist + 20) continue;
+    const c = Math.cos(-t.yaw), s = Math.sin(-t.yaw);
+    // 열차 로컬 좌표로 옮겨 상자 하나로 검사한다
+    const rx = (ox - t.x) * c - (oz - t.z) * s;
+    const rz = (ox - t.x) * s + (oz - t.z) * c;
+    const rdx = dx * c - dz * s, rdz = dx * s + dz * c;
+    const b = [-1.8, -2.6, -14.4, 1.8, 1.8, 14.4];
+    const hit = rayBoxHit(rx, oy - t.y, rz, rdx, dy, rdz, b);
+    if (hit && hit.t < bestT) { bestT = hit.t; best = { train: t, t: hit.t }; }
+  }
+  return best;
+};
+
+// 가까이 있는 열차 (F 키로 타기)
+EntityManager.prototype.nearestTrain = function (x, y, z, maxDist) {
+  if (!this.trains) return null;
+  let best = null, bd = maxDist;
+  for (let i = 0; i < this.trains.length; i++) {
+    const t = this.trains[i];
+    if (t.rider) continue;
+    const d = Math.hypot(t.x - x, t.z - z) + Math.abs(t.y - y) * 0.8;
+    if (d < bd) { bd = d; best = t; }
+  }
+  return best;
+};
+
+</script>
+<script>
 /* ==== js/villagers.js ==== */
 // villagers.js - 주민, 철 골렘, 그리고 주민과의 거래.
 'use strict';
@@ -12980,6 +13952,51 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   this.stats.tris += idxArr.length / 3;
 };
 
+// ── 열차 ──────────────────────────────────────────────────────────────
+Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
+  const list = mgr.trains;
+  if (!list || !list.length) return;
+  const gl = this.gl;
+  _ev.length = 0; _ei.length = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    const dx = t.x - player.x, dz = t.z - player.z;
+    if (dx * dx + dz * dz > 520 * 520) continue;
+    if (!this.boxInFrustum(t.x - 16, t.y - 4, t.z - 16, t.x + 16, t.y + 4, t.z + 16)) continue;
+
+    const bx = Math.floor(t.x), by = Math.floor(t.y), bz = Math.floor(t.z);
+    const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 3), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    const light = [Math.max(sky, 0.55), Math.max(blk, 0.35)];
+
+    const cy = Math.cos(t.yaw), sy = Math.sin(t.yaw);
+    for (let k = 0; k < TRAIN_BOXES.length; k++) {
+      const b = TRAIN_BOXES[k];
+      const bh = b.h;
+      const transform = function (px, py, pz) {
+        const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+        return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+      };
+      emitBox(_ev, _ei, t.x, t.y, t.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+    }
+  }
+
+  if (!_ei.length) return;
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.stats.tris += idxArr.length / 3;
+};
+
 // ── 낙하산 ────────────────────────────────────────────────────────────
 // 1인칭이라 플레이어는 안 보이지만, 위를 보면 머리 위 캐노피가 보인다.
 const CHUTE_BOXES = [
@@ -13468,6 +14485,45 @@ Minimap.prototype.draw = function () {
       ctx.font = '8px ui-monospace, Menlo, monospace';
       ctx.fillText(km + 'm', m[0], m[1] + 22);
     }
+  }
+
+  // ── 도시 ──
+  const cities = w.cities ? w.cities() : [];
+  for (let i = 0; i < cities.length; i++) {
+    const ct = cities[i];
+    let m = toMap(ct.x, ct.z);
+    const dxm = m[0] - half, dzm = m[1] - half;
+    const dd = Math.hypot(dxm, dzm);
+    if (dd > half - 10) {
+      const k = (half - 10) / dd;
+      m = [half + dxm * k, half + dzm * k];
+    }
+    ctx.fillStyle = '#d9a7f0';
+    ctx.strokeStyle = 'rgba(0,0,0,.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.rect(m[0] - 3.5, m[1] - 3.5, 7, 7);
+    ctx.fill(); ctx.stroke();
+    ctx.font = 'bold 8px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    ctx.fillText(ct.name, m[0] + 1, m[1] - 6);
+    ctx.fillStyle = '#f0dcff';
+    ctx.fillText(ct.name, m[0], m[1] - 7);
+  }
+
+  // ── 열차 ──
+  const trains = g.entities.trains || [];
+  for (let i = 0; i < trains.length; i++) {
+    const t = trains[i];
+    const m = toMap(t.x, t.z);
+    if (m[0] < 3 || m[0] > S - 3 || m[1] < 3 || m[1] > S - 3) continue;
+    ctx.save();
+    ctx.translate(m[0], m[1]);
+    ctx.rotate(-t.yaw);
+    ctx.fillStyle = t.rider ? '#ff9f5f' : '#8fd8ff';
+    ctx.fillRect(-1.6, -5, 3.2, 10);
+    ctx.restore();
   }
 
   // ── 비행기 ──
@@ -14443,9 +15499,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v6.1';
-const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '자동 착륙 · 하늘의 항공기 · 공항 3곳 · 지도 · 오로라';
+const GAME_VERSION = 'v7.0';
+const GAME_BUILD = '2026-08-24';
+const GAME_FEATURES = '가구 · 도시 3곳 · 롯데타워 · 공항 철도 · 두 배 높아진 하늘';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -14529,6 +15585,7 @@ Game.prototype.setupCallbacks = function () {
   // 구름은 시드마다 모양이 다르고, 날씨는 세계마다 따로 흐른다
   this.renderer.setClouds(buildCloudMesh(this.world.seed));
   this.world.airports();         // 공항 세 곳의 도면을 미리 만들어 둔다
+  if (this.world.cities) this.world.cities();   // 공항마다 딸린 도시와 철로
   this.weather = new Weather(this.world);
   if (!this.minimap) this.minimap = new Minimap(this);
   this.minimap.game = this;
@@ -15165,7 +16222,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding) return;              // 조종 중에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -15179,6 +16236,15 @@ Game.prototype.onUse = function () {
     // 블록이 더 가까우면 블록이 먼저 (비행기 옆에서도 건축할 수 있게)
     if (hitPlane && (!hit.hit || hitPlane.dist < hit.dist)) {
       this.enterPlane(hitPlane.plane);
+      return;
+    }
+  }
+
+  // 0-2) 열차 타기
+  if (this.entities.pickTrain) {
+    const hitTrain = this.entities.pickTrain(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 8);
+    if (hitTrain && (!hit.hit || hitTrain.t < hit.dist)) {
+      this.enterTrain(hitTrain.train);
       return;
     }
   }
@@ -15270,6 +16336,39 @@ Game.prototype.exitPlane = function () {
     this.playSound('hiss');
   } else {
     this.ui.toast('비행기에서 내렸습니다');
+  }
+};
+
+// ── 열차 ──────────────────────────────────────────────────────────────
+Game.prototype.enterTrain = function (train) {
+  if (!train.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  const next = train.nextStation();
+  this.ui.toast('열차 탑승 — ' + (next ? next.name + ' 방면' : '') + ' · Shift 내리기');
+  this.playSound('place');
+  this._trainMsg = 0;
+  this._trainLast = null;
+};
+
+Game.prototype.exitTrain = function () {
+  const t = this.player.onTrain;
+  if (!t) return;
+  t.unboard();
+  this.ui.toast('열차에서 내렸습니다');
+};
+
+// 역에 서면 알려 준다
+Game.prototype.updateTrainInfo = function (dt) {
+  const t = this.player.onTrain;
+  if (!t) { this._trainLast = null; return; }
+  const st = t.atStation();
+  const key = st ? st.name : null;
+  if (key && key !== this._trainLast) {
+    this._trainLast = key;
+    const next = t.nextStation();
+    this.ui.toast(key + ' 도착 — 다음은 ' + (next ? next.name : '종착역'));
+    this.playSound('place');
+  } else if (!key) {
+    this._trainLast = null;
   }
 };
 
@@ -15970,11 +17069,15 @@ Game.prototype.update = function (dt) {
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
   if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
+  else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   this._sneakPrev = this.input.sneak;
 
   if (p.riding) {
     // 비행기를 타고 있으면 몸은 조종석에 고정된다 (비행기가 위치를 정한다)
     if (p.dead) this.exitPlane();
+  } else if (p.onTrain) {
+    // 열차를 타고 있으면 몸은 객실에 고정된다 (열차가 자리를 정한다)
+    if (p.dead) this.exitTrain();
   } else if (!this.ui.open && !p.dead) {
     p.update(dt, this.input);
     this.updateMining(dt);
@@ -15997,6 +17100,8 @@ Game.prototype.update = function (dt) {
   this.entities.update(dt, p, daylight);
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
+  if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
+  this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
   this.updateAutoland(dt);
@@ -16113,6 +17218,7 @@ Game.prototype.render = function (dt) {
   r.drawClouds(p, opts);
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawPlanes(this.entities, this.world, p, opts);
+  if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);

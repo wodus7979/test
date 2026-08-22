@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v6.1';
-const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '자동 착륙 · 하늘의 항공기 · 공항 3곳 · 지도 · 오로라';
+const GAME_VERSION = 'v7.0';
+const GAME_BUILD = '2026-08-24';
+const GAME_FEATURES = '가구 · 도시 3곳 · 롯데타워 · 공항 철도 · 두 배 높아진 하늘';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -114,6 +114,7 @@ Game.prototype.setupCallbacks = function () {
   // 구름은 시드마다 모양이 다르고, 날씨는 세계마다 따로 흐른다
   this.renderer.setClouds(buildCloudMesh(this.world.seed));
   this.world.airports();         // 공항 세 곳의 도면을 미리 만들어 둔다
+  if (this.world.cities) this.world.cities();   // 공항마다 딸린 도시와 철로
   this.weather = new Weather(this.world);
   if (!this.minimap) this.minimap = new Minimap(this);
   this.minimap.game = this;
@@ -750,7 +751,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding) return;              // 조종 중에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -764,6 +765,15 @@ Game.prototype.onUse = function () {
     // 블록이 더 가까우면 블록이 먼저 (비행기 옆에서도 건축할 수 있게)
     if (hitPlane && (!hit.hit || hitPlane.dist < hit.dist)) {
       this.enterPlane(hitPlane.plane);
+      return;
+    }
+  }
+
+  // 0-2) 열차 타기
+  if (this.entities.pickTrain) {
+    const hitTrain = this.entities.pickTrain(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 8);
+    if (hitTrain && (!hit.hit || hitTrain.t < hit.dist)) {
+      this.enterTrain(hitTrain.train);
       return;
     }
   }
@@ -855,6 +865,39 @@ Game.prototype.exitPlane = function () {
     this.playSound('hiss');
   } else {
     this.ui.toast('비행기에서 내렸습니다');
+  }
+};
+
+// ── 열차 ──────────────────────────────────────────────────────────────
+Game.prototype.enterTrain = function (train) {
+  if (!train.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  const next = train.nextStation();
+  this.ui.toast('열차 탑승 — ' + (next ? next.name + ' 방면' : '') + ' · Shift 내리기');
+  this.playSound('place');
+  this._trainMsg = 0;
+  this._trainLast = null;
+};
+
+Game.prototype.exitTrain = function () {
+  const t = this.player.onTrain;
+  if (!t) return;
+  t.unboard();
+  this.ui.toast('열차에서 내렸습니다');
+};
+
+// 역에 서면 알려 준다
+Game.prototype.updateTrainInfo = function (dt) {
+  const t = this.player.onTrain;
+  if (!t) { this._trainLast = null; return; }
+  const st = t.atStation();
+  const key = st ? st.name : null;
+  if (key && key !== this._trainLast) {
+    this._trainLast = key;
+    const next = t.nextStation();
+    this.ui.toast(key + ' 도착 — 다음은 ' + (next ? next.name : '종착역'));
+    this.playSound('place');
+  } else if (!key) {
+    this._trainLast = null;
   }
 };
 
@@ -1555,11 +1598,15 @@ Game.prototype.update = function (dt) {
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
   if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
+  else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   this._sneakPrev = this.input.sneak;
 
   if (p.riding) {
     // 비행기를 타고 있으면 몸은 조종석에 고정된다 (비행기가 위치를 정한다)
     if (p.dead) this.exitPlane();
+  } else if (p.onTrain) {
+    // 열차를 타고 있으면 몸은 객실에 고정된다 (열차가 자리를 정한다)
+    if (p.dead) this.exitTrain();
   } else if (!this.ui.open && !p.dead) {
     p.update(dt, this.input);
     this.updateMining(dt);
@@ -1582,6 +1629,8 @@ Game.prototype.update = function (dt) {
   this.entities.update(dt, p, daylight);
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
+  if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
+  this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
   this.updateAutoland(dt);
@@ -1698,6 +1747,7 @@ Game.prototype.render = function (dt) {
   r.drawClouds(p, opts);
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawPlanes(this.entities, this.world, p, opts);
+  if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);

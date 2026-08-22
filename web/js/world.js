@@ -97,7 +97,6 @@ Chunk.prototype.setBlockLight = function (x, y, z, v) {
 function World(seed) {
   this.seed = (seed === undefined || seed === null || seed === '') ? (Math.random() * 1e9) | 0 : hashSeed(seed);
   this.chunks = new Map();
-  this.lightTop = SEA_LEVEL;   // 지금까지 본 블록 중 가장 높은 칸 (조명 비용을 줄이는 기준)
   this.pending = [];
   this.pHeight = new Perlin(this.seed + 1);
   this.pDetail = new Perlin(this.seed + 2);
@@ -201,10 +200,7 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
   c.blocks[i] = id;
   c.meta[i] = newMeta;
   c.modified = true;
-  if (id !== 0 && y >= c.topY) {
-    c.topY = Math.min(CHUNK_Y, y + 1);
-    if (c.topY > this.lightTop) this.lightTop = c.topY;
-  }
+  if (id !== 0 && y >= c.topY) c.topY = Math.min(CHUNK_Y, y + 1);
 
   if (skipUpdate) return;
   this.updateHeightMap(c, lx, lz);
@@ -323,6 +319,7 @@ World.prototype.generateChunk = function (c) {
 
   this.generateOres(c, rnd);
   c.generated = true;
+  this.computeTopY(c);
   for (let lz = 0; lz < CHUNK_Z; lz++) {
     for (let lx = 0; lx < CHUNK_X; lx++) this.updateHeightMap(c, lx, lz);
   }
@@ -370,7 +367,6 @@ World.prototype.computeTopY = function (c) {
   let last = -1;
   for (let i = b.length - 1; i >= 0; i--) { if (b[i] !== 0) { last = i; break; } }
   c.topY = last < 0 ? 1 : Math.min(CHUNK_Y, Math.floor(last / (CHUNK_X * CHUNK_Z)) + 2);
-  if (c.topY > this.lightTop) this.lightTop = c.topY;
   return c.topY;
 };
 
@@ -382,6 +378,8 @@ World.prototype.decorateChunk = function (c) {
   if (this.paintVillage) c.hasVillage = this.paintVillage(c);
   // 공항은 마을보다 뒤 (부지를 통째로 밀어 버린다)
   if (this.paintAirport) c.hasAirport = this.paintAirport(c);
+  // 도시와 고가 철로는 공항 다음 (공항 부지 밖에 선다)
+  if (this.paintCity) c.hasCity = this.paintCity(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
   if (this.snowChunk) this.snowChunk(c);
   this.computeTopY(c);
@@ -501,10 +499,18 @@ World.prototype.placeDecorations = function (into, cx, cz) {
 World.prototype.initialLight = function (c) {
   const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
   const q = this._skyQueue;
-  // 세상에서 가장 높은 블록보다 위는 어디서나 하늘빛 15다.
+  // 이웃까지 통틀어 가장 높은 블록보다 위는 어디서나 하늘빛 15다.
   // 그 구간은 값만 채우고 전파 대기열에는 넣지 않는다 —
   // 덕분에 하늘을 아무리 높여도 조명 비용이 늘지 않는다.
-  const cap = Math.min(CHUNK_Y - 1, Math.max(this.lightTop, c.topY) + 1);
+  // (이웃 3×3 을 함께 보는 이유: 옆 청크의 높은 건물이 드리우는 그늘까지 챙기려고)
+  let cap = c.topY;
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const n = this.getChunk(c.cx + dx, c.cz + dz);
+      if (n && n.generated && n.topY > cap) cap = n.topY;
+    }
+  }
+  cap = Math.min(CHUNK_Y - 1, cap + 1);
   if (cap < CHUNK_Y - 1) {
     c.light.fill(0xf0, (cap + 1) * CHUNK_X * CHUNK_Z, CHUNK_X * CHUNK_Y * CHUNK_Z);
   }
