@@ -39,6 +39,18 @@ UI.prototype.build = function () {
   this.el.hunger = div('bar hunger', this.el.stats);
   this.el.air = div('bar air', this.el.stats);
 
+  // 비행 계기판 (비행기를 탔을 때만 보인다)
+  this.el.flight = div('flight');
+  this.el.flight.innerHTML =
+    '<div class="fl-title">✈ 보잉 747</div>' +
+    '<div class="fl-row"><span>속도</span><b id="fl-spd">0</b><em>km/h</em></div>' +
+    '<div class="fl-row"><span>고도</span><b id="fl-alt">0</b><em>m</em></div>' +
+    '<div class="fl-row"><span>지면</span><b id="fl-agl">0</b><em>m</em></div>' +
+    '<div class="fl-thr"><i id="fl-bar"></i><span id="fl-thr">추력 0%</span></div>' +
+    '<div class="fl-state" id="fl-state">지상</div>' +
+    '<div class="fl-help">W/S 추력 · 마우스 조종 · A/D 방향 · Space 제동 · Shift 내리기</div>';
+  this.el.flight.style.display = 'none';
+
   this.el.hotbar = div('hotbar');
   this.el.hotbarSlots = [];
   for (let i = 0; i < HOTBAR_SIZE; i++) {
@@ -750,7 +762,40 @@ UI.prototype.updateHUD = function () {
   this.el.water.style.opacity = p.headInWater ? 0.45 : 0;
   this.el.death.style.display = p.dead ? 'flex' : 'none';
 
+  this.updateFlight();
   if (this.open) this.refreshScreen();
+};
+
+// 비행 계기판 갱신
+UI.prototype.updateFlight = function () {
+  const pl = this.player && this.player.riding;
+  const el = this.el.flight;
+  if (!pl) {
+    if (el.style.display !== 'none') el.style.display = 'none';
+    return;
+  }
+  if (el.style.display !== 'block') el.style.display = 'block';
+  const h = pl.hud();
+  document.getElementById('fl-spd').textContent = h.kmh;
+  document.getElementById('fl-alt').textContent = h.alt;
+  document.getElementById('fl-agl').textContent = h.agl;
+  document.getElementById('fl-bar').style.width = Math.round(h.throttle * 100) + '%';
+  document.getElementById('fl-thr').textContent = '추력 ' + Math.round(h.throttle * 100) + '%';
+  const st = document.getElementById('fl-state');
+  if (h.onGround) {
+    st.textContent = h.speed < 1 ? '정지'
+      : (h.speed >= 26 ? '이륙 속도 — 마우스를 위로!' : '지상 활주');
+    st.className = 'fl-state' + (h.speed >= 26 ? ' ok' : '');
+  } else if (h.stall) {
+    st.textContent = '실속 주의 — 추력을 올리세요';
+    st.className = 'fl-state warn';
+  } else if (h.ceiling) {
+    st.textContent = '고도 한계 — 더 못 올라갑니다';
+    st.className = 'fl-state warn';
+  } else {
+    st.textContent = '비행 중' + (h.gear ? ' (기어 내림)' : '');
+    st.className = 'fl-state ok';
+  }
 };
 
 UI.prototype.setDebug = function (lines) { this.el.debug.innerHTML = lines.join('<br>'); };

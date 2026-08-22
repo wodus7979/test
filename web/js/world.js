@@ -360,6 +360,8 @@ World.prototype.decorateChunk = function (c) {
   }
   // 마을은 나무·풀 다음에 찍어야 집 안으로 나무가 자라지 않는다
   if (this.paintVillage) c.hasVillage = this.paintVillage(c);
+  // 공항은 마을보다 뒤 (부지를 통째로 밀어 버린다)
+  if (this.paintAirport) c.hasAirport = this.paintAirport(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
   if (this.snowChunk) this.snowChunk(c);
   c.decorated = true;

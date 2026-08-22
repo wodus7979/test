@@ -1054,6 +1054,55 @@ function registerExtraTextures() {
     p.rect(4, 5, 2, 2, '#3a5a8a'); p.rect(10, 5, 2, 2, '#3a5a8a');
     p.rect(6, 11, 4, 1, '#7a5c44');            // 입
   });
+  // ── 여객기 (747) ──
+  defTex('plane_white', function (p, rnd) {
+    p.noise(rnd, '#eef1f5', 3, 2);
+    p.rect(0, 5, 16, 1, '#dfe4ea');      // 패널 이음선
+    p.rect(0, 11, 16, 1, '#dfe4ea');
+  });
+  defTex('plane_win', function (p, rnd) {
+    p.noise(rnd, '#eef1f5', 3, 2);
+    p.rect(0, 6, 16, 4, '#e2e7ee');
+    for (let x = 1; x < 15; x += 3) p.rect(x, 7, 2, 2, '#2b3a4a');
+    p.rect(0, 11, 16, 1, '#3a6ea8');     // 동체 띠
+    p.rect(0, 12, 16, 1, '#2b5488');
+  });
+  defTex('plane_belly', function (p, rnd) {
+    p.noise(rnd, '#b9c2cc', 4, 2);
+    p.rect(0, 0, 16, 2, '#8f9aa6');
+  });
+  defTex('plane_tail', function (p, rnd) {
+    p.noise(rnd, '#2b5488', 4, 2);
+    p.rect(2, 3, 12, 3, '#e8eef5');       // 흰 띠
+    p.rect(3, 8, 10, 5, '#d94a4a');       // 꼬리 무늬
+  });
+  defTex('plane_wing', function (p, rnd) {
+    p.noise(rnd, '#ccd3db', 4, 2);
+    p.rect(0, 7, 16, 1, '#aab3bd');
+  });
+  defTex('plane_engine', function (p, rnd) {
+    p.noise(rnd, '#5b6470', 5, 3);
+    p.rect(0, 1, 16, 2, '#3a4149');
+    p.rect(0, 13, 16, 2, '#2c3238');
+  });
+  defTex('plane_intake', function (p, rnd) {
+    p.noise(rnd, '#2a2f35', 4, 2);
+    p.frame(2, 2, 12, 12, '#8f9aa6');
+    p.rect(6, 6, 4, 4, '#4a525c');
+  });
+  defTex('plane_cockpit', function (p, rnd) {
+    p.noise(rnd, '#eef1f5', 3, 2);
+    p.rect(1, 4, 14, 4, '#243447');
+    p.rect(2, 5, 5, 2, '#4f7fb5');
+    p.rect(9, 5, 5, 2, '#4f7fb5');
+  });
+  defTex('plane_gear', function (p, rnd) {
+    p.noise(rnd, '#3c424a', 5, 3);
+  });
+  defTex('plane_wheel', function (p, rnd) {
+    p.noise(rnd, '#22262b', 4, 2);
+    p.rect(5, 5, 6, 6, '#4c545e');
+  });
   // ── 철 골렘 ──
   defTex('mob_golem', function (p, rnd) {
     p.noise(rnd, '#d8d4cc', 6, 3);

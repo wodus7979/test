@@ -54,6 +54,7 @@
     <div class="modes">
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
       <label><input type="checkbox" id="chk-village"> 마을에서 시작</label>
+      <label><input type="checkbox" id="chk-airport"> 공항에서 시작</label>
       <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
       <label><input type="checkbox" id="chk-clouds" checked> 구름 보이기</label>
       <label>화면 셰이더
@@ -79,6 +80,8 @@
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
           <li><b>R</b> 날씨 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개). 추운 지방에서는 비 대신 눈이 온다</li>
           <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
+          <li><b>비행기</b>에 <b>우클릭</b>하면 탑승 — <b>W/S</b> 추력, <b>마우스</b> 조종,
+              <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -113,9 +116,11 @@
 <script src="js/world.js"></script>
 <script src="js/village.js"></script>
 <script src="js/weather.js"></script>
+<script src="js/airport.js"></script>
 <script src="js/fluids.js"></script>
 <script src="js/player.js"></script>
 <script src="js/mobs.js"></script>
+<script src="js/plane.js"></script>
 <script src="js/villagers.js"></script>
 <script src="js/physics.js"></script>
 <script src="js/crafting.js"></script>

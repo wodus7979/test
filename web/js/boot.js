@@ -9,6 +9,7 @@
   const btnContinue = document.getElementById('btn-continue');
   const chkCreative = document.getElementById('chk-creative');
   const chkVillage = document.getElementById('chk-village');
+  const chkAirport = document.getElementById('chk-airport');
   const rngDist = document.getElementById('rng-dist');
   const distVal = document.getElementById('dist-val');
 
@@ -93,7 +94,11 @@
           game.player.creative = chkCreative.checked;
           if (chkCreative.checked) game.player.flying = false;
           game.ui.toast('시드: ' + game.world.seed);
-          if (chkVillage && chkVillage.checked) {
+          if (chkAirport && chkAirport.checked) {
+            const a = game.spawnAtAirport();
+            if (a) game.ui.toast('인천공항에서 시작합니다 — ' + a.x + ', ' + a.z);
+            else game.ui.toast('이 세계에는 공항을 지을 만한 곳이 없었습니다');
+          } else if (chkVillage && chkVillage.checked) {
             const v = game.spawnAtVillage();
             if (v) game.ui.toast('마을에서 시작합니다 — ' + v.x + ', ' + v.z + ' (집 ' + v.buildings + '채)');
             else game.ui.toast('가까운 곳에 마을이 없어 평소대로 시작합니다');

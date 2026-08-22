@@ -515,3 +515,42 @@ body.touch .hand { display: none !important; }
   background: #26314a; color: #dfe7f2; font: inherit; font-size: 13px;
   border: 1px solid rgba(255,255,255,.2); border-radius: 5px;
 }
+
+/* ── 비행 계기판 ────────────────────────────────────────────────── */
+.flight {
+  position: absolute; right: 12px; top: 12px;
+  width: 218px;
+  padding: 10px 12px;
+  background: rgba(8, 16, 26, .62);
+  border: 1px solid rgba(140, 190, 255, .28);
+  border-radius: 6px;
+  font-size: 13px; line-height: 1.5;
+  color: #cfe0f2;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.fl-title { color: #8fc6ff; font-weight: 700; margin-bottom: 5px; letter-spacing: .5px; }
+.fl-row { display: flex; align-items: baseline; gap: 6px; }
+.fl-row span { width: 30px; color: #8ea4bd; }
+.fl-row b { flex: 1; text-align: right; font-size: 17px; color: #fff; }
+.fl-row em { width: 30px; font-style: normal; color: #8ea4bd; font-size: 11px; }
+.fl-thr {
+  position: relative; height: 15px; margin: 6px 0 4px;
+  background: rgba(255,255,255,.10); border-radius: 3px; overflow: hidden;
+}
+.fl-thr i {
+  position: absolute; inset: 0 auto 0 0; width: 0;
+  background: linear-gradient(90deg, #3f8ad6, #6fd0a0);
+  transition: width .1s linear;
+}
+.fl-thr span {
+  position: relative; display: block; text-align: center;
+  font-size: 11px; line-height: 15px; text-shadow: 1px 1px 0 rgba(0,0,0,.6);
+}
+.fl-state { margin-top: 3px; font-size: 12px; color: #cbd8e6; }
+.fl-state.ok { color: #7fd694; }
+.fl-state.warn { color: #ffb04a; font-weight: 700; }
+.fl-help { margin-top: 5px; font-size: 10.5px; color: #7e93ab; line-height: 1.45; }
+@media (max-width: 720px) {
+  .flight { right: 8px; top: 8px; width: 168px; font-size: 12px; padding: 7px 9px; }
+  .fl-help { display: none; }
+}

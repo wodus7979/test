@@ -328,12 +328,16 @@ Renderer.prototype.beginFrame = function (player, opts) {
   const gl = this.gl;
   this.resize();
 
-  const eye = player.eyePos();
+  // opts.cam 이 있으면 그 자리에서 본다 (비행기 3인칭 카메라)
+  const eye = opts.cam ? opts.cam.eye : player.eyePos();
+  const camYaw = opts.cam ? opts.cam.yaw : player.yaw;
+  const camPitch = opts.cam ? opts.cam.pitch : player.pitch;
   mat4.perspective(this.proj, opts.fov * Math.PI / 180, this.aspect, 0.06, 1200);
   mat4.identity(this.view);
   if (opts.shakeX) mat4.rotateZ(this.view, this.view, opts.shakeX);
-  mat4.rotateX(this.view, this.view, -player.pitch + (opts.shakeY || 0));
-  mat4.rotateY(this.view, this.view, -player.yaw);
+  if (opts.cam && opts.cam.roll) mat4.rotateZ(this.view, this.view, opts.cam.roll);
+  mat4.rotateX(this.view, this.view, -camPitch + (opts.shakeY || 0));
+  mat4.rotateY(this.view, this.view, -camYaw);
   mat4.translate(this.view, this.view, [-eye[0], -eye[1], -eye[2]]);
   mat4.multiply(this.viewProj, this.proj, this.view);
   this.extractFrustum();
@@ -564,6 +568,62 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
   const idx = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
   gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+};
+
+// ── 비행기 ────────────────────────────────────────────────────────────
+Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
+  const list = mgr.planes;
+  if (!list || !list.length) return;
+  const gl = this.gl;
+  _ev.length = 0; _ei.length = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    const dx = p.x - player.x, dz = p.z - player.z;
+    if (dx * dx + dz * dz > 400 * 400) continue;
+    if (!this.boxInFrustum(p.x - 13, p.y - 5, p.z - 14, p.x + 13, p.y + 8, p.z + 14)) continue;
+
+    const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
+    const sky = (p.y > CHUNK_Y - 4) ? 1 : world.getSky(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    // 하늘 높이 뜨면 언제나 햇빛을 받는다
+    const light = [Math.max(sky, p.onGround ? 0 : 0.85), blk];
+
+    const cr = Math.cos(p.roll), sr = Math.sin(p.roll);
+    const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch);
+    const cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
+
+    const boxes = PLANE_BOXES;
+    for (let k = 0; k < boxes.length + PLANE_GEAR.length; k++) {
+      const gearPart = k >= boxes.length;
+      if (gearPart && p.gear < 0.05) continue;
+      const b = gearPart ? PLANE_GEAR[k - boxes.length] : boxes[k];
+      // 착륙장치는 접히면서 동체 안으로 들어간다
+      const tuck = gearPart ? (1 - p.gear) * 1.7 : 0;
+      const bh = b.h;
+      const transform = function (px, py, pz) {
+        const lx = px + b.x, ly = py - bh / 2 + b.y + tuck, lz = pz + b.z;
+        const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+        const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
+        return [x1 * cy + z2 * sy, y2, -x1 * sy + z2 * cy];
+      };
+      emitBox(_ev, _ei, p.x, p.y, p.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+    }
+  }
+
+  if (!_ei.length) return;
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.stats.tris += idxArr.length / 3;
 };
 
 // 떨어진 아이템: 카메라를 향하는 얇은 판
