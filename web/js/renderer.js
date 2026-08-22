@@ -583,7 +583,7 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
     const dx = p.x - player.x, dz = p.z - player.z;
-    if (dx * dx + dz * dz > 400 * 400) continue;
+    if (dx * dx + dz * dz > 720 * 720) continue;
     if (!this.boxInFrustum(p.x - 13, p.y - 5, p.z - 14, p.x + 13, p.y + 8, p.z + 14)) continue;
 
     const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);

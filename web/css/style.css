@@ -617,3 +617,31 @@ body.touch .hand { display: none !important; }
 @media (max-width: 720px) {
   .alert { top: 150px; font-size: 12px; padding: 6px 12px; white-space: normal; max-width: 60vw; text-align: center; }
 }
+
+/* ── 자동 착륙 승인 창 ───────────────────────────────────────────── */
+.autoland {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(340px, 84vw);
+  padding: 16px 18px 14px;
+  text-align: center;
+  background: rgba(10, 20, 32, .90);
+  border: 2px solid #4f9ad6;
+  border-radius: 8px;
+  box-shadow: 0 6px 26px rgba(0,0,0,.5);
+  pointer-events: auto;
+}
+.autoland b { display: block; font-size: 15px; color: #8fd0ff; letter-spacing: .5px; }
+.autoland p { margin: 9px 0 13px; font-size: 13.5px; line-height: 1.6; color: #dbe7f4; }
+.autoland p b { display: inline; color: #ffd76a; font-size: inherit; }
+.al-btns { display: flex; gap: 10px; }
+.al-btns button {
+  flex: 1; padding: 9px 0; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 700;
+  border: none; border-radius: 5px;
+}
+#al-yes { background: #3f8f4a; color: #fff; }
+#al-yes:hover { background: #4fa85c; }
+#al-no { background: #3a4655; color: #d7e2ee; }
+#al-no:hover { background: #4a5768; }
+.fl-state.auto { color: #8fd0ff; font-weight: 700; }

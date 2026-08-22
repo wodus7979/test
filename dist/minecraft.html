@@ -628,6 +628,34 @@ body.touch .hand { display: none !important; }
   .alert { top: 150px; font-size: 12px; padding: 6px 12px; white-space: normal; max-width: 60vw; text-align: center; }
 }
 
+/* ── 자동 착륙 승인 창 ───────────────────────────────────────────── */
+.autoland {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(340px, 84vw);
+  padding: 16px 18px 14px;
+  text-align: center;
+  background: rgba(10, 20, 32, .90);
+  border: 2px solid #4f9ad6;
+  border-radius: 8px;
+  box-shadow: 0 6px 26px rgba(0,0,0,.5);
+  pointer-events: auto;
+}
+.autoland b { display: block; font-size: 15px; color: #8fd0ff; letter-spacing: .5px; }
+.autoland p { margin: 9px 0 13px; font-size: 13.5px; line-height: 1.6; color: #dbe7f4; }
+.autoland p b { display: inline; color: #ffd76a; font-size: inherit; }
+.al-btns { display: flex; gap: 10px; }
+.al-btns button {
+  flex: 1; padding: 9px 0; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 700;
+  border: none; border-radius: 5px;
+}
+#al-yes { background: #3f8f4a; color: #fff; }
+#al-yes:hover { background: #4fa85c; }
+#al-no { background: #3a4655; color: #d7e2ee; }
+#al-no:hover { background: #4a5768; }
+.fl-state.auto { color: #8fd0ff; font-weight: 700; }
+
 </style>
 </head>
 <body>
@@ -708,6 +736,8 @@ body.touch .hand { display: none !important; }
           <li><b>비행기</b>에 <b>우클릭</b>하면 탑승 — <b>W/S</b> 추력, <b>마우스</b> 조종,
               <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기(공중이면 낙하산)</li>
           <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
+          <li>목적지까지 <b>500블록</b>이 남으면 <b>자동 착륙 승인 창</b>이 뜬다 — <b>Y</b> 승인, <b>N</b> 취소</li>
+          <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -7899,12 +7929,24 @@ Weather.prototype.accumulate = function (player, snowing) {
   }
 };
 
-// 화면에 그릴 값들
-Weather.prototype.visuals = function (player) {
-  const s = this.strength;
+// 구름 위로 올라가면 날씨가 미치지 않는다 (1 = 날씨 그대로, 0 = 영향 없음)
+Weather.prototype.skyFade = function (y) {
+  const lo = CLOUD_Y - 6, hi = CLOUD_Y + CLOUD_H + 2;
+  if (y <= lo) return 1;
+  if (y >= hi) return 0;
+  const t = (y - lo) / (hi - lo);
+  return 1 - t * t * (3 - 2 * t);
+};
+
+// 화면에 그릴 값들. camY 를 주면 구름 위에서는 날씨가 걷힌다.
+Weather.prototype.visuals = function (player, camY) {
+  const fade = this.skyFade(camY === undefined ? player.y : camY);
+  const s = this.strength * fade;
   const snow = this.isSnowAt(player.x, player.z);
   return {
     strength: s,
+    raw: this.strength,
+    fade: fade,
     snow: snow,
     flash: this.flash,
     // 머리 위가 뚫려 있어야 입자가 보인다 (동굴·실내에서는 사라진다)
@@ -10061,16 +10103,20 @@ Plane.prototype.update = function (dt, game) {
   const input = game.input;
   const prevYaw = this.yaw;
 
-  // 자동 운항이면 여기서 조종간을 대신 잡는다
-  const ai = this.ai ? this.aiControl(dt, game) : null;
+  // 자동 운항이면 여기서 조종간을 대신 잡는다.
+  // 자동 착륙(ai.auto)일 때는 조종사가 타고 있어도 기계가 잡는다.
+  // aiControl 안에서 this.ai 가 사라질 수 있으므로 먼저 붙잡아 둔다.
+  const aiRef = this.ai;
+  const ai = aiRef ? this.aiControl(dt, game) : null;
+  const autoNow = !!(ai && (!rider || aiRef.auto));
 
   // ── 추력 ──
-  if (rider) {
+  if (rider && !autoNow) {
     if (input.forward) this.throttle += 0.42 * dt;
     if (input.back) this.throttle -= 0.55 * dt;
     if (input.jump && this.onGround) this.throttle -= 1.2 * dt;   // 지상 제동
     this.throttle = Math.max(0, Math.min(1, this.throttle));
-  } else if (ai) {
+  } else if (autoNow) {
     this.throttle += Math.max(-dt * 0.8, Math.min(dt * 0.6, ai.throttle - this.throttle));
     this.throttle = Math.max(0, Math.min(1, this.throttle));
   } else {
@@ -10083,13 +10129,13 @@ Plane.prototype.update = function (dt, game) {
 
   // ── 방향 ──
   let wantYaw = this.yaw, wantPitch = 0;
-  if (rider) {
+  if (rider && !autoNow) {
     wantYaw = rider.yaw;
     wantPitch = Math.max(-0.85, Math.min(0.85, rider.pitch));
     // A/D 는 러더 — 기수를 조금씩 옆으로 민다
     if (input.left) wantYaw -= 0.5;
     if (input.right) wantYaw += 0.5;
-  } else if (ai) {
+  } else if (autoNow) {
     wantYaw = ai.yaw;
     wantPitch = ai.pitch;
   }
@@ -10101,7 +10147,7 @@ Plane.prototype.update = function (dt, game) {
     this.pitch += (0 - this.pitch) * Math.min(1, dt * 4);
     this.roll += (0 - this.roll) * Math.min(1, dt * 4);
     // 이륙 — 충분히 빠르고 조종간을 당기면
-    const pull = rider ? rider.pitch > 0.06 : (ai ? ai.rotate : false);
+    const pull = autoNow ? ai.rotate : (rider ? rider.pitch > 0.06 : false);
     if (this.speed >= PLANE_TAKEOFF && pull) {
       this.onGround = false;
       this.vy = 4;
@@ -10231,14 +10277,21 @@ EntityManager.prototype.updatePlanes = function (dt, player, game) {
   if (!this.planes) this.planes = [];
   for (let i = this.planes.length - 1; i >= 0; i--) {
     const p = this.planes[i];
+    const far = Math.hypot(p.x - player.x, p.z - player.z);
+    // 지나가는 비행기는 시야를 벗어나면 사라진다
+    if (p.ambient && (far > SKY_DESPAWN_R || p.onGround)) {
+      this.planes.splice(i, 1);
+      continue;
+    }
     // 세워 둔 비행기는 멀어지면 정리한다 (정기편은 계속 난다)
-    if (!p.rider && !p.ai && Math.hypot(p.x - player.x, p.z - player.z) > 420) {
+    if (!p.rider && !p.ai && far > 420) {
       this.planes.splice(i, 1);
       continue;
     }
     p.update(dt, game);
   }
   this.updateAirlines(dt, game);
+  this.updateSkyTraffic(dt, player);
   this.populateAirport(player);
 };
 
@@ -10328,7 +10381,7 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
   let best = null, bestT = maxDist;
   for (let i = 0; i < this.planes.length; i++) {
     const p = this.planes[i];
-    if (p.rider) continue;
+    if (p.rider || p.ambient || p.airline) continue;
     const t = rayBox(ox, oy, oz, dx, dy, dz,
       p.x - 12, p.y - 4, p.z - 13, p.x + 12, p.y + 7, p.z + 13);
     if (t !== null && t < bestT) { bestT = t; best = p; }
@@ -10386,6 +10439,13 @@ Plane.prototype.aiControl = function (dt, game) {
       }
       break;
 
+    case 'ferry':
+      // 그냥 곧게 순항한다
+      out.throttle = 0.9;
+      out.yaw = a.hdg;
+      out.pitch = Math.max(-0.10, Math.min(0.10, (a.alt - this.y) * 0.02));
+      break;
+
     case 'taxi_out': {
       const wp = a.wp[a.wpi];
       out.throttle = 0.14;
@@ -10434,6 +10494,13 @@ Plane.prototype.aiControl = function (dt, game) {
       // 활주로 연장선 위 진입점으로 간다
       const rw = a.rwTo;
       const fixX = rw.x0 - 300, fixZ = rw.z;
+      if (a.auto && this.x > fixX + 40) {
+        // 이미 지나쳤으면 크게 돌아 진입선 밖으로 나간다
+        out.throttle = 0.7;
+        out.yaw = aiHeadingTo(this.x, this.z, fixX - 160, rw.z + (this.z > rw.z ? 200 : -200));
+        out.pitch = Math.max(-0.14, Math.min(0.12, (rw.y + 46 - this.y) * 0.02));
+        break;
+      }
       out.throttle = 0.6;
       out.yaw = aiHeadingTo(this.x, this.z, fixX, fixZ);
       const wantY = rw.y + 42;
@@ -10468,6 +10535,14 @@ Plane.prototype.aiControl = function (dt, game) {
       out.throttle = 0;
       out.yaw = Math.PI / 2;
       if (!this.onGround && a.t > 1.5) { a.state = 'final'; a.t = 0; break; }
+      if (a.auto) {
+        // 자동 착륙은 여기까지. 멈추면 조종을 사람에게 넘긴다.
+        if (this.speed < 4 || stuck) {
+          this.ai = null;
+          if (this.onAutolandDone) this.onAutolandDone(a.to);
+        }
+        break;
+      }
       if (this.speed < 4 || stuck) {
         const ap = a.to;
         const st = ap.stands[(Math.random() * ap.stands.length) | 0];
@@ -10522,11 +10597,77 @@ EntityManager.prototype.updateAirlines = function (dt, game) {
   }
 };
 
-// 자동 운항편은 몇 번 편인지 (계기판·경보에 쓴다)
+// ── 자동 착륙 ─────────────────────────────────────────────────────────
+// 조종사가 승인하면 기계가 활주로까지 데려다 준다.
+Plane.prototype.beginAutoland = function (ap) {
+  // 진입하기 좋은 활주로를 고른다 (가까운 쪽)
+  let rw = ap.runways[0], bd = 1e9;
+  for (let i = 0; i < ap.runways.length; i++) {
+    const d = Math.abs(this.z - ap.runways[i].z);
+    if (d < bd) { bd = d; rw = ap.runways[i]; }
+  }
+  this.ai = {
+    auto: true, state: 'descend', t: 0,
+    from: null, to: ap, rwTo: rw, wp: [], wpi: 0
+  };
+};
+
+Plane.prototype.cancelAutoland = function () {
+  if (this.ai && this.ai.auto) this.ai = null;
+};
+
+Plane.prototype.autoState = function () {
+  if (!this.ai || !this.ai.auto) return null;
+  const s = this.ai.state;
+  return s === 'descend' ? '자동 강하 중'
+    : s === 'final' ? '자동 최종 진입 — 활주로 정렬'
+      : s === 'rollout' ? '접지 — 감속 중' : '자동 착륙 중';
+};
+
+// 어떤 비행기인지 (계기판·경보에 쓴다)
 Plane.prototype.flightLabel = function () {
-  if (!this.ai) return null;
+  if (this.ambient) return '순항 중인 여객기';
+  if (!this.ai) return '주기 중인 기체';
   const a = this.ai;
+  if (!a.from && !a.to) return '순항 중인 여객기';
   return (a.from ? a.from.code : '??') + ' → ' + (a.to ? a.to.code : '??');
+};
+
+// ── 하늘을 지나가는 비행기 ────────────────────────────────────────────
+// 플레이어 주변 하늘에 늘 몇 대가 순항한다. 탈 수는 없고 풍경이자 교통량이다.
+const SKY_TRAFFIC = 3;
+const SKY_SPAWN_R = 380;
+const SKY_DESPAWN_R = 700;
+
+EntityManager.prototype.updateSkyTraffic = function (dt, player) {
+  if (!this.planes) this.planes = [];
+  let n = 0;
+  for (let i = 0; i < this.planes.length; i++) if (this.planes[i].ambient) n++;
+  if (n >= SKY_TRAFFIC) return;
+
+  this._skyTimer = (this._skyTimer || 0) - dt;
+  if (this._skyTimer > 0) return;
+  this._skyTimer = 3 + Math.random() * 6;
+
+  // 플레이어 주변 어딘가에서 나타나 스쳐 지나간다
+  const ang = Math.random() * Math.PI * 2;
+  const x = player.x + Math.cos(ang) * SKY_SPAWN_R;
+  const z = player.z + Math.sin(ang) * SKY_SPAWN_R;
+  const alt = 62 + Math.random() * 26;
+  // 플레이어 쪽을 스치도록 진로를 잡는다 (정확히 겹치지 않게 살짝 비껴서)
+  // 스치되 부딪히지는 않게 옆으로 90~260블록 비껴 지나간다
+  const off = (Math.random() < 0.5 ? -1 : 1) * (90 + Math.random() * 170);
+  const tx = player.x + Math.cos(ang + Math.PI / 2) * off;
+  const tz = player.z + Math.sin(ang + Math.PI / 2) * off;
+  const hdg = Math.atan2(tx - x, tz - z);
+
+  const pl = this.spawnPlane(x, alt, z, hdg);
+  pl.ambient = true;
+  pl.onGround = false;
+  pl.gear = 0;
+  pl.speed = 46 + Math.random() * 12;
+  pl.throttle = 0.9;
+  pl.ai = { auto: false, state: 'ferry', t: 0, hdg: hdg, alt: alt, from: null, to: null };
 };
 
 // 가장 가까운 다른 비행기 (공중 충돌 경보)
@@ -12330,7 +12471,7 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
     const dx = p.x - player.x, dz = p.z - player.z;
-    if (dx * dx + dz * dz > 400 * 400) continue;
+    if (dx * dx + dz * dz > 720 * 720) continue;
     if (!this.boxInFrustum(p.x - 13, p.y - 5, p.z - 14, p.x + 13, p.y + 8, p.z + 14)) continue;
 
     const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
@@ -12972,6 +13113,21 @@ UI.prototype.build = function () {
   // 가운데 위쪽 경보 띠
   this.el.alert = div('alert');
   this.el.alert.style.display = 'none';
+
+  // 자동 착륙 승인 창
+  this.el.autoland = div('autoland');
+  this.el.autoland.innerHTML =
+    '<b>자동 착륙 승인</b>' +
+    '<p id="al-text">—</p>' +
+    '<div class="al-btns">' +
+      '<button type="button" id="al-yes">승인 (Y)</button>' +
+      '<button type="button" id="al-no">취소 (N)</button>' +
+    '</div>';
+  this.el.autoland.style.display = 'none';
+  const alYes = this.el.autoland.querySelector('#al-yes');
+  const alNo = this.el.autoland.querySelector('#al-no');
+  alYes.addEventListener('click', function () { self.game.acceptAutoland(); });
+  alNo.addEventListener('click', function () { self.game.refuseAutoland(); });
 
   this.el.hotbar = div('hotbar');
   this.el.hotbarSlots = [];
@@ -13695,6 +13851,7 @@ UI.prototype.updateFlight = function () {
   if (!pl) {
     if (el.style.display !== 'none') el.style.display = 'none';
     if (this.el.alert.style.display !== 'none') this.el.alert.style.display = 'none';
+    if (this.el.autoland.style.display !== 'none') this.el.autoland.style.display = 'none';
     return;
   }
   if (el.style.display !== 'block') el.style.display = 'block';
@@ -13732,7 +13889,7 @@ UI.prototype.updateFlight = function () {
     arrow.style.transform = 'rotate(' + (nav.rel * 180 / Math.PI) + 'deg)';
     arrow.style.color = Math.abs(nav.rel) < 0.18 ? '#7fd694' : '#8fc6ff';
 
-    if (nav.loc && nav.dist < 700) {
+    if (nav.loc && nav.dist < 700 && !h.onGround) {
       // 활주로 중심선에서 벗어난 정도 (-1 ~ 1)
       const dev = Math.max(-1, Math.min(1, nav.loc.side / 60));
       locBar.style.left = (50 + dev * 46) + '%';
@@ -13748,12 +13905,30 @@ UI.prototype.updateFlight = function () {
       }
     } else {
       document.getElementById('nv-loc').parentNode.style.visibility = 'hidden';
-      msg.textContent = '관제탑 신호 수신 중 · N 키로 목적지 변경';
+      msg.textContent = h.onGround ? '지상 — 이륙 후 관제탑 신호를 받습니다'
+        : '관제탑 신호 수신 중 · 500블록 안에서 자동 착륙 승인';
       msg.className = 'nv-msg';
     }
   } else {
     document.getElementById('nv-name').textContent = '공항 없음';
     document.getElementById('nv-dist').textContent = '—';
+  }
+
+  // ── 자동 착륙 안내 ──
+  const ask = this.game.autolandAsk;
+  const ae2 = this.el.autoland;
+  if (ask) {
+    if (ae2.style.display !== 'block') ae2.style.display = 'block';
+    document.getElementById('al-text').innerHTML =
+      '<b>' + ask.name + ' (' + ask.code + ')</b>까지 ' +
+      Math.round(this.game.autolandDist) + '블록<br>자동 착륙을 시작할까요?';
+  } else if (ae2.style.display !== 'none') ae2.style.display = 'none';
+
+  // 자동 착륙 중이면 상태를 계기판에 크게 보여 준다
+  const autoTxt = pl.autoState ? pl.autoState() : null;
+  if (autoTxt) {
+    st.textContent = '⟳ ' + autoTxt + '  (N 키로 해제)';
+    st.className = 'fl-state auto';
   }
 
   // ── 경보 ──
@@ -13805,9 +13980,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v6';
+const GAME_VERSION = 'v6.1';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '공항 3곳·747 자동운항 · 지도 · 오로라 · 주민 마을';
+const GAME_FEATURES = '자동 착륙 · 하늘의 항공기 · 공항 3곳 · 지도 · 오로라';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -14243,7 +14418,10 @@ Game.prototype.bindInput = function () {
         if (self.player.riding) { self.exitPlane(); e.preventDefault(); return; }
         break;
       case 'KeyN':
-        self.cycleNavTarget(); break;
+        self.navKey(); break;
+      case 'KeyY':
+        if (self.autolandAsk) { self.acceptAutoland(); e.preventDefault(); }
+        break;
       case 'KeyM':
         if (self.minimap) self.minimap.cycleZoom(); break;
       case 'KeyR': {
@@ -14662,6 +14840,73 @@ Game.prototype.planeCamera = function (pl, dt) {
   };
 };
 
+// ── 자동 착륙 ─────────────────────────────────────────────────────────
+// 목적지까지 500블록이 남으면 승인을 묻고, 승인하면 활주로까지 데려다 준다.
+const AUTOLAND_ASK_DIST = 500;
+
+Game.prototype.updateAutoland = function (dt) {
+  const p = this.player, pl = p.riding;
+  if (!pl) { this.autolandAsk = null; this._autolandBlock = null; return; }
+
+  const nav = this.navInfo(pl);
+  if (!nav) { this.autolandAsk = null; return; }
+
+  // 자동 착륙 중에는 묻지 않는다
+  if (pl.ai && pl.ai.auto) { this.autolandAsk = null; return; }
+
+  // 멀어지면 다시 물어볼 수 있게 잠금을 푼다
+  if (this._autolandBlock && nav.dist > AUTOLAND_ASK_DIST + 250) this._autolandBlock = null;
+
+  const ok = !pl.onGround && nav.dist <= AUTOLAND_ASK_DIST && nav.dist > 70 &&
+    this._autolandBlock !== nav.ap;
+  if (ok && this.autolandAsk !== nav.ap) {
+    this.autolandAsk = nav.ap;
+    this.autolandDist = nav.dist;
+    this.playSound('place');
+  } else if (ok) {
+    this.autolandDist = nav.dist;
+  } else if (!ok && this.autolandAsk) {
+    this.autolandAsk = null;
+  }
+};
+
+Game.prototype.acceptAutoland = function () {
+  const pl = this.player.riding;
+  const ap = this.autolandAsk;
+  if (!pl || !ap) return false;
+  const self = this;
+  pl.beginAutoland(ap);
+  pl.onAutolandDone = function (a) {
+    self.ui.toast('자동 착륙 완료 — ' + a.name + '. 조종을 넘겨받으세요');
+    self._autolandBlock = a;
+    self.playSound('place');
+  };
+  this.autolandAsk = null;
+  this._autolandBlock = ap;
+  this.ui.toast('자동 착륙 승인 — ' + ap.name + ' ' + ap.code);
+  return true;
+};
+
+Game.prototype.refuseAutoland = function () {
+  if (!this.autolandAsk) return false;
+  this._autolandBlock = this.autolandAsk;
+  this.autolandAsk = null;
+  this.ui.toast('자동 착륙을 취소했습니다 — 수동으로 진입하세요');
+  return true;
+};
+
+// N 키: 상황에 따라 취소 / 해제 / 목적지 변경
+Game.prototype.navKey = function () {
+  const pl = this.player.riding;
+  if (this.autolandAsk) { this.refuseAutoland(); return; }
+  if (pl && pl.ai && pl.ai.auto) {
+    pl.cancelAutoland();
+    this.ui.toast('자동 착륙 해제 — 직접 조종하세요');
+    return;
+  }
+  this.cycleNavTarget();
+};
+
 // ── 항법 ──────────────────────────────────────────────────────────────
 // 관제탑 신호를 따라 목적지 공항으로 간다.
 Game.prototype.navInfo = function (pl) {
@@ -14940,9 +15185,11 @@ Game.prototype.updateAlerts = function (dt) {
   if (!pl) { this.alert = null; this.alertBeep = 0; return; }
 
   let level = 0, text = '';
-  const near = this.entities.nearestOtherPlane(pl);
+  // 땅에서 서 있을 때는 경보를 울리지 않는다 (주기장에서 계속 울리면 시끄럽다)
+  const inhibit = pl.onGround && pl.speed < 8;
+  const near = inhibit ? null : this.entities.nearestOtherPlane(pl);
   if (near && near.dist < 130) {
-    const label = near.plane.ai ? near.plane.flightLabel() : '주기 중인 기체';
+    const label = near.plane.flightLabel();
     if (near.dist < 55) { level = 2; text = '충돌 경보 — 즉시 회피! (' + label + ' ' + Math.round(near.dist) + 'm)'; }
     else { level = 1; text = '주변 항공기 — ' + label + ' ' + Math.round(near.dist) + 'm'; }
   }
@@ -15278,13 +15525,17 @@ Game.prototype.update = function (dt) {
 
   const daylight = this.dayFactor();
   this.weather.update(dt, p);
-  this.setRainSound(this.weather.strength * (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
+  // 구름 위에서는 빗소리도 들리지 않는다
+  const wy = p.riding ? p.riding.y : p.y;
+  this.setRainSound(this.weather.strength * this.weather.skyFade(wy) *
+    (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
   this.world.updateFluids(dt);
   this.entities.update(dt, p, daylight);
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
+  this.updateAutoland(dt);
   this.updateFurnaces(dt);
   if (this.shake > 0) this.shake -= dt * 1.6;
 
@@ -15309,8 +15560,9 @@ Game.prototype.render = function (dt) {
   let daylight = this.dayFactor();
   const sky = this.skyColors();
 
-  // 날씨 — 궂은 날은 어둡고 뿌옇다
-  const wv = this.weather.visuals(p);
+  // 날씨 — 궂은 날은 어둡고 뿌옇다. 단, 구름 위로 올라가면 걷힌다.
+  const camHeight = p.riding ? p.riding.y : p.y;
+  const wv = this.weather.visuals(p, camHeight);
   const wet = wv.strength;
   const flash = wv.flash;
   let skyTop = sky.top, skyBottom = sky.bottom;
@@ -15437,7 +15689,8 @@ Game.prototype.render = function (dt) {
       '  햇빛 ' + daylight.toFixed(2),
       '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))] +
       '  날씨 ' + this.weather.label(p) + (this.weather.forced ? ' (고정)' : '') +
-      ' ' + Math.round(this.weather.strength * 100) + '%',
+      ' ' + Math.round(this.weather.strength * 100) + '%' +
+      (this.weather.skyFade(p.riding ? p.riding.y : p.y) < 0.05 ? ' (구름 위 — 영향 없음)' : ''),
       (function (g) {
         const v = g.world.nearestVillage ? g.world.nearestVillage(p.x, p.z, 1) : null;
         const near = g.world.nearestAirport ? g.world.nearestAirport(p.x, p.z) : null;

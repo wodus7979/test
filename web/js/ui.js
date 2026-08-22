@@ -61,6 +61,21 @@ UI.prototype.build = function () {
   this.el.alert = div('alert');
   this.el.alert.style.display = 'none';
 
+  // 자동 착륙 승인 창
+  this.el.autoland = div('autoland');
+  this.el.autoland.innerHTML =
+    '<b>자동 착륙 승인</b>' +
+    '<p id="al-text">—</p>' +
+    '<div class="al-btns">' +
+      '<button type="button" id="al-yes">승인 (Y)</button>' +
+      '<button type="button" id="al-no">취소 (N)</button>' +
+    '</div>';
+  this.el.autoland.style.display = 'none';
+  const alYes = this.el.autoland.querySelector('#al-yes');
+  const alNo = this.el.autoland.querySelector('#al-no');
+  alYes.addEventListener('click', function () { self.game.acceptAutoland(); });
+  alNo.addEventListener('click', function () { self.game.refuseAutoland(); });
+
   this.el.hotbar = div('hotbar');
   this.el.hotbarSlots = [];
   for (let i = 0; i < HOTBAR_SIZE; i++) {
@@ -783,6 +798,7 @@ UI.prototype.updateFlight = function () {
   if (!pl) {
     if (el.style.display !== 'none') el.style.display = 'none';
     if (this.el.alert.style.display !== 'none') this.el.alert.style.display = 'none';
+    if (this.el.autoland.style.display !== 'none') this.el.autoland.style.display = 'none';
     return;
   }
   if (el.style.display !== 'block') el.style.display = 'block';
@@ -820,7 +836,7 @@ UI.prototype.updateFlight = function () {
     arrow.style.transform = 'rotate(' + (nav.rel * 180 / Math.PI) + 'deg)';
     arrow.style.color = Math.abs(nav.rel) < 0.18 ? '#7fd694' : '#8fc6ff';
 
-    if (nav.loc && nav.dist < 700) {
+    if (nav.loc && nav.dist < 700 && !h.onGround) {
       // 활주로 중심선에서 벗어난 정도 (-1 ~ 1)
       const dev = Math.max(-1, Math.min(1, nav.loc.side / 60));
       locBar.style.left = (50 + dev * 46) + '%';
@@ -836,12 +852,30 @@ UI.prototype.updateFlight = function () {
       }
     } else {
       document.getElementById('nv-loc').parentNode.style.visibility = 'hidden';
-      msg.textContent = '관제탑 신호 수신 중 · N 키로 목적지 변경';
+      msg.textContent = h.onGround ? '지상 — 이륙 후 관제탑 신호를 받습니다'
+        : '관제탑 신호 수신 중 · 500블록 안에서 자동 착륙 승인';
       msg.className = 'nv-msg';
     }
   } else {
     document.getElementById('nv-name').textContent = '공항 없음';
     document.getElementById('nv-dist').textContent = '—';
+  }
+
+  // ── 자동 착륙 안내 ──
+  const ask = this.game.autolandAsk;
+  const ae2 = this.el.autoland;
+  if (ask) {
+    if (ae2.style.display !== 'block') ae2.style.display = 'block';
+    document.getElementById('al-text').innerHTML =
+      '<b>' + ask.name + ' (' + ask.code + ')</b>까지 ' +
+      Math.round(this.game.autolandDist) + '블록<br>자동 착륙을 시작할까요?';
+  } else if (ae2.style.display !== 'none') ae2.style.display = 'none';
+
+  // 자동 착륙 중이면 상태를 계기판에 크게 보여 준다
+  const autoTxt = pl.autoState ? pl.autoState() : null;
+  if (autoTxt) {
+    st.textContent = '⟳ ' + autoTxt + '  (N 키로 해제)';
+    st.className = 'fl-state auto';
   }
 
   // ── 경보 ──

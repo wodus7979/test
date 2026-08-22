@@ -119,16 +119,20 @@ Plane.prototype.update = function (dt, game) {
   const input = game.input;
   const prevYaw = this.yaw;
 
-  // 자동 운항이면 여기서 조종간을 대신 잡는다
-  const ai = this.ai ? this.aiControl(dt, game) : null;
+  // 자동 운항이면 여기서 조종간을 대신 잡는다.
+  // 자동 착륙(ai.auto)일 때는 조종사가 타고 있어도 기계가 잡는다.
+  // aiControl 안에서 this.ai 가 사라질 수 있으므로 먼저 붙잡아 둔다.
+  const aiRef = this.ai;
+  const ai = aiRef ? this.aiControl(dt, game) : null;
+  const autoNow = !!(ai && (!rider || aiRef.auto));
 
   // ── 추력 ──
-  if (rider) {
+  if (rider && !autoNow) {
     if (input.forward) this.throttle += 0.42 * dt;
     if (input.back) this.throttle -= 0.55 * dt;
     if (input.jump && this.onGround) this.throttle -= 1.2 * dt;   // 지상 제동
     this.throttle = Math.max(0, Math.min(1, this.throttle));
-  } else if (ai) {
+  } else if (autoNow) {
     this.throttle += Math.max(-dt * 0.8, Math.min(dt * 0.6, ai.throttle - this.throttle));
     this.throttle = Math.max(0, Math.min(1, this.throttle));
   } else {
@@ -141,13 +145,13 @@ Plane.prototype.update = function (dt, game) {
 
   // ── 방향 ──
   let wantYaw = this.yaw, wantPitch = 0;
-  if (rider) {
+  if (rider && !autoNow) {
     wantYaw = rider.yaw;
     wantPitch = Math.max(-0.85, Math.min(0.85, rider.pitch));
     // A/D 는 러더 — 기수를 조금씩 옆으로 민다
     if (input.left) wantYaw -= 0.5;
     if (input.right) wantYaw += 0.5;
-  } else if (ai) {
+  } else if (autoNow) {
     wantYaw = ai.yaw;
     wantPitch = ai.pitch;
   }
@@ -159,7 +163,7 @@ Plane.prototype.update = function (dt, game) {
     this.pitch += (0 - this.pitch) * Math.min(1, dt * 4);
     this.roll += (0 - this.roll) * Math.min(1, dt * 4);
     // 이륙 — 충분히 빠르고 조종간을 당기면
-    const pull = rider ? rider.pitch > 0.06 : (ai ? ai.rotate : false);
+    const pull = autoNow ? ai.rotate : (rider ? rider.pitch > 0.06 : false);
     if (this.speed >= PLANE_TAKEOFF && pull) {
       this.onGround = false;
       this.vy = 4;
@@ -289,14 +293,21 @@ EntityManager.prototype.updatePlanes = function (dt, player, game) {
   if (!this.planes) this.planes = [];
   for (let i = this.planes.length - 1; i >= 0; i--) {
     const p = this.planes[i];
+    const far = Math.hypot(p.x - player.x, p.z - player.z);
+    // 지나가는 비행기는 시야를 벗어나면 사라진다
+    if (p.ambient && (far > SKY_DESPAWN_R || p.onGround)) {
+      this.planes.splice(i, 1);
+      continue;
+    }
     // 세워 둔 비행기는 멀어지면 정리한다 (정기편은 계속 난다)
-    if (!p.rider && !p.ai && Math.hypot(p.x - player.x, p.z - player.z) > 420) {
+    if (!p.rider && !p.ai && far > 420) {
       this.planes.splice(i, 1);
       continue;
     }
     p.update(dt, game);
   }
   this.updateAirlines(dt, game);
+  this.updateSkyTraffic(dt, player);
   this.populateAirport(player);
 };
 
@@ -386,7 +397,7 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
   let best = null, bestT = maxDist;
   for (let i = 0; i < this.planes.length; i++) {
     const p = this.planes[i];
-    if (p.rider) continue;
+    if (p.rider || p.ambient || p.airline) continue;
     const t = rayBox(ox, oy, oz, dx, dy, dz,
       p.x - 12, p.y - 4, p.z - 13, p.x + 12, p.y + 7, p.z + 13);
     if (t !== null && t < bestT) { bestT = t; best = p; }
@@ -444,6 +455,13 @@ Plane.prototype.aiControl = function (dt, game) {
       }
       break;
 
+    case 'ferry':
+      // 그냥 곧게 순항한다
+      out.throttle = 0.9;
+      out.yaw = a.hdg;
+      out.pitch = Math.max(-0.10, Math.min(0.10, (a.alt - this.y) * 0.02));
+      break;
+
     case 'taxi_out': {
       const wp = a.wp[a.wpi];
       out.throttle = 0.14;
@@ -492,6 +510,13 @@ Plane.prototype.aiControl = function (dt, game) {
       // 활주로 연장선 위 진입점으로 간다
       const rw = a.rwTo;
       const fixX = rw.x0 - 300, fixZ = rw.z;
+      if (a.auto && this.x > fixX + 40) {
+        // 이미 지나쳤으면 크게 돌아 진입선 밖으로 나간다
+        out.throttle = 0.7;
+        out.yaw = aiHeadingTo(this.x, this.z, fixX - 160, rw.z + (this.z > rw.z ? 200 : -200));
+        out.pitch = Math.max(-0.14, Math.min(0.12, (rw.y + 46 - this.y) * 0.02));
+        break;
+      }
       out.throttle = 0.6;
       out.yaw = aiHeadingTo(this.x, this.z, fixX, fixZ);
       const wantY = rw.y + 42;
@@ -526,6 +551,14 @@ Plane.prototype.aiControl = function (dt, game) {
       out.throttle = 0;
       out.yaw = Math.PI / 2;
       if (!this.onGround && a.t > 1.5) { a.state = 'final'; a.t = 0; break; }
+      if (a.auto) {
+        // 자동 착륙은 여기까지. 멈추면 조종을 사람에게 넘긴다.
+        if (this.speed < 4 || stuck) {
+          this.ai = null;
+          if (this.onAutolandDone) this.onAutolandDone(a.to);
+        }
+        break;
+      }
       if (this.speed < 4 || stuck) {
         const ap = a.to;
         const st = ap.stands[(Math.random() * ap.stands.length) | 0];
@@ -580,11 +613,77 @@ EntityManager.prototype.updateAirlines = function (dt, game) {
   }
 };
 
-// 자동 운항편은 몇 번 편인지 (계기판·경보에 쓴다)
+// ── 자동 착륙 ─────────────────────────────────────────────────────────
+// 조종사가 승인하면 기계가 활주로까지 데려다 준다.
+Plane.prototype.beginAutoland = function (ap) {
+  // 진입하기 좋은 활주로를 고른다 (가까운 쪽)
+  let rw = ap.runways[0], bd = 1e9;
+  for (let i = 0; i < ap.runways.length; i++) {
+    const d = Math.abs(this.z - ap.runways[i].z);
+    if (d < bd) { bd = d; rw = ap.runways[i]; }
+  }
+  this.ai = {
+    auto: true, state: 'descend', t: 0,
+    from: null, to: ap, rwTo: rw, wp: [], wpi: 0
+  };
+};
+
+Plane.prototype.cancelAutoland = function () {
+  if (this.ai && this.ai.auto) this.ai = null;
+};
+
+Plane.prototype.autoState = function () {
+  if (!this.ai || !this.ai.auto) return null;
+  const s = this.ai.state;
+  return s === 'descend' ? '자동 강하 중'
+    : s === 'final' ? '자동 최종 진입 — 활주로 정렬'
+      : s === 'rollout' ? '접지 — 감속 중' : '자동 착륙 중';
+};
+
+// 어떤 비행기인지 (계기판·경보에 쓴다)
 Plane.prototype.flightLabel = function () {
-  if (!this.ai) return null;
+  if (this.ambient) return '순항 중인 여객기';
+  if (!this.ai) return '주기 중인 기체';
   const a = this.ai;
+  if (!a.from && !a.to) return '순항 중인 여객기';
   return (a.from ? a.from.code : '??') + ' → ' + (a.to ? a.to.code : '??');
+};
+
+// ── 하늘을 지나가는 비행기 ────────────────────────────────────────────
+// 플레이어 주변 하늘에 늘 몇 대가 순항한다. 탈 수는 없고 풍경이자 교통량이다.
+const SKY_TRAFFIC = 3;
+const SKY_SPAWN_R = 380;
+const SKY_DESPAWN_R = 700;
+
+EntityManager.prototype.updateSkyTraffic = function (dt, player) {
+  if (!this.planes) this.planes = [];
+  let n = 0;
+  for (let i = 0; i < this.planes.length; i++) if (this.planes[i].ambient) n++;
+  if (n >= SKY_TRAFFIC) return;
+
+  this._skyTimer = (this._skyTimer || 0) - dt;
+  if (this._skyTimer > 0) return;
+  this._skyTimer = 3 + Math.random() * 6;
+
+  // 플레이어 주변 어딘가에서 나타나 스쳐 지나간다
+  const ang = Math.random() * Math.PI * 2;
+  const x = player.x + Math.cos(ang) * SKY_SPAWN_R;
+  const z = player.z + Math.sin(ang) * SKY_SPAWN_R;
+  const alt = 62 + Math.random() * 26;
+  // 플레이어 쪽을 스치도록 진로를 잡는다 (정확히 겹치지 않게 살짝 비껴서)
+  // 스치되 부딪히지는 않게 옆으로 90~260블록 비껴 지나간다
+  const off = (Math.random() < 0.5 ? -1 : 1) * (90 + Math.random() * 170);
+  const tx = player.x + Math.cos(ang + Math.PI / 2) * off;
+  const tz = player.z + Math.sin(ang + Math.PI / 2) * off;
+  const hdg = Math.atan2(tx - x, tz - z);
+
+  const pl = this.spawnPlane(x, alt, z, hdg);
+  pl.ambient = true;
+  pl.onGround = false;
+  pl.gear = 0;
+  pl.speed = 46 + Math.random() * 12;
+  pl.throttle = 0.9;
+  pl.ai = { auto: false, state: 'ferry', t: 0, hdg: hdg, alt: alt, from: null, to: null };
 };
 
 // 가장 가까운 다른 비행기 (공중 충돌 경보)

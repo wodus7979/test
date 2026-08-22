@@ -175,12 +175,24 @@ Weather.prototype.accumulate = function (player, snowing) {
   }
 };
 
-// 화면에 그릴 값들
-Weather.prototype.visuals = function (player) {
-  const s = this.strength;
+// 구름 위로 올라가면 날씨가 미치지 않는다 (1 = 날씨 그대로, 0 = 영향 없음)
+Weather.prototype.skyFade = function (y) {
+  const lo = CLOUD_Y - 6, hi = CLOUD_Y + CLOUD_H + 2;
+  if (y <= lo) return 1;
+  if (y >= hi) return 0;
+  const t = (y - lo) / (hi - lo);
+  return 1 - t * t * (3 - 2 * t);
+};
+
+// 화면에 그릴 값들. camY 를 주면 구름 위에서는 날씨가 걷힌다.
+Weather.prototype.visuals = function (player, camY) {
+  const fade = this.skyFade(camY === undefined ? player.y : camY);
+  const s = this.strength * fade;
   const snow = this.isSnowAt(player.x, player.z);
   return {
     strength: s,
+    raw: this.strength,
+    fade: fade,
     snow: snow,
     flash: this.flash,
     // 머리 위가 뚫려 있어야 입자가 보인다 (동굴·실내에서는 사라진다)
