@@ -231,110 +231,164 @@ function apTerminal(plan) {
   for (const zz of [z0, z1]) {
     for (let x = -7; x <= 7; x++) for (let y = 1; y <= 4; y++) set(x, y, zz, 0);
   }
-  // 천장 조명
-  for (let x = x0 + 3; x <= x1 - 3; x += 5) {
-    for (const zz of [-9, -4, 4, 9]) set(x, TERM_H, zz, m.lamp);
-  }
 }
 
-// ── 터미널 실내 ───────────────────────────────────────────────────────
-// 짐 부치는 곳 · 출국 심사 · 중앙 홀 · 면세점 · 식당가 · 게이트
+// ── 터미널 실내 ─────────────────────────────────────────────────────
+// 블록을 쌓아 흉내 내지 않고 furniture.js 의 진짜 가구 모델로 채운다.
+// 짐 부치는 곳 · 보안/출국 심사 · 중앙 홀 · 면세점 · 식당가 · 게이트
 function apInterior(plan, rnd) {
   const m = APMAT, gy = plan.y;
   const set = function (x, y, z, id, meta) { plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true); };
   const people = plan.people;
   const put = function (x, z, job) { people.push({ x: plan.x + x + 0.5, y: gy + 1, z: plan.z + z + 0.5, job: job }); };
+  // 가구가 바라보는 방향 (메타)
+  const PZ = 0, PX = 1, NZ = 2, NX = 3;
+
+  // ── 바닥 마감과 천장 ──
+  for (let x = -TERM_X + 1; x <= TERM_X - 1; x++) {
+    for (let z = -TERM_Z + 1; z <= TERM_Z - 1; z++) {
+      set(x, 0, z, Math.abs(z) <= 2 ? m.floor2 : m.floor);
+    }
+  }
+  for (let x = -TERM_X + 3; x <= TERM_X - 3; x += 3) {
+    for (const zz of [-10, -6, -2, 2, 6, 10]) set(x, TERM_H, zz, B.ceiling_panel);
+  }
+  // 통로로 내려온 펜던트 조명 — 천장이 높아 바닥까지 빛이 닿게 한다
+  for (let x = -TERM_X + 5; x <= TERM_X - 5; x += 5) {
+    for (const zz of [-6, 6]) {
+      for (let y = 9; y < TERM_H; y++) set(x, y, zz, B.chain);
+      set(x, 8, zz, B.ceiling_panel);
+    }
+  }
+
+  // 천장에 매달린 항공편 안내판 (구역마다 한 줄)
+  const boardXs = [-52, -28, 0, 30, 54];
+  for (let i = 0; i < boardXs.length; i++) {
+    const bx = boardXs[i];
+    for (let d = -2; d <= 2; d++) {
+      set(bx + d, TERM_H - 1, 0, m.trim);                 // 매다는 레일
+      set(bx + d, TERM_H - 2, 0, B.flight_board, NZ);
+      set(bx + d, TERM_H - 2, 1, B.flight_board, PZ);
+    }
+  }
 
   // ── 1) 체크인 · 수하물 위탁 (x -64 ~ -42) ──
+  // 카운터 뒤에 직원, 앞에는 무인 발권기와 줄 세우는 기둥, 옆에 수하물 벨트
   for (let x = -63; x <= -43; x += 4) {
-    for (let d = -1; d <= 1; d++) set(x + d, 1, -4, m.desk);        // 카운터
-    set(x, 2, -4, B.item_frame !== undefined ? m.trim : m.trim);
-    set(x, 1, -6, B.barrel, 2);                                     // 직원 자리
-    for (let d = -1; d <= 1; d++) set(x + d, 1, -2, m.belt);        // 수하물 벨트
-    set(x, 1, 1, B.chest, 0);                                       // 부친 짐
-    put(x, -6, 'cartographer');                                     // 카운터 직원
-    if (rnd() < 0.7) put(x, 3, null);                               // 줄 선 승객
+    for (let d = -1; d <= 1; d++) set(x + d, 1, -5, B.white_counter, PZ);   // 카운터
+    set(x - 2, 1, -5, B.white_cabinet, PZ);
+    set(x, 1, -7, B.office_chair, PZ);
+    put(x, -7, 'cartographer');                                            // 카운터 직원
+    set(x - 1, 1, -3, B.rope_post, PZ);                                    // 줄
+    set(x + 1, 1, -3, B.rope_post, PZ);
+    set(x, 1, 2, B.checkin_kiosk, PZ);                                     // 무인 발권기
+    if (rnd() < 0.7) put(x, 4, null);                                      // 줄 선 승객
+    if (rnd() < 0.5) set(x + 2, 1, 4, B.luggage_cart, PZ);
   }
-  apText(plan, 'CHECK IN', -53, -10, 1, m.carpet, false, gy + 1);
-  for (let x = -66; x <= -41; x++) for (let z = 2; z <= 10; z++) set(x, 0, z, m.floor2);
+  // 수하물 벨트가 벽을 따라 흘러간다
+  for (let x = -65; x <= -41; x++) set(x, 1, -10, B.baggage_belt);
+  for (const sx of [-62, -55, -48, -44]) set(sx, 2, -10, B.suitcase, PZ);
+  set(-66 + 1, 1, -8, B.potted_tree); set(-42, 1, -8, B.potted_tree);
+  set(-58, 1, 8, B.airport_bench, NZ); set(-50, 1, 8, B.airport_bench, NZ);
+  for (let x = -64; x <= -44; x += 10) set(x, 1, 11, B.trash_bin);
+  set(-53, 6, -12, B.airport_sign, PZ);
+  apText(plan, 'CHECK IN', -53, 12, 1, m.guide, false, gy);
 
-  // ── 2) 출국 심사대 (x -38 ~ -20) ──
+  // ── 2) 보안 검색 · 출국 심사 (x -38 ~ -20) ──
   for (let x = -37; x <= -21; x += 4) {
-    for (let y = 1; y <= 3; y++) { set(x - 1, y, -2, m.trim); set(x - 1, y, 2, m.trim); }
-    for (let z = -1; z <= 1; z++) set(x - 1, 1, z, B.iron_bars);     // 개찰구
-    set(x, 1, -3, m.desk);                                          // 심사대
-    set(x, 2, -3, B.lectern !== undefined ? B.lectern : m.trim, 2);
-    put(x, -4, 'librarian');                                        // 심사관
-    if (rnd() < 0.6) put(x, 5, null);
+    // 보안 검색대 — 기둥 두 개와 윗보
+    set(x - 1, 1, -1, B.security_pillar, PZ);
+    set(x - 1, 1, 1, B.security_pillar, PZ);
+    set(x - 1, 2, -1, B.security_beam);
+    set(x - 1, 2, 1, B.security_beam);
+    set(x - 1, 1, 0, B.baggage_belt);                       // 짐 통과 벨트
+    set(x + 1, 1, -3, B.office_desk, PZ);                   // 심사대
+    set(x + 1, 1, -4, B.office_chair, PZ);
+    put(x + 1, -4, 'librarian');                            // 심사관
+    for (let d = 2; d <= 5; d++) set(x - 1, 1, d, B.rope_post, PZ);
+    if (rnd() < 0.6) put(x, 6, null);
   }
-  for (let x = -40; x <= -19; x++) for (let z = -11; z <= 11; z++) if (Math.abs(z) > 3) set(x, 0, z, m.floor2);
+  set(-30, 1, -10, B.potted_fern); set(-24, 1, 10, B.potted_fern);
+  set(-29, 6, -12, B.airport_sign, PZ);
 
-  // ── 3) 중앙 홀 (x -18 ~ 18) — 안내 데스크와 의자 ──
-  for (let x = -18; x <= 18; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.carpet ? m.floor2 : m.floor);
-  for (let d = -3; d <= 3; d++) { set(d, 1, 0, m.desk); set(d, 2, 0, B.glass_pane); }
-  put(0, -2, 'cleric');
-  apText(plan, plan.code, 0, 9, 1, m.guide, false, gy + 1);
+  // ── 3) 중앙 홀 (x -18 ~ 18) — 안내 데스크와 대기 구역 ──
+  for (let d = -3; d <= 3; d++) set(d, 1, 0, B.white_counter, PZ);
+  set(-4, 1, 0, B.wall_tv, PZ); set(4, 1, 0, B.wall_tv, PZ);
+  for (const d of [-2, 0, 2]) { set(d, 1, -2, B.office_chair, PZ); put(d, -2, 'cleric'); }
+  apText(plan, plan.code, 0, 11, 1, m.guide, false, gy);
+  // 대기 의자 두 줄 — 벤치와 소파를 섞는다
   for (const zz of [-8, 8]) {
-    for (let x = -16; x <= 16; x += 2) {
-      set(x, 1, zz, B.quartz_stairs, zz < 0 ? 0 : 2);               // 대기 의자
+    const face = zz < 0 ? NZ : PZ;
+    for (let x = -16; x <= 16; x += 3) {
+      set(x, 1, zz, (x % 6 === 0) ? B.gray_sofa : B.airport_bench, face);
       if (rnd() < 0.4) put(x, zz + (zz < 0 ? -2 : 2), null);
     }
   }
-  for (let x = -14; x <= 14; x += 7) {
-    for (let y = 1; y <= TERM_H - 1; y++) set(x, y, 0, m.trim);     // 홀 기둥
+  for (const x of [-16, -9, 9, 16]) {
+    for (let y = 1; y <= TERM_H - 1; y++) set(x, y, 0, m.trim);   // 홀 기둥
+    set(x, 1, 3, B.potted_tree);
+    set(x, 1, -3, B.trash_bin);
   }
+  for (const x of [-17, 17]) { set(x, 1, -11, B.vending_machine, PZ); set(x + 2, 1, -11, B.vending_machine, PZ); }
+  set(-12, 1, 11, B.floor_lamp); set(12, 1, 11, B.floor_lamp);
+  for (const x of [-10, 10]) { set(x, 1, 5, B.coffee_table); set(x, 1, -5, B.coffee_table); }
 
   // ── 4) 면세점 (x 20 ~ 42) ──
-  for (let x = 20; x <= 42; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.floor2);
-  const SHOP_BLOCKS = [B.bookshelf, B.barrel, B.red_wool, B.blue_wool, B.yellow_wool,
-    B.lime_wool, B.magenta_wool, B.cake !== undefined ? B.cake : B.white_wool];
   for (let x = 22; x <= 40; x += 6) {
     for (const zz of [-8, 8]) {
-      for (let d = -2; d <= 2; d++) {
-        set(x + d, 1, zz, m.shop);
-        set(x + d, 2, zz, SHOP_BLOCKS[(rnd() * SHOP_BLOCKS.length) | 0]);
-        set(x + d, 3, zz, B.glass);                                 // 진열장
-      }
-      set(x, 4, zz, m.lamp);
-      put(x, zz + (zz < 0 ? 2 : -2), 'leatherworker');              // 점원
+      const face = zz < 0 ? PZ : NZ;                    // 통로(가운데) 쪽을 본다
+      for (let d = -2; d <= 2; d++) set(x + d, 1, zz, B.display_case);
+      set(x - 3, 1, zz, B.wood_counter, face);
+      set(x + 3, 1, zz, B.white_cabinet, face);
+      for (let d = -2; d <= 2; d++) set(x + d, 1, zz + (zz < 0 ? -2 : 2), B.wall_shelf, face);
+      set(x, TERM_H - 4, zz, B.airport_sign, face);
+      put(x - 3, zz + (zz < 0 ? -1 : 1), 'leatherworker');   // 점원
     }
     if (rnd() < 0.8) put(x, (rnd() < 0.5 ? -4 : 4), null);
   }
-  apText(plan, 'DUTY FREE', 31, 0, 1, m.guide, false, gy + 1);
+  for (const x of [21, 31, 41]) { set(x, 1, 0, B.potted_tree); }
+  apText(plan, 'DUTY FREE', 31, 11, 1, m.guide, false, gy);
 
   // ── 5) 식당가 (x 44 ~ 64) ──
-  for (let x = 44; x <= 64; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.floor2);
   for (let x = 46; x <= 62; x += 5) {
     for (const zz of [-7, 0, 7]) {
-      set(x, 1, zz, B.oak_fence);                                   // 탁자 다리
-      set(x, 2, zz, B.smooth_quartz_slab);                          // 상판
-      set(x - 1, 1, zz, B.oak_stairs, 3);                           // 의자
-      set(x + 1, 1, zz, B.oak_stairs, 1);
-      if (rnd() < 0.55) put(x - 2, zz, null);
+      set(x, 1, zz, B.round_table);                     // 원형 탁자
+      set(x - 1, 1, zz, B.oak_chair, PX);               // 탁자를 바라보는 의자 넷
+      set(x + 1, 1, zz, B.oak_chair, NX);
+      set(x, 1, zz - 1, B.oak_chair, PZ);
+      set(x, 1, zz + 1, B.oak_chair, NZ);
+      if (rnd() < 0.55) put(x - 1, zz, null);
     }
   }
-  // 주방
-  for (let x = 56; x <= 62; x++) { set(x, 1, -11, B.smoker, 2); set(x, 2, -11, m.trim); }
-  for (let x = 46; x <= 52; x++) { set(x, 1, 11, B.furnace, 0); set(x, 2, 11, m.trim); }
+  // 주방 — 카운터 뒤에 화덕, 위에 메뉴 화면
+  for (let x = 55; x <= 62; x++) { set(x, 1, -10, B.wood_counter, PZ); set(x, 1, -11, B.smoker, 2); set(x, 4, -12, B.wall_tv, PZ); }
+  for (let x = 46; x <= 53; x++) { set(x, 1, 10, B.wood_counter, NZ); set(x, 1, 11, B.furnace, 0); set(x, 4, 12, B.wall_tv, NZ); }
   put(58, -9, 'butcher'); put(48, 9, 'butcher');
-  apText(plan, 'FOOD', 54, 4, 1, m.guide, false, gy + 1);
+  for (const x of [45, 64]) { set(x, 1, -4, B.potted_fern); set(x, 1, 4, B.potted_fern); }
+  apText(plan, 'FOOD', 54, 4, 1, m.guide, false, gy);
 
   // ── 6) 게이트 (탑승교마다) ──
   for (let i = 0; i < STAND_XS.length; i++) {
     const sx = STAND_XS[i];
     for (const side of [-1, 1]) {
       const zz = side * (TERM_Z - 2);
-      // 게이트 번호
-      apText(plan, String(i + 1) + (side < 0 ? 'A' : 'B'), sx, side < 0 ? zz + 3 : zz - 1, 1,
-        m.guide, false, gy + 1);
-      // 대기 의자 두 줄
+      const face = side < 0 ? PZ : NZ;                  // 홀 쪽을 본다
+      apText(plan, String(i + 1) + (side < 0 ? 'A' : 'B'), sx, side < 0 ? zz + 6 : zz - 1, 1,
+        m.guide, false, gy);
+      // 탑승구 카운터와 대기 의자
+      set(sx - 1, 1, zz, B.white_counter, face);
+      set(sx + 1, 1, zz, B.checkin_kiosk, face);
+      set(sx - 2, 1, zz, B.rope_post, face);
+      set(sx + 2, 1, zz, B.rope_post, face);
       for (let d = -3; d <= 3; d++) {
-        set(sx + d, 1, zz - side, B.quartz_stairs, side < 0 ? 2 : 0);
+        if (d === 0) continue;
+        set(sx + d, 1, zz - side * 2, B.airport_bench, face);
       }
-      set(sx, 1, zz, B.iron_bars);                                   // 탑승 게이트
-      set(sx - 1, 1, zz, m.desk);
-      put(sx + 1, zz - side * 2, 'fletcher');                        // 게이트 직원
-      if (rnd() < 0.7) put(sx - 2, zz - side * 3, null);
+      set(sx - 4, 1, zz - side, B.potted_fern);
+      set(sx + 4, 1, zz - side, B.trash_bin);
+      set(sx, TERM_H - 5, zz + side, B.flight_board, face);
+      put(sx + 1, zz - side * 3, 'fletcher');           // 게이트 직원
+      if (rnd() < 0.7) put(sx - 2, zz - side * 4, null);
     }
   }
 }

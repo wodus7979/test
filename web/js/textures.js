@@ -975,6 +975,11 @@ const EXTRA_TEX = {};
 function defTex(name, fn) { EXTRA_TEX[name] = fn; }
 
 function registerExtraTextures() {
+  // 가구 전용 텍스처 (furniture.js 가 모아 둔 것)
+  if (typeof FURNITURE_TEX === 'object') {
+    Object.keys(FURNITURE_TEX).forEach(function (k) { defTex(k, FURNITURE_TEX[k]); });
+  }
+
   function skin(base, spot, spots) {
     return function (p, rnd) {
       p.noise(rnd, base, 6, 3);

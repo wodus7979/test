@@ -56,7 +56,7 @@ const PLANE_TURN = 0.95;       // 초당 최대 선회(라디안)
 const PLANE_PITCH_RATE = 0.80;
 const PLANE_SINK = 15;         // 실속했을 때 가라앉는 속도
 const PLANE_REST = 3.4;        // 바퀴가 땅에 닿을 때 동체 중심 높이
-const PLANE_CEIL = 94;         // 이 위로는 못 올라간다 (세계 높이 한계)
+const PLANE_CEIL = 154;        // 이 위로는 못 올라간다 (세계 높이 한계)
 const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
 
 function Plane(world, x, y, z, yaw) {
@@ -408,7 +408,7 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
 // ── 자동 운항 (공항 사이를 오가는 정기편) ─────────────────────────────
 // 상태: taxi_out → takeoff → climb → cruise → descend → final → rollout →
 //       taxi_in → park → (다시 taxi_out)
-const AI_CRUISE_ALT = 74;      // 순항 고도 (구름 아래)
+const AI_CRUISE_ALT = 112;     // 순항 고도 (구름 아래)
 const AI_STATE_LIMIT = {       // 상태마다 최대 시간 (막히면 다음으로 넘긴다)
   taxi_out: 90, takeoff: 60, climb: 60, cruise: 400,
   descend: 200, final: 90, rollout: 40, taxi_in: 90, park: 25

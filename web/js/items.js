@@ -2,6 +2,9 @@
 // 나머지 아이템(재료·음식·잡화)은 itemlist.js 에서 등록한다.
 'use strict';
 
+// 여기까지 등록된 블록이 전부다 (blocks / blockfamilies / furniture)
+const MAX_BLOCK_ID = _nextBlockId - 1;
+
 const ITEMS = {};
 const ITEM_LIST = [];
 
@@ -10,6 +13,7 @@ const ITEM_GROUPS = [
   ['building', '건축'],
   ['nature', '자연'],
   ['functional', '기능'],
+  ['furniture', '가구'],
   ['redstone', '레드스톤'],
   ['tools', '도구'],
   ['combat', '전투'],

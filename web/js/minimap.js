@@ -37,7 +37,7 @@ Minimap.prototype.chunkTile = function (c) {
   for (let lz = 0; lz < MAP_TILE; lz++) {
     for (let lx = 0; lx < MAP_TILE; lx++) {
       let y = -1, id = 0;
-      for (let yy = CHUNK_Y - 1; yy >= 1; yy--) {
+      for (let yy = Math.min(CHUNK_Y - 1, c.topY); yy >= 1; yy--) {
         const b = c.blocks[idx(lx, yy, lz)];
         if (b !== 0) { y = yy; id = b; break; }
       }

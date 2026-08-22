@@ -1502,6 +1502,7 @@ Game.prototype.load = function (given) {
       if (saved.m) c.meta.set(rleDecode(saved.m, c.meta.length, Uint8Array));
       c.modified = true;
       c.decorated = true; // 저장본에 이미 장식이 포함됨
+      self.world.computeTopY(c);
       for (let lz = 0; lz < CHUNK_Z; lz++) {
         for (let lx = 0; lx < CHUNK_X; lx++) self.world.updateHeightMap(c, lx, lz);
       }

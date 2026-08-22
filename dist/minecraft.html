@@ -902,8 +902,10 @@ const META_OPEN = 0x08;    // 문/트랩도어/울타리문 열림
 const META_HALF2 = 0x10;   // 문·침대의 윗부분 / 뒷부분
 
 // ── 상자 모델 헬퍼 (0~16 픽셀 단위) ──────────────────────────────────
-function box(x0, y0, z0, x1, y1, z1) {
-  return [x0 / 16, y0 / 16, z0 / 16, x1 / 16, y1 / 16, z1 / 16];
+// 7번째 칸(tex)은 그 상자만 다른 텍스처로 그리고 싶을 때 쓴다.
+// 가구처럼 한 블록 안에서 나무·천·화면이 섞이는 모델에 필요하다.
+function box(x0, y0, z0, x1, y1, z1, tex) {
+  return [x0 / 16, y0 / 16, z0 / 16, x1 / 16, y1 / 16, z1 / 16, tex];
 }
 
 const SHAPES = {
@@ -1094,11 +1096,12 @@ function rotateBoxes(boxes, meta) {
   if (!facing && !top) return boxes;
   const out = [];
   for (let i = 0; i < boxes.length; i++) {
-    let b = boxes[i];
-    if (top) b = [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5]];
+    const src = boxes[i];
+    let b = src;
+    if (top) b = [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5], src[6]];
     for (let r = 0; r < facing; r++) {
       // Y축 90° 회전: (x,z) -> (z, 1-x)
-      b = [b[2], b[1], 1 - b[3], b[5], b[4], 1 - b[0]];
+      b = [b[2], b[1], 1 - b[3], b[5], b[4], 1 - b[0], src[6]];
     }
     out.push(b);
   }
@@ -2547,7 +2550,377 @@ defBlock('iron_bars', '철창', {
   hardness: 5, tool: TOOL_PICKAXE, tier: 1, group: 'building'
 });
 
-const MAX_BLOCK_ID = _nextBlockId - 1;
+// MAX_BLOCK_ID 는 모든 블록(가구 포함)이 등록된 뒤 items.js 에서 정한다.
+
+</script>
+<script>
+/* ==== js/furniture.js ==== */
+// furniture.js - 진짜 가구 모델.
+// 마인크래프트 가구 모드팩(MrCrayfish's Furniture 계열)처럼
+// 블록을 쌓아 흉내 내는 게 아니라, 다리·좌판·등받이를 각각 작은 상자로 깎아 만든다.
+// 한 블록 안에서 나무·천·금속·화면이 섞이도록 상자마다 텍스처를 따로 준다.
+'use strict';
+
+// ── 가구 전용 텍스처 (textures.js 가 아틀라스에 그려 넣는다) ───────────
+const FURNITURE_TEX = {};
+function defFurnTex(name, fn) { FURNITURE_TEX[name] = fn; }
+
+defFurnTex('f_wood', function (p, rnd) {
+  p.noise(rnd, '#a9793f', 8, 4);
+  for (let y = 0; y < 16; y++) {
+    if (y % 5 === 2) for (let x = 0; x < 16; x++) p.set(x, y, shade('#a9793f', -18));
+  }
+  p.speckle(rnd, '#8d6231', 6, 1);
+});
+defFurnTex('f_wood_dark', function (p, rnd) {
+  p.noise(rnd, '#5b3d28', 7, 4);
+  for (let y = 0; y < 16; y++) {
+    if (y % 6 === 3) for (let x = 0; x < 16; x++) p.set(x, y, shade('#5b3d28', -14));
+  }
+});
+defFurnTex('f_white', function (p, rnd) {
+  p.noise(rnd, '#eceef1', 4, 5);
+  p.frame(0, 0, 16, 16, '#dcdfe4');
+});
+defFurnTex('f_metal', function (p, rnd) {
+  p.noise(rnd, '#b6bcc4', 5, 2);
+  for (let x = 0; x < 16; x += 3) for (let y = 0; y < 16; y++) p.set(x, y, shade('#b6bcc4', -12));
+});
+defFurnTex('f_metal_dark', function (p, rnd) {
+  p.noise(rnd, '#4a5058', 6, 3);
+  for (let x = 1; x < 16; x += 4) for (let y = 0; y < 16; y++) p.set(x, y, shade('#4a5058', 10));
+});
+function fabric(base, weft) {
+  return function (p, rnd) {
+    p.noise(rnd, base, 7, 2);
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) if (((x + y) & 3) === 0) p.set(x, y, weft);
+    }
+  };
+}
+defFurnTex('f_fabric_blue', fabric('#3a5f9e', '#33558d'));
+defFurnTex('f_fabric_gray', fabric('#6d7480', '#626873'));
+defFurnTex('f_fabric_red', fabric('#9c3f42', '#8a373a'));
+defFurnTex('f_leather', function (p, rnd) {
+  p.noise(rnd, '#2b2e34', 5, 3);
+  p.speckle(rnd, '#3a3e46', 14, 1);
+});
+defFurnTex('f_marble', function (p, rnd) {
+  p.noise(rnd, '#e6e7ea', 4, 5);
+  for (let k = 0; k < 3; k++) {
+    let x = (rnd() * 16) | 0;
+    for (let y = 0; y < 16; y++) {
+      p.set(x, y, '#c9ccd3');
+      x += rnd() < 0.5 ? -1 : 1;
+    }
+  }
+});
+// 항공편 안내판 — 검은 화면에 노란 글줄이 흐른다
+defFurnTex('f_screen', function (p, rnd) {
+  p.fill('#0b0e14');
+  for (let r = 1; r < 15; r += 3) {
+    let x = 1;
+    while (x < 15) {
+      const w = 1 + ((rnd() * 3) | 0);
+      if (x + w > 15) break;
+      const c = rnd() < 0.25 ? '#63d27a' : '#e8b93c';
+      p.rect(x, r, w, 2, c);
+      x += w + 1 + ((rnd() * 2) | 0);
+    }
+  }
+});
+defFurnTex('f_screen_blue', function (p, rnd) {
+  p.fill('#123a63');
+  p.rect(2, 2, 12, 5, '#2f79c4');
+  p.rect(3, 9, 10, 2, '#9fd0f5');
+  p.rect(3, 12, 6, 2, '#9fd0f5');
+});
+defFurnTex('f_leaf', function (p, rnd) {
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const d = Math.hypot(x - 7.5, y - 7.5);
+      if (d > 7.6 || rnd() < 0.16) continue;
+      p.set(x, y, mixc('#2f7a34', '#4ca44f', rnd()));
+    }
+  }
+});
+defFurnTex('f_soil', function (p, rnd) { p.noise(rnd, '#4a3626', 9, 2); });
+defFurnTex('f_vend', function (p, rnd) {
+  p.fill('#c9302c');
+  p.rect(1, 1, 14, 10, '#20242b');
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 4; c++) {
+      p.rect(2 + c * 3, 2 + r * 3, 2, 2, ['#e8d24a', '#4aa8e8', '#7ad06a', '#e87a4a'][(r + c) & 3]);
+    }
+  }
+  p.rect(2, 12, 5, 3, '#3a3f47');
+});
+defFurnTex('f_sign', function (p, rnd) {
+  p.fill('#1f6b46');
+  p.frame(0, 0, 16, 16, '#175338');
+  p.rect(2, 6, 7, 2, '#f2f4f7');
+  p.rect(10, 5, 2, 4, '#f2f4f7');
+  p.set(12, 6, '#f2f4f7'); p.set(12, 7, '#f2f4f7');
+  p.rect(2, 10, 9, 1, '#cfe6d8');
+});
+defFurnTex('f_lampshade', function (p, rnd) {
+  p.noise(rnd, '#f5efdc', 5, 4);
+  p.rect(0, 13, 16, 3, '#e6dcc0');
+});
+defFurnTex('f_glass_case', function (p, rnd) {
+  p.fill([210, 230, 240, 70]);
+  p.frame(0, 0, 16, 16, [235, 245, 250, 150]);
+});
+defFurnTex('f_belt', function (p, rnd) {
+  p.noise(rnd, '#23262c', 5, 3);
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#3c414a');
+});
+defFurnTex('f_rope', function (p, rnd) { p.noise(rnd, '#8a1f28', 6, 2); });
+
+// ── 가구 등록 헬퍼 ────────────────────────────────────────────────────
+function defFurn(name, kr, boxes, opts) {
+  opts = opts || {};
+  return defBlock(name, kr, {
+    render: RENDER_BOXES,
+    boxes: boxes,
+    tex: { all: opts.tex || 'f_wood' },
+    facing: opts.facing !== false,
+    solid: opts.solid !== false,
+    opaque: false,
+    cutout: opts.cutout !== false,
+    light: opts.light || 0,
+    hardness: opts.hardness !== undefined ? opts.hardness : 1.4,
+    tool: opts.tool || TOOL_AXE,
+    group: 'furniture',
+    stack: 16
+  });
+}
+
+// 다리 네 개를 한 번에
+function furnLegs(x0, z0, x1, z1, h, w, tex) {
+  const o = [];
+  o.push(box(x0, 0, z0, x0 + w, h, z0 + w, tex));
+  o.push(box(x1 - w, 0, z0, x1, h, z0 + w, tex));
+  o.push(box(x0, 0, z1 - w, x0 + w, h, z1, tex));
+  o.push(box(x1 - w, 0, z1 - w, x1, h, z1, tex));
+  return o;
+}
+
+// ── 앉는 가구 ─────────────────────────────────────────────────────────
+// 상자는 모두 "정면이 +Z" 기준으로 깎는다. 메타 0~3 이 +Z / +X / -Z / -X 를 본다.
+defFurn('oak_chair', '참나무 의자',
+  furnLegs(2, 2, 14, 14, 8, 2, 'f_wood').concat([
+    box(2, 8, 2, 14, 10, 14, 'f_wood'),          // 좌판
+    box(2, 10, 2, 14, 16, 4, 'f_wood')           // 등받이(뒤쪽 = -Z)
+  ]), { tex: 'f_wood' });
+
+defFurn('walnut_chair', '호두나무 의자',
+  furnLegs(2, 2, 14, 14, 8, 2, 'f_wood_dark').concat([
+    box(2, 8, 2, 14, 10, 14, 'f_fabric_red'),
+    box(2, 10, 2, 14, 16, 4, 'f_wood_dark')
+  ]), { tex: 'f_wood_dark' });
+
+defFurn('office_chair', '사무용 의자', [
+  box(3, 0, 7, 13, 1, 9, 'f_metal_dark'),        // 별 모양 받침
+  box(7, 0, 3, 9, 1, 13, 'f_metal_dark'),
+  box(6.5, 1, 6.5, 9.5, 8, 9.5, 'f_metal'),      // 기둥
+  box(3, 8, 3, 13, 10, 13, 'f_leather'),         // 좌판
+  box(3, 10, 3, 13, 16, 5, 'f_leather')          // 등받이
+], { tex: 'f_leather', tool: TOOL_PICKAXE });
+
+defFurn('oak_stool', '나무 스툴',
+  furnLegs(3, 3, 13, 13, 9, 2, 'f_wood').concat([
+    box(2, 9, 2, 14, 11, 14, 'f_wood')
+  ]), { tex: 'f_wood' });
+
+defFurn('blue_sofa', '파란 소파', [
+  box(1, 0, 2, 3, 3, 4, 'f_wood_dark'), box(13, 0, 2, 15, 3, 4, 'f_wood_dark'),
+  box(1, 0, 12, 3, 3, 14, 'f_wood_dark'), box(13, 0, 12, 15, 3, 14, 'f_wood_dark'),
+  box(0, 3, 1, 16, 9, 15, 'f_fabric_blue'),      // 방석
+  box(0, 9, 1, 16, 16, 4, 'f_fabric_blue'),      // 등받이
+  box(0, 9, 4, 3, 13, 15, 'f_fabric_blue'),      // 팔걸이
+  box(13, 9, 4, 16, 13, 15, 'f_fabric_blue')
+], { tex: 'f_fabric_blue' });
+
+defFurn('gray_sofa', '회색 소파', [
+  box(1, 0, 2, 3, 3, 4, 'f_metal'), box(13, 0, 2, 15, 3, 4, 'f_metal'),
+  box(1, 0, 12, 3, 3, 14, 'f_metal'), box(13, 0, 12, 15, 3, 14, 'f_metal'),
+  box(0, 3, 1, 16, 9, 15, 'f_fabric_gray'),
+  box(0, 9, 1, 16, 16, 4, 'f_fabric_gray'),
+  box(0, 9, 4, 3, 13, 15, 'f_fabric_gray'),
+  box(13, 9, 4, 16, 13, 15, 'f_fabric_gray')
+], { tex: 'f_fabric_gray' });
+
+// 공항 대기 벤치 — 금속 다리에 가죽 좌판, 가운데 팔걸이
+defFurn('airport_bench', '공항 벤치', [
+  box(1, 0, 3, 3, 7, 13, 'f_metal'), box(13, 0, 3, 15, 7, 13, 'f_metal'),
+  box(0, 7, 2, 16, 9, 14, 'f_leather'),
+  box(0, 9, 3, 1.5, 13, 13, 'f_metal'),
+  box(14.5, 9, 3, 16, 13, 13, 'f_metal')
+], { tex: 'f_leather', tool: TOOL_PICKAXE });
+
+// ── 탁자·책상 ─────────────────────────────────────────────────────────
+defFurn('oak_table', '참나무 탁자',
+  furnLegs(1, 1, 15, 15, 13, 2, 'f_wood').concat([
+    box(0, 13, 0, 16, 15, 16, 'f_wood')
+  ]), { tex: 'f_wood', facing: false });
+
+defFurn('round_table', '원형 탁자', [
+  box(4, 0, 4, 12, 1, 12, 'f_metal_dark'),
+  box(6.5, 1, 6.5, 9.5, 13, 9.5, 'f_metal'),
+  box(2, 13, 4, 14, 15, 12, 'f_marble'),
+  box(4, 13, 2, 12, 15, 14, 'f_marble'),
+  box(3, 13, 3, 13, 15, 13, 'f_marble')
+], { tex: 'f_marble', facing: false, tool: TOOL_PICKAXE });
+
+defFurn('coffee_table', '낮은 탁자',
+  furnLegs(1, 1, 15, 15, 6, 2, 'f_wood_dark').concat([
+    box(0, 6, 0, 16, 8, 16, 'f_wood_dark')
+  ]), { tex: 'f_wood_dark', facing: false });
+
+defFurn('office_desk', '사무 책상', [
+  box(0, 0, 2, 2, 12, 14, 'f_white'), box(14, 0, 2, 16, 12, 14, 'f_white'),
+  box(2, 4, 1, 14, 12, 3, 'f_white'),            // 가림판(뒤)
+  box(0, 12, 0, 16, 14, 16, 'f_wood')
+], { tex: 'f_white' });
+
+// ── 카운터·수납 ───────────────────────────────────────────────────────
+defFurn('white_counter', '카운터', [
+  box(2, 0, 3, 14, 2, 14, 'f_metal_dark'),       // 발판 안쪽
+  box(1, 2, 2, 15, 13, 15, 'f_white'),
+  box(0, 13, 0, 16, 15, 16, 'f_marble')
+], { tex: 'f_white', tool: TOOL_PICKAXE });
+
+defFurn('wood_counter', '나무 카운터', [
+  box(2, 0, 3, 14, 2, 14, 'f_wood_dark'),
+  box(1, 2, 2, 15, 13, 15, 'f_wood'),
+  box(0, 13, 0, 16, 15, 16, 'f_wood_dark')
+], { tex: 'f_wood' });
+
+defFurn('white_cabinet', '수납장', [
+  box(1, 0, 2, 15, 15, 15, 'f_white'),
+  box(0, 15, 1, 16, 16, 16, 'f_marble'),
+  box(5, 4, 15, 11, 5, 15.6, 'f_metal'),         // 손잡이
+  box(5, 10, 15, 11, 11, 15.6, 'f_metal')
+], { tex: 'f_white' });
+
+defFurn('display_case', '진열장', [
+  box(1, 0, 1, 15, 3, 15, 'f_wood_dark'),
+  box(1, 3, 1, 2, 14, 15, 'f_metal'), box(14, 3, 1, 15, 14, 15, 'f_metal'),
+  box(2, 3, 1, 14, 14, 2, 'f_glass_case'), box(2, 3, 14, 14, 14, 15, 'f_glass_case'),
+  box(2, 3, 2, 14, 4, 14, 'f_fabric_red'),
+  box(1, 14, 1, 15, 15, 15, 'f_wood_dark')
+], { tex: 'f_glass_case', facing: false, light: 6 });
+
+defFurn('wall_shelf', '벽 선반', [
+  box(0, 5, 0, 16, 7, 8, 'f_wood'),
+  box(1, 0, 0, 3, 5, 3, 'f_metal'), box(13, 0, 0, 15, 5, 3, 'f_metal')
+], { tex: 'f_wood', solid: false });
+
+// ── 공항 설비 ─────────────────────────────────────────────────────────
+// 항공편 안내판 — 벽에 붙는 넓은 화면
+defFurn('flight_board', '항공편 안내판', [
+  box(0, 0, 0, 16, 16, 2, 'f_metal_dark'),
+  box(0.5, 0.5, 2, 15.5, 15.5, 2.8, 'f_screen')
+], { tex: 'f_screen', light: 9, solid: false, tool: TOOL_PICKAXE });
+
+defFurn('wall_tv', '벽걸이 화면', [
+  box(1, 2, 0, 15, 14, 1.5, 'f_metal_dark'),
+  box(2, 3, 1.5, 14, 13, 2.2, 'f_screen_blue')
+], { tex: 'f_screen_blue', light: 7, solid: false, tool: TOOL_PICKAXE });
+
+// 무인 발권기
+defFurn('checkin_kiosk', '무인 발권기', [
+  box(3, 0, 4, 13, 3, 12, 'f_metal_dark'),
+  box(4, 3, 5, 12, 14, 11, 'f_white'),
+  box(4, 9, 11, 12, 15, 12.8, 'f_screen_blue'),  // 화면
+  box(4.5, 7, 11, 11.5, 8.5, 13, 'f_metal')      // 발권구
+], { tex: 'f_white', light: 5, tool: TOOL_PICKAXE });
+
+// 수하물 컨베이어 (한 칸씩 이어 놓으면 벨트가 된다)
+defFurn('baggage_belt', '수하물 벨트', [
+  box(0, 0, 2, 16, 2, 14, 'f_metal_dark'),
+  box(0, 2, 1, 16, 6, 15, 'f_belt'),
+  box(0, 6, 1, 16, 6.6, 2, 'f_metal'),
+  box(0, 6, 14, 16, 6.6, 15, 'f_metal')
+], { tex: 'f_belt', facing: false, tool: TOOL_PICKAXE });
+
+// 보안 검색대 — 옆 기둥 두 개와 윗보를 따로 세운다
+defFurn('security_pillar', '검색대 기둥', [
+  box(3, 0, 3, 13, 16, 13, 'f_white'),
+  box(4, 3, 2.4, 12, 13, 3, 'f_screen_blue')
+], { tex: 'f_white', tool: TOOL_PICKAXE });
+
+defFurn('security_beam', '검색대 윗보', [
+  box(3, 0, 3, 13, 8, 13, 'f_white'),
+  box(4, 8, 4, 12, 12, 12, 'f_metal')
+], { tex: 'f_white', tool: TOOL_PICKAXE, facing: false });
+
+// 줄 세우는 차단 기둥
+defFurn('rope_post', '차단 기둥', [
+  box(5, 0, 5, 11, 1, 11, 'f_metal_dark'),
+  box(6.5, 1, 6.5, 9.5, 13, 9.5, 'f_metal'),
+  box(7, 13, 7, 9, 15, 9, 'f_metal_dark'),
+  box(7.5, 10, 0, 8.5, 11.5, 7, 'f_rope'),       // 앞뒤로 걸린 줄
+  box(7.5, 10, 9, 8.5, 11.5, 16, 'f_rope')
+], { tex: 'f_metal', facing: true, tool: TOOL_PICKAXE });
+
+defFurn('luggage_cart', '수하물 카트', [
+  box(2, 0, 2, 4, 3, 4, 'f_metal_dark'), box(12, 0, 2, 14, 3, 4, 'f_metal_dark'),
+  box(2, 0, 12, 4, 3, 14, 'f_metal_dark'), box(12, 0, 12, 14, 3, 14, 'f_metal_dark'),
+  box(1, 3, 1, 15, 5, 15, 'f_metal'),
+  box(2, 5, 1, 4, 14, 3, 'f_metal'), box(12, 5, 1, 14, 14, 3, 'f_metal'),
+  box(2, 13, 1, 14, 15, 3, 'f_wood'),            // 손잡이 (뒤)
+  box(1, 5, 1, 15, 7, 2, 'f_metal')
+], { tex: 'f_metal', tool: TOOL_PICKAXE });
+
+defFurn('suitcase', '여행 가방', [
+  box(3, 0, 5, 5, 1, 7, 'f_metal_dark'), box(11, 0, 5, 13, 1, 7, 'f_metal_dark'),
+  box(3, 1, 5, 13, 12, 11, 'f_fabric_red'),
+  box(3, 5, 4.6, 13, 7, 11.4, 'f_metal_dark'),
+  box(7, 12, 7, 9, 14, 9, 'f_metal')
+], { tex: 'f_fabric_red', tool: TOOL_NONE, hardness: 0.6 });
+
+defFurn('vending_machine', '자판기', [
+  box(1, 0, 2, 15, 16, 14, 'f_metal_dark'),
+  box(1.5, 2, 14, 14.5, 15, 14.8, 'f_vend')
+], { tex: 'f_metal_dark', light: 6, tool: TOOL_PICKAXE });
+
+defFurn('trash_bin', '휴지통', [
+  box(4, 0, 4, 12, 12, 12, 'f_metal'),
+  box(3.5, 12, 3.5, 12.5, 14, 12.5, 'f_metal_dark'),
+  box(6, 14, 6, 10, 15, 10, 'f_metal_dark')
+], { tex: 'f_metal', facing: false, tool: TOOL_PICKAXE, hardness: 0.8 });
+
+defFurn('airport_sign', '안내 표지판', [
+  box(0, 10, 6, 16, 16, 8, 'f_sign'),
+  box(7, 16, 6.5, 9, 16, 7.5, 'f_metal')
+], { tex: 'f_sign', solid: false, light: 5, tool: TOOL_PICKAXE });
+
+// ── 조명·화초 ─────────────────────────────────────────────────────────
+defFurn('floor_lamp', '스탠드 조명', [
+  box(5, 0, 5, 11, 1, 11, 'f_metal_dark'),
+  box(7, 1, 7, 9, 11, 9, 'f_metal'),
+  box(4, 11, 4, 12, 16, 12, 'f_lampshade')
+], { tex: 'f_lampshade', facing: false, light: 14, tool: TOOL_PICKAXE });
+
+defFurn('ceiling_panel', '천장 조명', [
+  box(1, 14, 1, 15, 16, 15, 'f_lampshade'),
+  box(0, 15, 0, 16, 16, 16, 'f_metal')
+], { tex: 'f_lampshade', facing: false, solid: false, light: 15, tool: TOOL_PICKAXE });
+
+defFurn('potted_tree', '실내 화분', [
+  box(4, 0, 4, 12, 7, 12, 'f_white'),
+  box(5, 7, 5, 11, 8, 11, 'f_soil'),
+  box(7, 8, 7, 9, 12, 9, 'f_wood_dark'),
+  box(2, 10, 2, 14, 16, 14, 'f_leaf')
+], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.8 });
+
+defFurn('potted_fern', '작은 화분', [
+  box(5, 0, 5, 11, 6, 11, 'f_wood_dark'),
+  box(5.5, 6, 5.5, 10.5, 7, 10.5, 'f_soil'),
+  box(3, 6, 3, 13, 13, 13, 'f_leaf')
+], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.5 });
 
 </script>
 <script>
@@ -2555,6 +2928,9 @@ const MAX_BLOCK_ID = _nextBlockId - 1;
 // items.js - 아이템 레지스트리 코어 + 블록 아이템 + 도구 + 방어구.
 // 나머지 아이템(재료·음식·잡화)은 itemlist.js 에서 등록한다.
 'use strict';
+
+// 여기까지 등록된 블록이 전부다 (blocks / blockfamilies / furniture)
+const MAX_BLOCK_ID = _nextBlockId - 1;
 
 const ITEMS = {};
 const ITEM_LIST = [];
@@ -2564,6 +2940,7 @@ const ITEM_GROUPS = [
   ['building', '건축'],
   ['nature', '자연'],
   ['functional', '기능'],
+  ['furniture', '가구'],
   ['redstone', '레드스톤'],
   ['tools', '도구'],
   ['combat', '전투'],
@@ -4092,6 +4469,11 @@ const EXTRA_TEX = {};
 function defTex(name, fn) { EXTRA_TEX[name] = fn; }
 
 function registerExtraTextures() {
+  // 가구 전용 텍스처 (furniture.js 가 모아 둔 것)
+  if (typeof FURNITURE_TEX === 'object') {
+    Object.keys(FURNITURE_TEX).forEach(function (k) { defTex(k, FURNITURE_TEX[k]); });
+  }
+
   function skin(base, spot, spots) {
     return function (p, rnd) {
       p.noise(rnd, base, 6, 3);
@@ -6093,9 +6475,10 @@ PostFX.prototype.blurPass = function (src, dst, dx, dy) {
 'use strict';
 
 const CHUNK_X = 16;
-const CHUNK_Y = 96;
+const CHUNK_Y = 160;          // 하늘을 두 배로 넓혀 비행 고도를 확보한다
 const CHUNK_Z = 16;
 const SEA_LEVEL = 40;
+const TERRAIN_MAX_Y = 84;     // 지형(산)이 올라갈 수 있는 최고 높이 — 하늘은 그 위로 비워 둔다
 
 function idx(x, y, z) { return (y * CHUNK_Z + z) * CHUNK_X + x; }
 
@@ -6146,6 +6529,7 @@ function Chunk(world, cx, cz) {
   this.meta = new Uint8Array(n);        // 방향/절반/열림 상태
   this.light = new Uint8Array(n);       // 상위4=하늘, 하위4=블록
   this.heightMap = new Uint8Array(CHUNK_X * CHUNK_Z);
+  this.topY = CHUNK_Y;                  // 이 청크에서 블록이 있는 가장 높은 칸 + 1 (위는 전부 공기)
   this.generated = false;
   this.decorated = false;
   this.lit = false;
@@ -6186,6 +6570,7 @@ Chunk.prototype.setBlockLight = function (x, y, z, v) {
 function World(seed) {
   this.seed = (seed === undefined || seed === null || seed === '') ? (Math.random() * 1e9) | 0 : hashSeed(seed);
   this.chunks = new Map();
+  this.lightTop = SEA_LEVEL;   // 지금까지 본 블록 중 가장 높은 칸 (조명 비용을 줄이는 기준)
   this.pending = [];
   this.pHeight = new Perlin(this.seed + 1);
   this.pDetail = new Perlin(this.seed + 2);
@@ -6289,6 +6674,10 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
   c.blocks[i] = id;
   c.meta[i] = newMeta;
   c.modified = true;
+  if (id !== 0 && y >= c.topY) {
+    c.topY = Math.min(CHUNK_Y, y + 1);
+    if (c.topY > this.lightTop) this.lightTop = c.topY;
+  }
 
   if (skipUpdate) return;
   this.updateHeightMap(c, lx, lz);
@@ -6320,7 +6709,7 @@ World.prototype.markDirtyAround = function (x, y, z) {
 
 World.prototype.updateHeightMap = function (c, lx, lz) {
   let h = 0;
-  for (let y = CHUNK_Y - 1; y >= 0; y--) {
+  for (let y = Math.min(CHUNK_Y - 1, c.topY); y >= 0; y--) {
     const b = c.blocks[idx(lx, y, lz)];
     if (b !== 0 && blockDef(b).opaque) { h = y + 1; break; }
   }
@@ -6337,7 +6726,7 @@ World.prototype.heightAt = function (x, z) {
   let mount = this.pMount.fbm2(x / 340, z / 340, 3, 2, 0.5);
   mount = Math.max(0, mount - 0.15) / 0.85;
   const h = SEA_LEVEL + base * 16 + detail * 3.5 + mount * mount * 42;
-  return Math.max(4, Math.min(CHUNK_Y - 12, Math.round(h)));
+  return Math.max(4, Math.min(TERRAIN_MAX_Y, Math.round(h)));
 };
 
 World.prototype.biomeAt = function (x, z, h) {
@@ -6447,6 +6836,17 @@ World.prototype.generateOres = function (c, rnd) {
 };
 
 // ── 장식 ─────────────────────────────────────────────────────────────
+// 이 청크에서 블록이 있는 가장 높은 칸을 찾아 둔다.
+// 그 위는 전부 공기이므로 메시·높이맵 계산을 건너뛸 수 있다(하늘이 높아져도 비용이 그대로).
+World.prototype.computeTopY = function (c) {
+  const b = c.blocks;
+  let last = -1;
+  for (let i = b.length - 1; i >= 0; i--) { if (b[i] !== 0) { last = i; break; } }
+  c.topY = last < 0 ? 1 : Math.min(CHUNK_Y, Math.floor(last / (CHUNK_X * CHUNK_Z)) + 2);
+  if (c.topY > this.lightTop) this.lightTop = c.topY;
+  return c.topY;
+};
+
 World.prototype.decorateChunk = function (c) {
   for (let dz = -1; dz <= 1; dz++) {
     for (let dx = -1; dx <= 1; dx++) this.placeDecorations(c, c.cx + dx, c.cz + dz);
@@ -6457,6 +6857,7 @@ World.prototype.decorateChunk = function (c) {
   if (this.paintAirport) c.hasAirport = this.paintAirport(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
   if (this.snowChunk) this.snowChunk(c);
+  this.computeTopY(c);
   c.decorated = true;
   c.dirty = true;
 };
@@ -6573,10 +6974,17 @@ World.prototype.placeDecorations = function (into, cx, cz) {
 World.prototype.initialLight = function (c) {
   const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
   const q = this._skyQueue;
+  // 세상에서 가장 높은 블록보다 위는 어디서나 하늘빛 15다.
+  // 그 구간은 값만 채우고 전파 대기열에는 넣지 않는다 —
+  // 덕분에 하늘을 아무리 높여도 조명 비용이 늘지 않는다.
+  const cap = Math.min(CHUNK_Y - 1, Math.max(this.lightTop, c.topY) + 1);
+  if (cap < CHUNK_Y - 1) {
+    c.light.fill(0xf0, (cap + 1) * CHUNK_X * CHUNK_Z, CHUNK_X * CHUNK_Y * CHUNK_Z);
+  }
   for (let lz = 0; lz < CHUNK_Z; lz++) {
     for (let lx = 0; lx < CHUNK_X; lx++) {
       let level = 15;
-      for (let y = CHUNK_Y - 1; y >= 0; y--) {
+      for (let y = cap; y >= 0; y--) {
         const id = c.blocks[idx(lx, y, lz)];
         const d = blockDef(id);
         if (d.opaque) level = 0;
@@ -6585,7 +6993,7 @@ World.prototype.initialLight = function (c) {
         c.setSky(lx, y, lz, level);
         q.push(bx + lx, y, bz + lz);
       }
-      for (let y = 0; y < CHUNK_Y; y++) {
+      for (let y = 0; y <= cap; y++) {
         const d = blockDef(c.blocks[idx(lx, y, lz)]);
         if (d.light > 0) {
           c.setBlockLight(lx, y, lz, d.light);
@@ -6855,7 +7263,8 @@ World.prototype.buildMesh = function (c) {
   _mv.length = 0; _mi.length = 0; _wv.length = 0; _wi.length = 0;
   const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
 
-  for (let y = 0; y < CHUNK_Y; y++) {
+  const yTop = Math.min(CHUNK_Y, c.topY);
+  for (let y = 0; y < yTop; y++) {
     for (let lz = 0; lz < CHUNK_Z; lz++) {
       for (let lx = 0; lx < CHUNK_X; lx++) {
         const i = idx(lx, y, lz);
@@ -7027,7 +7436,7 @@ World.prototype.emitBoxes = function (varr, iarr, wx, wy, wz, id, d, meta) {
         blk = Math.max(this.getBlockLight(nx, ny, nz), d.light) / 15;
       }
 
-      const t = texUV(blockTexName(id, f));
+      const t = texUV(b[6] || blockTexName(id, f));
       const shadeF = FACE_SHADE[f];
       const ua = face.uAxis, va = face.vAxis;
       const u0 = b[ua], u1 = b[ua + 3], v0 = b[va], v1 = b[va + 3];
@@ -7756,7 +8165,7 @@ World.prototype.nearestVillage = function (x, z, regionRadius) {
 'use strict';
 
 // ── 구름 ──────────────────────────────────────────────────────────────
-const CLOUD_Y = 84;        // 구름이 뜨는 높이
+const CLOUD_Y = 124;       // 구름이 뜨는 높이
 const CLOUD_H = 4;         // 두께
 const CLOUD_CELL = 14;     // 한 덩어리의 한 변(블록)
 const CLOUD_TILES = 40;    // 한 판에 들어가는 칸 수 (40 × 14 = 560블록마다 반복)
@@ -8250,110 +8659,164 @@ function apTerminal(plan) {
   for (const zz of [z0, z1]) {
     for (let x = -7; x <= 7; x++) for (let y = 1; y <= 4; y++) set(x, y, zz, 0);
   }
-  // 천장 조명
-  for (let x = x0 + 3; x <= x1 - 3; x += 5) {
-    for (const zz of [-9, -4, 4, 9]) set(x, TERM_H, zz, m.lamp);
-  }
 }
 
-// ── 터미널 실내 ───────────────────────────────────────────────────────
-// 짐 부치는 곳 · 출국 심사 · 중앙 홀 · 면세점 · 식당가 · 게이트
+// ── 터미널 실내 ─────────────────────────────────────────────────────
+// 블록을 쌓아 흉내 내지 않고 furniture.js 의 진짜 가구 모델로 채운다.
+// 짐 부치는 곳 · 보안/출국 심사 · 중앙 홀 · 면세점 · 식당가 · 게이트
 function apInterior(plan, rnd) {
   const m = APMAT, gy = plan.y;
   const set = function (x, y, z, id, meta) { plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true); };
   const people = plan.people;
   const put = function (x, z, job) { people.push({ x: plan.x + x + 0.5, y: gy + 1, z: plan.z + z + 0.5, job: job }); };
+  // 가구가 바라보는 방향 (메타)
+  const PZ = 0, PX = 1, NZ = 2, NX = 3;
+
+  // ── 바닥 마감과 천장 ──
+  for (let x = -TERM_X + 1; x <= TERM_X - 1; x++) {
+    for (let z = -TERM_Z + 1; z <= TERM_Z - 1; z++) {
+      set(x, 0, z, Math.abs(z) <= 2 ? m.floor2 : m.floor);
+    }
+  }
+  for (let x = -TERM_X + 3; x <= TERM_X - 3; x += 3) {
+    for (const zz of [-10, -6, -2, 2, 6, 10]) set(x, TERM_H, zz, B.ceiling_panel);
+  }
+  // 통로로 내려온 펜던트 조명 — 천장이 높아 바닥까지 빛이 닿게 한다
+  for (let x = -TERM_X + 5; x <= TERM_X - 5; x += 5) {
+    for (const zz of [-6, 6]) {
+      for (let y = 9; y < TERM_H; y++) set(x, y, zz, B.chain);
+      set(x, 8, zz, B.ceiling_panel);
+    }
+  }
+
+  // 천장에 매달린 항공편 안내판 (구역마다 한 줄)
+  const boardXs = [-52, -28, 0, 30, 54];
+  for (let i = 0; i < boardXs.length; i++) {
+    const bx = boardXs[i];
+    for (let d = -2; d <= 2; d++) {
+      set(bx + d, TERM_H - 1, 0, m.trim);                 // 매다는 레일
+      set(bx + d, TERM_H - 2, 0, B.flight_board, NZ);
+      set(bx + d, TERM_H - 2, 1, B.flight_board, PZ);
+    }
+  }
 
   // ── 1) 체크인 · 수하물 위탁 (x -64 ~ -42) ──
+  // 카운터 뒤에 직원, 앞에는 무인 발권기와 줄 세우는 기둥, 옆에 수하물 벨트
   for (let x = -63; x <= -43; x += 4) {
-    for (let d = -1; d <= 1; d++) set(x + d, 1, -4, m.desk);        // 카운터
-    set(x, 2, -4, B.item_frame !== undefined ? m.trim : m.trim);
-    set(x, 1, -6, B.barrel, 2);                                     // 직원 자리
-    for (let d = -1; d <= 1; d++) set(x + d, 1, -2, m.belt);        // 수하물 벨트
-    set(x, 1, 1, B.chest, 0);                                       // 부친 짐
-    put(x, -6, 'cartographer');                                     // 카운터 직원
-    if (rnd() < 0.7) put(x, 3, null);                               // 줄 선 승객
+    for (let d = -1; d <= 1; d++) set(x + d, 1, -5, B.white_counter, PZ);   // 카운터
+    set(x - 2, 1, -5, B.white_cabinet, PZ);
+    set(x, 1, -7, B.office_chair, PZ);
+    put(x, -7, 'cartographer');                                            // 카운터 직원
+    set(x - 1, 1, -3, B.rope_post, PZ);                                    // 줄
+    set(x + 1, 1, -3, B.rope_post, PZ);
+    set(x, 1, 2, B.checkin_kiosk, PZ);                                     // 무인 발권기
+    if (rnd() < 0.7) put(x, 4, null);                                      // 줄 선 승객
+    if (rnd() < 0.5) set(x + 2, 1, 4, B.luggage_cart, PZ);
   }
-  apText(plan, 'CHECK IN', -53, -10, 1, m.carpet, false, gy + 1);
-  for (let x = -66; x <= -41; x++) for (let z = 2; z <= 10; z++) set(x, 0, z, m.floor2);
+  // 수하물 벨트가 벽을 따라 흘러간다
+  for (let x = -65; x <= -41; x++) set(x, 1, -10, B.baggage_belt);
+  for (const sx of [-62, -55, -48, -44]) set(sx, 2, -10, B.suitcase, PZ);
+  set(-66 + 1, 1, -8, B.potted_tree); set(-42, 1, -8, B.potted_tree);
+  set(-58, 1, 8, B.airport_bench, NZ); set(-50, 1, 8, B.airport_bench, NZ);
+  for (let x = -64; x <= -44; x += 10) set(x, 1, 11, B.trash_bin);
+  set(-53, 6, -12, B.airport_sign, PZ);
+  apText(plan, 'CHECK IN', -53, 12, 1, m.guide, false, gy);
 
-  // ── 2) 출국 심사대 (x -38 ~ -20) ──
+  // ── 2) 보안 검색 · 출국 심사 (x -38 ~ -20) ──
   for (let x = -37; x <= -21; x += 4) {
-    for (let y = 1; y <= 3; y++) { set(x - 1, y, -2, m.trim); set(x - 1, y, 2, m.trim); }
-    for (let z = -1; z <= 1; z++) set(x - 1, 1, z, B.iron_bars);     // 개찰구
-    set(x, 1, -3, m.desk);                                          // 심사대
-    set(x, 2, -3, B.lectern !== undefined ? B.lectern : m.trim, 2);
-    put(x, -4, 'librarian');                                        // 심사관
-    if (rnd() < 0.6) put(x, 5, null);
+    // 보안 검색대 — 기둥 두 개와 윗보
+    set(x - 1, 1, -1, B.security_pillar, PZ);
+    set(x - 1, 1, 1, B.security_pillar, PZ);
+    set(x - 1, 2, -1, B.security_beam);
+    set(x - 1, 2, 1, B.security_beam);
+    set(x - 1, 1, 0, B.baggage_belt);                       // 짐 통과 벨트
+    set(x + 1, 1, -3, B.office_desk, PZ);                   // 심사대
+    set(x + 1, 1, -4, B.office_chair, PZ);
+    put(x + 1, -4, 'librarian');                            // 심사관
+    for (let d = 2; d <= 5; d++) set(x - 1, 1, d, B.rope_post, PZ);
+    if (rnd() < 0.6) put(x, 6, null);
   }
-  for (let x = -40; x <= -19; x++) for (let z = -11; z <= 11; z++) if (Math.abs(z) > 3) set(x, 0, z, m.floor2);
+  set(-30, 1, -10, B.potted_fern); set(-24, 1, 10, B.potted_fern);
+  set(-29, 6, -12, B.airport_sign, PZ);
 
-  // ── 3) 중앙 홀 (x -18 ~ 18) — 안내 데스크와 의자 ──
-  for (let x = -18; x <= 18; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.carpet ? m.floor2 : m.floor);
-  for (let d = -3; d <= 3; d++) { set(d, 1, 0, m.desk); set(d, 2, 0, B.glass_pane); }
-  put(0, -2, 'cleric');
-  apText(plan, plan.code, 0, 9, 1, m.guide, false, gy + 1);
+  // ── 3) 중앙 홀 (x -18 ~ 18) — 안내 데스크와 대기 구역 ──
+  for (let d = -3; d <= 3; d++) set(d, 1, 0, B.white_counter, PZ);
+  set(-4, 1, 0, B.wall_tv, PZ); set(4, 1, 0, B.wall_tv, PZ);
+  for (const d of [-2, 0, 2]) { set(d, 1, -2, B.office_chair, PZ); put(d, -2, 'cleric'); }
+  apText(plan, plan.code, 0, 11, 1, m.guide, false, gy);
+  // 대기 의자 두 줄 — 벤치와 소파를 섞는다
   for (const zz of [-8, 8]) {
-    for (let x = -16; x <= 16; x += 2) {
-      set(x, 1, zz, B.quartz_stairs, zz < 0 ? 0 : 2);               // 대기 의자
+    const face = zz < 0 ? NZ : PZ;
+    for (let x = -16; x <= 16; x += 3) {
+      set(x, 1, zz, (x % 6 === 0) ? B.gray_sofa : B.airport_bench, face);
       if (rnd() < 0.4) put(x, zz + (zz < 0 ? -2 : 2), null);
     }
   }
-  for (let x = -14; x <= 14; x += 7) {
-    for (let y = 1; y <= TERM_H - 1; y++) set(x, y, 0, m.trim);     // 홀 기둥
+  for (const x of [-16, -9, 9, 16]) {
+    for (let y = 1; y <= TERM_H - 1; y++) set(x, y, 0, m.trim);   // 홀 기둥
+    set(x, 1, 3, B.potted_tree);
+    set(x, 1, -3, B.trash_bin);
   }
+  for (const x of [-17, 17]) { set(x, 1, -11, B.vending_machine, PZ); set(x + 2, 1, -11, B.vending_machine, PZ); }
+  set(-12, 1, 11, B.floor_lamp); set(12, 1, 11, B.floor_lamp);
+  for (const x of [-10, 10]) { set(x, 1, 5, B.coffee_table); set(x, 1, -5, B.coffee_table); }
 
   // ── 4) 면세점 (x 20 ~ 42) ──
-  for (let x = 20; x <= 42; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.floor2);
-  const SHOP_BLOCKS = [B.bookshelf, B.barrel, B.red_wool, B.blue_wool, B.yellow_wool,
-    B.lime_wool, B.magenta_wool, B.cake !== undefined ? B.cake : B.white_wool];
   for (let x = 22; x <= 40; x += 6) {
     for (const zz of [-8, 8]) {
-      for (let d = -2; d <= 2; d++) {
-        set(x + d, 1, zz, m.shop);
-        set(x + d, 2, zz, SHOP_BLOCKS[(rnd() * SHOP_BLOCKS.length) | 0]);
-        set(x + d, 3, zz, B.glass);                                 // 진열장
-      }
-      set(x, 4, zz, m.lamp);
-      put(x, zz + (zz < 0 ? 2 : -2), 'leatherworker');              // 점원
+      const face = zz < 0 ? PZ : NZ;                    // 통로(가운데) 쪽을 본다
+      for (let d = -2; d <= 2; d++) set(x + d, 1, zz, B.display_case);
+      set(x - 3, 1, zz, B.wood_counter, face);
+      set(x + 3, 1, zz, B.white_cabinet, face);
+      for (let d = -2; d <= 2; d++) set(x + d, 1, zz + (zz < 0 ? -2 : 2), B.wall_shelf, face);
+      set(x, TERM_H - 4, zz, B.airport_sign, face);
+      put(x - 3, zz + (zz < 0 ? -1 : 1), 'leatherworker');   // 점원
     }
     if (rnd() < 0.8) put(x, (rnd() < 0.5 ? -4 : 4), null);
   }
-  apText(plan, 'DUTY FREE', 31, 0, 1, m.guide, false, gy + 1);
+  for (const x of [21, 31, 41]) { set(x, 1, 0, B.potted_tree); }
+  apText(plan, 'DUTY FREE', 31, 11, 1, m.guide, false, gy);
 
   // ── 5) 식당가 (x 44 ~ 64) ──
-  for (let x = 44; x <= 64; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.floor2);
   for (let x = 46; x <= 62; x += 5) {
     for (const zz of [-7, 0, 7]) {
-      set(x, 1, zz, B.oak_fence);                                   // 탁자 다리
-      set(x, 2, zz, B.smooth_quartz_slab);                          // 상판
-      set(x - 1, 1, zz, B.oak_stairs, 3);                           // 의자
-      set(x + 1, 1, zz, B.oak_stairs, 1);
-      if (rnd() < 0.55) put(x - 2, zz, null);
+      set(x, 1, zz, B.round_table);                     // 원형 탁자
+      set(x - 1, 1, zz, B.oak_chair, PX);               // 탁자를 바라보는 의자 넷
+      set(x + 1, 1, zz, B.oak_chair, NX);
+      set(x, 1, zz - 1, B.oak_chair, PZ);
+      set(x, 1, zz + 1, B.oak_chair, NZ);
+      if (rnd() < 0.55) put(x - 1, zz, null);
     }
   }
-  // 주방
-  for (let x = 56; x <= 62; x++) { set(x, 1, -11, B.smoker, 2); set(x, 2, -11, m.trim); }
-  for (let x = 46; x <= 52; x++) { set(x, 1, 11, B.furnace, 0); set(x, 2, 11, m.trim); }
+  // 주방 — 카운터 뒤에 화덕, 위에 메뉴 화면
+  for (let x = 55; x <= 62; x++) { set(x, 1, -10, B.wood_counter, PZ); set(x, 1, -11, B.smoker, 2); set(x, 4, -12, B.wall_tv, PZ); }
+  for (let x = 46; x <= 53; x++) { set(x, 1, 10, B.wood_counter, NZ); set(x, 1, 11, B.furnace, 0); set(x, 4, 12, B.wall_tv, NZ); }
   put(58, -9, 'butcher'); put(48, 9, 'butcher');
-  apText(plan, 'FOOD', 54, 4, 1, m.guide, false, gy + 1);
+  for (const x of [45, 64]) { set(x, 1, -4, B.potted_fern); set(x, 1, 4, B.potted_fern); }
+  apText(plan, 'FOOD', 54, 4, 1, m.guide, false, gy);
 
   // ── 6) 게이트 (탑승교마다) ──
   for (let i = 0; i < STAND_XS.length; i++) {
     const sx = STAND_XS[i];
     for (const side of [-1, 1]) {
       const zz = side * (TERM_Z - 2);
-      // 게이트 번호
-      apText(plan, String(i + 1) + (side < 0 ? 'A' : 'B'), sx, side < 0 ? zz + 3 : zz - 1, 1,
-        m.guide, false, gy + 1);
-      // 대기 의자 두 줄
+      const face = side < 0 ? PZ : NZ;                  // 홀 쪽을 본다
+      apText(plan, String(i + 1) + (side < 0 ? 'A' : 'B'), sx, side < 0 ? zz + 6 : zz - 1, 1,
+        m.guide, false, gy);
+      // 탑승구 카운터와 대기 의자
+      set(sx - 1, 1, zz, B.white_counter, face);
+      set(sx + 1, 1, zz, B.checkin_kiosk, face);
+      set(sx - 2, 1, zz, B.rope_post, face);
+      set(sx + 2, 1, zz, B.rope_post, face);
       for (let d = -3; d <= 3; d++) {
-        set(sx + d, 1, zz - side, B.quartz_stairs, side < 0 ? 2 : 0);
+        if (d === 0) continue;
+        set(sx + d, 1, zz - side * 2, B.airport_bench, face);
       }
-      set(sx, 1, zz, B.iron_bars);                                   // 탑승 게이트
-      set(sx - 1, 1, zz, m.desk);
-      put(sx + 1, zz - side * 2, 'fletcher');                        // 게이트 직원
-      if (rnd() < 0.7) put(sx - 2, zz - side * 3, null);
+      set(sx - 4, 1, zz - side, B.potted_fern);
+      set(sx + 4, 1, zz - side, B.trash_bin);
+      set(sx, TERM_H - 5, zz + side, B.flight_board, face);
+      put(sx + 1, zz - side * 3, 'fletcher');           // 게이트 직원
+      if (rnd() < 0.7) put(sx - 2, zz - side * 4, null);
     }
   }
 }
@@ -10040,7 +10503,7 @@ const PLANE_TURN = 0.95;       // 초당 최대 선회(라디안)
 const PLANE_PITCH_RATE = 0.80;
 const PLANE_SINK = 15;         // 실속했을 때 가라앉는 속도
 const PLANE_REST = 3.4;        // 바퀴가 땅에 닿을 때 동체 중심 높이
-const PLANE_CEIL = 94;         // 이 위로는 못 올라간다 (세계 높이 한계)
+const PLANE_CEIL = 154;        // 이 위로는 못 올라간다 (세계 높이 한계)
 const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
 
 function Plane(world, x, y, z, yaw) {
@@ -10392,7 +10855,7 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
 // ── 자동 운항 (공항 사이를 오가는 정기편) ─────────────────────────────
 // 상태: taxi_out → takeoff → climb → cruise → descend → final → rollout →
 //       taxi_in → park → (다시 taxi_out)
-const AI_CRUISE_ALT = 74;      // 순항 고도 (구름 아래)
+const AI_CRUISE_ALT = 112;     // 순항 고도 (구름 아래)
 const AI_STATE_LIMIT = {       // 상태마다 최대 시간 (막히면 다음으로 넘긴다)
   taxi_out: 90, takeoff: 60, climb: 60, cruise: 400,
   descend: 200, final: 90, rollout: 40, taxi_in: 90, park: 25
@@ -12888,7 +13351,7 @@ Minimap.prototype.chunkTile = function (c) {
   for (let lz = 0; lz < MAP_TILE; lz++) {
     for (let lx = 0; lx < MAP_TILE; lx++) {
       let y = -1, id = 0;
-      for (let yy = CHUNK_Y - 1; yy >= 1; yy--) {
+      for (let yy = Math.min(CHUNK_Y - 1, c.topY); yy >= 1; yy--) {
         const b = c.blocks[idx(lx, yy, lz)];
         if (b !== 0) { y = yy; id = b; break; }
       }
@@ -15454,6 +15917,7 @@ Game.prototype.load = function (given) {
       if (saved.m) c.meta.set(rleDecode(saved.m, c.meta.length, Uint8Array));
       c.modified = true;
       c.decorated = true; // 저장본에 이미 장식이 포함됨
+      self.world.computeTopY(c);
       for (let lz = 0; lz < CHUNK_Z; lz++) {
         for (let lx = 0; lx < CHUNK_X; lx++) self.world.updateHeightMap(c, lx, lz);
       }

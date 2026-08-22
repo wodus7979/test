@@ -1430,4 +1430,4 @@ defBlock('iron_bars', '철창', {
   hardness: 5, tool: TOOL_PICKAXE, tier: 1, group: 'building'
 });
 
-const MAX_BLOCK_ID = _nextBlockId - 1;
+// MAX_BLOCK_ID 는 모든 블록(가구 포함)이 등록된 뒤 items.js 에서 정한다.

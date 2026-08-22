@@ -28,8 +28,10 @@ const META_OPEN = 0x08;    // 문/트랩도어/울타리문 열림
 const META_HALF2 = 0x10;   // 문·침대의 윗부분 / 뒷부분
 
 // ── 상자 모델 헬퍼 (0~16 픽셀 단위) ──────────────────────────────────
-function box(x0, y0, z0, x1, y1, z1) {
-  return [x0 / 16, y0 / 16, z0 / 16, x1 / 16, y1 / 16, z1 / 16];
+// 7번째 칸(tex)은 그 상자만 다른 텍스처로 그리고 싶을 때 쓴다.
+// 가구처럼 한 블록 안에서 나무·천·화면이 섞이는 모델에 필요하다.
+function box(x0, y0, z0, x1, y1, z1, tex) {
+  return [x0 / 16, y0 / 16, z0 / 16, x1 / 16, y1 / 16, z1 / 16, tex];
 }
 
 const SHAPES = {
@@ -220,11 +222,12 @@ function rotateBoxes(boxes, meta) {
   if (!facing && !top) return boxes;
   const out = [];
   for (let i = 0; i < boxes.length; i++) {
-    let b = boxes[i];
-    if (top) b = [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5]];
+    const src = boxes[i];
+    let b = src;
+    if (top) b = [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5], src[6]];
     for (let r = 0; r < facing; r++) {
       // Y축 90° 회전: (x,z) -> (z, 1-x)
-      b = [b[2], b[1], 1 - b[3], b[5], b[4], 1 - b[0]];
+      b = [b[2], b[1], 1 - b[3], b[5], b[4], 1 - b[0], src[6]];
     }
     out.push(b);
   }

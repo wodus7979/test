@@ -2,9 +2,10 @@
 'use strict';
 
 const CHUNK_X = 16;
-const CHUNK_Y = 96;
+const CHUNK_Y = 160;          // 하늘을 두 배로 넓혀 비행 고도를 확보한다
 const CHUNK_Z = 16;
 const SEA_LEVEL = 40;
+const TERRAIN_MAX_Y = 84;     // 지형(산)이 올라갈 수 있는 최고 높이 — 하늘은 그 위로 비워 둔다
 
 function idx(x, y, z) { return (y * CHUNK_Z + z) * CHUNK_X + x; }
 
@@ -55,6 +56,7 @@ function Chunk(world, cx, cz) {
   this.meta = new Uint8Array(n);        // 방향/절반/열림 상태
   this.light = new Uint8Array(n);       // 상위4=하늘, 하위4=블록
   this.heightMap = new Uint8Array(CHUNK_X * CHUNK_Z);
+  this.topY = CHUNK_Y;                  // 이 청크에서 블록이 있는 가장 높은 칸 + 1 (위는 전부 공기)
   this.generated = false;
   this.decorated = false;
   this.lit = false;
@@ -95,6 +97,7 @@ Chunk.prototype.setBlockLight = function (x, y, z, v) {
 function World(seed) {
   this.seed = (seed === undefined || seed === null || seed === '') ? (Math.random() * 1e9) | 0 : hashSeed(seed);
   this.chunks = new Map();
+  this.lightTop = SEA_LEVEL;   // 지금까지 본 블록 중 가장 높은 칸 (조명 비용을 줄이는 기준)
   this.pending = [];
   this.pHeight = new Perlin(this.seed + 1);
   this.pDetail = new Perlin(this.seed + 2);
@@ -198,6 +201,10 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
   c.blocks[i] = id;
   c.meta[i] = newMeta;
   c.modified = true;
+  if (id !== 0 && y >= c.topY) {
+    c.topY = Math.min(CHUNK_Y, y + 1);
+    if (c.topY > this.lightTop) this.lightTop = c.topY;
+  }
 
   if (skipUpdate) return;
   this.updateHeightMap(c, lx, lz);
@@ -229,7 +236,7 @@ World.prototype.markDirtyAround = function (x, y, z) {
 
 World.prototype.updateHeightMap = function (c, lx, lz) {
   let h = 0;
-  for (let y = CHUNK_Y - 1; y >= 0; y--) {
+  for (let y = Math.min(CHUNK_Y - 1, c.topY); y >= 0; y--) {
     const b = c.blocks[idx(lx, y, lz)];
     if (b !== 0 && blockDef(b).opaque) { h = y + 1; break; }
   }
@@ -246,7 +253,7 @@ World.prototype.heightAt = function (x, z) {
   let mount = this.pMount.fbm2(x / 340, z / 340, 3, 2, 0.5);
   mount = Math.max(0, mount - 0.15) / 0.85;
   const h = SEA_LEVEL + base * 16 + detail * 3.5 + mount * mount * 42;
-  return Math.max(4, Math.min(CHUNK_Y - 12, Math.round(h)));
+  return Math.max(4, Math.min(TERRAIN_MAX_Y, Math.round(h)));
 };
 
 World.prototype.biomeAt = function (x, z, h) {
@@ -356,6 +363,17 @@ World.prototype.generateOres = function (c, rnd) {
 };
 
 // ── 장식 ─────────────────────────────────────────────────────────────
+// 이 청크에서 블록이 있는 가장 높은 칸을 찾아 둔다.
+// 그 위는 전부 공기이므로 메시·높이맵 계산을 건너뛸 수 있다(하늘이 높아져도 비용이 그대로).
+World.prototype.computeTopY = function (c) {
+  const b = c.blocks;
+  let last = -1;
+  for (let i = b.length - 1; i >= 0; i--) { if (b[i] !== 0) { last = i; break; } }
+  c.topY = last < 0 ? 1 : Math.min(CHUNK_Y, Math.floor(last / (CHUNK_X * CHUNK_Z)) + 2);
+  if (c.topY > this.lightTop) this.lightTop = c.topY;
+  return c.topY;
+};
+
 World.prototype.decorateChunk = function (c) {
   for (let dz = -1; dz <= 1; dz++) {
     for (let dx = -1; dx <= 1; dx++) this.placeDecorations(c, c.cx + dx, c.cz + dz);
@@ -366,6 +384,7 @@ World.prototype.decorateChunk = function (c) {
   if (this.paintAirport) c.hasAirport = this.paintAirport(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
   if (this.snowChunk) this.snowChunk(c);
+  this.computeTopY(c);
   c.decorated = true;
   c.dirty = true;
 };
@@ -482,10 +501,17 @@ World.prototype.placeDecorations = function (into, cx, cz) {
 World.prototype.initialLight = function (c) {
   const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
   const q = this._skyQueue;
+  // 세상에서 가장 높은 블록보다 위는 어디서나 하늘빛 15다.
+  // 그 구간은 값만 채우고 전파 대기열에는 넣지 않는다 —
+  // 덕분에 하늘을 아무리 높여도 조명 비용이 늘지 않는다.
+  const cap = Math.min(CHUNK_Y - 1, Math.max(this.lightTop, c.topY) + 1);
+  if (cap < CHUNK_Y - 1) {
+    c.light.fill(0xf0, (cap + 1) * CHUNK_X * CHUNK_Z, CHUNK_X * CHUNK_Y * CHUNK_Z);
+  }
   for (let lz = 0; lz < CHUNK_Z; lz++) {
     for (let lx = 0; lx < CHUNK_X; lx++) {
       let level = 15;
-      for (let y = CHUNK_Y - 1; y >= 0; y--) {
+      for (let y = cap; y >= 0; y--) {
         const id = c.blocks[idx(lx, y, lz)];
         const d = blockDef(id);
         if (d.opaque) level = 0;
@@ -494,7 +520,7 @@ World.prototype.initialLight = function (c) {
         c.setSky(lx, y, lz, level);
         q.push(bx + lx, y, bz + lz);
       }
-      for (let y = 0; y < CHUNK_Y; y++) {
+      for (let y = 0; y <= cap; y++) {
         const d = blockDef(c.blocks[idx(lx, y, lz)]);
         if (d.light > 0) {
           c.setBlockLight(lx, y, lz, d.light);
@@ -764,7 +790,8 @@ World.prototype.buildMesh = function (c) {
   _mv.length = 0; _mi.length = 0; _wv.length = 0; _wi.length = 0;
   const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
 
-  for (let y = 0; y < CHUNK_Y; y++) {
+  const yTop = Math.min(CHUNK_Y, c.topY);
+  for (let y = 0; y < yTop; y++) {
     for (let lz = 0; lz < CHUNK_Z; lz++) {
       for (let lx = 0; lx < CHUNK_X; lx++) {
         const i = idx(lx, y, lz);
@@ -936,7 +963,7 @@ World.prototype.emitBoxes = function (varr, iarr, wx, wy, wz, id, d, meta) {
         blk = Math.max(this.getBlockLight(nx, ny, nz), d.light) / 15;
       }
 
-      const t = texUV(blockTexName(id, f));
+      const t = texUV(b[6] || blockTexName(id, f));
       const shadeF = FACE_SHADE[f];
       const ua = face.uAxis, va = face.vAxis;
       const u0 = b[ua], u1 = b[ua + 3], v0 = b[va], v1 = b[va + 3];
