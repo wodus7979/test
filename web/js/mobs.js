@@ -171,7 +171,12 @@ Entity.prototype.update = function (dt, player, mgr) {
   let wantMove = false;
   let speed = d.speed;
 
-  if (d.hostile && !player.dead && !player.creative && distSq < 18 * 18) {
+  if (d.brain && typeof MOB_BRAINS !== 'undefined' && MOB_BRAINS[d.brain]) {
+    // 주민·골렘처럼 따로 두뇌가 있는 몹
+    const r = MOB_BRAINS[d.brain](this, dt, player, mgr);
+    wantMove = r.move;
+    speed = r.speed;
+  } else if (d.hostile && !player.dead && !player.creative && distSq < 18 * 18) {
     // 추격
     this.targetYaw = Math.atan2(dxp, dzp);
     wantMove = true;
@@ -345,11 +350,21 @@ EntityManager.prototype.countHostile = function () {
   return n;
 };
 
+// 마을 주민과 골렘은 자연 생성 한도에 넣지 않는다
+EntityManager.prototype.countVillage = function () {
+  let n = 0;
+  for (let i = 0; i < this.mobs.length; i++) {
+    const b = this.mobs[i].def.brain;
+    if (b === 'villager' || b === 'golem') n++;
+  }
+  return n;
+};
+
 // 플레이어 주변 자연 생성
 EntityManager.prototype.trySpawn = function (player) {
   const w = this.world;
   const night = this.daylight < 0.35;
-  const passive = this.mobs.length - this.countHostile();
+  const passive = this.mobs.length - this.countHostile() - this.countVillage();
 
   for (let attempt = 0; attempt < 6; attempt++) {
     const ang = Math.random() * Math.PI * 2;
@@ -398,11 +413,12 @@ EntityManager.prototype.update = function (dt, player, daylight) {
   for (let i = this.mobs.length - 1; i >= 0; i--) {
     const m = this.mobs[i];
     m.update(dt, player, this);
-    // 너무 멀면 제거
+    // 너무 멀면 제거 (주민과 골렘은 마을을 지켜야 하므로 조금 더 버틴다)
     const dd = (m.x - player.x) * (m.x - player.x) + (m.z - player.z) * (m.z - player.z);
-    if (dd > 90 * 90) m.dead = true;
+    const keep = (m.def.brain === 'villager' || m.def.brain === 'golem') ? 150 : 90;
+    if (dd > keep * keep) { m.despawned = true; m.dead = true; }
     if (m.dead) {
-      if (m.health <= 0) {
+      if (m.health <= 0 && !m.despawned) {
         m.def.drops.forEach(function (d) {
           const min = d[1], max = d[2];
           const n = min + ((Math.random() * (max - min + 1)) | 0);
@@ -423,6 +439,7 @@ EntityManager.prototype.update = function (dt, player, daylight) {
   if (this.spawnTimer <= 0) {
     this.spawnTimer = 2.5;
     this.trySpawn(player);
+    if (this.populateVillages) this.populateVillages(player);
   }
 };
 

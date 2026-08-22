@@ -81,6 +81,38 @@ const mat4 = {
     o[10] = a02 * s + a22 * c; o[11] = a03 * s + a23 * c;
     return o;
   },
+  invert: function (o, m) {
+    const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
+    const a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7];
+    const a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11];
+    const a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+    const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10;
+    const b02 = a00 * a13 - a03 * a10, b03 = a01 * a12 - a02 * a11;
+    const b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
+    const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30;
+    const b08 = a20 * a33 - a23 * a30, b09 = a21 * a32 - a22 * a31;
+    const b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    if (!det) return null;
+    det = 1.0 / det;
+    o[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+    o[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+    o[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+    o[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+    o[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+    o[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+    o[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+    o[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+    o[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+    o[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+    o[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+    o[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+    o[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+    o[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+    o[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+    o[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+    return o;
+  },
   rotateZ: function (o, m, rad) {
     const s = Math.sin(rad), c = Math.cos(rad);
     const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
@@ -198,10 +230,47 @@ const SKY_FS = [
   'precision highp float;',
   'uniform vec3 uTop;',
   'uniform vec3 uBottom;',
+  'uniform mat4 uInvVP;',      // 화면 좌표 -> 월드 방향
+  'uniform vec3 uCamPos;',
+  'uniform vec3 uSunDir;',
+  'uniform vec3 uSunColor;',
+  'uniform float uNight;',     // 0 낮 ~ 1 밤
+  'uniform float uSunset;',    // 해가 지평선에 가까울수록 1
+  'uniform float uUnder;',     // 물속이면 1 (해·별을 감춘다)
   'varying vec2 vPos;',
+  'float hash13(vec3 p) {',
+  '  p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));',
+  '  p *= 17.0;',
+  '  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));',
+  '}',
   'void main() {',
-  '  float t = clamp(vPos.y * 0.5 + 0.5, 0.0, 1.0);',
-  '  gl_FragColor = vec4(mix(uBottom, uTop, pow(t, 0.8)), 1.0);',
+  '  vec4 far = uInvVP * vec4(vPos, 1.0, 1.0);',
+  '  vec3 dir = normalize(far.xyz / far.w - uCamPos);',
+  '  float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);',
+  '  vec3 col = mix(uBottom, uTop, pow(t, 0.8));',
+  '  if (uUnder < 0.5) {',
+  // 지평선 노을
+  '    float horiz = pow(1.0 - clamp(abs(dir.y) * 2.4, 0.0, 1.0), 3.0);',
+  '    float toSun = max(dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);',
+  '    col += uSunColor * horiz * pow(toSun, 3.0) * uSunset * 0.85;',
+  // 별
+  '    if (uNight > 0.01) {',
+  '      vec3 sp = floor(dir * 230.0);',
+  '      float h = hash13(sp);',
+  '      float star = smoothstep(0.9975, 0.9995, h) * clamp(dir.y * 2.0, 0.0, 1.0);',
+  '      col += vec3(0.85, 0.9, 1.0) * star * uNight * 1.4;',
+  '    }',
+  // 해
+  '    float sd = dot(dir, uSunDir);',
+  '    float disc = smoothstep(0.9990, 0.99955, sd);',
+  '    float glow = pow(max(sd, 0.0), 260.0) * 0.55 + pow(max(sd, 0.0), 9.0) * 0.09;',
+  '    col += uSunColor * (disc * 1.6 + glow);',
+  // 달
+  '    float md = dot(dir, -uSunDir);',
+  '    float mdisc = smoothstep(0.9980, 0.9990, md);',
+  '    col += vec3(0.88, 0.90, 1.0) * (mdisc * 1.25 + pow(max(md, 0.0), 300.0) * 0.35) * uNight;',
+  '  }',
+  '  gl_FragColor = vec4(col, 1.0);',
   '}'
 ].join('\n');
 

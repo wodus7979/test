@@ -47,6 +47,10 @@ function Renderer(canvas) {
   this.chunkGL = new Map(); // chunk key -> {solid:{vbo,ibo,count}, water:{...}}
   this.stats = { chunks: 0, tris: 0 };
 
+  // 화면 후처리(셰이더). 지원되지 않으면 조용히 꺼진다.
+  this.post = new PostFX(gl);
+  this.invViewProj = mat4.create();
+
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
   gl.cullFace(gl.BACK);
@@ -170,22 +174,57 @@ Renderer.prototype.beginFrame = function (player, opts) {
   mat4.translate(this.view, this.view, [-eye[0], -eye[1], -eye[2]]);
   mat4.multiply(this.viewProj, this.proj, this.view);
   this.extractFrustum();
+  mat4.invert(this.invViewProj, this.viewProj);
+
+  // 후처리를 쓰면 화면 대신 텍스처에 그린다
+  this.postOn = this.post.begin(this.canvas.width, this.canvas.height);
 
   gl.clearColor(opts.fogColor[0], opts.fogColor[1], opts.fogColor[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  // 하늘
+  // 하늘 (해·달·별·노을)
   gl.disable(gl.DEPTH_TEST);
-  gl.useProgram(this.skyProg);
+  const sp = this.skyProg;
+  gl.useProgram(sp);
   gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuf);
   gl.enableVertexAttribArray(0);
+  gl.disableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  gl.uniform3fv(this.skyProg.u.uTop, opts.skyTop);
-  gl.uniform3fv(this.skyProg.u.uBottom, opts.skyBottom);
+  gl.uniform3fv(sp.u.uTop, opts.skyTop);
+  gl.uniform3fv(sp.u.uBottom, opts.skyBottom);
+  gl.uniformMatrix4fv(sp.u.uInvVP, false, this.invViewProj);
+  gl.uniform3fv(sp.u.uCamPos, eye);
+  gl.uniform3fv(sp.u.uSunDir, opts.sunDir);
+  gl.uniform3fv(sp.u.uSunColor, opts.sunColor);
+  gl.uniform1f(sp.u.uNight, opts.night);
+  gl.uniform1f(sp.u.uSunset, opts.sunset);
+  gl.uniform1f(sp.u.uUnder, opts.under > 0.5 ? 1 : 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST);
 
   this.stats.chunks = 0; this.stats.tris = 0;
+};
+
+// 후처리를 입혀 화면에 낸다. 프레임의 맨 마지막에 부른다.
+Renderer.prototype.endFrame = function (opts) {
+  if (this.postOn) this.post.end(opts);
+  this.postOn = false;
+};
+
+// 해가 화면 어디에 있는지 (갓레이용). 뒤에 있으면 sunOnScreen = false
+Renderer.prototype.sunScreenPos = function (sunDir, out) {
+  const m = this.viewProj;
+  const x = sunDir[0], y = sunDir[1], z = sunDir[2];
+  const cw = m[3] * x + m[7] * y + m[11] * z;
+  if (cw <= 0.0001) { out.on = false; return out; }
+  const cx = m[0] * x + m[4] * y + m[8] * z;
+  const cy = m[1] * x + m[5] * y + m[9] * z;
+  out.x = (cx / cw) * 0.5 + 0.5;
+  out.y = (cy / cw) * 0.5 + 0.5;
+  // 화면에서 조금 벗어나도 빛줄기는 살아 있다
+  out.on = out.x > -0.55 && out.x < 1.55 && out.y > -0.55 && out.y < 1.55;
+  return out;
 };
 
 Renderer.prototype.setupTerrainProgram = function (opts) {

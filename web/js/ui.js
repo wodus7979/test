@@ -355,6 +355,7 @@ UI.prototype.openScreen = function (kind, data) {
   this.craftSize = (kind === 'crafting') ? 3 : 2;
   if (kind === 'furnace') this.furnace = data;
   if (kind === 'chest') this.chest = data;
+  if (kind === 'trade') this.trader = data;
   this.buildScreen();
   this.el.screen.style.display = 'flex';
   this.updateCraftResult();
@@ -367,6 +368,7 @@ UI.prototype.closeScreen = function () {
   this.open = null;
   this.furnace = null;
   this.chest = null;
+  this.trader = null;
   this.el.screen.style.display = 'none';
 };
 
@@ -409,7 +411,8 @@ UI.prototype.buildScreen = function () {
   title.textContent = this.open === 'crafting' ? '제작대'
     : this.open === 'furnace' ? '화로'
       : this.open === 'chest' ? '상자'
-        : this.open === 'creative' ? '창작 모드 — 모든 아이템' : '인벤토리';
+        : this.open === 'trade' ? (this.trader ? this.trader.def.jobKr + ' 주민과 거래' : '거래')
+          : this.open === 'creative' ? '창작 모드 — 모든 아이템' : '인벤토리';
   panel.appendChild(title);
 
   const top = document.createElement('div');
@@ -437,6 +440,8 @@ UI.prototype.buildScreen = function () {
     wrap.appendChild(arrow);
     this.el.smeltArrow = arrow.querySelector('i');
     grid('g1 out', 1, 'fout', 0, wrap);
+  } else if (this.open === 'trade') {
+    this.buildTrade(section('거래 목록', top));
   } else if (this.open === 'chest') {
     grid('g-inv', 27, 'chest', 0, section('보관함', top));
   } else if (this.open === 'creative') {
@@ -475,8 +480,88 @@ UI.prototype.buildScreen = function () {
   hint.className = 'hint';
   hint.textContent = this.open === 'creative'
     ? '클릭: 한 묶음 집기 · 우클릭: 1개 · Shift+클릭: 가방으로 바로 담기 · E/ESC로 닫기'
-    : 'E 또는 ESC로 닫기 · 클릭: 집기/놓기 · 우클릭: 반개/1개 · Shift+클릭: 빠른 이동';
+    : this.open === 'trade'
+      ? '거래를 클릭하면 왼쪽 물건을 주고 오른쪽 물건을 받습니다 · 에메랄드가 마을의 돈입니다 · E/ESC로 닫기'
+      : 'E 또는 ESC로 닫기 · 클릭: 집기/놓기 · 우클릭: 반개/1개 · Shift+클릭: 빠른 이동';
   panel.appendChild(hint);
+};
+
+// 주민 거래 화면
+UI.prototype.buildTrade = function (parent) {
+  const self = this;
+  const mob = this.trader;
+  const list = document.createElement('div');
+  list.className = 'trade-list';
+  parent.appendChild(list);
+  this.tradeRows = [];
+  if (!mob) return;
+
+  const offers = mob.tradeOffers() || [];
+  offers.forEach(function (offer, i) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'trade-row';
+
+    const give = document.createElement('span');
+    give.className = 'trade-side';
+    offer.give.forEach(function (g, k) {
+      if (k) give.appendChild(document.createTextNode('+'));
+      give.appendChild(self.tradeChip(g.name, g.count));
+    });
+
+    const arrow = document.createElement('span');
+    arrow.className = 'trade-arrow';
+    arrow.textContent = '→';
+
+    const get = document.createElement('span');
+    get.className = 'trade-side';
+    get.appendChild(self.tradeChip(offer.get.name, offer.get.count));
+
+    row.appendChild(give); row.appendChild(arrow); row.appendChild(get);
+    row.addEventListener('click', function () { self.doTradeClick(i); });
+    list.appendChild(row);
+    self.tradeRows.push(row);
+  });
+  this.refreshTrade();
+};
+
+UI.prototype.tradeChip = function (name, count) {
+  const c = document.createElement('span');
+  c.className = 'trade-chip';
+  c.title = itemDisplayName(name);
+  c.innerHTML = '<i class="ic" style="' + iconStyle(name) + '"></i>' +
+    '<b>' + count + '</b><em>' + itemDisplayName(name) + '</em>';
+  return c;
+};
+
+UI.prototype.doTradeClick = function (i) {
+  const mob = this.trader;
+  if (!mob) return;
+  const offer = (mob.tradeOffers() || [])[i];
+  if (!offer) return;
+  if (offer.uses >= offer.maxUses) { this.toast('이 거래는 오늘 다 팔렸습니다'); return; }
+  if (!canTrade(this.player, offer)) { this.toast('가진 물건이 모자랍니다'); return; }
+  const r = doTrade(this.player, offer);
+  if (r === 'partial') this.toast('가방이 가득 찼습니다');
+  else if (r) {
+    this.toast(itemDisplayName(offer.get.name) + ' ×' + offer.get.count + ' 을(를) 받았습니다');
+    if (this.game && this.game.playSound) this.game.playSound('place');
+  }
+  this.refreshTrade();
+  this.refreshScreen();
+};
+
+UI.prototype.refreshTrade = function () {
+  if (!this.tradeRows || !this.trader) return;
+  const offers = this.trader.tradeOffers() || [];
+  for (let i = 0; i < this.tradeRows.length; i++) {
+    const o = offers[i];
+    const row = this.tradeRows[i];
+    if (!o) continue;
+    const soldOut = o.uses >= o.maxUses;
+    row.classList.toggle('sold', soldOut);
+    row.classList.toggle('ok', !soldOut && canTrade(this.player, o));
+  }
 };
 
 // 창작 모드: 탭 + 검색 + 아이템 격자
@@ -559,6 +644,7 @@ UI.prototype.rebuildCreativeGrid = function () {
 };
 
 UI.prototype.refreshScreen = function () {
+  if (this.open === 'trade') this.refreshTrade();
   if (!this.open || !this.screenSlots) return;
   for (let i = 0; i < this.screenSlots.length; i++) {
     const el = this.screenSlots[i];

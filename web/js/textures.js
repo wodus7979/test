@@ -1031,6 +1031,45 @@ function registerExtraTextures() {
     p.rect(6, 7, 4, 4, '#101010');
     p.rect(5, 10, 2, 3, '#101010'); p.rect(9, 10, 2, 3, '#101010');
   });
+  // ── 주민 ──
+  // 직업마다 겉옷 색과 앞치마 색이 다르다 (villagers.js 의 VILLAGER_JOBS)
+  if (typeof VILLAGER_JOBS !== 'undefined') {
+    VILLAGER_JOBS.forEach(function (j) {
+      const robe = j[2], apron = j[3];
+      defTex('mob_villager_' + j[0], function (p, rnd) {
+        p.noise(rnd, robe, 5, 3);
+        p.rect(0, 8, 16, 8, apron);
+        p.speckle(rnd, apron, 6, 1);
+        p.rect(0, 7, 16, 1, '#00000022');
+      });
+    });
+  }
+  defTex('mob_villager_head', skin('#b09070', '#a08464', 6));
+  defTex('mob_villager_legs', skin('#5b4a6b', '#4a3c58', 6));
+  defTex('mob_villager_nose', skin('#b58a68', '#a87c5c', 4));
+  defTex('mob_villager_face', function (p, rnd) {
+    p.noise(rnd, '#b09070', 5, 3);
+    p.rect(2, 4, 12, 1, '#5a4634');            // 일자 눈썹
+    p.rect(3, 5, 3, 2, '#f0f0f0'); p.rect(10, 5, 3, 2, '#f0f0f0');
+    p.rect(4, 5, 2, 2, '#3a5a8a'); p.rect(10, 5, 2, 2, '#3a5a8a');
+    p.rect(6, 11, 4, 1, '#7a5c44');            // 입
+  });
+  // ── 철 골렘 ──
+  defTex('mob_golem', function (p, rnd) {
+    p.noise(rnd, '#d8d4cc', 6, 3);
+    p.speckle(rnd, '#b6b0a4', 12, 2);
+    p.speckle(rnd, '#8f9a72', 4, 2);           // 덩굴
+  });
+  defTex('mob_golem_body', function (p, rnd) {
+    p.noise(rnd, '#c9c4ba', 6, 3);
+    p.speckle(rnd, '#a8a296', 10, 2);
+  });
+  defTex('mob_golem_face', function (p, rnd) {
+    p.noise(rnd, '#d8d4cc', 5, 3);
+    p.rect(2, 5, 4, 3, '#3a3a3a'); p.rect(10, 5, 4, 3, '#3a3a3a');
+    p.rect(3, 6, 2, 2, '#c04a3a'); p.rect(11, 6, 2, 2, '#c04a3a');
+    p.rect(6, 9, 4, 5, '#b6b0a4');             // 코
+  });
   defTex('mob_spider', skin('#38241d', '#2a1a14', 10));
   defTex('mob_spider_face', function (p, rnd) {
     p.noise(rnd, '#38241d', 6, 3);

@@ -485,3 +485,33 @@ body.touch .hand { display: none !important; }
   font-family: ui-monospace, Menlo, Consolas, monospace;
 }
 .version b { color: #9fd06a; font-weight: 600; }
+
+/* ── 주민 거래 화면 ─────────────────────────────────────────────── */
+.trade-list {
+  display: flex; flex-direction: column; gap: 5px;
+  width: min(520px, 92vw); max-height: 46vh; overflow-y: auto;
+}
+.trade-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; cursor: pointer; text-align: left;
+  border: 2px solid #8b8b8b; border-radius: 4px;
+  background: #b0b0b0; color: #2a2a2a;
+  font: inherit; font-size: 13px;
+}
+.trade-row:hover { background: #bcbcbc; }
+.trade-row.ok { border-color: #3f7a2c; background: #9dc48a; }
+.trade-row.ok:hover { background: #abd398; }
+.trade-row.sold { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
+.trade-side { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.trade-side:last-child { flex: 0 0 auto; justify-content: flex-end; }
+.trade-arrow { color: #4a4a4a; flex: 0 0 auto; font-size: 15px; }
+.trade-chip { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.trade-chip .ic { width: 22px; height: 22px; flex: 0 0 auto; }
+.trade-chip b { color: #1c1c1c; font-weight: 700; }
+.trade-chip em { font-style: normal; color: #3d3d3d; font-size: 12px; }
+
+.modes select {
+  margin-left: 6px; padding: 4px 8px;
+  background: #26314a; color: #dfe7f2; font: inherit; font-size: 13px;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 5px;
+}

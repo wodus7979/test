@@ -8,6 +8,7 @@
   const btnNew = document.getElementById('btn-new');
   const btnContinue = document.getElementById('btn-continue');
   const chkCreative = document.getElementById('chk-creative');
+  const chkVillage = document.getElementById('chk-village');
   const rngDist = document.getElementById('rng-dist');
   const distVal = document.getElementById('dist-val');
 
@@ -24,6 +25,13 @@
     distVal.textContent = rngDist.value;
     if (window.game) window.game.settings.renderDistance = parseInt(rngDist.value, 10);
   });
+
+  const selShader = document.getElementById('sel-shader');
+  if (selShader) {
+    selShader.addEventListener('change', function () {
+      if (window.game) window.game.settings.shader = parseInt(selShader.value, 10);
+    });
+  }
 
   // 저장본 유무에 따라 이어하기 버튼 활성화
   let hasSave = false;
@@ -54,6 +62,7 @@
         const game = new Game(canvas);
         window.game = game;
         game.settings.renderDistance = parseInt(rngDist.value, 10);
+        if (selShader) game.settings.shader = parseInt(selShader.value, 10);
 
         if (mode === 'file') {
           if (!game.loadFromText(pendingSaveText)) throw new Error('세계 파일을 불러오지 못했습니다.');
@@ -67,6 +76,11 @@
           game.player.creative = chkCreative.checked;
           if (chkCreative.checked) game.player.flying = false;
           game.ui.toast('시드: ' + game.world.seed);
+          if (chkVillage && chkVillage.checked) {
+            const v = game.spawnAtVillage();
+            if (v) game.ui.toast('마을에서 시작합니다 — ' + v.x + ', ' + v.z + ' (집 ' + v.buildings + '채)');
+            else game.ui.toast('가까운 곳에 마을이 없어 평소대로 시작합니다');
+          }
         }
 
         game.start();

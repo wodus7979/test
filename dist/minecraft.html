@@ -496,6 +496,36 @@ body.touch .hand { display: none !important; }
 }
 .version b { color: #9fd06a; font-weight: 600; }
 
+/* ── 주민 거래 화면 ─────────────────────────────────────────────── */
+.trade-list {
+  display: flex; flex-direction: column; gap: 5px;
+  width: min(520px, 92vw); max-height: 46vh; overflow-y: auto;
+}
+.trade-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; cursor: pointer; text-align: left;
+  border: 2px solid #8b8b8b; border-radius: 4px;
+  background: #b0b0b0; color: #2a2a2a;
+  font: inherit; font-size: 13px;
+}
+.trade-row:hover { background: #bcbcbc; }
+.trade-row.ok { border-color: #3f7a2c; background: #9dc48a; }
+.trade-row.ok:hover { background: #abd398; }
+.trade-row.sold { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
+.trade-side { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.trade-side:last-child { flex: 0 0 auto; justify-content: flex-end; }
+.trade-arrow { color: #4a4a4a; flex: 0 0 auto; font-size: 15px; }
+.trade-chip { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.trade-chip .ic { width: 22px; height: 22px; flex: 0 0 auto; }
+.trade-chip b { color: #1c1c1c; font-weight: 700; }
+.trade-chip em { font-style: normal; color: #3d3d3d; font-size: 12px; }
+
+.modes select {
+  margin-left: 6px; padding: 4px 8px;
+  background: #26314a; color: #dfe7f2; font: inherit; font-size: 13px;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 5px;
+}
+
 </style>
 </head>
 <body>
@@ -542,7 +572,16 @@ body.touch .hand { display: none !important; }
 
     <div class="modes">
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
+      <label><input type="checkbox" id="chk-village"> 마을에서 시작</label>
       <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
+      <label>화면 셰이더
+        <select id="sel-shader">
+          <option value="0">꺼짐</option>
+          <option value="1">기본 (톤 매핑·색 보정)</option>
+          <option value="2" selected>높음 (＋블룸)</option>
+          <option value="3">최고 (＋갓레이)</option>
+        </select>
+      </label>
     </div>
 
     <details class="help">
@@ -555,7 +594,8 @@ body.touch .hand { display: none !important; }
           <li><b>1~9</b> 또는 <b>휠</b> 핫바 선택 · <b>Q</b> 버리기 (Ctrl+Q 전부)</li>
           <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>C</b> 전체 아이템 목록(창작)</li>
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
-          <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장)</li>
+          <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
+          <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -3966,6 +4006,45 @@ function registerExtraTextures() {
     p.rect(6, 7, 4, 4, '#101010');
     p.rect(5, 10, 2, 3, '#101010'); p.rect(9, 10, 2, 3, '#101010');
   });
+  // ── 주민 ──
+  // 직업마다 겉옷 색과 앞치마 색이 다르다 (villagers.js 의 VILLAGER_JOBS)
+  if (typeof VILLAGER_JOBS !== 'undefined') {
+    VILLAGER_JOBS.forEach(function (j) {
+      const robe = j[2], apron = j[3];
+      defTex('mob_villager_' + j[0], function (p, rnd) {
+        p.noise(rnd, robe, 5, 3);
+        p.rect(0, 8, 16, 8, apron);
+        p.speckle(rnd, apron, 6, 1);
+        p.rect(0, 7, 16, 1, '#00000022');
+      });
+    });
+  }
+  defTex('mob_villager_head', skin('#b09070', '#a08464', 6));
+  defTex('mob_villager_legs', skin('#5b4a6b', '#4a3c58', 6));
+  defTex('mob_villager_nose', skin('#b58a68', '#a87c5c', 4));
+  defTex('mob_villager_face', function (p, rnd) {
+    p.noise(rnd, '#b09070', 5, 3);
+    p.rect(2, 4, 12, 1, '#5a4634');            // 일자 눈썹
+    p.rect(3, 5, 3, 2, '#f0f0f0'); p.rect(10, 5, 3, 2, '#f0f0f0');
+    p.rect(4, 5, 2, 2, '#3a5a8a'); p.rect(10, 5, 2, 2, '#3a5a8a');
+    p.rect(6, 11, 4, 1, '#7a5c44');            // 입
+  });
+  // ── 철 골렘 ──
+  defTex('mob_golem', function (p, rnd) {
+    p.noise(rnd, '#d8d4cc', 6, 3);
+    p.speckle(rnd, '#b6b0a4', 12, 2);
+    p.speckle(rnd, '#8f9a72', 4, 2);           // 덩굴
+  });
+  defTex('mob_golem_body', function (p, rnd) {
+    p.noise(rnd, '#c9c4ba', 6, 3);
+    p.speckle(rnd, '#a8a296', 10, 2);
+  });
+  defTex('mob_golem_face', function (p, rnd) {
+    p.noise(rnd, '#d8d4cc', 5, 3);
+    p.rect(2, 5, 4, 3, '#3a3a3a'); p.rect(10, 5, 4, 3, '#3a3a3a');
+    p.rect(3, 6, 2, 2, '#c04a3a'); p.rect(11, 6, 2, 2, '#c04a3a');
+    p.rect(6, 9, 4, 5, '#b6b0a4');             // 코
+  });
   defTex('mob_spider', skin('#38241d', '#2a1a14', 10));
   defTex('mob_spider_face', function (p, rnd) {
     p.noise(rnd, '#38241d', 6, 3);
@@ -5162,6 +5241,38 @@ const mat4 = {
     o[10] = a02 * s + a22 * c; o[11] = a03 * s + a23 * c;
     return o;
   },
+  invert: function (o, m) {
+    const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
+    const a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7];
+    const a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11];
+    const a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+    const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10;
+    const b02 = a00 * a13 - a03 * a10, b03 = a01 * a12 - a02 * a11;
+    const b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
+    const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30;
+    const b08 = a20 * a33 - a23 * a30, b09 = a21 * a32 - a22 * a31;
+    const b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    if (!det) return null;
+    det = 1.0 / det;
+    o[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+    o[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+    o[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+    o[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+    o[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+    o[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+    o[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+    o[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+    o[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+    o[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+    o[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+    o[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+    o[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+    o[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+    o[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+    o[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+    return o;
+  },
   rotateZ: function (o, m, rad) {
     const s = Math.sin(rad), c = Math.cos(rad);
     const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
@@ -5279,10 +5390,47 @@ const SKY_FS = [
   'precision highp float;',
   'uniform vec3 uTop;',
   'uniform vec3 uBottom;',
+  'uniform mat4 uInvVP;',      // 화면 좌표 -> 월드 방향
+  'uniform vec3 uCamPos;',
+  'uniform vec3 uSunDir;',
+  'uniform vec3 uSunColor;',
+  'uniform float uNight;',     // 0 낮 ~ 1 밤
+  'uniform float uSunset;',    // 해가 지평선에 가까울수록 1
+  'uniform float uUnder;',     // 물속이면 1 (해·별을 감춘다)
   'varying vec2 vPos;',
+  'float hash13(vec3 p) {',
+  '  p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));',
+  '  p *= 17.0;',
+  '  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));',
+  '}',
   'void main() {',
-  '  float t = clamp(vPos.y * 0.5 + 0.5, 0.0, 1.0);',
-  '  gl_FragColor = vec4(mix(uBottom, uTop, pow(t, 0.8)), 1.0);',
+  '  vec4 far = uInvVP * vec4(vPos, 1.0, 1.0);',
+  '  vec3 dir = normalize(far.xyz / far.w - uCamPos);',
+  '  float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);',
+  '  vec3 col = mix(uBottom, uTop, pow(t, 0.8));',
+  '  if (uUnder < 0.5) {',
+  // 지평선 노을
+  '    float horiz = pow(1.0 - clamp(abs(dir.y) * 2.4, 0.0, 1.0), 3.0);',
+  '    float toSun = max(dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);',
+  '    col += uSunColor * horiz * pow(toSun, 3.0) * uSunset * 0.85;',
+  // 별
+  '    if (uNight > 0.01) {',
+  '      vec3 sp = floor(dir * 230.0);',
+  '      float h = hash13(sp);',
+  '      float star = smoothstep(0.9975, 0.9995, h) * clamp(dir.y * 2.0, 0.0, 1.0);',
+  '      col += vec3(0.85, 0.9, 1.0) * star * uNight * 1.4;',
+  '    }',
+  // 해
+  '    float sd = dot(dir, uSunDir);',
+  '    float disc = smoothstep(0.9990, 0.99955, sd);',
+  '    float glow = pow(max(sd, 0.0), 260.0) * 0.55 + pow(max(sd, 0.0), 9.0) * 0.09;',
+  '    col += uSunColor * (disc * 1.6 + glow);',
+  // 달
+  '    float md = dot(dir, -uSunDir);',
+  '    float mdisc = smoothstep(0.9980, 0.9990, md);',
+  '    col += vec3(0.88, 0.90, 1.0) * (mdisc * 1.25 + pow(max(md, 0.0), 300.0) * 0.35) * uNight;',
+  '  }',
+  '  gl_FragColor = vec4(col, 1.0);',
   '}'
 ].join('\n');
 
@@ -5329,6 +5477,308 @@ function makeTextureFromCanvas(gl, canvas) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   return tex;
 }
+
+</script>
+<script>
+/* ==== js/postfx.js ==== */
+// postfx.js - 화면 후처리(셰이더). 장면을 텍스처에 한 번 그린 뒤
+// 블룸 · 갓레이 · 톤 매핑 · 색 보정 · 비네팅 · 물속 일렁임을 입혀 화면에 낸다.
+// 외부 라이브러리 없이 WebGL 1로만 동작하며, 지원이 안 되면 조용히 꺼진다.
+'use strict';
+
+// 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
+const SHADER_LEVELS = ['꺼짐', '기본', '높음', '최고'];
+const SHADER_DEFAULT = 2;
+
+const POST_VS = [
+  'precision highp float;',
+  'attribute vec2 aPos;',
+  'varying vec2 vUV;',
+  'void main() { vUV = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }'
+].join('\n');
+
+// 밝은 부분만 뽑아낸다 (블룸·갓레이의 재료)
+const BRIGHT_FS = [
+  'precision highp float;',
+  'uniform sampler2D uScene;',
+  'uniform float uThreshold;',
+  'uniform float uKnee;',
+  'varying vec2 vUV;',
+  'void main() {',
+  '  vec3 c = texture2D(uScene, vUV).rgb;',
+  '  float l = max(max(c.r, c.g), c.b);',
+  '  float f = clamp((l - uThreshold) / max(0.001, uKnee), 0.0, 1.0);',
+  '  gl_FragColor = vec4(c * f * f, 1.0);',
+  '}'
+].join('\n');
+
+// 가로/세로로 나눠 도는 가우시안 흐리기 (9탭)
+const BLUR_FS = [
+  'precision highp float;',
+  'uniform sampler2D uTex;',
+  'uniform vec2 uDir;',      // 픽셀 단위 방향
+  'varying vec2 vUV;',
+  'void main() {',
+  '  vec3 c = texture2D(uTex, vUV).rgb * 0.2270270;',
+  '  c += texture2D(uTex, vUV + uDir * 1.3846153).rgb * 0.3162162;',
+  '  c += texture2D(uTex, vUV - uDir * 1.3846153).rgb * 0.3162162;',
+  '  c += texture2D(uTex, vUV + uDir * 3.2307692).rgb * 0.0702702;',
+  '  c += texture2D(uTex, vUV - uDir * 3.2307692).rgb * 0.0702702;',
+  '  gl_FragColor = vec4(c, 1.0);',
+  '}'
+].join('\n');
+
+// 최종 합성
+const COMPOSITE_FS = [
+  'precision highp float;',
+  'uniform sampler2D uScene;',
+  'uniform sampler2D uBloom;',
+  'uniform float uBloomAmt;',
+  'uniform float uRays;',
+  'uniform vec2 uSunScreen;',
+  'uniform float uExposure;',
+  'uniform vec3 uGrade;',
+  'uniform float uSat;',
+  'uniform float uVignette;',
+  'uniform float uUnder;',
+  'uniform float uAberr;',
+  'uniform float uTime;',
+  'varying vec2 vUV;',
+  // 필름 톤 매핑 (ACES 근사)
+  'vec3 aces(vec3 x) {',
+  '  return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);',
+  '}',
+  'void main() {',
+  '  vec2 uv = vUV;',
+  '  if (uUnder > 0.001) {',
+  '    uv.x += sin(uv.y * 24.0 + uTime * 1.9) * 0.0040 * uUnder;',
+  '    uv.y += cos(uv.x * 19.0 + uTime * 1.5) * 0.0040 * uUnder;',
+  '    uv = clamp(uv, 0.0, 1.0);',
+  '  }',
+  '  vec3 col;',
+  '  if (uAberr > 0.0) {',
+  '    vec2 d = uv - 0.5;',
+  '    vec2 off = d * dot(d, d) * uAberr;',
+  '    col = vec3(texture2D(uScene, clamp(uv + off, 0.0, 1.0)).r,',
+  '               texture2D(uScene, uv).g,',
+  '               texture2D(uScene, clamp(uv - off, 0.0, 1.0)).b);',
+  '  } else {',
+  '    col = texture2D(uScene, uv).rgb;',
+  '  }',
+  '  if (uBloomAmt > 0.0) col += texture2D(uBloom, uv).rgb * uBloomAmt;',
+  '  if (uRays > 0.0) {',
+  // 해 방향으로 밝은 부분을 끌어당겨 빛줄기를 만든다
+  '    vec2 sstep = (uSunScreen - uv) * (1.0 / 24.0);',
+  '    vec2 p = uv;',
+  '    float w = 1.0;',
+  '    vec3 acc = vec3(0.0);',
+  '    for (int i = 0; i < 24; i++) {',
+  '      p += sstep;',
+  '      acc += texture2D(uBloom, clamp(p, 0.0, 1.0)).rgb * w;',
+  '      w *= 0.93;',
+  '    }',
+  '    col += acc * (uRays / 24.0);',
+  '  }',
+  '  col *= uExposure * uGrade;',
+  '  col = aces(col) * 1.2441;',   // 흰색이 흰색으로 남도록 정규화
+  '  float l = dot(col, vec3(0.2126, 0.7152, 0.0722));',
+  '  col = mix(vec3(l), col, uSat);',
+  '  vec2 vd = vUV - 0.5;',
+  '  col *= clamp(1.0 - uVignette * dot(vd, vd) * 2.3, 0.0, 1.0);',
+  '  gl_FragColor = vec4(col, 1.0);',
+  '}'
+].join('\n');
+
+// ── 프레임버퍼 ────────────────────────────────────────────────────────
+function makeFBO(gl, w, h, withDepth) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+  let rb = null;
+  if (withDepth) {
+    rb = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+  }
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (!ok) {
+    gl.deleteTexture(tex); gl.deleteFramebuffer(fb);
+    if (rb) gl.deleteRenderbuffer(rb);
+    return null;
+  }
+  return { tex: tex, fb: fb, rb: rb, w: w, h: h };
+}
+
+function freeFBO(gl, f) {
+  if (!f) return;
+  gl.deleteTexture(f.tex);
+  gl.deleteFramebuffer(f.fb);
+  if (f.rb) gl.deleteRenderbuffer(f.rb);
+}
+
+// ── 후처리 ────────────────────────────────────────────────────────────
+function PostFX(gl) {
+  this.gl = gl;
+  this.ok = false;
+  this.level = SHADER_DEFAULT;
+  this.active = false;
+  this.w = 0; this.h = 0;
+  try {
+    this.brightProg = createProgram(gl, POST_VS, BRIGHT_FS, ['aPos']);
+    this.blurProg = createProgram(gl, POST_VS, BLUR_FS, ['aPos']);
+    this.compProg = createProgram(gl, POST_VS, COMPOSITE_FS, ['aPos']);
+    this.quad = makeBuffer(gl, gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 3, -1, -1, 3]));
+    this.ok = true;
+  } catch (e) {
+    console.warn('후처리 셰이더를 쓸 수 없습니다:', e.message);
+    this.ok = false;
+  }
+  this.scene = null; this.half = null; this.blurA = null; this.blurB = null;
+}
+
+PostFX.prototype.setLevel = function (n) {
+  this.level = Math.max(0, Math.min(SHADER_LEVELS.length - 1, n | 0));
+  if (this.level === 0) this.release();
+};
+
+PostFX.prototype.release = function () {
+  const gl = this.gl;
+  freeFBO(gl, this.scene); freeFBO(gl, this.half);
+  freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
+  this.scene = this.half = this.blurA = this.blurB = null;
+  this.w = this.h = 0;
+};
+
+// 화면 크기가 바뀌면 버퍼를 다시 만든다
+PostFX.prototype.ensure = function (w, h) {
+  if (!this.ok || this.level === 0) return false;
+  if (this.scene && this.w === w && this.h === h) return true;
+  this.release();
+  const gl = this.gl;
+  this.scene = makeFBO(gl, w, h, true);
+  if (!this.scene) { this.ok = false; return false; }
+  if (this.level >= 2) {
+    const hw = Math.max(1, w >> 1), hh = Math.max(1, h >> 1);
+    this.half = makeFBO(gl, hw, hh, false);
+    this.blurA = makeFBO(gl, hw, hh, false);
+    this.blurB = makeFBO(gl, hw, hh, false);
+    if (!this.half || !this.blurA || !this.blurB) {
+      freeFBO(gl, this.half); freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
+      this.half = this.blurA = this.blurB = null;
+    }
+  }
+  this.w = w; this.h = h;
+  return true;
+};
+
+// 장면을 텍스처에 그리기 시작. 후처리를 못 쓰면 false.
+PostFX.prototype.begin = function (w, h) {
+  if (!this.ensure(w, h)) { this.active = false; return false; }
+  const gl = this.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.scene.fb);
+  gl.viewport(0, 0, w, h);
+  this.active = true;
+  return true;
+};
+
+PostFX.prototype.drawQuad = function () {
+  const gl = this.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
+  gl.enableVertexAttribArray(0);
+  gl.disableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+};
+
+// 후처리를 입혀 화면에 낸다.
+PostFX.prototype.end = function (opts) {
+  if (!this.active) return;
+  const gl = this.gl;
+  const lvl = this.level;
+  const useBloom = lvl >= 2 && this.half && this.blurA && this.blurB;
+  const useRays = lvl >= 3 && useBloom && opts.sunOnScreen;
+
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+
+  if (useBloom) {
+    // 1) 밝은 곳 추출 (절반 해상도)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.half.fb);
+    gl.viewport(0, 0, this.half.w, this.half.h);
+    gl.useProgram(this.brightProg);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.scene.tex);
+    gl.uniform1i(this.brightProg.u.uScene, 0);
+    gl.uniform1f(this.brightProg.u.uThreshold, opts.bloomThreshold);
+    gl.uniform1f(this.brightProg.u.uKnee, 0.45);
+    this.drawQuad();
+
+    // 2) 가로 -> 세로로 흐린다 (레벨 3은 두 번 돌려 더 부드럽게)
+    const passes = lvl >= 3 ? 2 : 1;
+    let src = this.half;
+    for (let i = 0; i < passes; i++) {
+      const radius = 1 + i * 2;
+      this.blurPass(src, this.blurA, radius / this.half.w, 0);
+      this.blurPass(this.blurA, this.blurB, 0, radius / this.half.h);
+      src = this.blurB;
+    }
+  }
+
+  // 3) 합성해서 화면으로
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, this.w, this.h);
+  const p = this.compProg;
+  gl.useProgram(p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, this.scene.tex);
+  gl.uniform1i(p.u.uScene, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, useBloom ? this.blurB.tex : this.scene.tex);
+  gl.uniform1i(p.u.uBloom, 1);
+
+  gl.uniform1f(p.u.uBloomAmt, useBloom ? opts.bloom : 0);
+  gl.uniform1f(p.u.uRays, useRays ? opts.rays : 0);
+  gl.uniform2f(p.u.uSunScreen, opts.sunX, opts.sunY);
+  gl.uniform1f(p.u.uExposure, opts.exposure);
+  gl.uniform3fv(p.u.uGrade, opts.grade);
+  gl.uniform1f(p.u.uSat, opts.saturation);
+  gl.uniform1f(p.u.uVignette, opts.vignette);
+  gl.uniform1f(p.u.uUnder, opts.under);
+  gl.uniform1f(p.u.uAberr, lvl >= 3 ? (opts.aberration || 0) : 0);
+  gl.uniform1f(p.u.uTime, opts.time);
+  this.drawQuad();
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+  this.active = false;
+};
+
+PostFX.prototype.blurPass = function (src, dst, dx, dy) {
+  const gl = this.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+  gl.viewport(0, 0, dst.w, dst.h);
+  gl.useProgram(this.blurProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, src.tex);
+  gl.uniform1i(this.blurProg.u.uTex, 0);
+  gl.uniform2f(this.blurProg.u.uDir, dx, dy);
+  this.drawQuad();
+};
 
 </script>
 <script>
@@ -5693,6 +6143,8 @@ World.prototype.decorateChunk = function (c) {
   for (let dz = -1; dz <= 1; dz++) {
     for (let dx = -1; dx <= 1; dx++) this.placeDecorations(c, c.cx + dx, c.cz + dz);
   }
+  // 마을은 나무·풀 다음에 찍어야 집 안으로 나무가 자라지 않는다
+  if (this.paintVillage) c.hasVillage = this.paintVillage(c);
   c.decorated = true;
   c.dirty = true;
 };
@@ -6382,6 +6834,608 @@ World.prototype.raycast = function (ox, oy, oz, dx, dy, dz, maxDist, liquidToo) 
 };
 
 const FACE_OFFSET = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+
+</script>
+<script>
+/* ==== js/village.js ==== */
+// village.js - 주민 마을 생성.
+// 우물을 중심으로 길이 뻗고, 길가에 집·밭·가로등이 선다.
+// 지형은 씨앗만으로 정해지므로 마을도 씨앗만으로 완전히 결정된다.
+'use strict';
+
+const VILLAGE_REGION = 20;     // 청크 격자 — 320블록마다 후보 하나
+const VILLAGE_CHANCE = 0.72;   // 후보가 실제 마을이 될 확률
+const VILLAGE_R = 32;          // 마을 반지름(블록)
+const VILLAGE_FLAT_IN = 0.62;  // 이 비율 안쪽은 완전히 평탄화
+const VILLAGE_MAX_SLOPE = 13;  // 높낮이 차가 이보다 크면 포기
+const VILLAGE_CLEAR_H = 14;    // 지면 위로 이 높이까지 나무를 치운다
+
+// 마을 자재 (생물 군계별)
+let VSTYLE = null;
+function initVillageStyles() {
+  if (VSTYLE) return;
+  function style(o) { return o; }
+  VSTYLE = {
+    plains: style({
+      kr: '평원', base: B.cobblestone, wall: B.oak_planks, log: B.oak_log,
+      stairs: B.oak_stairs, slab: B.oak_slab, roof: B.cobblestone_stairs,
+      roofSlab: B.cobblestone_slab, fence: B.oak_fence, gate: B.oak_fence_gate,
+      door: B.oak_door, glass: B.glass_pane, path: B.dirt_path,
+      plaza: B.cobblestone, post: B.cobblestone_wall, trim: B.oak_slab,
+      soil: B.dirt, ground: B.grass_block, deco: B.oak_trapdoor
+    }),
+    desert: style({
+      kr: '사막', base: B.cut_sandstone, wall: B.sandstone, log: B.cut_sandstone,
+      stairs: B.sandstone_stairs, slab: B.sandstone_slab, roof: B.sandstone_stairs,
+      roofSlab: B.smooth_sandstone, fence: B.acacia_fence, gate: B.acacia_fence_gate,
+      door: B.acacia_door, glass: B.glass_pane, path: B.smooth_sandstone,
+      plaza: B.smooth_sandstone, post: B.sandstone_wall, trim: B.sandstone_slab,
+      soil: B.sand, ground: B.sand, deco: B.acacia_trapdoor
+    }),
+    snowy: style({
+      kr: '설원', base: B.cobblestone, wall: B.spruce_planks, log: B.spruce_log,
+      stairs: B.spruce_stairs, slab: B.spruce_slab, roof: B.spruce_stairs,
+      roofSlab: B.spruce_slab, fence: B.spruce_fence, gate: B.spruce_fence_gate,
+      door: B.spruce_door, glass: B.glass_pane, path: B.gravel,
+      plaza: B.cobblestone, post: B.cobblestone_wall, trim: B.spruce_slab,
+      soil: B.dirt, ground: B.snow_block, deco: B.spruce_trapdoor
+    }),
+    taiga: style({
+      kr: '숲', base: B.cobblestone, wall: B.spruce_planks, log: B.spruce_log,
+      stairs: B.spruce_stairs, slab: B.spruce_slab, roof: B.spruce_stairs,
+      roofSlab: B.spruce_slab, fence: B.spruce_fence, gate: B.spruce_fence_gate,
+      door: B.spruce_door, glass: B.glass_pane, path: B.dirt_path,
+      plaza: B.cobblestone, post: B.cobblestone_wall, trim: B.spruce_slab,
+      soil: B.dirt, ground: B.grass_block, deco: B.spruce_trapdoor
+    })
+  };
+}
+
+// ── 좌표 회전 헬퍼 ────────────────────────────────────────────────────
+// rot 0~3, 로컬 (x, z)를 Y축으로 90°씩 돌린다.
+function vrot(lx, lz, rot) {
+  switch (rot & 3) {
+    case 1: return [-lz, lx];
+    case 2: return [-lx, -lz];
+    case 3: return [lz, -lx];
+    default: return [lx, lz];
+  }
+}
+// 블록 facing 메타도 같은 방향으로 돌아가야 한다
+function vrotFacing(f, rot) { return (f - rot) & 3; }
+
+// ── 도면 만들기 ───────────────────────────────────────────────────────
+// ops: 청크키 -> [x, y, z, id, meta, force, ...] 평평한 배열
+function VillagePlan(world, vx, vz, gy, style, rnd) {
+  this.world = world;
+  this.x = vx; this.z = vz; this.y = gy;
+  this.style = style;
+  this.rnd = rnd;
+  this.ops = new Map();
+  this.spawns = [];
+  this.beds = [];
+  this.buildings = 0;
+}
+
+// 한 블록(또는 세로로 이어진 run칸) 기록.
+// force=true면 이미 있는 블록도 덮어쓴다.
+// 기둥을 한 덩어리로 저장해 도면 용량을 1/5로 줄인다.
+const VOP = 7;   // [lx, y, lz, id, meta, force, run]
+VillagePlan.prototype.set = function (x, y, z, id, meta, force, run) {
+  run = run || 1;
+  if (y < 1) { run += y - 1; y = 1; }
+  if (run < 1 || y >= CHUNK_Y - 1) return;
+  if (y + run > CHUNK_Y - 1) run = CHUNK_Y - 1 - y;
+  const cx = Math.floor(x / CHUNK_X), cz = Math.floor(z / CHUNK_Z);
+  const key = cx + ',' + cz;
+  let a = this.ops.get(key);
+  if (!a) { a = []; this.ops.set(key, a); }
+  a.push(x - cx * CHUNK_X, y, z - cz * CHUNK_Z, id, meta || 0, force ? 1 : 0, run);
+};
+
+VillagePlan.prototype.fill = function (x0, y0, z0, x1, y1, z1, id, meta, force) {
+  for (let z = z0; z <= z1; z++) {
+    for (let x = x0; x <= x1; x++) this.set(x, y0, z, id, meta, force, y1 - y0 + 1);
+  }
+};
+
+// 배열을 정수 배열로 굳혀 메모리를 아낀다
+VillagePlan.prototype.freeze = function () {
+  const self = this;
+  this.ops.forEach(function (a, k) { self.ops.set(k, Int32Array.from(a)); });
+};
+
+// ── 지형 고르기 ───────────────────────────────────────────────────────
+// 중심 쪽은 평평하게, 가장자리는 원래 지형으로 서서히 이어 붙인다.
+VillagePlan.prototype.levelGround = function () {
+  const w = this.world, R = VILLAGE_R, gy = this.y, st = this.style;
+  const inner = R * VILLAGE_FLAT_IN;
+  for (let dz = -R; dz <= R; dz++) {
+    for (let dx = -R; dx <= R; dx++) {
+      const d = Math.hypot(dx, dz);
+      if (d > R) continue;
+      const x = this.x + dx, z = this.z + dz;
+      const nat = w.heightAt(x, z);
+      let target = gy;
+      if (d > inner) {
+        let t = (d - inner) / (R - inner);
+        t = t * t * (3 - 2 * t);              // 부드럽게
+        target = Math.round(gy + (nat - gy) * t);
+      }
+      if (target === nat && d > inner) continue;   // 손댈 필요 없음
+
+      // 지면 위를 치우고(나무·풀·눈), 지면과 그 아래를 채운다
+      this.set(x, target + 1, z, 0, 0, true, VILLAGE_CLEAR_H);
+      this.set(x, target, z, st.ground, 0, true);
+      this.set(x, target - 4, z, st.soil, 0, true, 4);
+    }
+  }
+};
+
+// ── 길 ────────────────────────────────────────────────────────────────
+VillagePlan.prototype.road = function (x0, z0, x1, z1, half) {
+  const st = this.style;
+  const steps = Math.max(Math.abs(x1 - x0), Math.abs(z1 - z0));
+  for (let i = 0; i <= steps; i++) {
+    const t = steps === 0 ? 0 : i / steps;
+    const x = Math.round(x0 + (x1 - x0) * t);
+    const z = Math.round(z0 + (z1 - z0) * t);
+    for (let dz = -half; dz <= half; dz++) {
+      for (let dx = -half; dx <= half; dx++) {
+        const id = (this.rnd() < 0.12) ? this.style.plaza : st.path;
+        this.set(x + dx, this.y, z + dz, id, 0, true);
+        this.set(x + dx, this.y + 1, z + dz, 0, 0, true);
+      }
+    }
+  }
+};
+
+// ── 우물 (마을 한가운데) ──────────────────────────────────────────────
+VillagePlan.prototype.well = function () {
+  const st = this.style, y = this.y, x = this.x, z = this.z;
+  // 광장
+  for (let dz = -3; dz <= 3; dz++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      this.set(x + dx, y, z + dz, (Math.abs(dx) < 2 && Math.abs(dz) < 2) ? st.plaza : st.path, 0, true);
+      this.set(x + dx, y + 1, z + dz, 0, 0, true);
+    }
+  }
+  // 물통
+  this.fill(x - 1, y, z - 1, x + 1, y, z + 1, st.base, 0, true);
+  this.fill(x, y - 3, z, x, y, z, B.water, 0, true);
+  this.fill(x - 1, y - 4, z - 1, x + 1, y - 1, z + 1, st.base, 0, false);
+  // 네 기둥과 지붕
+  for (let i = 0; i < 4; i++) {
+    const px = x + (i & 1 ? 1 : -1), pz = z + (i & 2 ? 1 : -1);
+    this.set(px, y + 1, pz, st.post, 0, true, 3);
+  }
+  this.fill(x - 1, y + 4, z - 1, x + 1, y + 4, z + 1, st.roofSlab, 0, true);
+  // 종
+  this.set(x + 3, y + 1, z, B.bell, 0, true);
+  this.spawns.push({ x: x + 0.5, y: y + 1, z: z + 2.5, job: null });
+};
+
+// ── 가로등 ────────────────────────────────────────────────────────────
+VillagePlan.prototype.lamp = function (x, z) {
+  const st = this.style, y = this.y;
+  this.set(x, y, z, st.plaza, 0, true);
+  this.set(x, y + 1, z, st.fence, 0, true, 3);
+  this.set(x, y + 4, z, B.torch, 0, true);
+};
+
+// ── 건물 붓 ───────────────────────────────────────────────────────────
+// 로컬 좌표: x 0..W-1, z 0..D-1, 문은 (floor(W/2), 0)에서 -Z를 향한다.
+function VillageBrush(plan, doorX, doorZ, rot, W) {
+  this.plan = plan;
+  this.rot = rot & 3;
+  const dw = Math.floor(W / 2);
+  const off = vrot(dw, 0, this.rot);
+  this.ox = doorX - off[0];
+  this.oz = doorZ - off[1];
+  this.oy = plan.y;
+}
+VillageBrush.prototype.world = function (lx, lz) {
+  const r = vrot(lx, lz, this.rot);
+  return [this.ox + r[0], this.oz + r[1]];
+};
+VillageBrush.prototype.set = function (lx, ly, lz, id, facing, force) {
+  const w = this.world(lx, lz);
+  const meta = (facing === null || facing === undefined) ? 0 : vrotFacing(facing, this.rot);
+  this.plan.set(w[0], this.oy + ly, w[1], id, meta, force === undefined ? true : force);
+};
+VillageBrush.prototype.setMeta = function (lx, ly, lz, id, meta) {
+  const w = this.world(lx, lz);
+  this.plan.set(w[0], this.oy + ly, w[1], id, meta, true);
+};
+VillageBrush.prototype.fill = function (x0, y0, z0, x1, y1, z1, id, facing) {
+  const meta = (facing === null || facing === undefined) ? 0 : vrotFacing(facing, this.rot);
+  for (let z = z0; z <= z1; z++) {
+    for (let x = x0; x <= x1; x++) {
+      const w = this.world(x, z);
+      this.plan.set(w[0], this.oy + y0, w[1], id, meta, true, y1 - y0 + 1);
+    }
+  }
+};
+VillageBrush.prototype.spawn = function (lx, lz, job) {
+  const w = this.world(lx, lz);
+  this.plan.spawns.push({ x: w[0] + 0.5, y: this.oy + 1, z: w[1] + 0.5, job: job });
+};
+
+// 벽·바닥·지붕이 있는 기본 뼈대. 안쪽은 비워 둔다.
+// D는 깊이, W는 폭, H는 벽 높이.
+function villageShell(br, W, D, H, st, rnd) {
+  // 터파기 (기초)
+  br.fill(-1, -3, -1, W, -1, D, st.base);
+  // 바닥
+  br.fill(0, 0, 0, W - 1, 0, D - 1, st.wall);
+  // 내부 비우기
+  br.fill(0, 1, 0, W - 1, H + 1, D - 1, 0);
+  // 벽
+  for (let y = 1; y <= H; y++) {
+    for (let x = 0; x < W; x++) { br.set(x, y, 0, st.wall); br.set(x, y, D - 1, st.wall); }
+    for (let z = 0; z < D; z++) { br.set(0, y, z, st.wall); br.set(W - 1, y, z, st.wall); }
+  }
+  // 모서리 기둥
+  for (let y = 1; y <= H; y++) {
+    br.set(0, y, 0, st.log); br.set(W - 1, y, 0, st.log);
+    br.set(0, y, D - 1, st.log); br.set(W - 1, y, D - 1, st.log);
+  }
+  // 박공 지붕 (Z 방향으로 흘러내린다)
+  const half = Math.floor((D - 1) / 2);
+  for (let k = 0; k <= half; k++) {
+    const y = H + 1 + k;
+    for (let x = -1; x <= W; x++) {
+      if (k === half && (D - 1) % 2 === 0) {
+        br.set(x, y, k, st.roofSlab);           // 용마루
+      } else {
+        br.set(x, y, k, st.roof, 0);            // -Z쪽: 높은 면이 +Z
+        br.set(x, y, D - 1 - k, st.roof, 2);    // +Z쪽: 높은 면이 -Z
+      }
+    }
+  }
+  // 박공(삼각형) 벽 — 지붕 밑이 뻥 뚫리지 않게 벽으로 메운다
+  for (let z = 0; z < D; z++) {
+    const ry = H + 1 + Math.min(z, D - 1 - z);
+    for (let yy = H + 1; yy < ry; yy++) {
+      br.set(0, yy, z, st.wall);
+      br.set(W - 1, yy, z, st.wall);
+    }
+  }
+}
+
+// 문과 창
+function villageOpenings(br, W, D, H, st, rnd) {
+  const dw = Math.floor(W / 2);
+  br.set(dw, 1, 0, 0);
+  br.set(dw, 2, 0, 0);
+  br.setMeta(dw, 1, 0, st.door, vrotFacing(0, br.rot));
+  br.setMeta(dw, 2, 0, st.door, vrotFacing(0, br.rot) | META_HALF2);
+  // 문 앞 계단돌
+  br.set(dw, 0, -1, st.plaza);
+
+  const wy = H >= 3 ? 2 : 1;
+  for (let x = 1; x < W - 1; x++) {
+    if (x === dw) continue;
+    if (rnd() < 0.55) { br.set(x, wy, 0, st.glass); br.set(x, wy, D - 1, st.glass); }
+  }
+  for (let z = 1; z < D - 1; z++) {
+    if (rnd() < 0.5) { br.set(0, wy, z, st.glass); br.set(W - 1, wy, z, st.glass); }
+  }
+  // 실내 조명
+  br.set(1, H, 1, B.torch);
+  br.set(W - 2, H, D - 2, B.torch);
+}
+
+// 침대 — 이 게임의 침대는 한 칸짜리라 두 칸을 나란히 놓아 길이를 만든다.
+function villageBed(br, lx, lz, facing, color) {
+  const bed = B[color + '_bed'];
+  if (bed === undefined) return;
+  const dir = [[0, 1], [1, 0], [0, -1], [-1, 0]][facing & 3];  // 로컬 기준 머리 방향
+  br.set(lx, 1, lz, bed, facing);
+  br.set(lx + dir[0], 1, lz + dir[1], bed, facing);
+  br.plan.beds.push([lx, lz]);
+}
+
+// ── 건물 종류 ─────────────────────────────────────────────────────────
+const VILLAGE_BUILDINGS = [
+  // [이름, 폭, 깊이, 직업, 내부 꾸미기]
+  {
+    name: 'house_small', kr: '작은 집', w: 5, d: 6, h: 3, job: 'unemployed',
+    inside: function (br, st, rnd) {
+      villageBed(br, 1, 4, 2, 'red');
+      br.set(3, 1, 4, B.crafting_table);
+      br.set(3, 1, 3, B.chest, 2);
+    }
+  },
+  {
+    name: 'house', kr: '집', w: 7, d: 7, h: 3, job: 'unemployed',
+    inside: function (br, st, rnd) {
+      villageBed(br, 1, 5, 2, 'white');
+      villageBed(br, 5, 5, 2, 'red');
+      br.set(3, 1, 5, B.crafting_table);
+      br.set(1, 1, 1, B.chest, 0);
+      br.set(5, 1, 1, B.furnace, 0);
+      br.set(3, 1, 1, B.flower_pot);
+    }
+  },
+  {
+    name: 'library', kr: '도서관', w: 7, d: 8, h: 4, job: 'librarian',
+    inside: function (br, st, rnd) {
+      for (let z = 2; z <= 6; z++) { br.set(1, 1, z, B.bookshelf); br.set(1, 2, z, B.bookshelf); }
+      for (let z = 2; z <= 6; z++) { br.set(5, 1, z, B.bookshelf); br.set(5, 2, z, B.bookshelf); }
+      br.set(3, 1, 6, B.lectern !== undefined ? B.lectern : B.crafting_table, 2);
+      br.set(2, 1, 4, st.stairs, 1); br.set(4, 1, 4, st.stairs, 3);
+      villageBed(br, 3, 2, 0, 'brown');
+    }
+  },
+  {
+    name: 'smithy', kr: '대장간', w: 7, d: 7, h: 4, job: 'weaponsmith',
+    inside: function (br, st, rnd) {
+      br.set(1, 1, 5, B.furnace, 2); br.set(2, 1, 5, B.furnace, 2);
+      br.set(1, 1, 4, B.blast_furnace !== undefined ? B.blast_furnace : B.furnace, 2);
+      br.set(5, 1, 5, B.anvil, 0);
+      br.set(5, 1, 3, B.smithing_table);
+      br.set(5, 1, 1, B.grindstone);
+      br.set(1, 1, 1, B.chest, 0);
+      br.set(3, 1, 5, B.cauldron);
+    }
+  },
+  {
+    name: 'butcher', kr: '푸줏간', w: 7, d: 7, h: 3, job: 'butcher',
+    inside: function (br, st, rnd) {
+      br.set(1, 1, 5, B.smoker, 2);
+      br.set(2, 1, 5, B.smoker, 2);
+      br.set(5, 1, 5, B.crafting_table);
+      br.set(5, 1, 3, B.barrel);
+      villageBed(br, 1, 2, 0, 'white');
+      // 옆에 작은 가축 우리
+      for (let x = -4; x <= -1; x++) { br.set(x, 1, 1, st.fence); br.set(x, 1, 5, st.fence); }
+      for (let z = 1; z <= 5; z++) { br.set(-5, 1, z, st.fence); }
+      br.set(-1, 1, 3, st.gate, 1);
+    }
+  },
+  {
+    name: 'church', kr: '교회', w: 7, d: 8, h: 6, job: 'cleric',
+    inside: function (br, st, rnd) {
+      br.set(3, 1, 6, B.brewing_stand);
+      br.set(3, 1, 5, B.cauldron);
+      for (let z = 2; z <= 4; z++) { br.set(1, 1, z, st.stairs, 1); br.set(5, 1, z, st.stairs, 3); }
+      br.set(3, 4, 3, B.torch);
+      villageBed(br, 1, 6, 0, 'red');
+    }
+  },
+  {
+    name: 'fletcher', kr: '화살 장인', w: 5, d: 6, h: 3, job: 'fletcher',
+    inside: function (br, st, rnd) {
+      br.set(1, 1, 4, B.fletching_table);
+      br.set(3, 1, 4, B.barrel);
+      villageBed(br, 3, 2, 0, 'lime');
+    }
+  },
+  {
+    name: 'mason', kr: '석공', w: 5, d: 6, h: 3, job: 'mason',
+    inside: function (br, st, rnd) {
+      br.set(1, 1, 4, B.stonecutter);
+      br.set(3, 1, 4, B.chest, 2);
+      villageBed(br, 3, 2, 0, 'gray');
+    }
+  },
+  {
+    name: 'cartographer', kr: '지도 제작소', w: 5, d: 7, h: 4, job: 'cartographer',
+    inside: function (br, st, rnd) {
+      br.set(1, 1, 5, B.cartography_table);
+      br.set(3, 1, 5, B.loom);
+      villageBed(br, 3, 2, 0, 'blue');
+    }
+  }
+];
+
+// 밭 (건물 대신 놓인다)
+function villageFarm(br, st, rnd, plan) {
+  const W = 9, D = 9;
+  const CROPS = [B.wheat_stage0, B.carrots_stage0, B.potatoes_stage0, B.beetroots_stage0];
+  const crop0 = CROPS[(rnd() * CROPS.length) | 0];
+  // 흙 고르기
+  br.fill(0, 0, 0, W - 1, 0, D - 1, st.ground);
+  br.fill(0, 1, 0, W - 1, 3, D - 1, 0);
+  // 울타리
+  for (let x = 0; x < W; x++) { br.set(x, 1, 0, st.fence); br.set(x, 1, D - 1, st.fence); }
+  for (let z = 0; z < D; z++) { br.set(0, 1, z, st.fence); br.set(W - 1, 1, z, st.fence); }
+  br.set(Math.floor(W / 2), 1, 0, st.gate, 0);
+  // 가운데 물골
+  for (let z = 2; z <= D - 3; z++) br.set(Math.floor(W / 2), 0, z, B.water);
+  // 밭이랑
+  for (let z = 1; z <= D - 2; z++) {
+    for (let x = 1; x <= W - 2; x++) {
+      if (x === Math.floor(W / 2)) continue;
+      br.set(x, 0, z, B.farmland);
+      br.set(x, 1, z, crop0 + ((rnd() * 4) | 0));
+    }
+  }
+  br.set(1, 1, 1, B.composter);
+  br.spawn(2, 2, 'farmer');
+  br.spawn(W - 3, 2, 'farmer');
+}
+
+// ── 마을 도면 생성 ────────────────────────────────────────────────────
+function buildVillagePlan(world, rx, rz) {
+  initVillageStyles();
+  const rnd = makeRandom(hashSeed('village:' + world.seed + ':' + rx + ':' + rz));
+  if (rnd() > VILLAGE_CHANCE) return null;
+
+  // 지역 안쪽에서 중심 청크를 고른다 (마을끼리 겹치지 않게)
+  const ccx = rx * VILLAGE_REGION + 4 + Math.floor(rnd() * (VILLAGE_REGION - 8));
+  const ccz = rz * VILLAGE_REGION + 4 + Math.floor(rnd() * (VILLAGE_REGION - 8));
+  const vx = ccx * CHUNK_X + 8, vz = ccz * CHUNK_Z + 8;
+
+  // 지형이 마을을 세울 만한지 살핀다
+  let lo = 1e9, hi = -1e9, sum = 0, n = 0, wet = 0;
+  for (let dz = -VILLAGE_R; dz <= VILLAGE_R; dz += 8) {
+    for (let dx = -VILLAGE_R; dx <= VILLAGE_R; dx += 8) {
+      if (dx * dx + dz * dz > VILLAGE_R * VILLAGE_R) continue;
+      const h = world.heightAt(vx + dx, vz + dz);
+      const b = world.biomeAt(vx + dx, vz + dz, h);
+      if (b === BIOME.OCEAN || b === BIOME.MOUNTAINS) wet++;
+      lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
+    }
+  }
+  if (!n) return null;
+  if (wet > n * 0.12) return null;                 // 물가/산비탈이 너무 많다
+  if (hi - lo > VILLAGE_MAX_SLOPE) return null;    // 너무 울퉁불퉁하다
+
+  const centerH = world.heightAt(vx, vz);
+  const centerB = world.biomeAt(vx, vz, centerH);
+  if (centerB === BIOME.OCEAN || centerB === BIOME.MOUNTAINS) return null;
+  // 물에 잠기지 않게 해수면보다 높게 잡는다
+  const gy = Math.max(Math.round(sum / n), SEA_LEVEL + 2);
+  const biome = centerB;
+  const styleKey = biome === BIOME.DESERT ? 'desert'
+    : biome === BIOME.SNOWY ? 'snowy'
+      : biome === BIOME.FOREST ? 'taiga' : 'plains';
+  const st = VSTYLE[styleKey];
+
+  const plan = new VillagePlan(world, vx, vz, gy, st, rnd);
+  plan.styleKey = styleKey;
+  plan.region = rx + ',' + rz;
+
+  plan.levelGround();
+
+  // 십자로 + 우물
+  const arm = VILLAGE_R - 4;
+  plan.road(vx - arm, vz, vx + arm, vz, 1);
+  plan.road(vx, vz - arm, vx, vz + arm, 1);
+  plan.well();
+
+  // 길가 자리에 건물을 세운다
+  const dists = [10, 18, 26];
+  const slots = [];
+  for (let a = 0; a < 4; a++) {
+    for (let di = 0; di < dists.length; di++) {
+      for (let s = -1; s <= 1; s += 2) {
+        const d = dists[di];
+        let dx, dz, rot;
+        if (a === 0) { dx = d; dz = s * 3; rot = s > 0 ? 0 : 2; }
+        else if (a === 1) { dx = -d; dz = s * 3; rot = s > 0 ? 0 : 2; }
+        else if (a === 2) { dx = s * 3; dz = d; rot = s > 0 ? 3 : 1; }
+        else { dx = s * 3; dz = -d; rot = s > 0 ? 3 : 1; }
+        slots.push({ x: vx + dx, z: vz + dz, rot: rot, far: di === dists.length - 1 });
+      }
+    }
+  }
+  // 자리 순서를 섞어 마을마다 모양이 달라지게
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = (rnd() * (i + 1)) | 0;
+    const t = slots[i]; slots[i] = slots[j]; slots[j] = t;
+  }
+
+  let farms = 0, count = 0;
+  const wanted = 6 + ((rnd() * 5) | 0);
+  for (let i = 0; i < slots.length && count < wanted; i++) {
+    const sl = slots[i];
+    if (rnd() < 0.18) continue;              // 빈터
+    if (sl.far && farms < 2 && rnd() < 0.55) {
+      const br = new VillageBrush(plan, sl.x, sl.z, sl.rot, 9);
+      villageFarm(br, st, rnd, plan);
+      plan.road(sl.x, sl.z, vx + (sl.x - vx) * 0.35, vz + (sl.z - vz) * 0.35, 0);
+      farms++; count++;
+      continue;
+    }
+    const tpl = VILLAGE_BUILDINGS[(rnd() * VILLAGE_BUILDINGS.length) | 0];
+    const br = new VillageBrush(plan, sl.x, sl.z, sl.rot, tpl.w);
+    villageShell(br, tpl.w, tpl.d, tpl.h, st, rnd);
+    villageOpenings(br, tpl.w, tpl.d, tpl.h, st, rnd);
+    tpl.inside(br, st, rnd);
+    br.spawn(Math.floor(tpl.w / 2), -2, tpl.job);
+    // 문에서 큰길까지 오솔길
+    plan.road(sl.x, sl.z, vx + Math.round((sl.x - vx) * 0.3), vz + Math.round((sl.z - vz) * 0.3), 0);
+    plan.buildings++;
+    count++;
+  }
+
+  // 가로등
+  for (let a = 0; a < 4; a++) {
+    for (let d = 8; d <= arm - 4; d += 9) {
+      const s = (a % 2 === 0) ? 1 : -1;
+      if (a < 2) plan.lamp(vx + (a === 0 ? d : -d), vz + s * 2);
+      else plan.lamp(vx + s * 2, vz + (a === 2 ? d : -d));
+    }
+  }
+
+  // 주민이 없으면 마을이 아니다
+  if (plan.spawns.length < 3) {
+    for (let k = 0; k < 4; k++) {
+      plan.spawns.push({ x: vx + (rnd() - 0.5) * 8, y: gy + 1, z: vz + (rnd() - 0.5) * 8, job: null });
+    }
+  }
+  plan.freeze();
+  return plan;
+}
+
+// ── 월드 연결 ─────────────────────────────────────────────────────────
+World.prototype.villageAt = function (rx, rz) {
+  if (!this._villages) this._villages = new Map();
+  const key = rx + ',' + rz;
+  if (this._villages.has(key)) return this._villages.get(key);
+  let plan = null;
+  try { plan = buildVillagePlan(this, rx, rz); } catch (e) { console.warn('마을 생성 실패', e); plan = null; }
+  this._villages.set(key, plan);
+  return plan;
+};
+
+// 이 청크에 걸치는 마을들
+World.prototype.villagesForChunk = function (cx, cz) {
+  const out = [];
+  const rx = Math.floor(cx / VILLAGE_REGION), rz = Math.floor(cz / VILLAGE_REGION);
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const p = this.villageAt(rx + dx, rz + dz);
+      if (p && p.ops.has(cx + ',' + cz)) out.push(p);
+    }
+  }
+  return out;
+};
+
+// 청크에 마을 블록을 찍는다 (장식 다음에 부른다)
+World.prototype.paintVillage = function (c) {
+  const list = this.villagesForChunk(c.cx, c.cz);
+  for (let n = 0; n < list.length; n++) {
+    const a = list[n].ops.get(c.cx + ',' + c.cz);
+    if (!a) continue;
+    for (let i = 0; i < a.length; i += VOP) {
+      const lx = a[i], y0 = a[i + 1], lz = a[i + 2];
+      const id = a[i + 3], meta = a[i + 4], force = a[i + 5], run = a[i + 6];
+      for (let n2 = 0; n2 < run; n2++) {
+        const y = y0 + n2;
+        if (y < 0 || y >= CHUNK_Y) continue;
+        const k = idx(lx, y, lz);
+        if (!force) {
+          const cur = c.blocks[k];
+          if (cur !== 0 && cur !== B.water) continue;
+        }
+        c.blocks[k] = id;
+        c.meta[k] = meta;
+      }
+    }
+  }
+  return list.length > 0;
+};
+
+// 가장 가까운 마을 찾기 (F3 표시와 "마을에서 시작"에 쓴다)
+World.prototype.nearestVillage = function (x, z, regionRadius) {
+  const rr = regionRadius === undefined ? 2 : regionRadius;
+  const rx = Math.floor(Math.floor(x / CHUNK_X) / VILLAGE_REGION);
+  const rz = Math.floor(Math.floor(z / CHUNK_Z) / VILLAGE_REGION);
+  let best = null, bestD = Infinity;
+  for (let dz = -rr; dz <= rr; dz++) {
+    for (let dx = -rr; dx <= rr; dx++) {
+      const p = this.villageAt(rx + dx, rz + dz);
+      if (!p) continue;
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+  }
+  return best ? { plan: best, dist: bestD } : null;
+};
 
 </script>
 <script>
@@ -7478,7 +8532,12 @@ Entity.prototype.update = function (dt, player, mgr) {
   let wantMove = false;
   let speed = d.speed;
 
-  if (d.hostile && !player.dead && !player.creative && distSq < 18 * 18) {
+  if (d.brain && typeof MOB_BRAINS !== 'undefined' && MOB_BRAINS[d.brain]) {
+    // 주민·골렘처럼 따로 두뇌가 있는 몹
+    const r = MOB_BRAINS[d.brain](this, dt, player, mgr);
+    wantMove = r.move;
+    speed = r.speed;
+  } else if (d.hostile && !player.dead && !player.creative && distSq < 18 * 18) {
     // 추격
     this.targetYaw = Math.atan2(dxp, dzp);
     wantMove = true;
@@ -7652,11 +8711,21 @@ EntityManager.prototype.countHostile = function () {
   return n;
 };
 
+// 마을 주민과 골렘은 자연 생성 한도에 넣지 않는다
+EntityManager.prototype.countVillage = function () {
+  let n = 0;
+  for (let i = 0; i < this.mobs.length; i++) {
+    const b = this.mobs[i].def.brain;
+    if (b === 'villager' || b === 'golem') n++;
+  }
+  return n;
+};
+
 // 플레이어 주변 자연 생성
 EntityManager.prototype.trySpawn = function (player) {
   const w = this.world;
   const night = this.daylight < 0.35;
-  const passive = this.mobs.length - this.countHostile();
+  const passive = this.mobs.length - this.countHostile() - this.countVillage();
 
   for (let attempt = 0; attempt < 6; attempt++) {
     const ang = Math.random() * Math.PI * 2;
@@ -7705,11 +8774,12 @@ EntityManager.prototype.update = function (dt, player, daylight) {
   for (let i = this.mobs.length - 1; i >= 0; i--) {
     const m = this.mobs[i];
     m.update(dt, player, this);
-    // 너무 멀면 제거
+    // 너무 멀면 제거 (주민과 골렘은 마을을 지켜야 하므로 조금 더 버틴다)
     const dd = (m.x - player.x) * (m.x - player.x) + (m.z - player.z) * (m.z - player.z);
-    if (dd > 90 * 90) m.dead = true;
+    const keep = (m.def.brain === 'villager' || m.def.brain === 'golem') ? 150 : 90;
+    if (dd > keep * keep) { m.despawned = true; m.dead = true; }
     if (m.dead) {
-      if (m.health <= 0) {
+      if (m.health <= 0 && !m.despawned) {
         m.def.drops.forEach(function (d) {
           const min = d[1], max = d[2];
           const n = min + ((Math.random() * (max - min + 1)) | 0);
@@ -7730,6 +8800,7 @@ EntityManager.prototype.update = function (dt, player, daylight) {
   if (this.spawnTimer <= 0) {
     this.spawnTimer = 2.5;
     this.trySpawn(player);
+    if (this.populateVillages) this.populateVillages(player);
   }
 };
 
@@ -7763,6 +8834,403 @@ function rayBox(ox, oy, oz, dx, dy, dz, x0, y0, z0, x1, y1, z1) {
     }
   }
   return tmin;
+}
+
+</script>
+<script>
+/* ==== js/villagers.js ==== */
+// villagers.js - 주민, 철 골렘, 그리고 주민과의 거래.
+'use strict';
+
+// ── 직업 ──────────────────────────────────────────────────────────────
+// [키, 한글 이름, 겉옷 색, 앞치마/배지 색]
+const VILLAGER_JOBS = [
+  ['unemployed', '백수', '#8a6a4a', '#6f5238'],
+  ['nitwit', '멍청이', '#8a6a4a', '#5aa04a'],
+  ['farmer', '농부', '#c8a84a', '#7a5a2a'],
+  ['fisherman', '어부', '#6f93a8', '#3f5c6b'],
+  ['shepherd', '양치기', '#d8d4c8', '#9a9488'],
+  ['fletcher', '화살 장인', '#b08a50', '#7a5c30'],
+  ['librarian', '사서', '#d8c078', '#8a7440'],
+  ['cartographer', '지도 제작자', '#dcdcc0', '#8f8f68'],
+  ['cleric', '성직자', '#9a4ec0', '#5f2f7a'],
+  ['armorer', '갑옷 장인', '#55555f', '#33333a'],
+  ['weaponsmith', '무기 장인', '#6a6a76', '#3a3a44'],
+  ['toolsmith', '도구 장인', '#6f5c46', '#463a2c'],
+  ['butcher', '푸줏간 주인', '#d4d4d4', '#a03a3a'],
+  ['mason', '석공', '#b4b4aa', '#7a7a70'],
+  ['leatherworker', '가죽 세공사', '#a06840', '#6b4326']
+];
+
+const VILLAGER_BY_JOB = {};
+VILLAGER_JOBS.forEach(function (j) { VILLAGER_BY_JOB[j[0]] = { kr: j[1], robe: j[2], apron: j[3] }; });
+
+// ── 거래표 ────────────────────────────────────────────────────────────
+// give: 주는 것 [이름, 개수] 배열 · get: 받는 것 [이름, 개수]
+const VILLAGER_TRADES = {
+  farmer: [
+    [[['wheat', 20]], ['emerald', 1]],
+    [[['potato', 26]], ['emerald', 1]],
+    [[['carrot', 22]], ['emerald', 1]],
+    [[['emerald', 1]], ['bread', 6]],
+    [[['emerald', 3]], ['golden_carrot', 3]],
+    [[['emerald', 3]], ['pumpkin_pie', 4]]
+  ],
+  fisherman: [
+    [[['string', 20]], ['emerald', 1]],
+    [[['coal', 15]], ['emerald', 1]],
+    [[['emerald', 1]], ['cooked_cod', 6]],
+    [[['emerald', 2]], ['fishing_rod', 1]]
+  ],
+  shepherd: [
+    [[['white_wool', 18]], ['emerald', 1]],
+    [[['emerald', 2]], ['shears', 1]],
+    [[['emerald', 3]], ['white_bed', 1]],
+    [[['emerald', 1]], ['red_dye', 3]]
+  ],
+  fletcher: [
+    [[['stick', 32]], ['emerald', 1]],
+    [[['flint', 26]], ['emerald', 1]],
+    [[['emerald', 1]], ['arrow', 16]],
+    [[['emerald', 2]], ['bow', 1]]
+  ],
+  librarian: [
+    [[['paper', 24]], ['emerald', 1]],
+    [[['book', 4]], ['emerald', 1]],
+    [[['emerald', 5]], ['bookshelf', 3]],
+    [[['emerald', 1]], ['lantern', 1]],
+    [[['emerald', 4]], ['glass', 12]]
+  ],
+  cartographer: [
+    [[['paper', 24]], ['emerald', 1]],
+    [[['emerald', 7]], ['item_frame', 1]],
+    [[['emerald', 3]], ['glass_pane', 8]],
+    [[['emerald', 2]], ['compass', 1]]
+  ],
+  cleric: [
+    [[['rotten_flesh', 32]], ['emerald', 1]],
+    [[['gold_ingot', 3]], ['emerald', 1]],
+    [[['emerald', 1]], ['redstone', 2]],
+    [[['emerald', 3]], ['glass_bottle', 9]],
+    [[['emerald', 5]], ['ender_pearl', 1]],
+    [[['emerald', 4]], ['glowstone', 1]]
+  ],
+  armorer: [
+    [[['coal', 15]], ['emerald', 1]],
+    [[['iron_ingot', 4]], ['emerald', 1]],
+    [[['emerald', 7]], ['iron_chestplate', 1]],
+    [[['emerald', 5]], ['iron_helmet', 1]],
+    [[['emerald', 36]], ['diamond_chestplate', 1]]
+  ],
+  weaponsmith: [
+    [[['coal', 15]], ['emerald', 1]],
+    [[['iron_ingot', 4]], ['emerald', 1]],
+    [[['emerald', 7]], ['iron_sword', 1]],
+    [[['emerald', 3]], ['iron_axe', 1]],
+    [[['emerald', 22]], ['diamond_sword', 1]]
+  ],
+  toolsmith: [
+    [[['coal', 15]], ['emerald', 1]],
+    [[['iron_ingot', 4]], ['emerald', 1]],
+    [[['emerald', 1]], ['stone_pickaxe', 1]],
+    [[['emerald', 8]], ['iron_pickaxe', 1]],
+    [[['emerald', 20]], ['diamond_pickaxe', 1]]
+  ],
+  butcher: [
+    [[['chicken', 14]], ['emerald', 1]],
+    [[['porkchop', 7]], ['emerald', 1]],
+    [[['emerald', 1]], ['cooked_beef', 5]],
+    [[['emerald', 1]], ['cooked_porkchop', 5]]
+  ],
+  mason: [
+    [[['cobblestone', 20]], ['emerald', 1]],
+    [[['clay_ball', 10]], ['emerald', 1]],
+    [[['emerald', 1]], ['brick', 10]],
+    [[['emerald', 1]], ['smooth_stone', 4]],
+    [[['emerald', 1]], ['stone_bricks', 4]]
+  ],
+  leatherworker: [
+    [[['leather', 6]], ['emerald', 1]],
+    [[['emerald', 3]], ['leather_leggings', 1]],
+    [[['emerald', 2]], ['leather_boots', 1]],
+    [[['emerald', 5]], ['saddle', 1]]
+  ]
+};
+
+// 없는 아이템이 섞여 있으면 조용히 걸러 낸다 (아이템 목록이 바뀌어도 안전)
+let VILLAGER_TRADES_READY = false;
+function initVillagerTrades() {
+  if (VILLAGER_TRADES_READY) return;
+  Object.keys(VILLAGER_TRADES).forEach(function (job) {
+    VILLAGER_TRADES[job] = VILLAGER_TRADES[job].filter(function (t) {
+      if (!ITEMS[t[1][0]]) return false;
+      for (let i = 0; i < t[0].length; i++) if (!ITEMS[t[0][i][0]]) return false;
+      return true;
+    });
+  });
+  VILLAGER_TRADES_READY = true;
+}
+
+// 주민 하나의 거래 목록 (개체마다 조금씩 다르게)
+function makeTradeOffers(job, seed) {
+  initVillagerTrades();
+  const table = VILLAGER_TRADES[job];
+  if (!table || !table.length) return [];
+  const rnd = makeRandom(hashSeed('trade:' + job + ':' + seed));
+  const pool = table.slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = (rnd() * (i + 1)) | 0;
+    const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  const n = Math.min(pool.length, 3 + ((rnd() * 2) | 0));
+  const offers = [];
+  for (let i = 0; i < n; i++) {
+    offers.push({
+      give: pool[i][0].map(function (g) { return { name: g[0], count: g[1] }; }),
+      get: { name: pool[i][1][0], count: pool[i][1][1] },
+      uses: 0,
+      maxUses: 8 + ((rnd() * 8) | 0)
+    });
+  }
+  return offers;
+}
+
+// ── 몹 등록 ───────────────────────────────────────────────────────────
+const VS = 1 / 16;
+
+function registerVillagerMobs() {
+  VILLAGER_JOBS.forEach(function (j) {
+    const key = j[0];
+    const robe = 'mob_villager_' + key;
+    const legs = 'mob_villager_legs';
+    MOB_TYPES['villager_' + key] = {
+      kr: j[1] + ' 주민', hostile: false, health: 20, speed: 0.72,
+      width: 0.6, height: 1.95, brain: 'villager', job: key, jobKr: j[1],
+      drops: [],
+      parts: [
+        { x: 0, y: 12 * VS, z: 0, w: 8 * VS, h: 11 * VS, d: 6 * VS, tex: robe },
+        { x: 0, y: 23 * VS, z: 0, w: 8 * VS, h: 8 * VS, d: 8 * VS, tex: 'mob_villager_head', front: 'mob_villager_face' },
+        { x: 0, y: 25 * VS, z: 5 * VS, w: 2 * VS, h: 4 * VS, d: 2 * VS, tex: 'mob_villager_nose' },
+        { x: 0, y: 16 * VS, z: 3 * VS, w: 12 * VS, h: 4 * VS, d: 4 * VS, tex: robe },
+        { x: -2 * VS, y: 0, z: 0, w: 4 * VS, h: 12 * VS, d: 4 * VS, tex: legs, leg: 0 },
+        { x: 2 * VS, y: 0, z: 0, w: 4 * VS, h: 12 * VS, d: 4 * VS, tex: legs, leg: 1 }
+      ]
+    };
+  });
+
+  MOB_TYPES.iron_golem = {
+    kr: '철 골렘', hostile: false, health: 100, speed: 0.95,
+    width: 1.4, height: 2.7, brain: 'golem', damage: 14, guard: true,
+    drops: [['iron_ingot', 3, 5], ['poppy', 0, 2]],
+    parts: [
+      { x: 0, y: 11 * VS, z: 0, w: 18 * VS, h: 18 * VS, d: 9 * VS, tex: 'mob_golem' },
+      { x: 0, y: 20 * VS, z: 0, w: 8 * VS, h: 10 * VS, d: 8 * VS, tex: 'mob_golem_body' },
+      { x: 0, y: 29 * VS, z: 0, w: 8 * VS, h: 10 * VS, d: 8 * VS, tex: 'mob_golem', front: 'mob_golem_face' },
+      { x: -12 * VS, y: 11 * VS, z: 0, w: 6 * VS, h: 20 * VS, d: 6 * VS, tex: 'mob_golem', arm: 0 },
+      { x: 12 * VS, y: 11 * VS, z: 0, w: 6 * VS, h: 20 * VS, d: 6 * VS, tex: 'mob_golem', arm: 0 },
+      { x: -4 * VS, y: 0, z: 0, w: 7 * VS, h: 11 * VS, d: 7 * VS, tex: 'mob_golem_body', leg: 0 },
+      { x: 4 * VS, y: 0, z: 0, w: 7 * VS, h: 11 * VS, d: 7 * VS, tex: 'mob_golem_body', leg: 1 }
+    ]
+  };
+}
+
+// ── 두뇌 ──────────────────────────────────────────────────────────────
+// 반환: { move, speed } — Entity.update 가 이 값으로 걷는다.
+const MOB_BRAINS = {};
+
+const VILLAGER_HOME_R = 26;   // 집에서 이만큼 벗어나지 않는다
+const VILLAGER_FLEE_R = 9;    // 몬스터가 이 안에 오면 도망
+
+MOB_BRAINS.villager = function (e, dt, player, mgr) {
+  const d = e.def;
+  let speed = d.speed, move = false;
+
+  // 1) 몬스터가 보이면 도망친다
+  let threat = null, threatD = VILLAGER_FLEE_R * VILLAGER_FLEE_R;
+  for (let i = 0; i < mgr.mobs.length; i++) {
+    const m = mgr.mobs[i];
+    if (!m.def.hostile || m.dead) continue;
+    const dx = m.x - e.x, dz = m.z - e.z;
+    const dd = dx * dx + dz * dz;
+    if (dd < threatD) { threatD = dd; threat = m; }
+  }
+  if (threat) {
+    e.targetYaw = Math.atan2(e.x - threat.x, e.z - threat.z);
+    e.panic = 2.5;
+    return { move: true, speed: speed * 1.7 };
+  }
+  if (e.panic > 0) { e.panic -= dt; return { move: true, speed: speed * 1.5 }; }
+
+  const home = e.home || { x: e.x, z: e.z };
+  const hx = home.x - e.x, hz = home.z - e.z;
+  const homeD = Math.hypot(hx, hz);
+  const night = mgr.daylight < 0.32;
+
+  // 2) 밤이거나 너무 멀어지면 집 쪽으로
+  if (homeD > (night ? 5 : VILLAGER_HOME_R)) {
+    e.targetYaw = Math.atan2(hx, hz);
+    return { move: true, speed: night ? speed * 1.2 : speed };
+  }
+
+  // 3) 가까이 온 플레이어를 쳐다본다
+  const px = player.x - e.x, pz = player.z - e.z;
+  if (px * px + pz * pz < 16 && !night) {
+    e.targetYaw = Math.atan2(px, pz);
+    e.wanderTimer = Math.max(e.wanderTimer, 0.8);
+    return { move: false, speed: speed };
+  }
+
+  // 4) 그 밖엔 마을 안을 어슬렁거린다
+  e.wanderTimer -= dt;
+  if (e.wanderTimer <= 0) {
+    e.wanderTimer = 2 + Math.random() * 4;
+    e.moving = Math.random() < (night ? 0.3 : 0.6);
+    // 집에서 멀수록 안쪽을 향하도록 살짝 당긴다
+    const bias = Math.min(1, homeD / VILLAGER_HOME_R);
+    e.targetYaw = (Math.random() < bias)
+      ? Math.atan2(hx, hz) + (Math.random() - 0.5)
+      : Math.random() * Math.PI * 2;
+  }
+  move = e.moving;
+  return { move: move, speed: speed };
+};
+
+MOB_BRAINS.golem = function (e, dt, player, mgr) {
+  const d = e.def;
+  // 가장 가까운 몬스터를 쫓아가 후려친다
+  let target = null, bestD = 18 * 18;
+  for (let i = 0; i < mgr.mobs.length; i++) {
+    const m = mgr.mobs[i];
+    if (!m.def.hostile || m.dead) continue;
+    const dx = m.x - e.x, dz = m.z - e.z;
+    const dd = dx * dx + dz * dz;
+    if (dd < bestD) { bestD = dd; target = m; }
+  }
+  if (target) {
+    const dx = target.x - e.x, dz = target.z - e.z;
+    e.targetYaw = Math.atan2(dx, dz);
+    if (bestD < 3.6 * 3.6 && e.attackCooldown <= 0) {
+      const len = Math.max(0.001, Math.hypot(dx, dz));
+      target.hurt(d.damage, dx / len, dz / len);
+      target.vy = 9;                 // 원작처럼 하늘로 띄운다
+      e.attackCooldown = 1.0;
+    }
+    return { move: true, speed: d.speed * 1.35 };
+  }
+
+  const home = e.home || { x: e.x, z: e.z };
+  const hx = home.x - e.x, hz = home.z - e.z;
+  if (Math.hypot(hx, hz) > 30) {
+    e.targetYaw = Math.atan2(hx, hz);
+    return { move: true, speed: d.speed };
+  }
+  e.wanderTimer -= dt;
+  if (e.wanderTimer <= 0) {
+    e.wanderTimer = 3 + Math.random() * 5;
+    e.moving = Math.random() < 0.5;
+    e.targetYaw = Math.random() * Math.PI * 2;
+  }
+  return { move: e.moving, speed: d.speed };
+};
+
+// ── 마을 주민 채우기 ──────────────────────────────────────────────────
+const VILLAGER_SPAWN_R = 96;   // 이 거리 안의 마을에 주민을 채운다
+
+EntityManager.prototype.populateVillages = function (player) {
+  const w = this.world;
+  if (!w.nearestVillage) return;
+  const near = w.nearestVillage(player.x, player.z, 1);
+  if (!near || near.dist > VILLAGE_R + VILLAGER_SPAWN_R) return;
+  const plan = near.plan;
+
+  // 이 마을에 이미 있는 주민/골렘 세기
+  let villagers = 0, golems = 0;
+  for (let i = 0; i < this.mobs.length; i++) {
+    const m = this.mobs[i];
+    if (Math.hypot(m.x - plan.x, m.z - plan.z) > VILLAGE_R + 12) continue;
+    if (m.def.brain === 'villager') villagers++;
+    else if (m.def.brain === 'golem') golems++;
+  }
+
+  const want = plan.spawns.length;
+  if (villagers < want) {
+    // 아직 안 찬 자리 중 하나에 세운다
+    for (let k = 0; k < 8; k++) {
+      const sp = plan.spawns[(Math.random() * plan.spawns.length) | 0];
+      // 이미 누가 서 있는 자리는 건너뛴다 (직업이 한쪽으로 몰리지 않게)
+      let taken = false;
+      for (let i = 0; i < this.mobs.length; i++) {
+        const m = this.mobs[i];
+        if (m.def.brain !== 'villager') continue;
+        if (Math.hypot(m.x - sp.x, m.z - sp.z) < 5) { taken = true; break; }
+      }
+      if (taken && k < 6) continue;
+      const y = this.findStand(sp.x, sp.y, sp.z);
+      if (y === null) continue;
+      const job = sp.job || VILLAGER_RANDOM_JOBS[(Math.random() * VILLAGER_RANDOM_JOBS.length) | 0];
+      const type = MOB_TYPES['villager_' + job] ? 'villager_' + job : 'villager_unemployed';
+      const e = this.spawnMob(type, sp.x, y, sp.z);
+      e.home = { x: plan.x, z: plan.z };
+      e.village = plan;
+      break;
+    }
+  }
+  if (golems < 1 && villagers >= 3) {
+    const y = this.findStand(plan.x + 2.5, plan.y + 1, plan.z + 2.5);
+    if (y !== null) {
+      const g = this.spawnMob('iron_golem', plan.x + 2.5, y, plan.z + 2.5);
+      g.home = { x: plan.x, z: plan.z };
+    }
+  }
+};
+
+const VILLAGER_RANDOM_JOBS = ['unemployed', 'nitwit', 'farmer', 'shepherd',
+  'fisherman', 'leatherworker', 'mason', 'toolsmith'];
+
+// 해당 자리에 설 수 있는 y를 찾는다 (없으면 null)
+EntityManager.prototype.findStand = function (x, y, z) {
+  const w = this.world;
+  const bx = Math.floor(x), bz = Math.floor(z);
+  for (let dy = 3; dy >= -4; dy--) {
+    const yy = Math.floor(y) + dy;
+    if (yy < 1 || yy >= CHUNK_Y - 2) continue;
+    const below = w.getBlock(bx, yy - 1, bz);
+    if (below === 0 || !blockDef(below).solid) continue;
+    if (w.getBlock(bx, yy, bz) !== 0 || w.getBlock(bx, yy + 1, bz) !== 0) continue;
+    return yy;
+  }
+  return null;
+};
+
+// ── 거래 ──────────────────────────────────────────────────────────────
+Entity.prototype.tradeOffers = function () {
+  if (this.def.brain !== 'villager') return null;
+  const job = this.def.job;
+  if (job === 'unemployed' || job === 'nitwit') return [];
+  if (!this._offers) {
+    if (this.tradeSeed === undefined) this.tradeSeed = (Math.random() * 1e9) | 0;
+    this._offers = makeTradeOffers(job, this.tradeSeed);
+  }
+  return this._offers;
+};
+
+// 플레이어가 이 거래를 할 수 있는가
+function canTrade(player, offer) {
+  if (offer.uses >= offer.maxUses) return false;
+  for (let i = 0; i < offer.give.length; i++) {
+    if (player.countItem(offer.give[i].name) < offer.give[i].count) return false;
+  }
+  return true;
+}
+
+function doTrade(player, offer) {
+  if (!canTrade(player, offer)) return false;
+  for (let i = 0; i < offer.give.length; i++) {
+    player.removeItem(offer.give[i].name, offer.give[i].count);
+  }
+  const left = player.addItem(offer.get.name, offer.get.count);
+  offer.uses++;
+  return left === 0 ? true : 'partial';
 }
 
 </script>
@@ -8619,6 +10087,10 @@ function Renderer(canvas) {
   this.chunkGL = new Map(); // chunk key -> {solid:{vbo,ibo,count}, water:{...}}
   this.stats = { chunks: 0, tris: 0 };
 
+  // 화면 후처리(셰이더). 지원되지 않으면 조용히 꺼진다.
+  this.post = new PostFX(gl);
+  this.invViewProj = mat4.create();
+
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
   gl.cullFace(gl.BACK);
@@ -8742,22 +10214,57 @@ Renderer.prototype.beginFrame = function (player, opts) {
   mat4.translate(this.view, this.view, [-eye[0], -eye[1], -eye[2]]);
   mat4.multiply(this.viewProj, this.proj, this.view);
   this.extractFrustum();
+  mat4.invert(this.invViewProj, this.viewProj);
+
+  // 후처리를 쓰면 화면 대신 텍스처에 그린다
+  this.postOn = this.post.begin(this.canvas.width, this.canvas.height);
 
   gl.clearColor(opts.fogColor[0], opts.fogColor[1], opts.fogColor[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  // 하늘
+  // 하늘 (해·달·별·노을)
   gl.disable(gl.DEPTH_TEST);
-  gl.useProgram(this.skyProg);
+  const sp = this.skyProg;
+  gl.useProgram(sp);
   gl.bindBuffer(gl.ARRAY_BUFFER, this.skyBuf);
   gl.enableVertexAttribArray(0);
+  gl.disableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  gl.uniform3fv(this.skyProg.u.uTop, opts.skyTop);
-  gl.uniform3fv(this.skyProg.u.uBottom, opts.skyBottom);
+  gl.uniform3fv(sp.u.uTop, opts.skyTop);
+  gl.uniform3fv(sp.u.uBottom, opts.skyBottom);
+  gl.uniformMatrix4fv(sp.u.uInvVP, false, this.invViewProj);
+  gl.uniform3fv(sp.u.uCamPos, eye);
+  gl.uniform3fv(sp.u.uSunDir, opts.sunDir);
+  gl.uniform3fv(sp.u.uSunColor, opts.sunColor);
+  gl.uniform1f(sp.u.uNight, opts.night);
+  gl.uniform1f(sp.u.uSunset, opts.sunset);
+  gl.uniform1f(sp.u.uUnder, opts.under > 0.5 ? 1 : 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST);
 
   this.stats.chunks = 0; this.stats.tris = 0;
+};
+
+// 후처리를 입혀 화면에 낸다. 프레임의 맨 마지막에 부른다.
+Renderer.prototype.endFrame = function (opts) {
+  if (this.postOn) this.post.end(opts);
+  this.postOn = false;
+};
+
+// 해가 화면 어디에 있는지 (갓레이용). 뒤에 있으면 sunOnScreen = false
+Renderer.prototype.sunScreenPos = function (sunDir, out) {
+  const m = this.viewProj;
+  const x = sunDir[0], y = sunDir[1], z = sunDir[2];
+  const cw = m[3] * x + m[7] * y + m[11] * z;
+  if (cw <= 0.0001) { out.on = false; return out; }
+  const cx = m[0] * x + m[4] * y + m[8] * z;
+  const cy = m[1] * x + m[5] * y + m[9] * z;
+  out.x = (cx / cw) * 0.5 + 0.5;
+  out.y = (cy / cw) * 0.5 + 0.5;
+  // 화면에서 조금 벗어나도 빛줄기는 살아 있다
+  out.on = out.x > -0.55 && out.x < 1.55 && out.y > -0.55 && out.y < 1.55;
+  return out;
 };
 
 Renderer.prototype.setupTerrainProgram = function (opts) {
@@ -9572,6 +11079,7 @@ UI.prototype.openScreen = function (kind, data) {
   this.craftSize = (kind === 'crafting') ? 3 : 2;
   if (kind === 'furnace') this.furnace = data;
   if (kind === 'chest') this.chest = data;
+  if (kind === 'trade') this.trader = data;
   this.buildScreen();
   this.el.screen.style.display = 'flex';
   this.updateCraftResult();
@@ -9584,6 +11092,7 @@ UI.prototype.closeScreen = function () {
   this.open = null;
   this.furnace = null;
   this.chest = null;
+  this.trader = null;
   this.el.screen.style.display = 'none';
 };
 
@@ -9626,7 +11135,8 @@ UI.prototype.buildScreen = function () {
   title.textContent = this.open === 'crafting' ? '제작대'
     : this.open === 'furnace' ? '화로'
       : this.open === 'chest' ? '상자'
-        : this.open === 'creative' ? '창작 모드 — 모든 아이템' : '인벤토리';
+        : this.open === 'trade' ? (this.trader ? this.trader.def.jobKr + ' 주민과 거래' : '거래')
+          : this.open === 'creative' ? '창작 모드 — 모든 아이템' : '인벤토리';
   panel.appendChild(title);
 
   const top = document.createElement('div');
@@ -9654,6 +11164,8 @@ UI.prototype.buildScreen = function () {
     wrap.appendChild(arrow);
     this.el.smeltArrow = arrow.querySelector('i');
     grid('g1 out', 1, 'fout', 0, wrap);
+  } else if (this.open === 'trade') {
+    this.buildTrade(section('거래 목록', top));
   } else if (this.open === 'chest') {
     grid('g-inv', 27, 'chest', 0, section('보관함', top));
   } else if (this.open === 'creative') {
@@ -9692,8 +11204,88 @@ UI.prototype.buildScreen = function () {
   hint.className = 'hint';
   hint.textContent = this.open === 'creative'
     ? '클릭: 한 묶음 집기 · 우클릭: 1개 · Shift+클릭: 가방으로 바로 담기 · E/ESC로 닫기'
-    : 'E 또는 ESC로 닫기 · 클릭: 집기/놓기 · 우클릭: 반개/1개 · Shift+클릭: 빠른 이동';
+    : this.open === 'trade'
+      ? '거래를 클릭하면 왼쪽 물건을 주고 오른쪽 물건을 받습니다 · 에메랄드가 마을의 돈입니다 · E/ESC로 닫기'
+      : 'E 또는 ESC로 닫기 · 클릭: 집기/놓기 · 우클릭: 반개/1개 · Shift+클릭: 빠른 이동';
   panel.appendChild(hint);
+};
+
+// 주민 거래 화면
+UI.prototype.buildTrade = function (parent) {
+  const self = this;
+  const mob = this.trader;
+  const list = document.createElement('div');
+  list.className = 'trade-list';
+  parent.appendChild(list);
+  this.tradeRows = [];
+  if (!mob) return;
+
+  const offers = mob.tradeOffers() || [];
+  offers.forEach(function (offer, i) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'trade-row';
+
+    const give = document.createElement('span');
+    give.className = 'trade-side';
+    offer.give.forEach(function (g, k) {
+      if (k) give.appendChild(document.createTextNode('+'));
+      give.appendChild(self.tradeChip(g.name, g.count));
+    });
+
+    const arrow = document.createElement('span');
+    arrow.className = 'trade-arrow';
+    arrow.textContent = '→';
+
+    const get = document.createElement('span');
+    get.className = 'trade-side';
+    get.appendChild(self.tradeChip(offer.get.name, offer.get.count));
+
+    row.appendChild(give); row.appendChild(arrow); row.appendChild(get);
+    row.addEventListener('click', function () { self.doTradeClick(i); });
+    list.appendChild(row);
+    self.tradeRows.push(row);
+  });
+  this.refreshTrade();
+};
+
+UI.prototype.tradeChip = function (name, count) {
+  const c = document.createElement('span');
+  c.className = 'trade-chip';
+  c.title = itemDisplayName(name);
+  c.innerHTML = '<i class="ic" style="' + iconStyle(name) + '"></i>' +
+    '<b>' + count + '</b><em>' + itemDisplayName(name) + '</em>';
+  return c;
+};
+
+UI.prototype.doTradeClick = function (i) {
+  const mob = this.trader;
+  if (!mob) return;
+  const offer = (mob.tradeOffers() || [])[i];
+  if (!offer) return;
+  if (offer.uses >= offer.maxUses) { this.toast('이 거래는 오늘 다 팔렸습니다'); return; }
+  if (!canTrade(this.player, offer)) { this.toast('가진 물건이 모자랍니다'); return; }
+  const r = doTrade(this.player, offer);
+  if (r === 'partial') this.toast('가방이 가득 찼습니다');
+  else if (r) {
+    this.toast(itemDisplayName(offer.get.name) + ' ×' + offer.get.count + ' 을(를) 받았습니다');
+    if (this.game && this.game.playSound) this.game.playSound('place');
+  }
+  this.refreshTrade();
+  this.refreshScreen();
+};
+
+UI.prototype.refreshTrade = function () {
+  if (!this.tradeRows || !this.trader) return;
+  const offers = this.trader.tradeOffers() || [];
+  for (let i = 0; i < this.tradeRows.length; i++) {
+    const o = offers[i];
+    const row = this.tradeRows[i];
+    if (!o) continue;
+    const soldOut = o.uses >= o.maxUses;
+    row.classList.toggle('sold', soldOut);
+    row.classList.toggle('ok', !soldOut && canTrade(this.player, o));
+  }
 };
 
 // 창작 모드: 탭 + 검색 + 아이템 격자
@@ -9776,6 +11368,7 @@ UI.prototype.rebuildCreativeGrid = function () {
 };
 
 UI.prototype.refreshScreen = function () {
+  if (this.open === 'trade') this.refreshTrade();
   if (!this.open || !this.screenSlots) return;
   for (let i = 0; i < this.screenSlots.length; i++) {
     const el = this.screenSlots[i];
@@ -9923,9 +11516,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v3.1';
-const GAME_BUILD = '2026-08-21';
-const GAME_FEATURES = '입체 아이템 · 흐르는 물 · 블록 795 · 아이템 1239';
+const GAME_VERSION = 'v4';
+const GAME_BUILD = '2026-08-22';
+const GAME_FEATURES = '주민 마을 · 화면 셰이더 · 입체 아이템 · 블록 795 · 아이템 1239';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -9946,7 +11539,8 @@ function Game(canvas) {
     renderDistance: RENDER_DISTANCE_DEFAULT,
     fov: 70,
     sensitivity: 0.0022,
-    invertY: false
+    invertY: false,
+    shader: SHADER_DEFAULT      // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
   };
   this.input = {
     forward: false, back: false, left: false, right: false,
@@ -9971,6 +11565,9 @@ Game.prototype.initAssets = function () {
   if (this.assetsReady) return;
   initFluidConfig();
   initPowderMap();
+  initVillageStyles();
+  registerVillagerMobs();
+  initVillagerTrades();
   const atlas = buildAtlas();
   buildItemIcons(atlas.canvas);
   this.renderer.setAtlases(atlas.canvas, buildItemAtlasGL());
@@ -10044,12 +11641,41 @@ Game.prototype.spawnPlayer = function () {
   this.player.spawnX = sx; this.player.spawnY = sy + 1; this.player.spawnZ = sz;
 
   // 스폰 주변만 먼저 만들어 바닥 없는 곳에 떨어지지 않게 한다 (나머지는 스트리밍)
-  this.streamChunks(7, 2);
+  this.forceLoad(2);
+};
+
+// 주변 청크를 생성 → 장식(마을) → 조명 → 메시까지 끝까지 밀어붙인다.
+// streamChunks 는 한 번에 한 단계만 진행하므로 여러 번 돌려야 한다.
+Game.prototype.forceLoad = function (radius, rounds) {
+  const n = rounds === undefined ? 5 : rounds;
+  for (let i = 0; i < n; i++) this.streamChunks(0, radius);
+};
+
+// 가까운 마을 어귀에서 시작 (시작 화면의 "마을에서 시작")
+// 찾으면 마을 정보를, 없으면 null 을 돌려준다.
+Game.prototype.spawnAtVillage = function (searchRegions) {
+  const w = this.world;
+  if (!w.nearestVillage) return null;
+  const near = w.nearestVillage(0, 0, searchRegions === undefined ? 3 : searchRegions);
+  if (!near) return null;
+  const v = near.plan;
+  const p = this.player;
+  // 우물에서 조금 떨어진 길 위
+  p.x = v.x + 0.5; p.z = v.z + 6.5; p.y = v.y + 2;
+  p.vx = p.vy = p.vz = 0;
+  p.spawnX = Math.floor(p.x); p.spawnY = v.y + 1; p.spawnZ = Math.floor(p.z);
+  // 마을은 "장식" 단계에서 찍히므로 그 단계까지 밀어붙인 뒤에 높이를 잰다
+  this.forceLoad(2);
+  // 땅이 생긴 뒤 정확한 높이로 내려놓는다
+  for (let y = v.y + 6; y > v.y - 4; y--) {
+    if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
+  }
+  return { x: v.x, z: v.z, dist: Math.round(near.dist), style: v.styleKey, buildings: v.buildings };
 };
 
 Game.prototype.respawn = function () {
   this.player.respawn();
-  this.streamChunks(7, 2);
+  this.forceLoad(2);
 };
 
 Game.prototype.dropInventoryOnDeath = function () {
@@ -10158,6 +11784,51 @@ Game.prototype.dayFactor = function () {
   return Math.max(0, Math.min(1, a * 2.2 + 0.5));
 };
 
+// 해가 하늘 어디에 있는지. y>0 이면 낮.
+Game.prototype.sunDir = function () {
+  const a = (this.dayPhase() - 0.25) * Math.PI * 2;
+  const x = Math.sin(a), y = Math.cos(a), z = 0.24;
+  const len = Math.hypot(x, y, z);
+  return [x / len, y / len, z / len];
+};
+
+// 셰이더(후처리) 설정값을 시간대에 맞춰 만든다
+Game.prototype.shaderOpts = function (daylight, under) {
+  const t = this.dayPhase();
+  const s = Math.sin(t * Math.PI * 2);
+  const night = Math.max(0, Math.min(1, 1 - (s * 2.4 + 0.55)));
+  const dusk = Math.max(0, 1 - Math.abs(s) * 3.2);      // 일출·일몰
+  const sun = this.sunDir();
+  const sp = this.renderer.sunScreenPos(sun, this._sunPos || (this._sunPos = { x: 0.5, y: 0.5, on: false }));
+
+  // 색 보정: 낮은 살짝 따뜻하게, 노을은 주황, 밤은 푸르게
+  const grade = [
+    1.02 + dusk * 0.16 - night * 0.16,
+    1.00 + dusk * 0.01 - night * 0.09,
+    0.97 - dusk * 0.12 + night * 0.14
+  ];
+  if (under) { grade[0] *= 0.72; grade[1] *= 0.94; grade[2] *= 1.18; }
+
+  return {
+    exposure: 0.95 - night * 0.07 + dusk * 0.04,
+    grade: grade,
+    saturation: 1.08 - night * 0.22,
+    vignette: 0.26 + night * 0.14 + (under ? 0.20 : 0),
+    bloom: 0.26 + dusk * 0.20 + night * 0.14,
+    bloomThreshold: 0.80 - night * 0.26,
+    aberration: 0.018,
+    rays: sp.on && s > -0.05 ? (0.30 + dusk * 0.42) : 0,
+    sunOnScreen: sp.on && s > -0.05,
+    sunX: sp.x, sunY: sp.y,
+    under: under ? 1 : 0,
+    time: this.time,
+    sunDir: sun,
+    sunColor: [1.0, 0.93 - dusk * 0.22, 0.80 - dusk * 0.36],
+    night: night,
+    sunset: dusk
+  };
+};
+
 Game.prototype.skyColors = function () {
   const d = this.dayFactor();
   // 낮 / 노을 / 밤
@@ -10246,6 +11917,15 @@ Game.prototype.bindInput = function () {
         self.save(); break;
       case 'KeyK':
         self.exportSave(); break;
+      case 'KeyP': {
+        // 셰이더 품질 돌려 가며 켜기
+        const n = (self.settings.shader + 1) % SHADER_LEVELS.length;
+        self.settings.shader = n;
+        const sel = document.getElementById('sel-shader');
+        if (sel) sel.value = String(n);
+        self.ui.toast('셰이더: ' + SHADER_LEVELS[n] + (self.renderer.post.ok ? '' : ' — 이 기기는 지원하지 않습니다'));
+        break;
+      }
     }
   });
 
@@ -10511,6 +12191,15 @@ Game.prototype.onUse = function () {
   const held = p.heldItem();
   const heldDef = held ? itemDef(held.name) : null;
 
+  // 0) 주민과 거래 — 블록보다 앞에 있을 때만
+  const eye0 = p.eyePos(), look0 = p.lookDir();
+  const seen = this.entities.pickMob(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 4);
+  if (seen && seen.mob.def.brain === 'villager' &&
+      (!hit.hit || seen.dist < hit.dist || hit.dist === undefined)) {
+    this.openTrade(seen.mob);
+    return;
+  }
+
   // 1) 블록 상호작용 (제작대·화로·상자·문·침대...)
   if (hit.hit && !this.input.sneak && this.interactBlock(hit)) return;
 
@@ -10564,6 +12253,20 @@ Game.prototype.onUse = function () {
   // 6) 블록 설치
   if (!heldDef.block || !hit.hit) return;
   this.placeBlock(hit, heldDef.block);
+};
+
+// 주민과 거래 화면 열기
+Game.prototype.openTrade = function (mob) {
+  const offers = mob.tradeOffers();
+  if (!offers || offers.length === 0) {
+    this.ui.toast(mob.def.jobKr === '백수' || mob.def.jobKr === '멍청이'
+      ? '이 주민은 아직 팔 것이 없습니다'
+      : '이 주민은 지금 거래하지 않습니다');
+    return;
+  }
+  mob.tradeLook = 6;             // 잠시 플레이어를 바라본다
+  this.ui.openScreen('trade', mob);
+  this.exitPointerLock();
 };
 
 // 블록별 상호작용. 처리했으면 true
@@ -11050,6 +12753,14 @@ Game.prototype.render = function (dt) {
   };
 
   const r = this.renderer;
+  r.post.setLevel(this.settings.shader);
+  // 하늘 셰이더와 후처리가 함께 쓰는 값
+  const fx = this.shaderOpts(daylight, p.headInWater);
+  opts.sunDir = fx.sunDir;
+  opts.sunColor = fx.sunColor;
+  opts.night = fx.night;
+  opts.sunset = fx.sunset;
+  opts.under = fx.under;
   // 폭발 직후 화면 흔들림
   if (this.shake > 0) {
     opts.shakeX = (Math.random() - 0.5) * this.shake * 0.06;
@@ -11066,6 +12777,7 @@ Game.prototype.render = function (dt) {
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }
   r.drawChunks(this.world, p, opts, 'water');
+  r.endFrame(fx);
 
   // 채굴 진행 표시
   const m = p.mining;
@@ -11089,10 +12801,16 @@ Game.prototype.render = function (dt) {
       'XYZ ' + p.x.toFixed(2) + ' / ' + p.y.toFixed(2) + ' / ' + p.z.toFixed(2),
       '청크 ' + Math.floor(p.x / CHUNK_X) + ', ' + Math.floor(p.z / CHUNK_Z) +
       '  로드됨 ' + this.world.chunks.size + '  그림 ' + r.stats.chunks,
-      '삼각형 ' + (r.stats.tris | 0),
+      '삼각형 ' + (r.stats.tris | 0) + '  셰이더 ' + SHADER_LEVELS[this.settings.shader] +
+      (r.post.ok ? '' : ' (미지원)'),
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
       '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
+      (function (g) {
+        const v = g.world.nearestVillage ? g.world.nearestVillage(p.x, p.z, 1) : null;
+        return v ? '마을 ' + v.plan.x + ', ' + v.plan.z + '  (' + Math.round(v.dist) + '블록, ' +
+          v.plan.buildings + '채)' : '마을 없음 (근처 지역)';
+      })(this),
       '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length +
       '  낙하 ' + (this.entities.falling ? this.entities.falling.length : 0) +
       '  TNT ' + (this.entities.tnt ? this.entities.tnt.length : 0),
@@ -11115,6 +12833,7 @@ Game.prototype.render = function (dt) {
   const btnNew = document.getElementById('btn-new');
   const btnContinue = document.getElementById('btn-continue');
   const chkCreative = document.getElementById('chk-creative');
+  const chkVillage = document.getElementById('chk-village');
   const rngDist = document.getElementById('rng-dist');
   const distVal = document.getElementById('dist-val');
 
@@ -11131,6 +12850,13 @@ Game.prototype.render = function (dt) {
     distVal.textContent = rngDist.value;
     if (window.game) window.game.settings.renderDistance = parseInt(rngDist.value, 10);
   });
+
+  const selShader = document.getElementById('sel-shader');
+  if (selShader) {
+    selShader.addEventListener('change', function () {
+      if (window.game) window.game.settings.shader = parseInt(selShader.value, 10);
+    });
+  }
 
   // 저장본 유무에 따라 이어하기 버튼 활성화
   let hasSave = false;
@@ -11161,6 +12887,7 @@ Game.prototype.render = function (dt) {
         const game = new Game(canvas);
         window.game = game;
         game.settings.renderDistance = parseInt(rngDist.value, 10);
+        if (selShader) game.settings.shader = parseInt(selShader.value, 10);
 
         if (mode === 'file') {
           if (!game.loadFromText(pendingSaveText)) throw new Error('세계 파일을 불러오지 못했습니다.');
@@ -11174,6 +12901,11 @@ Game.prototype.render = function (dt) {
           game.player.creative = chkCreative.checked;
           if (chkCreative.checked) game.player.flying = false;
           game.ui.toast('시드: ' + game.world.seed);
+          if (chkVillage && chkVillage.checked) {
+            const v = game.spawnAtVillage();
+            if (v) game.ui.toast('마을에서 시작합니다 — ' + v.x + ', ' + v.z + ' (집 ' + v.buildings + '채)');
+            else game.ui.toast('가까운 곳에 마을이 없어 평소대로 시작합니다');
+          }
         }
 
         game.start();

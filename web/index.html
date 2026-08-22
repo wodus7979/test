@@ -53,7 +53,16 @@
 
     <div class="modes">
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
+      <label><input type="checkbox" id="chk-village"> 마을에서 시작</label>
       <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
+      <label>화면 셰이더
+        <select id="sel-shader">
+          <option value="0">꺼짐</option>
+          <option value="1">기본 (톤 매핑·색 보정)</option>
+          <option value="2" selected>높음 (＋블룸)</option>
+          <option value="3">최고 (＋갓레이)</option>
+        </select>
+      </label>
     </div>
 
     <details class="help">
@@ -66,7 +75,8 @@
           <li><b>1~9</b> 또는 <b>휠</b> 핫바 선택 · <b>Q</b> 버리기 (Ctrl+Q 전부)</li>
           <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>C</b> 전체 아이템 목록(창작)</li>
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
-          <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장)</li>
+          <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
+          <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -97,10 +107,13 @@
 <script src="js/textures.js"></script>
 <script src="js/itemicons.js"></script>
 <script src="js/glutil.js"></script>
+<script src="js/postfx.js"></script>
 <script src="js/world.js"></script>
+<script src="js/village.js"></script>
 <script src="js/fluids.js"></script>
 <script src="js/player.js"></script>
 <script src="js/mobs.js"></script>
+<script src="js/villagers.js"></script>
 <script src="js/physics.js"></script>
 <script src="js/crafting.js"></script>
 <script src="js/renderer.js"></script>

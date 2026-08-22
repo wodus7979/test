@@ -358,6 +358,8 @@ World.prototype.decorateChunk = function (c) {
   for (let dz = -1; dz <= 1; dz++) {
     for (let dx = -1; dx <= 1; dx++) this.placeDecorations(c, c.cx + dx, c.cz + dz);
   }
+  // 마을은 나무·풀 다음에 찍어야 집 안으로 나무가 자라지 않는다
+  if (this.paintVillage) c.hasVillage = this.paintVillage(c);
   c.decorated = true;
   c.dirty = true;
 };

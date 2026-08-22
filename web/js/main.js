@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v3.1';
-const GAME_BUILD = '2026-08-21';
-const GAME_FEATURES = '입체 아이템 · 흐르는 물 · 블록 795 · 아이템 1239';
+const GAME_VERSION = 'v4';
+const GAME_BUILD = '2026-08-22';
+const GAME_FEATURES = '주민 마을 · 화면 셰이더 · 입체 아이템 · 블록 795 · 아이템 1239';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -51,7 +51,8 @@ function Game(canvas) {
     renderDistance: RENDER_DISTANCE_DEFAULT,
     fov: 70,
     sensitivity: 0.0022,
-    invertY: false
+    invertY: false,
+    shader: SHADER_DEFAULT      // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
   };
   this.input = {
     forward: false, back: false, left: false, right: false,
@@ -76,6 +77,9 @@ Game.prototype.initAssets = function () {
   if (this.assetsReady) return;
   initFluidConfig();
   initPowderMap();
+  initVillageStyles();
+  registerVillagerMobs();
+  initVillagerTrades();
   const atlas = buildAtlas();
   buildItemIcons(atlas.canvas);
   this.renderer.setAtlases(atlas.canvas, buildItemAtlasGL());
@@ -149,12 +153,41 @@ Game.prototype.spawnPlayer = function () {
   this.player.spawnX = sx; this.player.spawnY = sy + 1; this.player.spawnZ = sz;
 
   // 스폰 주변만 먼저 만들어 바닥 없는 곳에 떨어지지 않게 한다 (나머지는 스트리밍)
-  this.streamChunks(7, 2);
+  this.forceLoad(2);
+};
+
+// 주변 청크를 생성 → 장식(마을) → 조명 → 메시까지 끝까지 밀어붙인다.
+// streamChunks 는 한 번에 한 단계만 진행하므로 여러 번 돌려야 한다.
+Game.prototype.forceLoad = function (radius, rounds) {
+  const n = rounds === undefined ? 5 : rounds;
+  for (let i = 0; i < n; i++) this.streamChunks(0, radius);
+};
+
+// 가까운 마을 어귀에서 시작 (시작 화면의 "마을에서 시작")
+// 찾으면 마을 정보를, 없으면 null 을 돌려준다.
+Game.prototype.spawnAtVillage = function (searchRegions) {
+  const w = this.world;
+  if (!w.nearestVillage) return null;
+  const near = w.nearestVillage(0, 0, searchRegions === undefined ? 3 : searchRegions);
+  if (!near) return null;
+  const v = near.plan;
+  const p = this.player;
+  // 우물에서 조금 떨어진 길 위
+  p.x = v.x + 0.5; p.z = v.z + 6.5; p.y = v.y + 2;
+  p.vx = p.vy = p.vz = 0;
+  p.spawnX = Math.floor(p.x); p.spawnY = v.y + 1; p.spawnZ = Math.floor(p.z);
+  // 마을은 "장식" 단계에서 찍히므로 그 단계까지 밀어붙인 뒤에 높이를 잰다
+  this.forceLoad(2);
+  // 땅이 생긴 뒤 정확한 높이로 내려놓는다
+  for (let y = v.y + 6; y > v.y - 4; y--) {
+    if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
+  }
+  return { x: v.x, z: v.z, dist: Math.round(near.dist), style: v.styleKey, buildings: v.buildings };
 };
 
 Game.prototype.respawn = function () {
   this.player.respawn();
-  this.streamChunks(7, 2);
+  this.forceLoad(2);
 };
 
 Game.prototype.dropInventoryOnDeath = function () {
@@ -263,6 +296,51 @@ Game.prototype.dayFactor = function () {
   return Math.max(0, Math.min(1, a * 2.2 + 0.5));
 };
 
+// 해가 하늘 어디에 있는지. y>0 이면 낮.
+Game.prototype.sunDir = function () {
+  const a = (this.dayPhase() - 0.25) * Math.PI * 2;
+  const x = Math.sin(a), y = Math.cos(a), z = 0.24;
+  const len = Math.hypot(x, y, z);
+  return [x / len, y / len, z / len];
+};
+
+// 셰이더(후처리) 설정값을 시간대에 맞춰 만든다
+Game.prototype.shaderOpts = function (daylight, under) {
+  const t = this.dayPhase();
+  const s = Math.sin(t * Math.PI * 2);
+  const night = Math.max(0, Math.min(1, 1 - (s * 2.4 + 0.55)));
+  const dusk = Math.max(0, 1 - Math.abs(s) * 3.2);      // 일출·일몰
+  const sun = this.sunDir();
+  const sp = this.renderer.sunScreenPos(sun, this._sunPos || (this._sunPos = { x: 0.5, y: 0.5, on: false }));
+
+  // 색 보정: 낮은 살짝 따뜻하게, 노을은 주황, 밤은 푸르게
+  const grade = [
+    1.02 + dusk * 0.16 - night * 0.16,
+    1.00 + dusk * 0.01 - night * 0.09,
+    0.97 - dusk * 0.12 + night * 0.14
+  ];
+  if (under) { grade[0] *= 0.72; grade[1] *= 0.94; grade[2] *= 1.18; }
+
+  return {
+    exposure: 0.95 - night * 0.07 + dusk * 0.04,
+    grade: grade,
+    saturation: 1.08 - night * 0.22,
+    vignette: 0.26 + night * 0.14 + (under ? 0.20 : 0),
+    bloom: 0.26 + dusk * 0.20 + night * 0.14,
+    bloomThreshold: 0.80 - night * 0.26,
+    aberration: 0.018,
+    rays: sp.on && s > -0.05 ? (0.30 + dusk * 0.42) : 0,
+    sunOnScreen: sp.on && s > -0.05,
+    sunX: sp.x, sunY: sp.y,
+    under: under ? 1 : 0,
+    time: this.time,
+    sunDir: sun,
+    sunColor: [1.0, 0.93 - dusk * 0.22, 0.80 - dusk * 0.36],
+    night: night,
+    sunset: dusk
+  };
+};
+
 Game.prototype.skyColors = function () {
   const d = this.dayFactor();
   // 낮 / 노을 / 밤
@@ -351,6 +429,15 @@ Game.prototype.bindInput = function () {
         self.save(); break;
       case 'KeyK':
         self.exportSave(); break;
+      case 'KeyP': {
+        // 셰이더 품질 돌려 가며 켜기
+        const n = (self.settings.shader + 1) % SHADER_LEVELS.length;
+        self.settings.shader = n;
+        const sel = document.getElementById('sel-shader');
+        if (sel) sel.value = String(n);
+        self.ui.toast('셰이더: ' + SHADER_LEVELS[n] + (self.renderer.post.ok ? '' : ' — 이 기기는 지원하지 않습니다'));
+        break;
+      }
     }
   });
 
@@ -616,6 +703,15 @@ Game.prototype.onUse = function () {
   const held = p.heldItem();
   const heldDef = held ? itemDef(held.name) : null;
 
+  // 0) 주민과 거래 — 블록보다 앞에 있을 때만
+  const eye0 = p.eyePos(), look0 = p.lookDir();
+  const seen = this.entities.pickMob(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 4);
+  if (seen && seen.mob.def.brain === 'villager' &&
+      (!hit.hit || seen.dist < hit.dist || hit.dist === undefined)) {
+    this.openTrade(seen.mob);
+    return;
+  }
+
   // 1) 블록 상호작용 (제작대·화로·상자·문·침대...)
   if (hit.hit && !this.input.sneak && this.interactBlock(hit)) return;
 
@@ -669,6 +765,20 @@ Game.prototype.onUse = function () {
   // 6) 블록 설치
   if (!heldDef.block || !hit.hit) return;
   this.placeBlock(hit, heldDef.block);
+};
+
+// 주민과 거래 화면 열기
+Game.prototype.openTrade = function (mob) {
+  const offers = mob.tradeOffers();
+  if (!offers || offers.length === 0) {
+    this.ui.toast(mob.def.jobKr === '백수' || mob.def.jobKr === '멍청이'
+      ? '이 주민은 아직 팔 것이 없습니다'
+      : '이 주민은 지금 거래하지 않습니다');
+    return;
+  }
+  mob.tradeLook = 6;             // 잠시 플레이어를 바라본다
+  this.ui.openScreen('trade', mob);
+  this.exitPointerLock();
 };
 
 // 블록별 상호작용. 처리했으면 true
@@ -1155,6 +1265,14 @@ Game.prototype.render = function (dt) {
   };
 
   const r = this.renderer;
+  r.post.setLevel(this.settings.shader);
+  // 하늘 셰이더와 후처리가 함께 쓰는 값
+  const fx = this.shaderOpts(daylight, p.headInWater);
+  opts.sunDir = fx.sunDir;
+  opts.sunColor = fx.sunColor;
+  opts.night = fx.night;
+  opts.sunset = fx.sunset;
+  opts.under = fx.under;
   // 폭발 직후 화면 흔들림
   if (this.shake > 0) {
     opts.shakeX = (Math.random() - 0.5) * this.shake * 0.06;
@@ -1171,6 +1289,7 @@ Game.prototype.render = function (dt) {
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }
   r.drawChunks(this.world, p, opts, 'water');
+  r.endFrame(fx);
 
   // 채굴 진행 표시
   const m = p.mining;
@@ -1194,10 +1313,16 @@ Game.prototype.render = function (dt) {
       'XYZ ' + p.x.toFixed(2) + ' / ' + p.y.toFixed(2) + ' / ' + p.z.toFixed(2),
       '청크 ' + Math.floor(p.x / CHUNK_X) + ', ' + Math.floor(p.z / CHUNK_Z) +
       '  로드됨 ' + this.world.chunks.size + '  그림 ' + r.stats.chunks,
-      '삼각형 ' + (r.stats.tris | 0),
+      '삼각형 ' + (r.stats.tris | 0) + '  셰이더 ' + SHADER_LEVELS[this.settings.shader] +
+      (r.post.ok ? '' : ' (미지원)'),
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
       '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
+      (function (g) {
+        const v = g.world.nearestVillage ? g.world.nearestVillage(p.x, p.z, 1) : null;
+        return v ? '마을 ' + v.plan.x + ', ' + v.plan.z + '  (' + Math.round(v.dist) + '블록, ' +
+          v.plan.buildings + '채)' : '마을 없음 (근처 지역)';
+      })(this),
       '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length +
       '  낙하 ' + (this.entities.falling ? this.entities.falling.length : 0) +
       '  TNT ' + (this.entities.tnt ? this.entities.tnt.length : 0),
