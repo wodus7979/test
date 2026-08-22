@@ -208,6 +208,11 @@ Plane.prototype.update = function (dt, game) {
       this.speed *= 0.25;
       if (rider && !rider.creative) rider.hurt(2, '비행기 충돌');
     }
+  } else if (ny <= gAhead && this.ai &&
+      (this.ai.state === 'climb' || this.ai.state === 'cruise' || this.ai.state === 'ferry')) {
+    // 순항 중인 자동 운항기는 산이나 고가 철로에 내려앉지 않고 넘어간다
+    ny = gAhead + 3;
+    this.vy = Math.max(this.vy, 2);
   } else if (ny <= gAhead) {
     // 착지 또는 추락
     const sink = -my;

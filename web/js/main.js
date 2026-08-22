@@ -1276,10 +1276,9 @@ Game.prototype.updateAlerts = function (dt) {
   if (!pl) { this.alert = null; this.alertBeep = 0; return; }
 
   let level = 0, text = '';
-  // 땅에서 서 있을 때는 경보를 울리지 않는다 (주기장에서 계속 울리면 시끄럽다)
-  const inhibit = pl.onGround && pl.speed < 8;
-  const near = inhibit ? null : this.entities.nearestOtherPlane(pl);
-  if (near && near.dist < 130) {
+  // 땅에 있을 때는 경보를 울리지 않는다 (주기장·활주로에서 계속 울리면 시끄럽다)
+  const near = pl.onGround ? null : this.entities.nearestOtherPlane(pl);
+  if (near && !near.plane.onGround && near.dist < 130) {
     const label = near.plane.flightLabel();
     if (near.dist < 55) { level = 2; text = '충돌 경보 — 즉시 회피! (' + label + ' ' + Math.round(near.dist) + 'm)'; }
     else { level = 1; text = '주변 항공기 — ' + label + ' ' + Math.round(near.dist) + 'm'; }

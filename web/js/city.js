@@ -451,10 +451,10 @@ function buildCityPlan(world, ap, index) {
   // 활주로 축을 따라(±X) 공항에서 떨어진 평평한 자리를 찾는다.
   // 옆으로도 조금씩 밀어 보며 바다·산을 피한다.
   let best = null;
-  for (let ring = 0; ring <= 9 && !best; ring++) {
+  for (let ring = 0; ring <= 14 && !best; ring++) {
     const dist = CITY_DIST + ring * 55;
-    for (let k = 0; k < 10 && !best; k++) {
-      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 60);
+    for (let k = 0; k < 15 && !best; k++) {
+      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 55);
       for (const sx of [1, -1]) {
         const cx = ap.x + sx * dist;
         const cz = ap.z + lateral;
@@ -471,7 +471,7 @@ function buildCityPlan(world, ap, index) {
         }
         const badLimit = n * (0.02 + ring * 0.015);
         if (!n || bad > badLimit || hi - lo > 14 + ring * 2) continue;
-        if (snowy > n * (0.15 + ring * 0.08)) continue;   // 눈밭은 뒤로 미룬다
+        if (snowy > n * (0.15 + ring * 0.12)) continue;   // 눈밭은 뒤로 미룬다
         best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
         break;
       }

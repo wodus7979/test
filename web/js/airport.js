@@ -492,7 +492,7 @@ function buildAirportPlan(world, def, index) {
         }
       }
       if (!n || bad > n * 0.08 || hi - lo > 18) continue;
-      if (snowy > n * (0.2 + ring * 0.08)) continue;   // 눈밭은 뒤로 미룬다
+      if (snowy > n * (0.25 + ring * 0.14)) continue;   // 눈밭은 뒤로 미룬다
       best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3) };
       break;
     }

@@ -5535,6 +5535,45 @@ function drawBlockIcon(ctx, atlasCanvas, blockId, ox, oy) {
     return;
   }
 
+  function face(img, a, b, cc, dd, e, f) {
+    ctx.save();
+    ctx.setTransform(a * s, b * s, cc * s, dd * s, (e * s) + ox, (f * s) + oy);
+    ctx.drawImage(img, 0, 0, TILE, TILE, 0, 0, 1, 1);
+    ctx.restore();
+  }
+
+  // 상자 모델(가구·계단·횃불...)은 상자를 하나씩 그려 실제 모양을 보여 준다.
+  // 블록 좌표 (bx, by, bz) 를 아이소메트릭 화면 좌표로 옮기는 식:
+  //   P = (0.5 + bx*8 + bz*8,  3.5 - bx*4 + bz*4 + (1-by)*8)
+  if (d.render === RENDER_BOXES && d.boxes && d.boxes.length && d.shape === SHAPE_STATIC) {
+    const list = d.boxes.slice();
+    // 뒤에 있는 상자부터 (카메라는 -X · +Y · +Z 쪽에 있다)
+    list.sort(function (p, q) {
+      const dp = -(p[0] + p[3]) + (p[2] + p[5]) + (p[1] + p[4]);
+      const dq = -(q[0] + q[3]) + (q[2] + q[5]) + (q[1] + q[4]);
+      return dp - dq;
+    });
+    for (let i = 0; i < list.length; i++) {
+      const bxn = list[i];
+      const x0 = bxn[0], y0 = bxn[1], z0 = bxn[2], x1 = bxn[3], y1 = bxn[4], z1 = bxn[5];
+      const nameT = bxn[6] || d.texTop, nameS = bxn[6] || d.texSide;
+      const tTop = tintedTile(atlasCanvas, nameT, 1.0);
+      const tLeft = tintedTile(atlasCanvas, nameS, 0.78);
+      const tRight = tintedTile(atlasCanvas, nameS, 0.58);
+      const px = function (bx, by, bz) {
+        return [0.5 + bx * 8 + bz * 8, 3.5 - bx * 4 + bz * 4 + (1 - by) * 8];
+      };
+      const dh = (y1 - y0) * 8;
+      const oL = px(x0, y1, z0);
+      face(tLeft, (z1 - z0) * 8, (z1 - z0) * 4, 0, dh, oL[0], oL[1]);
+      const oR = px(x0, y1, z1);
+      face(tRight, (x1 - x0) * 8, -(x1 - x0) * 4, 0, dh, oR[0], oR[1]);
+      face(tTop, (x1 - x0) * 8, -(x1 - x0) * 4, (z1 - z0) * 8, (z1 - z0) * 4, oL[0], oL[1]);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    return;
+  }
+
   const top = tintedTile(atlasCanvas, d.texTop, 1.0);
   const left = tintedTile(atlasCanvas, d.texSide, 0.78);
   const right = tintedTile(atlasCanvas, d.texSide, 0.58);
@@ -5548,12 +5587,6 @@ function drawBlockIcon(ctx, atlasCanvas, blockId, ox, oy) {
     yShift = (1 - hScale) * 8;
   }
 
-  function face(img, a, b, cc, dd, e, f) {
-    ctx.save();
-    ctx.setTransform(a * s, b * s, cc * s, dd * s, (e * s) + ox, (f * s) + oy);
-    ctx.drawImage(img, 0, 0, TILE, TILE, 0, 0, 1, 1);
-    ctx.restore();
-  }
   const h = 8 * hScale;
   face(left, 8, 4, 0, h, 0.5, 3.5 + yShift);
   face(right, 8, -4, 0, h, 8, 7.5 + yShift);
@@ -8954,7 +8987,7 @@ function buildAirportPlan(world, def, index) {
         }
       }
       if (!n || bad > n * 0.08 || hi - lo > 18) continue;
-      if (snowy > n * (0.2 + ring * 0.08)) continue;   // 눈밭은 뒤로 미룬다
+      if (snowy > n * (0.25 + ring * 0.14)) continue;   // 눈밭은 뒤로 미룬다
       best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3) };
       break;
     }
@@ -9526,10 +9559,10 @@ function buildCityPlan(world, ap, index) {
   // 활주로 축을 따라(±X) 공항에서 떨어진 평평한 자리를 찾는다.
   // 옆으로도 조금씩 밀어 보며 바다·산을 피한다.
   let best = null;
-  for (let ring = 0; ring <= 9 && !best; ring++) {
+  for (let ring = 0; ring <= 14 && !best; ring++) {
     const dist = CITY_DIST + ring * 55;
-    for (let k = 0; k < 10 && !best; k++) {
-      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 60);
+    for (let k = 0; k < 15 && !best; k++) {
+      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 55);
       for (const sx of [1, -1]) {
         const cx = ap.x + sx * dist;
         const cz = ap.z + lateral;
@@ -9546,7 +9579,7 @@ function buildCityPlan(world, ap, index) {
         }
         const badLimit = n * (0.02 + ring * 0.015);
         if (!n || bad > badLimit || hi - lo > 14 + ring * 2) continue;
-        if (snowy > n * (0.15 + ring * 0.08)) continue;   // 눈밭은 뒤로 미룬다
+        if (snowy > n * (0.15 + ring * 0.12)) continue;   // 눈밭은 뒤로 미룬다
         best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
         break;
       }
@@ -11395,6 +11428,11 @@ Plane.prototype.update = function (dt, game) {
       this.speed *= 0.25;
       if (rider && !rider.creative) rider.hurt(2, '비행기 충돌');
     }
+  } else if (ny <= gAhead && this.ai &&
+      (this.ai.state === 'climb' || this.ai.state === 'cruise' || this.ai.state === 'ferry')) {
+    // 순항 중인 자동 운항기는 산이나 고가 철로에 내려앉지 않고 넘어간다
+    ny = gAhead + 3;
+    this.vy = Math.max(this.vy, 2);
   } else if (ny <= gAhead) {
     // 착지 또는 추락
     const sink = -my;
@@ -16747,10 +16785,9 @@ Game.prototype.updateAlerts = function (dt) {
   if (!pl) { this.alert = null; this.alertBeep = 0; return; }
 
   let level = 0, text = '';
-  // 땅에서 서 있을 때는 경보를 울리지 않는다 (주기장에서 계속 울리면 시끄럽다)
-  const inhibit = pl.onGround && pl.speed < 8;
-  const near = inhibit ? null : this.entities.nearestOtherPlane(pl);
-  if (near && near.dist < 130) {
+  // 땅에 있을 때는 경보를 울리지 않는다 (주기장·활주로에서 계속 울리면 시끄럽다)
+  const near = pl.onGround ? null : this.entities.nearestOtherPlane(pl);
+  if (near && !near.plane.onGround && near.dist < 130) {
     const label = near.plane.flightLabel();
     if (near.dist < 55) { level = 2; text = '충돌 경보 — 즉시 회피! (' + label + ' ' + Math.round(near.dist) + 'm)'; }
     else { level = 1; text = '주변 항공기 — ' + label + ' ' + Math.round(near.dist) + 'm'; }

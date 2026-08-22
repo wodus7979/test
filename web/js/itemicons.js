@@ -810,6 +810,45 @@ function drawBlockIcon(ctx, atlasCanvas, blockId, ox, oy) {
     return;
   }
 
+  function face(img, a, b, cc, dd, e, f) {
+    ctx.save();
+    ctx.setTransform(a * s, b * s, cc * s, dd * s, (e * s) + ox, (f * s) + oy);
+    ctx.drawImage(img, 0, 0, TILE, TILE, 0, 0, 1, 1);
+    ctx.restore();
+  }
+
+  // 상자 모델(가구·계단·횃불...)은 상자를 하나씩 그려 실제 모양을 보여 준다.
+  // 블록 좌표 (bx, by, bz) 를 아이소메트릭 화면 좌표로 옮기는 식:
+  //   P = (0.5 + bx*8 + bz*8,  3.5 - bx*4 + bz*4 + (1-by)*8)
+  if (d.render === RENDER_BOXES && d.boxes && d.boxes.length && d.shape === SHAPE_STATIC) {
+    const list = d.boxes.slice();
+    // 뒤에 있는 상자부터 (카메라는 -X · +Y · +Z 쪽에 있다)
+    list.sort(function (p, q) {
+      const dp = -(p[0] + p[3]) + (p[2] + p[5]) + (p[1] + p[4]);
+      const dq = -(q[0] + q[3]) + (q[2] + q[5]) + (q[1] + q[4]);
+      return dp - dq;
+    });
+    for (let i = 0; i < list.length; i++) {
+      const bxn = list[i];
+      const x0 = bxn[0], y0 = bxn[1], z0 = bxn[2], x1 = bxn[3], y1 = bxn[4], z1 = bxn[5];
+      const nameT = bxn[6] || d.texTop, nameS = bxn[6] || d.texSide;
+      const tTop = tintedTile(atlasCanvas, nameT, 1.0);
+      const tLeft = tintedTile(atlasCanvas, nameS, 0.78);
+      const tRight = tintedTile(atlasCanvas, nameS, 0.58);
+      const px = function (bx, by, bz) {
+        return [0.5 + bx * 8 + bz * 8, 3.5 - bx * 4 + bz * 4 + (1 - by) * 8];
+      };
+      const dh = (y1 - y0) * 8;
+      const oL = px(x0, y1, z0);
+      face(tLeft, (z1 - z0) * 8, (z1 - z0) * 4, 0, dh, oL[0], oL[1]);
+      const oR = px(x0, y1, z1);
+      face(tRight, (x1 - x0) * 8, -(x1 - x0) * 4, 0, dh, oR[0], oR[1]);
+      face(tTop, (x1 - x0) * 8, -(x1 - x0) * 4, (z1 - z0) * 8, (z1 - z0) * 4, oL[0], oL[1]);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    return;
+  }
+
   const top = tintedTile(atlasCanvas, d.texTop, 1.0);
   const left = tintedTile(atlasCanvas, d.texSide, 0.78);
   const right = tintedTile(atlasCanvas, d.texSide, 0.58);
@@ -823,12 +862,6 @@ function drawBlockIcon(ctx, atlasCanvas, blockId, ox, oy) {
     yShift = (1 - hScale) * 8;
   }
 
-  function face(img, a, b, cc, dd, e, f) {
-    ctx.save();
-    ctx.setTransform(a * s, b * s, cc * s, dd * s, (e * s) + ox, (f * s) + oy);
-    ctx.drawImage(img, 0, 0, TILE, TILE, 0, 0, 1, 1);
-    ctx.restore();
-  }
   const h = 8 * hScale;
   face(left, 8, 4, 0, h, 0.5, 3.5 + yShift);
   face(right, 8, -4, 0, h, 8, 7.5 + yShift);
