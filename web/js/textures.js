@@ -1054,6 +1054,10 @@ function registerExtraTextures() {
     p.rect(4, 5, 2, 2, '#3a5a8a'); p.rect(10, 5, 2, 2, '#3a5a8a');
     p.rect(6, 11, 4, 1, '#7a5c44');            // 입
   });
+  // ── 낙하산 ──
+  defTex('chute_a', function (p, rnd) { p.noise(rnd, '#d94a4a', 4, 2); });
+  defTex('chute_b', function (p, rnd) { p.noise(rnd, '#f2f4f7', 4, 2); });
+  defTex('chute_line', function (p, rnd) { p.noise(rnd, '#3a3f47', 4, 2); });
   // ── 여객기 (747) ──
   defTex('plane_white', function (p, rnd) {
     p.noise(rnd, '#eef1f5', 3, 2);
@@ -1157,6 +1161,14 @@ function buildAtlas() {
       else p.noise(rnd, '#b040c0', 20, 6);   // 빠진 종류는 눈에 띄는 색으로
     }
 
+    // 지도에 쓸 평균 색을 미리 구해 둔다
+    let ar = 0, ag = 0, ab = 0, an = 0;
+    for (let q = 0; q < p.data.length; q += 4) {
+      if (p.data[q + 3] < 80) continue;
+      ar += p.data[q]; ag += p.data[q + 1]; ab += p.data[q + 2]; an++;
+    }
+    const avg = an ? [(ar / an) | 0, (ag / an) | 0, (ab / an) | 0] : [120, 120, 120];
+
     const img = ctx.createImageData(TILE, TILE);
     img.data.set(p.data);
     const tx = index % ATLAS_TILES, ty = Math.floor(index / ATLAS_TILES);
@@ -1164,6 +1176,7 @@ function buildAtlas() {
 
     const inset = 0.5 / ATLAS_SIZE;
     TEXTURES[name] = {
+      avg: avg,
       index: index,
       u0: tx / ATLAS_TILES + inset, v0: ty / ATLAS_TILES + inset,
       u1: (tx + 1) / ATLAS_TILES - inset, v1: (ty + 1) / ATLAS_TILES - inset,

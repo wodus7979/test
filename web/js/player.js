@@ -322,6 +322,11 @@ Player.prototype.update = function (dt, input) {
         this.exhaustion += this.sprinting ? 0.2 : 0.05;
       }
       this.vy -= GRAVITY * dt;
+      // 낙하산을 펴면 천천히 내려온다
+      if (this.parachute) {
+        if (this.vy < -4.5) this.vy = -4.5;
+        this.fallStart = this.y;
+      }
       if (this.vy < -TERMINAL_VELOCITY) this.vy = -TERMINAL_VELOCITY;
     }
   }
@@ -365,6 +370,11 @@ Player.prototype.update = function (dt, input) {
     this.fallStart = null;
   }
   if (this.onGround || this.flying || this.inWater) this.fallStart = null;
+  // 땅에 닿으면 낙하산을 접는다
+  if (this.parachute && (this.onGround || this.inWater || this.flying)) {
+    this.parachute = false;
+    if (this.onParachuteEnd) this.onParachuteEnd();
+  }
 
   // 밟으면 아픈 블록 (선인장)
   const b = this.aabb(this.x, this.y, this.z);

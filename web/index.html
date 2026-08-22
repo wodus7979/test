@@ -15,6 +15,9 @@
 
 <div id="ui"></div>
 
+<!-- 오른쪽 위 지도 -->
+<canvas id="minimap" width="188" height="188"></canvas>
+
 <!-- 채굴 진행 -->
 <div id="crack"></div>
 
@@ -79,9 +82,11 @@
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
           <li><b>R</b> 날씨 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개). 추운 지방에서는 비 대신 눈이 온다</li>
+          <li><b>M</b> 지도 배율 바꾸기 · <b>N</b> 목적지 공항 바꾸기</li>
           <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
           <li><b>비행기</b>에 <b>우클릭</b>하면 탑승 — <b>W/S</b> 추력, <b>마우스</b> 조종,
-              <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기</li>
+              <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기(공중이면 낙하산)</li>
+          <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -125,6 +130,7 @@
 <script src="js/physics.js"></script>
 <script src="js/crafting.js"></script>
 <script src="js/renderer.js"></script>
+<script src="js/minimap.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 <script src="js/boot.js"></script>

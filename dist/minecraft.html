@@ -528,8 +528,8 @@ body.touch .hand { display: none !important; }
 
 /* ── 비행 계기판 ────────────────────────────────────────────────── */
 .flight {
-  position: absolute; right: 12px; top: 12px;
-  width: 218px;
+  position: absolute; left: 12px; bottom: 12px;
+  width: 236px;
   padding: 10px 12px;
   background: rgba(8, 16, 26, .62);
   border: 1px solid rgba(140, 190, 255, .28);
@@ -561,8 +561,71 @@ body.touch .hand { display: none !important; }
 .fl-state.warn { color: #ffb04a; font-weight: 700; }
 .fl-help { margin-top: 5px; font-size: 10.5px; color: #7e93ab; line-height: 1.45; }
 @media (max-width: 720px) {
-  .flight { right: 8px; top: 8px; width: 168px; font-size: 12px; padding: 7px 9px; }
+  .flight { left: 8px; bottom: 8px; width: 176px; font-size: 12px; padding: 7px 9px; }
   .fl-help { display: none; }
+}
+
+/* ── 오른쪽 위 지도 ─────────────────────────────────────────────── */
+#minimap {
+  position: fixed;
+  right: 12px; top: 12px;
+  width: 188px; height: 188px;
+  z-index: 12;
+  border-radius: 50%;
+  box-shadow: 0 3px 14px rgba(0,0,0,.45);
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+@media (max-width: 720px) {
+  #minimap { width: 128px; height: 128px; right: 8px; top: 8px; }
+}
+
+/* ── 관제탑 신호 (계기판 안) ─────────────────────────────────────── */
+.fl-nav {
+  margin-top: 7px; padding-top: 6px;
+  border-top: 1px solid rgba(140,190,255,.22);
+}
+.nv-head { display: flex; align-items: center; gap: 6px; }
+.nv-head i {
+  font-style: normal; font-size: 15px; color: #8fc6ff;
+  display: inline-block; transition: transform .12s linear, color .2s;
+}
+.nv-head b { flex: 1; font-size: 11.5px; color: #dce9f7; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nv-head em { font-style: normal; font-size: 12px; color: #ffd76a; }
+.nv-bar {
+  position: relative; height: 9px; margin: 5px 0 3px;
+  background: rgba(255,255,255,.09); border-radius: 2px; visibility: hidden;
+}
+.nv-bar u { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+  background: rgba(255,255,255,.35); }
+.nv-bar i {
+  position: absolute; top: -1px; width: 5px; height: 11px; margin-left: -2.5px;
+  border-radius: 2px; background: #7fd694; transition: left .12s linear;
+}
+.nv-msg { font-size: 10.5px; color: #9ab0c8; line-height: 1.4; }
+.nv-msg.ok { color: #7fd694; }
+.nv-msg.warn { color: #ffb04a; }
+
+/* ── 경보 띠 ─────────────────────────────────────────────────────── */
+.alert {
+  position: absolute; left: 50%; top: 78px;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 5px;
+  font-size: 15px; font-weight: 700;
+  letter-spacing: .3px;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 rgba(0,0,0,.5);
+}
+.alert.lv1 { background: rgba(190,130,20,.82); color: #fff6e0; }
+.alert.lv2 {
+  background: rgba(200,40,40,.88); color: #fff;
+  animation: alertBlink .5s steps(1) infinite;
+}
+@keyframes alertBlink { 50% { background: rgba(120,20,20,.88); } }
+@media (max-width: 720px) {
+  .alert { top: 150px; font-size: 12px; padding: 6px 12px; white-space: normal; max-width: 60vw; text-align: center; }
 }
 
 </style>
@@ -572,6 +635,9 @@ body.touch .hand { display: none !important; }
 <canvas id="game"></canvas>
 
 <div id="ui"></div>
+
+<!-- 오른쪽 위 지도 -->
+<canvas id="minimap" width="188" height="188"></canvas>
 
 <!-- 채굴 진행 -->
 <div id="crack"></div>
@@ -637,9 +703,11 @@ body.touch .hand { display: none !important; }
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
           <li><b>R</b> 날씨 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개). 추운 지방에서는 비 대신 눈이 온다</li>
+          <li><b>M</b> 지도 배율 바꾸기 · <b>N</b> 목적지 공항 바꾸기</li>
           <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
           <li><b>비행기</b>에 <b>우클릭</b>하면 탑승 — <b>W/S</b> 추력, <b>마우스</b> 조종,
-              <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기</li>
+              <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기(공중이면 낙하산)</li>
+          <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
@@ -4073,6 +4141,10 @@ function registerExtraTextures() {
     p.rect(4, 5, 2, 2, '#3a5a8a'); p.rect(10, 5, 2, 2, '#3a5a8a');
     p.rect(6, 11, 4, 1, '#7a5c44');            // 입
   });
+  // ── 낙하산 ──
+  defTex('chute_a', function (p, rnd) { p.noise(rnd, '#d94a4a', 4, 2); });
+  defTex('chute_b', function (p, rnd) { p.noise(rnd, '#f2f4f7', 4, 2); });
+  defTex('chute_line', function (p, rnd) { p.noise(rnd, '#3a3f47', 4, 2); });
   // ── 여객기 (747) ──
   defTex('plane_white', function (p, rnd) {
     p.noise(rnd, '#eef1f5', 3, 2);
@@ -4176,6 +4248,14 @@ function buildAtlas() {
       else p.noise(rnd, '#b040c0', 20, 6);   // 빠진 종류는 눈에 띄는 색으로
     }
 
+    // 지도에 쓸 평균 색을 미리 구해 둔다
+    let ar = 0, ag = 0, ab = 0, an = 0;
+    for (let q = 0; q < p.data.length; q += 4) {
+      if (p.data[q + 3] < 80) continue;
+      ar += p.data[q]; ag += p.data[q + 1]; ab += p.data[q + 2]; an++;
+    }
+    const avg = an ? [(ar / an) | 0, (ag / an) | 0, (ab / an) | 0] : [120, 120, 120];
+
     const img = ctx.createImageData(TILE, TILE);
     img.data.set(p.data);
     const tx = index % ATLAS_TILES, ty = Math.floor(index / ATLAS_TILES);
@@ -4183,6 +4263,7 @@ function buildAtlas() {
 
     const inset = 0.5 / ATLAS_SIZE;
     TEXTURES[name] = {
+      avg: avg,
       index: index,
       u0: tx / ATLAS_TILES + inset, v0: ty / ATLAS_TILES + inset,
       u1: (tx + 1) / ATLAS_TILES - inset, v1: (ty + 1) / ATLAS_TILES - inset,
@@ -5490,6 +5571,9 @@ const SKY_FS = [
   'uniform float uNight;',     // 0 낮 ~ 1 밤
   'uniform float uSunset;',    // 해가 지평선에 가까울수록 1
   'uniform float uUnder;',     // 물속이면 1 (해·별을 감춘다)
+  'uniform float uHigh;',      // 0 지상 ~ 1 성층권 (구름 위)
+  'uniform float uAurora;',    // 오로라 세기
+  'uniform float uTime;',
   'varying vec2 vPos;',
   'float hash13(vec3 p) {',
   '  p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));',
@@ -5501,17 +5585,39 @@ const SKY_FS = [
   '  vec3 dir = normalize(far.xyz / far.w - uCamPos);',
   '  float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);',
   '  vec3 col = mix(uBottom, uTop, pow(t, 0.8));',
+  // 높이 올라갈수록 하늘이 검푸르게 깊어진다 (성층권)
+  '  if (uHigh > 0.001) {',
+  '    vec3 deep = vec3(0.015, 0.025, 0.075) + uTop * 0.10;',
+  '    col = mix(col, deep, uHigh * clamp(dir.y * 1.6 + 0.35, 0.0, 1.0));',
+  '  }',
   '  if (uUnder < 0.5) {',
   // 지평선 노을
   '    float horiz = pow(1.0 - clamp(abs(dir.y) * 2.4, 0.0, 1.0), 3.0);',
   '    float toSun = max(dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);',
   '    col += uSunColor * horiz * pow(toSun, 3.0) * uSunset * 0.85;',
   // 별
-  '    if (uNight > 0.01) {',
+  '    float starLit = max(uNight, uHigh);',
+  '    if (starLit > 0.01) {',
   '      vec3 sp = floor(dir * 230.0);',
   '      float h = hash13(sp);',
   '      float star = smoothstep(0.9975, 0.9995, h) * clamp(dir.y * 2.0, 0.0, 1.0);',
-  '      col += vec3(0.85, 0.9, 1.0) * star * uNight * 1.4;',
+  '      col += vec3(0.85, 0.9, 1.0) * star * starLit * 1.4;',
+  '    }',
+  // 오로라 — 하늘 위쪽에서 물결치는 초록·보라 커튼
+  '    if (uAurora > 0.01 && dir.y > 0.04) {',
+  '      float u = atan(dir.z, dir.x);',
+  '      float a = 0.0;',
+  '      for (int k = 0; k < 3; k++) {',
+  '        float fk = float(k);',
+  '        float w = sin(u * (2.0 + fk) + uTime * (0.13 + fk * 0.05)) * 0.13',
+  '                + sin(u * (6.0 + fk * 2.0) - uTime * 0.09) * 0.05;',
+  '        float band = exp(-pow((dir.y - (0.40 + fk * 0.16) - w) * 7.0, 2.0));',
+  '        float shim = 0.55 + 0.45 * sin(u * (18.0 + fk * 9.0) + uTime * 0.8 + fk);',
+  '        a += band * shim * (1.0 - fk * 0.22);',
+  '      }',
+  '      vec3 acol = mix(vec3(0.20, 0.95, 0.55), vec3(0.55, 0.30, 0.95),',
+  '                      0.5 + 0.5 * sin(u * 1.7 + uTime * 0.2));',
+  '      col += acol * a * uAurora * 0.48;',
   '    }',
   // 해
   '    float sd = dot(dir, uSunDir);',
@@ -6164,6 +6270,8 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
 };
 
 World.prototype.markDirtyAround = function (x, y, z) {
+  const mc = this.chunkAt(x, z);
+  if (mc) mc._mapDirty = true;
   const cx = Math.floor(x / CHUNK_X), cz = Math.floor(z / CHUNK_Z);
   const lx = x - cx * CHUNK_X, lz = z - cz * CHUNK_Z;
   const self = this;
@@ -7867,86 +7975,102 @@ World.prototype.snowChunk = function (c) {
 </script>
 <script>
 /* ==== js/airport.js ==== */
-// airport.js - 인천공항. 세계마다 하나, 평평한 땅을 찾아 짓는다.
+// airport.js - 공항 세 곳. 활주로·터미널·관제탑·탑승교와 실내 시설까지.
 // 마을(village.js)의 도면 기록 방식(VillagePlan)을 그대로 다시 쓴다.
+// 땅 고르기는 도면에 담지 않고 청크를 찍을 때 그 자리에서 계산한다(용량 절약).
 'use strict';
 
-const AP_NAME = '인천국제공항';
-const AP_X = 80;            // 활주로 방향(X)으로 절반 크기
-const AP_Z = 46;            // 가로지르는 방향(Z)으로 절반 크기
-const AP_MARGIN = 12;       // 원래 지형으로 이어 붙이는 띠
-const AP_CLEAR_H = 16;      // 지면 위로 이만큼 치운다
+// 세 공항. 서로 아주 멀리 떨어뜨려 비행이 여행처럼 느껴지게 한다.
+const AIRPORT_DEFS = [
+  { code: 'ICN', name: '인천국제공항', dist: 800, angle: 0.55, tint: 'blue' },
+  { code: 'GMP', name: '김포국제공항', dist: 4600, angle: 2.45, tint: 'green' },
+  { code: 'CJU', name: '제주국제공항', dist: 8600, angle: 4.55, tint: 'orange' }
+];
 
-const RW_LEN = 150;         // 활주로 길이
-const RW_HALF = 6;          // 활주로 반폭 (폭 12)
-const RW_A_Z = -36;         // 북 활주로 중심
-const RW_B_Z = 36;          // 남 활주로 중심
-const TAXI_Z = 24;          // 유도로 중심 (±)
-const TAXI_HALF = 3;
-const APRON_Z = 21;         // 계류장 반폭 (유도로까지 닿는다)
-const APRON_X = 70;
-const TERM_X = 52;          // 터미널 반길이
-const TERM_Z = 11;          // 터미널 반폭
-const TERM_H = 13;          // 터미널 높이
-const TOWER_X = 64, TOWER_Z = -25, TOWER_H = 26;
+const AP_X = 150;           // 부지 절반 (활주로 방향)
+const AP_Z = 62;            // 부지 절반 (가로)
+const AP_MARGIN = 14;       // 원래 지형으로 이어 붙이는 띠
+const AP_CLEAR_H = 18;      // 지면 위로 이만큼 치운다
 
-// 활주로 번호와 지붕 글자에 쓰는 3×5 도트 글꼴
+const RW_LEN = 260;         // 활주로 길이
+const RW_HALF = 7;          // 활주로 반폭 (폭 15)
+const RW_A_Z = -48;
+const RW_B_Z = 48;
+const TAXI_Z = 32;
+const TAXI_HALF = 4;
+const APRON_X = 108;
+const APRON_Z = 28;
+const TERM_X = 66;
+const TERM_Z = 13;
+const TERM_H = 15;
+const TOWER_X = 88, TOWER_Z = -34, TOWER_H = 30;
+const STAND_XS = [-60, -36, -12, 12, 36, 60];
+
+// 활주로 번호와 글자에 쓰는 3×5 도트 글꼴
 const AP_FONT = {
   '0': [7, 5, 5, 5, 7], '1': [2, 6, 2, 2, 7], '2': [7, 1, 7, 4, 7],
   '3': [7, 1, 7, 1, 7], '4': [5, 5, 7, 1, 1], '5': [7, 4, 7, 1, 7],
   '6': [7, 4, 7, 5, 7], '7': [7, 1, 2, 2, 2], '8': [7, 5, 7, 5, 7],
-  '9': [7, 5, 7, 1, 7], 'I': [7, 2, 2, 2, 7], 'C': [7, 4, 4, 4, 7],
-  'N': [5, 7, 7, 7, 5], 'L': [4, 4, 4, 4, 7], 'R': [7, 5, 7, 6, 5]
+  '9': [7, 5, 7, 1, 7], 'A': [2, 5, 7, 5, 5], 'C': [7, 4, 4, 4, 7],
+  'G': [7, 4, 5, 5, 7], 'I': [7, 2, 2, 2, 7], 'J': [1, 1, 1, 5, 7],
+  'L': [4, 4, 4, 4, 7], 'M': [5, 7, 7, 5, 5], 'N': [5, 7, 7, 7, 5],
+  'P': [7, 5, 7, 4, 4], 'R': [7, 5, 7, 6, 5], 'U': [5, 5, 5, 5, 7]
 };
 
 let APMAT = null;
 function initAirportMaterials() {
   if (APMAT) return;
   APMAT = {
-    pave: B.gray_concrete,          // 활주로·유도로
-    apron: B.light_gray_concrete,   // 계류장
-    mark: B.white_concrete,         // 흰 표시
-    guide: B.yellow_concrete,       // 노란 유도선
-    wall: B.light_gray_concrete,    // 터미널 벽
-    trim: B.smooth_quartz,          // 터미널 기둥·테두리
-    roof: B.smooth_quartz,          // 지붕
+    pave: B.gray_concrete,
+    apron: B.light_gray_concrete,
+    mark: B.white_concrete,
+    guide: B.yellow_concrete,
+    wall: B.light_gray_concrete,
+    trim: B.smooth_quartz,
+    roof: B.smooth_quartz,
     roofDark: B.gray_concrete,
     glass: B.light_blue_stained_glass,
-    pane: B.glass_pane,
     lamp: B.sea_lantern,
     tower: B.quartz_block,
     fence: B.iron_bars,
     grass: B.grass_block,
     soil: B.dirt,
-    floor: B.polished_andesite
+    floor: B.polished_andesite,
+    floor2: B.white_concrete,
+    carpet: B.blue_carpet,
+    desk: B.smooth_quartz_slab,
+    belt: B.black_concrete,
+    shop: B.oak_planks,
+    approach: B.white_concrete
   };
 }
 
-// ── 터 고르기 ─────────────────────────────────────────────────────────
-// 바깥쪽 띠에서만 원래 지형으로 부드럽게 이어 붙인다.
-function airportLevel(plan) {
-  const w = plan.world, gy = plan.y, m = APMAT;
-  const X = AP_X + AP_MARGIN, Z = AP_Z + AP_MARGIN;
-  for (let dz = -Z; dz <= Z; dz++) {
-    for (let dx = -X; dx <= X; dx++) {
-      const x = plan.x + dx, z = plan.z + dz;
-      // 사각형 바깥으로 얼마나 나갔는지 (0 = 안쪽)
-      const ox = Math.max(0, Math.abs(dx) - AP_X) / AP_MARGIN;
-      const oz = Math.max(0, Math.abs(dz) - AP_Z) / AP_MARGIN;
-      let t = Math.min(1, Math.hypot(ox, oz));
-      t = t * t * (3 - 2 * t);
-      const nat = w.heightAt(x, z);
-      const target = Math.round(gy + (nat - gy) * t);
-      if (t >= 1 && target === nat) continue;
+// ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
+// 활주로·계류장·관제탑을 감싸는 사각형들의 합집합만 평탄하게 만든다.
+const AP_FLAT_RECTS = [
+  [RW_LEN / 2 + 16, RW_HALF + 8, 0, RW_A_Z],   // 북 활주로
+  [RW_LEN / 2 + 16, RW_HALF + 8, 0, RW_B_Z],   // 남 활주로
+  [APRON_X + 10, TAXI_Z + TAXI_HALF + 4, 0, 0],// 계류장 + 유도로
+  [14, 14, TOWER_X, TOWER_Z]                   // 관제탑
+];
 
-      plan.set(x, target + 1, z, 0, 0, true, AP_CLEAR_H);
-      plan.set(x, target, z, m.grass, 0, true);
-      plan.set(x, target - 5, z, m.soil, 0, true, 5);
-    }
+// 이 자리의 평탄화 정도 (1 = 완전히 평평, 0 = 원래 지형)
+function apFlatWeight(dx, dz) {
+  let best = 1e9;
+  for (let i = 0; i < AP_FLAT_RECTS.length; i++) {
+    const r = AP_FLAT_RECTS[i];
+    const ox = Math.max(0, Math.abs(dx - r[2]) - r[0]);
+    const oz = Math.max(0, Math.abs(dz - r[3]) - r[1]);
+    const d = Math.hypot(ox, oz);
+    if (d < best) best = d;
   }
+  if (best <= 0) return 1;
+  if (best >= AP_MARGIN) return 0;
+  const t = best / AP_MARGIN;
+  return 1 - t * t * (3 - 2 * t);
 }
 
-// ── 포장 ──────────────────────────────────────────────────────────────
+// ── 도면 헬퍼 ─────────────────────────────────────────────────────────
 function apRect(plan, x0, z0, x1, z1, id, dy) {
   const y = plan.y + (dy || 0);
   for (let z = z0; z <= z1; z++) {
@@ -7954,151 +8078,267 @@ function apRect(plan, x0, z0, x1, z1, id, dy) {
   }
 }
 
-// 글자를 바닥에 찍는다. dir 0 = X방향으로 눕힘(활주로 번호), 1 = Z방향
-function apText(plan, text, cx, cz, scale, id, vertical) {
-  const glyphW = 3, glyphH = 5, gap = 1;
-  const total = text.length * (glyphW + gap) - gap;
-  let cursor = -Math.floor(total / 2);
+// 글자 찍기. vertical=true 면 활주로 진행 방향에서 읽히도록 눕힌다.
+function apText(plan, text, cx, cz, scale, id, vertical, y) {
+  const gw = 3, gh = 5, gap = 1;
+  const total = text.length * (gw + gap) - gap;
+  let cur = -Math.floor(total / 2);
+  const yy = (y === undefined) ? plan.y : y;
   for (let i = 0; i < text.length; i++) {
     const rows = AP_FONT[text[i]];
     if (rows) {
-      for (let r = 0; r < glyphH; r++) {
-        for (let c = 0; c < glyphW; c++) {
-          if (!((rows[r] >> (glyphW - 1 - c)) & 1)) continue;
+      for (let r = 0; r < gh; r++) {
+        for (let c = 0; c < gw; c++) {
+          if (!((rows[r] >> (gw - 1 - c)) & 1)) continue;
           for (let sy = 0; sy < scale; sy++) {
             for (let sx = 0; sx < scale; sx++) {
-              // 활주로 글자는 진행 방향에서 읽히도록 눕힌다
-              const a = (cursor + c) * scale + sx;   // 글자 가로
-              const b = (glyphH - 1 - r) * scale + sy; // 글자 세로
+              const a = (cur + c) * scale + sx;
+              const b = (gh - 1 - r) * scale + sy;
               const ox = vertical ? b : a;
               const oz = vertical ? a : -b;
-              plan.set(plan.x + cx + ox, plan.y, plan.z + cz + oz, id, 0, true);
+              plan.set(plan.x + cx + ox, yy, plan.z + cz + oz, id, 0, true);
             }
           }
         }
       }
     }
-    cursor += glyphW + gap;
+    cur += gw + gap;
   }
 }
 
-// 활주로 하나 (표시 · 등화 포함)
+// ── 활주로 ────────────────────────────────────────────────────────────
 function apRunway(plan, zc, label) {
   const m = APMAT, half = RW_HALF, L = RW_LEN / 2;
   apRect(plan, -L, zc - half, L, zc + half, m.pave);
-  // 가장자리 흰 선
   for (let x = -L; x <= L; x++) {
     plan.set(plan.x + x, plan.y, plan.z + zc - half, m.mark, 0, true);
     plan.set(plan.x + x, plan.y, plan.z + zc + half, m.mark, 0, true);
-  }
-  // 중심선 파선 (12칸 그리고 8칸 쉬고)
-  for (let x = -L + 14; x <= L - 14; x++) {
-    if ((x + 1000) % 20 < 12) plan.set(plan.x + x, plan.y, plan.z + zc, m.mark, 0, true);
-  }
-  // 양 끝 착륙지대 (피아노 건반)
-  for (const end of [-1, 1]) {
-    const x0 = end < 0 ? -L + 2 : L - 9;
-    for (let k = 0; k < 4; k++) {
-      const zk = zc - half + 1 + k * 3;
-      apRect(plan, x0, zk, x0 + 7, zk + 1, m.mark);
+    if ((x + 4000) % 24 < 14 && x > -L + 20 && x < L - 20) {
+      plan.set(plan.x + x, plan.y, plan.z + zc, m.mark, 0, true);
     }
-    // 활주로 번호
-    apText(plan, end < 0 ? label[0] : label[1], end < 0 ? -L + 18 : L - 18, zc, 2, m.mark, true);
   }
-  // 활주로 등 (밤에 빛난다)
-  for (let x = -L; x <= L; x += 10) {
+  for (const end of [-1, 1]) {
+    const x0 = end < 0 ? -L + 2 : L - 11;
+    for (let k = 0; k < 5; k++) {
+      apRect(plan, x0, zc - half + 1 + k * 3, x0 + 9, zc - half + 2 + k * 3, m.mark);
+    }
+    apText(plan, end < 0 ? label[0] : label[1], end < 0 ? -L + 22 : L - 22, zc, 2, m.mark, true);
+    // 진입등 — 활주로 밖으로 뻗은 흰 등불 (하늘에서 활주로를 찾는 표지)
+    for (let k = 1; k <= 9; k++) {
+      const ax = end < 0 ? -L - k * 6 : L + k * 6;
+      for (let d = -2; d <= 2; d++) plan.set(plan.x + ax, plan.y, plan.z + zc + d, m.approach, 0, true);
+      plan.set(plan.x + ax, plan.y + 1, plan.z + zc, m.lamp, 0, true);
+    }
+  }
+  for (let x = -L; x <= L; x += 12) {
     plan.set(plan.x + x, plan.y, plan.z + zc - half - 2, m.lamp, 0, true);
     plan.set(plan.x + x, plan.y, plan.z + zc + half + 2, m.lamp, 0, true);
   }
 }
 
-// ── 터미널 ────────────────────────────────────────────────────────────
+// ── 계류장 · 유도로 · 주기장 ──────────────────────────────────────────
+function apApron(plan) {
+  const m = APMAT;
+  apRect(plan, -APRON_X, -APRON_Z, APRON_X, APRON_Z, m.apron);
+  apRect(plan, -RW_LEN / 2, -TAXI_Z - TAXI_HALF, RW_LEN / 2, -TAXI_Z + TAXI_HALF, m.pave);
+  apRect(plan, -RW_LEN / 2, TAXI_Z - TAXI_HALF, RW_LEN / 2, TAXI_Z + TAXI_HALF, m.pave);
+  for (const x of [-110, -40, 40, 110]) {
+    apRect(plan, x - TAXI_HALF, RW_A_Z, x + TAXI_HALF, -TAXI_Z, m.pave);
+    apRect(plan, x - TAXI_HALF, TAXI_Z, x + TAXI_HALF, RW_B_Z, m.pave);
+  }
+  for (let x = -RW_LEN / 2; x <= RW_LEN / 2; x++) {
+    plan.set(plan.x + x, plan.y, plan.z - TAXI_Z, m.guide, 0, true);
+    plan.set(plan.x + x, plan.y, plan.z + TAXI_Z, m.guide, 0, true);
+  }
+
+  plan.stands = [];
+  for (let i = 0; i < STAND_XS.length; i++) {
+    const sx = STAND_XS[i];
+    for (const side of [-1, 1]) {
+      const sz = side * (TERM_Z + 8);
+      for (let d = 0; d <= 8; d++) plan.set(plan.x + sx, plan.y, plan.z + sz + side * d, m.guide, 0, true);
+      for (let d = -4; d <= 4; d++) plan.set(plan.x + sx + d, plan.y, plan.z + sz, m.guide, 0, true);
+      plan.stands.push({ x: plan.x + sx, z: plan.z + sz + side * 8, yaw: side > 0 ? 0 : Math.PI });
+    }
+  }
+  for (const sx of [-90, -30, 30, 90]) {
+    for (const sz of [-APRON_Z + 1, APRON_Z - 1]) {
+      for (let y = 1; y <= 8; y++) plan.set(plan.x + sx, plan.y + y, plan.z + sz, m.trim, 0, true);
+      plan.set(plan.x + sx, plan.y + 9, plan.z + sz, m.lamp, 0, true);
+    }
+  }
+}
+
+// ── 터미널 뼈대 ───────────────────────────────────────────────────────
 function apTerminal(plan) {
   const m = APMAT;
   const x0 = -TERM_X, x1 = TERM_X, z0 = -TERM_Z, z1 = TERM_Z;
   const gy = plan.y;
   const set = function (x, y, z, id, meta) { plan.set(plan.x + x, gy + y, plan.z + z, id, meta, true); };
 
-  // 바닥과 내부 비우기
   for (let z = z0; z <= z1; z++) {
     for (let x = x0; x <= x1; x++) {
       set(x, 0, z, m.floor);
-      plan.set(plan.x + x, gy + 1, plan.z + z, 0, 0, true, TERM_H + 4);
+      plan.set(plan.x + x, gy + 1, plan.z + z, 0, 0, true, TERM_H + 5);
     }
   }
-  // 벽 — 아래는 콘크리트, 가운데는 유리띠, 위는 다시 콘크리트
   for (let y = 1; y <= TERM_H; y++) {
-    const band = (y >= 3 && y <= TERM_H - 3);
-    const wallId = band ? m.glass : m.wall;
+    const wallId = (y >= 3 && y <= TERM_H - 3) ? m.glass : m.wall;
     for (let x = x0; x <= x1; x++) { set(x, y, z0, wallId); set(x, y, z1, wallId); }
     for (let z = z0; z <= z1; z++) { set(x0, y, z, wallId); set(x1, y, z, wallId); }
   }
-  // 세로 기둥 (6칸마다)
   for (let x = x0; x <= x1; x += 6) {
     for (let y = 1; y <= TERM_H; y++) { set(x, y, z0, m.trim); set(x, y, z1, m.trim); }
   }
   for (let y = 1; y <= TERM_H; y++) {
     for (const zz of [z0, z1]) { set(x0, y, zz, m.trim); set(x1, y, zz, m.trim); }
   }
-  // 살짝 굽은 지붕 (가운데가 두 칸 높다)
+  // 가운데가 솟은 곡면 지붕
   for (let z = z0 - 2; z <= z1 + 2; z++) {
     const t = Math.abs(z) / (TERM_Z + 2);
-    const lift = Math.round((1 - t * t) * 2);
+    const lift = Math.round((1 - t * t) * 3);
     for (let x = x0 - 2; x <= x1 + 2; x++) {
       set(x, TERM_H + 1 + lift, z, m.roof);
-      // 처마 밑을 막는다
       for (let y = TERM_H + 1; y < TERM_H + 1 + lift; y++) {
         if (z === z0 - 2 || z === z1 + 2 || x === x0 - 2 || x === x1 + 2) set(x, y, z, m.roofDark);
       }
     }
   }
-  // 지붕 글자는 buildAirportPlan 에서 apTextAt 으로 찍는다 (높이가 필요하므로)
-
-  // 정문 (양쪽으로 넓게 트인 입구)
+  // 정문
   for (const zz of [z0, z1]) {
-    for (let x = -6; x <= 6; x++) {
-      for (let y = 1; y <= 4; y++) set(x, y, zz, 0);
-    }
-    set(-7, 1, zz, m.trim); set(7, 1, zz, m.trim);
+    for (let x = -7; x <= 7; x++) for (let y = 1; y <= 4; y++) set(x, y, zz, 0);
   }
-  // 내부 기둥과 천장 조명
-  for (let x = x0 + 6; x <= x1 - 6; x += 8) {
-    for (let y = 1; y <= TERM_H; y++) set(x, y, 0, m.trim);
-  }
+  // 천장 조명
   for (let x = x0 + 3; x <= x1 - 3; x += 5) {
-    for (const zz of [-7, -3, 3, 7]) set(x, TERM_H, zz, m.lamp);
-    set(x, 1, z0 + 1, m.lamp);      // 바닥 쪽 간접등
-    set(x, 1, z1 - 1, m.lamp);
-  }
-  // 출입문 앞 노란 안전선
-  for (let x = -10; x <= 10; x++) {
-    set(x, 0, z1 + 2, m.guide);
-    set(x, 0, z0 - 2, m.guide);
+    for (const zz of [-9, -4, 4, 9]) set(x, TERM_H, zz, m.lamp);
   }
 }
 
-// 지정한 높이에 글자를 찍는다 (지붕용)
-function apTextAt(plan, text, cx, cz, scale, id, y) {
-  const glyphW = 3, glyphH = 5, gap = 1;
-  const total = text.length * (glyphW + gap) - gap;
-  let cursor = -Math.floor(total / 2);
-  for (let i = 0; i < text.length; i++) {
-    const rows = AP_FONT[text[i]];
-    if (rows) {
-      for (let r = 0; r < glyphH; r++) {
-        for (let c = 0; c < glyphW; c++) {
-          if (!((rows[r] >> (glyphW - 1 - c)) & 1)) continue;
-          for (let sy = 0; sy < scale; sy++) {
-            for (let sx = 0; sx < scale; sx++) {
-              const ox = (cursor + c) * scale + sx;
-              const oz = -((glyphH - 1 - r) * scale + sy);
-              plan.set(plan.x + cx + ox, y, plan.z + cz + oz, id, 0, true);
-            }
-          }
-        }
-      }
+// ── 터미널 실내 ───────────────────────────────────────────────────────
+// 짐 부치는 곳 · 출국 심사 · 중앙 홀 · 면세점 · 식당가 · 게이트
+function apInterior(plan, rnd) {
+  const m = APMAT, gy = plan.y;
+  const set = function (x, y, z, id, meta) { plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true); };
+  const people = plan.people;
+  const put = function (x, z, job) { people.push({ x: plan.x + x + 0.5, y: gy + 1, z: plan.z + z + 0.5, job: job }); };
+
+  // ── 1) 체크인 · 수하물 위탁 (x -64 ~ -42) ──
+  for (let x = -63; x <= -43; x += 4) {
+    for (let d = -1; d <= 1; d++) set(x + d, 1, -4, m.desk);        // 카운터
+    set(x, 2, -4, B.item_frame !== undefined ? m.trim : m.trim);
+    set(x, 1, -6, B.barrel, 2);                                     // 직원 자리
+    for (let d = -1; d <= 1; d++) set(x + d, 1, -2, m.belt);        // 수하물 벨트
+    set(x, 1, 1, B.chest, 0);                                       // 부친 짐
+    put(x, -6, 'cartographer');                                     // 카운터 직원
+    if (rnd() < 0.7) put(x, 3, null);                               // 줄 선 승객
+  }
+  apText(plan, 'CHECK IN', -53, -10, 1, m.carpet, false, gy + 1);
+  for (let x = -66; x <= -41; x++) for (let z = 2; z <= 10; z++) set(x, 0, z, m.floor2);
+
+  // ── 2) 출국 심사대 (x -38 ~ -20) ──
+  for (let x = -37; x <= -21; x += 4) {
+    for (let y = 1; y <= 3; y++) { set(x - 1, y, -2, m.trim); set(x - 1, y, 2, m.trim); }
+    for (let z = -1; z <= 1; z++) set(x - 1, 1, z, B.iron_bars);     // 개찰구
+    set(x, 1, -3, m.desk);                                          // 심사대
+    set(x, 2, -3, B.lectern !== undefined ? B.lectern : m.trim, 2);
+    put(x, -4, 'librarian');                                        // 심사관
+    if (rnd() < 0.6) put(x, 5, null);
+  }
+  for (let x = -40; x <= -19; x++) for (let z = -11; z <= 11; z++) if (Math.abs(z) > 3) set(x, 0, z, m.floor2);
+
+  // ── 3) 중앙 홀 (x -18 ~ 18) — 안내 데스크와 의자 ──
+  for (let x = -18; x <= 18; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.carpet ? m.floor2 : m.floor);
+  for (let d = -3; d <= 3; d++) { set(d, 1, 0, m.desk); set(d, 2, 0, B.glass_pane); }
+  put(0, -2, 'cleric');
+  apText(plan, plan.code, 0, 9, 1, m.guide, false, gy + 1);
+  for (const zz of [-8, 8]) {
+    for (let x = -16; x <= 16; x += 2) {
+      set(x, 1, zz, B.quartz_stairs, zz < 0 ? 0 : 2);               // 대기 의자
+      if (rnd() < 0.4) put(x, zz + (zz < 0 ? -2 : 2), null);
     }
-    cursor += glyphW + gap;
+  }
+  for (let x = -14; x <= 14; x += 7) {
+    for (let y = 1; y <= TERM_H - 1; y++) set(x, y, 0, m.trim);     // 홀 기둥
+  }
+
+  // ── 4) 면세점 (x 20 ~ 42) ──
+  for (let x = 20; x <= 42; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.floor2);
+  const SHOP_BLOCKS = [B.bookshelf, B.barrel, B.red_wool, B.blue_wool, B.yellow_wool,
+    B.lime_wool, B.magenta_wool, B.cake !== undefined ? B.cake : B.white_wool];
+  for (let x = 22; x <= 40; x += 6) {
+    for (const zz of [-8, 8]) {
+      for (let d = -2; d <= 2; d++) {
+        set(x + d, 1, zz, m.shop);
+        set(x + d, 2, zz, SHOP_BLOCKS[(rnd() * SHOP_BLOCKS.length) | 0]);
+        set(x + d, 3, zz, B.glass);                                 // 진열장
+      }
+      set(x, 4, zz, m.lamp);
+      put(x, zz + (zz < 0 ? 2 : -2), 'leatherworker');              // 점원
+    }
+    if (rnd() < 0.8) put(x, (rnd() < 0.5 ? -4 : 4), null);
+  }
+  apText(plan, 'DUTY FREE', 31, 0, 1, m.guide, false, gy + 1);
+
+  // ── 5) 식당가 (x 44 ~ 64) ──
+  for (let x = 44; x <= 64; x++) for (let z = -11; z <= 11; z++) set(x, 0, z, m.floor2);
+  for (let x = 46; x <= 62; x += 5) {
+    for (const zz of [-7, 0, 7]) {
+      set(x, 1, zz, B.oak_fence);                                   // 탁자 다리
+      set(x, 2, zz, B.smooth_quartz_slab);                          // 상판
+      set(x - 1, 1, zz, B.oak_stairs, 3);                           // 의자
+      set(x + 1, 1, zz, B.oak_stairs, 1);
+      if (rnd() < 0.55) put(x - 2, zz, null);
+    }
+  }
+  // 주방
+  for (let x = 56; x <= 62; x++) { set(x, 1, -11, B.smoker, 2); set(x, 2, -11, m.trim); }
+  for (let x = 46; x <= 52; x++) { set(x, 1, 11, B.furnace, 0); set(x, 2, 11, m.trim); }
+  put(58, -9, 'butcher'); put(48, 9, 'butcher');
+  apText(plan, 'FOOD', 54, 4, 1, m.guide, false, gy + 1);
+
+  // ── 6) 게이트 (탑승교마다) ──
+  for (let i = 0; i < STAND_XS.length; i++) {
+    const sx = STAND_XS[i];
+    for (const side of [-1, 1]) {
+      const zz = side * (TERM_Z - 2);
+      // 게이트 번호
+      apText(plan, String(i + 1) + (side < 0 ? 'A' : 'B'), sx, side < 0 ? zz + 3 : zz - 1, 1,
+        m.guide, false, gy + 1);
+      // 대기 의자 두 줄
+      for (let d = -3; d <= 3; d++) {
+        set(sx + d, 1, zz - side, B.quartz_stairs, side < 0 ? 2 : 0);
+      }
+      set(sx, 1, zz, B.iron_bars);                                   // 탑승 게이트
+      set(sx - 1, 1, zz, m.desk);
+      put(sx + 1, zz - side * 2, 'fletcher');                        // 게이트 직원
+      if (rnd() < 0.7) put(sx - 2, zz - side * 3, null);
+    }
+  }
+}
+
+// ── 탑승교 ────────────────────────────────────────────────────────────
+function apJetBridges(plan) {
+  const m = APMAT, gy = plan.y;
+  const set = function (x, y, z, id) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true); };
+  for (let i = 0; i < STAND_XS.length; i++) {
+    const sx = STAND_XS[i];
+    for (const side of [-1, 1]) {
+      const z0 = side * TERM_Z;
+      for (let d = 1; d <= 8; d++) {
+        const z = z0 + side * d;
+        for (let dx = -1; dx <= 1; dx++) { set(sx + dx, 5, z, m.trim); set(sx + dx, 8, z, m.trim); }
+        for (const dx of [-2, 2]) { set(sx + dx, 6, z, m.glass); set(sx + dx, 7, z, m.glass); }
+        for (let dx = -1; dx <= 1; dx++) { set(sx + dx, 6, z, 0); set(sx + dx, 7, z, 0); }
+        if (d === 8) for (let y = 1; y <= 4; y++) set(sx, y, z, m.trim);
+      }
+      const ze = z0 + side * 9;
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let y = 5; y <= 8; y++) set(sx + dx, y, ze, (y === 6 || y === 7) ? m.glass : m.trim);
+      }
+      set(sx, 8, z0 + side * 5, m.lamp);
+      // 터미널 안에서 탑승교로 올라가는 계단
+      for (let k = 0; k < 4; k++) set(sx, 1 + k, z0 - side * (1 + k), B.quartz_stairs, side < 0 ? 2 : 0);
+    }
   }
 }
 
@@ -8107,7 +8347,6 @@ function apTower(plan) {
   const m = APMAT, gy = plan.y;
   const set = function (x, y, z, id) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true); };
   const cx = TOWER_X, cz = TOWER_Z;
-  // 기둥
   for (let y = 1; y <= TOWER_H; y++) {
     for (let dz = -2; dz <= 2; dz++) {
       for (let dx = -2; dx <= 2; dx++) {
@@ -8116,7 +8355,6 @@ function apTower(plan) {
       }
     }
   }
-  // 관제실 (한 칸씩 넓게, 유리로 두른다)
   for (let y = TOWER_H + 1; y <= TOWER_H + 4; y++) {
     for (let dz = -4; dz <= 4; dz++) {
       for (let dx = -4; dx <= 4; dx++) {
@@ -8127,176 +8365,168 @@ function apTower(plan) {
       }
     }
   }
-  // 지붕과 항공 장애등
   for (let dz = -4; dz <= 4; dz++) {
     for (let dx = -4; dx <= 4; dx++) set(cx + dx, TOWER_H + 5, cz + dz, m.roofDark);
   }
+  // 회전 표지등 — 하늘에서 공항을 찾는 신호
   set(cx, TOWER_H + 6, cz, B.red_concrete);
   set(cx, TOWER_H + 7, cz, m.lamp);
-  // 바닥까지 오르내리는 사다리
+  set(cx, TOWER_H + 8, cz, B.glowstone);
   for (let y = 1; y <= TOWER_H; y++) set(cx, y, cz + 2, B.ladder);
+  // 관제사 두 명
+  plan.people.push({ x: plan.x + cx - 1.5, y: gy + TOWER_H + 2, z: plan.z + cz + 0.5, job: 'cartographer' });
+  plan.people.push({ x: plan.x + cx + 1.5, y: gy + TOWER_H + 2, z: plan.z + cz + 0.5, job: 'librarian' });
 }
 
-// ── 계류장과 주기장 ───────────────────────────────────────────────────
-function apApron(plan) {
-  const m = APMAT;
-  apRect(plan, -APRON_X, -APRON_Z, APRON_X, APRON_Z, m.apron);
-
-  // 유도로 두 줄과 활주로로 이어지는 연결로
-  apRect(plan, -RW_LEN / 2, -TAXI_Z - TAXI_HALF, RW_LEN / 2, -TAXI_Z + TAXI_HALF, m.pave);
-  apRect(plan, -RW_LEN / 2, TAXI_Z - TAXI_HALF, RW_LEN / 2, TAXI_Z + TAXI_HALF, m.pave);
-  for (const x of [-66, 0, 66]) {
-    apRect(plan, x - TAXI_HALF, RW_A_Z, x + TAXI_HALF, -TAXI_Z, m.pave);
-    apRect(plan, x - TAXI_HALF, TAXI_Z, x + TAXI_HALF, RW_B_Z, m.pave);
-  }
-  // 유도로 가운데 노란 선
-  for (let x = -RW_LEN / 2; x <= RW_LEN / 2; x++) {
-    plan.set(plan.x + x, plan.y, plan.z - TAXI_Z, m.guide, 0, true);
-    plan.set(plan.x + x, plan.y, plan.z + TAXI_Z, m.guide, 0, true);
-  }
-  // 주기장 — 터미널 양옆으로 여섯 자리
-  plan.stands = [];
-  for (let i = 0; i < 6; i++) {
-    const sx = -50 + i * 20;
-    for (const side of [-1, 1]) {
-      const sz = side * (TERM_Z + 6);
-      // 노란 유도선
-      for (let d = 0; d <= 6; d++) plan.set(plan.x + sx, plan.y, plan.z + sz + side * d, m.guide, 0, true);
-      for (let d = -3; d <= 3; d++) plan.set(plan.x + sx + d, plan.y, plan.z + sz, m.guide, 0, true);
-      plan.stands.push({ x: plan.x + sx, z: plan.z + sz + side * 6, yaw: side > 0 ? 0 : Math.PI });
-    }
-  }
-  // 계류장 조명탑
-  for (const sx of [-60, -20, 20, 60]) {
-    for (const sz of [-APRON_Z + 1, APRON_Z - 1]) {
-      for (let y = 1; y <= 7; y++) plan.set(plan.x + sx, plan.y + y, plan.z + sz, m.trim, 0, true);
-      plan.set(plan.x + sx, plan.y + 8, plan.z + sz, m.lamp, 0, true);
-    }
-  }
-}
-
-// 탑승교 — 터미널 벽에서 주기장 쪽으로 뻗은 통로
-function apJetBridges(plan) {
-  const m = APMAT, gy = plan.y;
-  const set = function (x, y, z, id) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true); };
-  for (let i = 0; i < 6; i++) {
-    const sx = -50 + i * 20;
-    for (const side of [-1, 1]) {
-      const z0 = side * TERM_Z;
-      for (let d = 1; d <= 6; d++) {
-        const z = z0 + side * d;
-        for (let dx = -1; dx <= 1; dx++) {
-          set(sx + dx, 4, z, m.trim);              // 바닥
-          set(sx + dx, 7, z, m.trim);              // 천장
-        }
-        set(sx - 2, 5, z, m.glass); set(sx - 2, 6, z, m.glass);
-        set(sx + 2, 5, z, m.glass); set(sx + 2, 6, z, m.glass);
-        for (let dx = -1; dx <= 1; dx++) { set(sx + dx, 5, z, 0); set(sx + dx, 6, z, 0); }
-        // 받침 기둥
-        if (d === 6) for (let y = 1; y <= 3; y++) set(sx, y, z, m.trim);
-      }
-      // 끝머리 (비행기와 붙는 부분)
-      const ze = z0 + side * 7;
-      for (let dx = -2; dx <= 2; dx++) {
-        for (let y = 4; y <= 7; y++) set(sx + dx, y, ze, (y === 5 || y === 6) ? m.glass : m.trim);
-      }
-      set(sx, 7, z0 + side * 4, m.lamp);
-    }
-  }
-}
-
-// 울타리로 부지를 두른다
 function apFence(plan) {
   const m = APMAT;
-  for (let x = -AP_X; x <= AP_X; x++) {
-    for (const z of [-AP_Z, AP_Z]) {
-      plan.set(plan.x + x, plan.y + 1, plan.z + z, m.fence, 0, true, 2);
-    }
+  for (let x = -AP_X; x <= AP_X; x += 1) {
+    for (const z of [-AP_Z, AP_Z]) plan.set(plan.x + x, plan.y + 1, plan.z + z, m.fence, 0, true, 2);
   }
-  for (let z = -AP_Z; z <= AP_Z; z++) {
-    for (const x of [-AP_X, AP_X]) {
-      plan.set(plan.x + x, plan.y + 1, plan.z + z, m.fence, 0, true, 2);
-    }
+  for (let z = -AP_Z; z <= AP_Z; z += 1) {
+    for (const x of [-AP_X, AP_X]) plan.set(plan.x + x, plan.y + 1, plan.z + z, m.fence, 0, true, 2);
   }
 }
 
-// ── 공항 도면 ─────────────────────────────────────────────────────────
-function buildAirportPlan(world) {
+// ── 공항 하나 짓기 ────────────────────────────────────────────────────
+function buildAirportPlan(world, def, index) {
   initAirportMaterials();
-  const rnd = makeRandom(hashSeed('airport:' + world.seed));
+  const rnd = makeRandom(hashSeed('airport:' + world.seed + ':' + def.code));
 
-  // 평평하고 넓은 자리를 나선으로 찾는다
+  // 목표 지점 주변에서 평평하고 넓은 자리를 찾는다
+  const tx = Math.round(Math.cos(def.angle) * def.dist);
+  const tz = Math.round(Math.sin(def.angle) * def.dist);
   let best = null;
-  for (let ring = 1; ring <= 26 && !best; ring++) {
-    const step = ring * 110;
-    for (let k = 0; k < ring * 6; k++) {
-      const a = (k / (ring * 6)) * Math.PI * 2 + ring;
-      const cx = Math.round(Math.cos(a) * step), cz = Math.round(Math.sin(a) * step);
+  for (let ring = 0; ring <= 22 && !best; ring++) {
+    const step = ring * 130;
+    const tries = ring === 0 ? 1 : ring * 6;
+    for (let k = 0; k < tries; k++) {
+      const a = (k / tries) * Math.PI * 2 + ring * 1.3;
+      const cx = tx + Math.round(Math.cos(a) * step);
+      const cz = tz + Math.round(Math.sin(a) * step);
       let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0;
-      for (let dz = -AP_Z; dz <= AP_Z; dz += 10) {
-        for (let dx = -AP_X; dx <= AP_X; dx += 10) {
+      for (let dz = -AP_Z; dz <= AP_Z; dz += 12) {
+        for (let dx = -AP_X; dx <= AP_X; dx += 12) {
           const h = world.heightAt(cx + dx, cz + dz);
           const b = world.biomeAt(cx + dx, cz + dz, h);
           if (h <= SEA_LEVEL + 1 || b === BIOME.OCEAN || b === BIOME.MOUNTAINS) bad++;
           lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
         }
       }
-      if (!n || bad > n * 0.06 || hi - lo > 16) continue;
-      best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), flat: hi - lo };
+      if (!n || bad > n * 0.08 || hi - lo > 18) continue;
+      best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3) };
       break;
     }
   }
   if (!best) return null;
 
   const plan = new VillagePlan(world, best.x, best.z, best.y, null, rnd);
-  plan.name = AP_NAME;
   plan.isAirport = true;
+  plan.code = def.code;
+  plan.name = def.name;
+  plan.index = index;
+  plan.people = [];
 
-  airportLevel(plan);
   apApron(plan);
   apRunway(plan, RW_A_Z, ['15', '33']);
   apRunway(plan, RW_B_Z, ['16', '34']);
   apTerminal(plan);
+  apInterior(plan, rnd);
   apJetBridges(plan);
-  // 지붕 글자 (가운데가 2칸 솟아 있다)
-  apTextAt(plan, 'ICN', 0, 8, 3, APMAT.roofDark, best.y + TERM_H + 3);
+  apText(plan, def.code, 0, 10, 4, APMAT.roofDark, false, best.y + TERM_H + 4);
   apTower(plan);
   apFence(plan);
 
+  // 항법에 쓰는 활주로 정보 (모두 X축 방향)
+  plan.runways = [
+    { z: best.z + RW_A_Z, y: best.y, x0: best.x - RW_LEN / 2, x1: best.x + RW_LEN / 2, half: RW_HALF },
+    { z: best.z + RW_B_Z, y: best.y, x0: best.x - RW_LEN / 2, x1: best.x + RW_LEN / 2, half: RW_HALF }
+  ];
+  plan.tower = { x: best.x + TOWER_X, y: best.y + TOWER_H + 7, z: best.z + TOWER_Z };
   plan.freeze();
   return plan;
 }
 
 // ── 월드 연결 ─────────────────────────────────────────────────────────
-World.prototype.airport = function () {
-  if (this._airport !== undefined) return this._airport;
-  this._airport = null;
-  try { this._airport = buildAirportPlan(this); }
-  catch (e) { console.warn('공항 생성 실패', e); this._airport = null; }
-  return this._airport;
+World.prototype.airports = function () {
+  if (this._airports) return this._airports;
+  this._airports = [];
+  for (let i = 0; i < AIRPORT_DEFS.length; i++) {
+    let p = null;
+    try { p = buildAirportPlan(this, AIRPORT_DEFS[i], i); }
+    catch (e) { console.warn('공항 생성 실패', AIRPORT_DEFS[i].code, e); }
+    if (p) this._airports.push(p);
+  }
+  return this._airports;
 };
 
+// 옛 이름 (첫 번째 공항)
+World.prototype.airport = function () {
+  const a = this.airports();
+  return a.length ? a[0] : null;
+};
+
+World.prototype.nearestAirport = function (x, z) {
+  const list = this.airports();
+  let best = null, bd = Infinity;
+  for (let i = 0; i < list.length; i++) {
+    const d = Math.hypot(list[i].x - x, list[i].z - z);
+    if (d < bd) { bd = d; best = list[i]; }
+  }
+  return best ? { plan: best, dist: bd } : null;
+};
+
+// 청크에 공항을 찍는다. 땅 고르기는 여기서 바로 계산한다.
 World.prototype.paintAirport = function (c) {
-  const p = this._airport;
-  if (!p) return false;
-  const a = p.ops.get(c.cx + ',' + c.cz);
-  if (!a) return false;
-  for (let i = 0; i < a.length; i += VOP) {
-    const lx = a[i], y0 = a[i + 1], lz = a[i + 2];
-    const id = a[i + 3], meta = a[i + 4], force = a[i + 5], run = a[i + 6];
-    for (let n = 0; n < run; n++) {
-      const y = y0 + n;
-      if (y < 0 || y >= CHUNK_Y) continue;
-      const k = idx(lx, y, lz);
-      if (!force) {
-        const cur = c.blocks[k];
-        if (cur !== 0 && cur !== B.water) continue;
+  const list = this.airports();
+  if (!list.length) return false;
+  const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
+  let touched = false;
+
+  for (let n = 0; n < list.length; n++) {
+    const p = list[n];
+    // 부지에서 아주 먼 청크는 건너뛴다
+    if (Math.abs(bx + 8 - p.x) > AP_X + AP_MARGIN + 16) continue;
+    if (Math.abs(bz + 8 - p.z) > AP_Z + AP_MARGIN + 16) continue;
+    touched = true;
+
+    // 1) 땅 고르기
+    for (let lz = 0; lz < CHUNK_Z; lz++) {
+      for (let lx = 0; lx < CHUNK_X; lx++) {
+        const wx = bx + lx, wz = bz + lz;
+        const wgt = apFlatWeight(wx - p.x, wz - p.z);
+        if (wgt <= 0) continue;
+        const nat = this.heightAt(wx, wz);
+        const target = Math.round(nat + (p.y - nat) * wgt);
+        for (let y = target + 1; y <= target + AP_CLEAR_H && y < CHUNK_Y; y++) {
+          c.blocks[idx(lx, y, lz)] = 0;
+          c.meta[idx(lx, y, lz)] = 0;
+        }
+        if (target >= 1 && target < CHUNK_Y) c.blocks[idx(lx, target, lz)] = APMAT.grass;
+        for (let y = Math.max(1, target - 5); y < target; y++) c.blocks[idx(lx, y, lz)] = APMAT.soil;
       }
-      c.blocks[k] = id;
-      c.meta[k] = meta;
+    }
+
+    // 2) 건물·포장
+    const a = p.ops.get(c.cx + ',' + c.cz);
+    if (!a) continue;
+    for (let i = 0; i < a.length; i += VOP) {
+      const lx = a[i], y0 = a[i + 1], lz = a[i + 2];
+      const id = a[i + 3], meta = a[i + 4], force = a[i + 5], run = a[i + 6];
+      for (let k = 0; k < run; k++) {
+        const y = y0 + k;
+        if (y < 0 || y >= CHUNK_Y) continue;
+        const j = idx(lx, y, lz);
+        if (!force) {
+          const cur = c.blocks[j];
+          if (cur !== 0 && cur !== B.water) continue;
+        }
+        c.blocks[j] = id;
+        c.meta[j] = meta;
+      }
     }
   }
-  return true;
+  return touched;
 };
 
 </script>
@@ -8996,6 +9226,11 @@ Player.prototype.update = function (dt, input) {
         this.exhaustion += this.sprinting ? 0.2 : 0.05;
       }
       this.vy -= GRAVITY * dt;
+      // 낙하산을 펴면 천천히 내려온다
+      if (this.parachute) {
+        if (this.vy < -4.5) this.vy = -4.5;
+        this.fallStart = this.y;
+      }
       if (this.vy < -TERMINAL_VELOCITY) this.vy = -TERMINAL_VELOCITY;
     }
   }
@@ -9039,6 +9274,11 @@ Player.prototype.update = function (dt, input) {
     this.fallStart = null;
   }
   if (this.onGround || this.flying || this.inWater) this.fallStart = null;
+  // 땅에 닿으면 낙하산을 접는다
+  if (this.parachute && (this.onGround || this.inWater || this.flying)) {
+    this.parachute = false;
+    if (this.onParachuteEnd) this.onParachuteEnd();
+  }
 
   // 밟으면 아픈 블록 (선인장)
   const b = this.aabb(this.x, this.y, this.z);
@@ -9610,12 +9850,7 @@ EntityManager.prototype.trySpawn = function (player) {
     const sky = w.getSky(x, y, z);
     const light = Math.max(sky * this.daylight, w.getBlockLight(x, y, z));
 
-    if (night && this.countHostile() < this.maxHostile && light < 5) {
-      const HOSTILE_TYPES = ['zombie', 'zombie', 'skeleton', 'skeleton', 'creeper', 'spider'];
-      const type = HOSTILE_TYPES[(Math.random() * HOSTILE_TYPES.length) | 0];
-      this.spawnMob(type, x + 0.5, y, z + 0.5);
-      return;
-    }
+    // 몬스터는 저절로 생기지 않는다 (창작 모드 생성 알로는 여전히 부를 수 있다)
     if (!night && passive < this.maxPassive && ground === B.grass_block && sky >= 9) {
       const types = ['pig', 'cow', 'sheep', 'chicken'];
       const type = types[(Math.random() * types.length) | 0];
@@ -9632,6 +9867,10 @@ EntityManager.prototype.trySpawn = function (player) {
 EntityManager.prototype.update = function (dt, player, daylight) {
   this.daylight = daylight;
   const self = this;
+  // 이미 있던 몬스터도 조용히 사라진다
+  for (let i = this.mobs.length - 1; i >= 0; i--) {
+    if (this.mobs[i].def.hostile) { this.mobs[i].despawned = true; this.mobs[i].dead = true; }
+  }
 
   for (let i = this.mobs.length - 1; i >= 0; i--) {
     const m = this.mobs[i];
@@ -9822,11 +10061,17 @@ Plane.prototype.update = function (dt, game) {
   const input = game.input;
   const prevYaw = this.yaw;
 
+  // 자동 운항이면 여기서 조종간을 대신 잡는다
+  const ai = this.ai ? this.aiControl(dt, game) : null;
+
   // ── 추력 ──
   if (rider) {
     if (input.forward) this.throttle += 0.42 * dt;
     if (input.back) this.throttle -= 0.55 * dt;
     if (input.jump && this.onGround) this.throttle -= 1.2 * dt;   // 지상 제동
+    this.throttle = Math.max(0, Math.min(1, this.throttle));
+  } else if (ai) {
+    this.throttle += Math.max(-dt * 0.8, Math.min(dt * 0.6, ai.throttle - this.throttle));
     this.throttle = Math.max(0, Math.min(1, this.throttle));
   } else {
     this.throttle = Math.max(0, this.throttle - dt * 0.6);
@@ -9844,6 +10089,9 @@ Plane.prototype.update = function (dt, game) {
     // A/D 는 러더 — 기수를 조금씩 옆으로 민다
     if (input.left) wantYaw -= 0.5;
     if (input.right) wantYaw += 0.5;
+  } else if (ai) {
+    wantYaw = ai.yaw;
+    wantPitch = ai.pitch;
   }
 
   if (this.onGround) {
@@ -9852,8 +10100,9 @@ Plane.prototype.update = function (dt, game) {
     this.yaw = approachAngle(this.yaw, wantYaw, rate * dt);
     this.pitch += (0 - this.pitch) * Math.min(1, dt * 4);
     this.roll += (0 - this.roll) * Math.min(1, dt * 4);
-    // 이륙 — 충분히 빠르고 조종사가 기수를 들면
-    if (this.speed >= PLANE_TAKEOFF && rider && rider.pitch > 0.06) {
+    // 이륙 — 충분히 빠르고 조종간을 당기면
+    const pull = rider ? rider.pitch > 0.06 : (ai ? ai.rotate : false);
+    if (this.speed >= PLANE_TAKEOFF && pull) {
       this.onGround = false;
       this.vy = 4;
       this.gear = 1;
@@ -9982,29 +10231,40 @@ EntityManager.prototype.updatePlanes = function (dt, player, game) {
   if (!this.planes) this.planes = [];
   for (let i = this.planes.length - 1; i >= 0; i--) {
     const p = this.planes[i];
-    // 아무도 안 타고 아주 멀어지면 정리한다 (공항에서 다시 생긴다)
-    if (!p.rider && Math.hypot(p.x - player.x, p.z - player.z) > 420) {
+    // 세워 둔 비행기는 멀어지면 정리한다 (정기편은 계속 난다)
+    if (!p.rider && !p.ai && Math.hypot(p.x - player.x, p.z - player.z) > 420) {
       this.planes.splice(i, 1);
       continue;
     }
     p.update(dt, game);
   }
+  this.updateAirlines(dt, game);
   this.populateAirport(player);
 };
 
-// 공항 주기장에 비행기를 세워 둔다
+// 가까운 공항 주기장에 비행기를 세워 두고, 터미널에 사람을 채운다
 EntityManager.prototype.populateAirport = function (player) {
   const w = this.world;
-  if (!w.airport) return;
-  const ap = w.airport();
-  if (!ap || !ap.stands) return;
-  if (Math.hypot(ap.x - player.x, ap.z - player.z) > 340) return;
+  if (!w.airports) return;
+  const list = w.airports();
   if (!this.planes) this.planes = [];
 
-  const want = 5;
+  for (let n = 0; n < list.length; n++) {
+    const ap = list[n];
+    if (Math.hypot(ap.x - player.x, ap.z - player.z) > 320) continue;
+    this.populateStands(ap);
+    this.populateTerminal(ap);
+  }
+};
+
+EntityManager.prototype.populateStands = function (ap) {
+  const w = this.world;
+  if (!ap.stands) return;
+  const want = 4;
   let here = 0;
   for (let i = 0; i < this.planes.length; i++) {
-    if (Math.hypot(this.planes[i].x - ap.x, this.planes[i].z - ap.z) < 220) here++;
+    if (this.planes[i].ai) continue;
+    if (Math.hypot(this.planes[i].x - ap.x, this.planes[i].z - ap.z) < 240) here++;
   }
   if (here >= want) return;
 
@@ -10012,7 +10272,7 @@ EntityManager.prototype.populateAirport = function (player) {
     const s = ap.stands[k];
     let taken = false;
     for (let i = 0; i < this.planes.length; i++) {
-      if (Math.hypot(this.planes[i].x - s.x, this.planes[i].z - s.z) < 24) { taken = true; break; }
+      if (Math.hypot(this.planes[i].x - s.x, this.planes[i].z - s.z) < 26) { taken = true; break; }
     }
     if (taken) continue;
     const c = w.chunkAt(s.x, s.z);
@@ -10021,9 +10281,46 @@ EntityManager.prototype.populateAirport = function (player) {
     if (top < 0) continue;
     const pl = this.spawnPlane(s.x + 0.5, top + PLANE_REST, s.z + 0.5, s.yaw);
     pl.home = { x: s.x + 0.5, z: s.z + 0.5, yaw: s.yaw };
+    pl.airport = ap;
     return;
   }
 };
+
+// 터미널 안에 직원과 승객을 세운다
+EntityManager.prototype.populateTerminal = function (ap) {
+  if (!ap.people || !ap.people.length) return;
+  if (ap._peopleDone === undefined) ap._peopleDone = 0;
+  let count = 0;
+  for (let i = 0; i < this.mobs.length; i++) {
+    const m = this.mobs[i];
+    if (m.def.brain !== 'villager') continue;
+    if (Math.hypot(m.x - ap.x, m.z - ap.z) < 200) count++;
+  }
+  const want = Math.min(26, ap.people.length);
+  if (count >= want) return;
+
+  for (let t = 0; t < 8; t++) {
+    const sp = ap.people[(Math.random() * ap.people.length) | 0];
+    let near = false;
+    for (let i = 0; i < this.mobs.length; i++) {
+      const m = this.mobs[i];
+      if (m.def.brain !== 'villager') continue;
+      if (Math.hypot(m.x - sp.x, m.z - sp.z) < 3.5) { near = true; break; }
+    }
+    if (near) continue;
+    const y = this.findStand(sp.x, sp.y, sp.z);
+    if (y === null) continue;
+    const job = sp.job || AIRPORT_PASSENGER_JOBS[(Math.random() * AIRPORT_PASSENGER_JOBS.length) | 0];
+    const type = MOB_TYPES['villager_' + job] ? 'villager_' + job : 'villager_unemployed';
+    const e = this.spawnMob(type, sp.x, y, sp.z);
+    e.home = { x: sp.x, z: sp.z };
+    e.homeR = 9;               // 공항 사람은 제 구역을 벗어나지 않는다
+    return;
+  }
+};
+
+const AIRPORT_PASSENGER_JOBS = ['unemployed', 'shepherd', 'mason', 'toolsmith',
+  'fisherman', 'nitwit', 'leatherworker', 'farmer'];
 
 // 시선에 걸리는 비행기 (탑승용). 동체가 커서 넉넉한 상자로 본다.
 EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
@@ -10037,6 +10334,212 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
     if (t !== null && t < bestT) { bestT = t; best = p; }
   }
   return best ? { plane: best, dist: bestT } : null;
+};
+
+// ── 자동 운항 (공항 사이를 오가는 정기편) ─────────────────────────────
+// 상태: taxi_out → takeoff → climb → cruise → descend → final → rollout →
+//       taxi_in → park → (다시 taxi_out)
+const AI_CRUISE_ALT = 74;      // 순항 고도 (구름 아래)
+const AI_STATE_LIMIT = {       // 상태마다 최대 시간 (막히면 다음으로 넘긴다)
+  taxi_out: 90, takeoff: 60, climb: 60, cruise: 400,
+  descend: 200, final: 90, rollout: 40, taxi_in: 90, park: 25
+};
+
+function aiHeadingTo(x, z, tx, tz) { return Math.atan2(tx - x, tz - z); }
+
+Plane.prototype.startFlight = function (fromAp, toAp) {
+  this.ai = {
+    state: 'taxi_out', t: 0, from: fromAp, to: toAp,
+    rw: fromAp.runways[0], wp: [], wpi: 0
+  };
+  // 주기장 → 유도로 → 활주로 시작점
+  const rw = this.ai.rw;
+  this.ai.wp = [
+    [this.x, fromAp.z - TAXI_Z],
+    [rw.x0 + 24, fromAp.z - TAXI_Z],
+    [rw.x0 + 18, rw.z]
+  ];
+  this.ai.wpi = 0;
+};
+
+// 조종간을 대신 잡는다. {throttle, yaw, pitch, rotate} 를 돌려준다.
+Plane.prototype.aiControl = function (dt, game) {
+  const a = this.ai;
+  a.t += dt;
+  const out = { throttle: 0, yaw: this.yaw, pitch: 0, rotate: false };
+  const lim = AI_STATE_LIMIT[a.state] || 60;
+  const stuck = a.t > lim;
+
+  switch (a.state) {
+    case 'park':
+      out.throttle = 0;
+      if (a.t > 8) {
+        const list = this.world.airports();
+        const here = a.to;
+        const others = [];
+        for (let i = 0; i < list.length; i++) if (list[i] !== here) others.push(list[i]);
+        if (others.length) {
+          this.startFlight(here, others[(Math.random() * others.length) | 0]);
+        } else {
+          a.t = 0;   // 갈 곳이 없으면 그냥 세워 둔다
+        }
+      }
+      break;
+
+    case 'taxi_out': {
+      const wp = a.wp[a.wpi];
+      out.throttle = 0.14;
+      if (wp) {
+        out.yaw = aiHeadingTo(this.x, this.z, wp[0], wp[1]);
+        if (Math.hypot(wp[0] - this.x, wp[1] - this.z) < 10) a.wpi++;
+      }
+      if (!wp || a.wpi >= a.wp.length || stuck) {
+        // 활주로에 정렬
+        this.x = a.rw.x0 + 16; this.z = a.rw.z;
+        this.y = a.rw.y + PLANE_REST;
+        this.yaw = Math.PI / 2; this.onGround = true;
+        a.state = 'takeoff'; a.t = 0;
+      }
+      break;
+    }
+
+    case 'takeoff':
+      out.throttle = 1;
+      out.yaw = Math.PI / 2;                 // +X 방향
+      out.rotate = this.speed >= PLANE_TAKEOFF + 2;
+      if (!this.onGround) { a.state = 'climb'; a.t = 0; }
+      else if (stuck) { this.onGround = false; this.y += 6; a.state = 'climb'; a.t = 0; }
+      break;
+
+    case 'climb':
+      out.throttle = 1;
+      out.yaw = aiHeadingTo(this.x, this.z, a.to.x, a.to.z);
+      out.pitch = 0.22;
+      if (this.y >= AI_CRUISE_ALT || stuck) { a.state = 'cruise'; a.t = 0; }
+      break;
+
+    case 'cruise': {
+      out.throttle = 0.92;
+      out.yaw = aiHeadingTo(this.x, this.z, a.to.x, a.to.z);
+      out.pitch = Math.max(-0.12, Math.min(0.12, (AI_CRUISE_ALT - this.y) * 0.02));
+      const d = Math.hypot(a.to.x - this.x, a.to.z - this.z);
+      if (d < 620 || stuck) {
+        a.rwTo = a.to.runways[0];
+        a.state = 'descend'; a.t = 0;
+      }
+      break;
+    }
+
+    case 'descend': {
+      // 활주로 연장선 위 진입점으로 간다
+      const rw = a.rwTo;
+      const fixX = rw.x0 - 300, fixZ = rw.z;
+      out.throttle = 0.6;
+      out.yaw = aiHeadingTo(this.x, this.z, fixX, fixZ);
+      const wantY = rw.y + 42;
+      out.pitch = Math.max(-0.16, Math.min(0.12, (wantY - this.y) * 0.02));
+      if (Math.hypot(fixX - this.x, fixZ - this.z) < 60 || stuck) { a.state = 'final'; a.t = 0; }
+      break;
+    }
+
+    case 'final': {
+      const rw = a.rwTo;
+      const touch = rw.x0 + 40;
+      out.throttle = 0.48;
+      // 늘 150블록 앞의 중심선을 겨눠 활주로에 붙는다
+      out.yaw = aiHeadingTo(this.x, this.z, this.x + 150, rw.z);
+      // 3도쯤 되는 활공각. 접지점을 지나면 목표를 노면 아래로 낮춰 확실히 내려앉힌다.
+      const ahead = Math.max(-8, touch - this.x);
+      const wantY = rw.y + PLANE_REST + ahead * 0.09;
+      out.pitch = Math.max(-0.22, Math.min(0.10, (wantY - this.y) * 0.05));
+      if (this.onGround) { a.state = 'rollout'; a.t = 0; }
+      else if (this.x > rw.x1 + 40) {
+        // 활주로를 지나쳤다 — 다시 돌아 진입한다 (복행)
+        a.state = 'descend'; a.t = 0;
+      } else if (stuck) {
+        this.x = touch; this.z = rw.z; this.y = rw.y + PLANE_REST;
+        this.onGround = true; this.speed = 20;
+        a.state = 'rollout'; a.t = 0;
+      }
+      break;
+    }
+
+    case 'rollout':
+      out.throttle = 0;
+      out.yaw = Math.PI / 2;
+      if (!this.onGround && a.t > 1.5) { a.state = 'final'; a.t = 0; break; }
+      if (this.speed < 4 || stuck) {
+        const ap = a.to;
+        const st = ap.stands[(Math.random() * ap.stands.length) | 0];
+        a.wp = [[this.x, ap.z - TAXI_Z], [st.x, ap.z - TAXI_Z], [st.x, st.z]];
+        a.wpi = 0; a.stand = st;
+        a.state = 'taxi_in'; a.t = 0;
+      }
+      break;
+
+    case 'taxi_in': {
+      const wp = a.wp[a.wpi];
+      out.throttle = 0.13;
+      if (wp) {
+        out.yaw = aiHeadingTo(this.x, this.z, wp[0], wp[1]);
+        if (Math.hypot(wp[0] - this.x, wp[1] - this.z) < 9) a.wpi++;
+      }
+      if (!wp || a.wpi >= a.wp.length || stuck) {
+        const st = a.stand;
+        this.x = st.x + 0.5; this.z = st.z + 0.5; this.yaw = st.yaw;
+        this.speed = 0; this.onGround = true;
+        a.state = 'park'; a.t = 0;
+      }
+      break;
+    }
+  }
+  return out;
+};
+
+// 정기편 두 대를 항상 띄워 둔다 (플레이어가 어디에 있든 계속 난다)
+EntityManager.prototype.updateAirlines = function (dt, game) {
+  const w = this.world;
+  if (!w.airports) return;
+  const list = w.airports();
+  if (list.length < 2) return;
+  if (!this.planes) this.planes = [];
+
+  let n = 0;
+  for (let i = 0; i < this.planes.length; i++) if (this.planes[i].ai) n++;
+  if (n < 2) {
+    const fi = (Math.random() * list.length) | 0;
+    const from = list[fi];
+    const to = list[(fi + 1 + ((Math.random() * (list.length - 1)) | 0)) % list.length];
+    const st = from.stands[(Math.random() * from.stands.length) | 0];
+    const pl = this.spawnPlane(st.x + 0.5, from.y + PLANE_REST, st.z + 0.5, st.yaw);
+    pl.airline = true;
+    pl.airport = from;
+    pl.startFlight(from, to);
+    pl.ai.state = 'park';
+    pl.ai.t = 6 + Math.random() * 6;
+    pl.ai.to = from;
+    pl.ai.nextTo = to;
+  }
+};
+
+// 자동 운항편은 몇 번 편인지 (계기판·경보에 쓴다)
+Plane.prototype.flightLabel = function () {
+  if (!this.ai) return null;
+  const a = this.ai;
+  return (a.from ? a.from.code : '??') + ' → ' + (a.to ? a.to.code : '??');
+};
+
+// 가장 가까운 다른 비행기 (공중 충돌 경보)
+EntityManager.prototype.nearestOtherPlane = function (self) {
+  if (!this.planes) return null;
+  let best = null, bd = Infinity;
+  for (let i = 0; i < this.planes.length; i++) {
+    const p = this.planes[i];
+    if (p === self) continue;
+    const d = Math.hypot(p.x - self.x, p.y - self.y, p.z - self.z);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best ? { plane: best, dist: bd } : null;
 };
 
 </script>
@@ -10270,7 +10773,8 @@ MOB_BRAINS.villager = function (e, dt, player, mgr) {
   const night = mgr.daylight < 0.32;
 
   // 2) 밤이거나 너무 멀어지면 집 쪽으로
-  if (homeD > (night ? 5 : VILLAGER_HOME_R)) {
+  const homeR = e.homeR || VILLAGER_HOME_R;
+  if (homeD > (night ? Math.min(5, homeR) : homeR)) {
     e.targetYaw = Math.atan2(hx, hz);
     return { move: true, speed: night ? speed * 1.2 : speed };
   }
@@ -10289,7 +10793,7 @@ MOB_BRAINS.villager = function (e, dt, player, mgr) {
     e.wanderTimer = 2 + Math.random() * 4;
     e.moving = Math.random() < (night ? 0.3 : 0.6);
     // 집에서 멀수록 안쪽을 향하도록 살짝 당긴다
-    const bias = Math.min(1, homeD / VILLAGER_HOME_R);
+    const bias = Math.min(1, homeD / homeR);
     e.targetYaw = (Math.random() < bias)
       ? Math.atan2(hx, hz) + (Math.random() - 0.5)
       : Math.random() * Math.PI * 2;
@@ -11610,6 +12114,9 @@ Renderer.prototype.beginFrame = function (player, opts) {
   gl.uniform1f(sp.u.uNight, opts.night);
   gl.uniform1f(sp.u.uSunset, opts.sunset);
   gl.uniform1f(sp.u.uUnder, opts.under > 0.5 ? 1 : 0);
+  gl.uniform1f(sp.u.uHigh, opts.high || 0);
+  gl.uniform1f(sp.u.uAurora, opts.aurora || 0);
+  gl.uniform1f(sp.u.uTime, opts.time);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST);
 
@@ -11867,6 +12374,59 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
   gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   this.stats.tris += idxArr.length / 3;
+};
+
+// ── 낙하산 ────────────────────────────────────────────────────────────
+// 1인칭이라 플레이어는 안 보이지만, 위를 보면 머리 위 캐노피가 보인다.
+const CHUTE_BOXES = [
+  { x: 0, y: 4.6, z: 0, w: 3.2, h: 0.5, d: 3.2, tex: 'chute_b' },
+  { x: -2.2, y: 4.3, z: 0, w: 1.6, h: 0.5, d: 2.6, tex: 'chute_a' },
+  { x: 2.2, y: 4.3, z: 0, w: 1.6, h: 0.5, d: 2.6, tex: 'chute_a' },
+  { x: 0, y: 4.3, z: -2.2, w: 2.6, h: 0.5, d: 1.6, tex: 'chute_a' },
+  { x: 0, y: 4.3, z: 2.2, w: 2.6, h: 0.5, d: 1.6, tex: 'chute_a' },
+  { x: -1.6, y: 3.9, z: -1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  { x: 1.6, y: 3.9, z: -1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  { x: -1.6, y: 3.9, z: 1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  { x: 1.6, y: 3.9, z: 1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  // 줄
+  { x: -1.3, y: 2.6, z: -1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' },
+  { x: 1.3, y: 2.6, z: -1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' },
+  { x: -1.3, y: 2.6, z: 1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' },
+  { x: 1.3, y: 2.6, z: 1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' }
+];
+
+Renderer.prototype.drawParachute = function (player, world, opts) {
+  if (!player.parachute) return;
+  const gl = this.gl;
+  _ev.length = 0; _ei.length = 0;
+  const bx = Math.floor(player.x), by = Math.min(CHUNK_Y - 1, Math.floor(player.y + 4));
+  const bz = Math.floor(player.z);
+  const light = [Math.max(0.8, world.getSky(bx, by, bz) / 15), world.getBlockLight(bx, by, bz) / 15];
+  // 바람에 살짝 흔들린다
+  const sway = Math.sin(opts.time * 1.6) * 0.10;
+  const cs = Math.cos(sway), ss = Math.sin(sway);
+
+  for (let i = 0; i < CHUTE_BOXES.length; i++) {
+    const b = CHUTE_BOXES[i];
+    const bh = b.h;
+    const transform = function (px, py, pz) {
+      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+      return [lx * cs - ly * ss * 0.2, ly * cs, lz + lx * ss * 0.15];
+    };
+    emitBox(_ev, _ei, player.x, player.y, player.z, b.w, bh, b.d, b.tex, null, transform, light);
+  }
+
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const ia = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ia, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, ia.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
 };
 
 // 떨어진 아이템: 카메라를 향하는 얇은 판
@@ -12147,6 +12707,208 @@ Renderer.prototype.drawOutline = function (x, y, z, box) {
 
 </script>
 <script>
+/* ==== js/minimap.js ==== */
+// minimap.js - 오른쪽 위 지도. 지형·공항·마을·비행기를 보여 준다.
+'use strict';
+
+const MAP_SIZE = 188;            // 화면에 그려지는 크기(px)
+const MAP_ZOOMS = [1, 2, 4, 8];  // 1px = 몇 블록인가
+const MAP_TILE = 16;             // 청크 한 변
+
+// 블록 위에서 내려다본 색 (텍스처 평균색을 그대로 쓴다)
+function blockMapColor(id) {
+  const d = blockDef(id);
+  const t = TEXTURES[d.texTop] || TEXTURES[d.texSide];
+  return t && t.avg ? t.avg : [110, 110, 110];
+}
+
+function Minimap(game) {
+  this.game = game;
+  this.zoom = 1;                 // MAP_ZOOMS 의 인덱스
+  this.timer = 0;
+  this.canvas = document.getElementById('minimap');
+  this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+  if (this.ctx) this.ctx.imageSmoothingEnabled = false;
+  // 청크 타일을 모아 두는 임시 화면
+  this.tileCanvas = document.createElement('canvas');
+  this.tileCanvas.width = MAP_TILE; this.tileCanvas.height = MAP_TILE;
+  this.tileCtx = this.tileCanvas.getContext('2d');
+  this.built = 0;
+}
+
+// 청크 하나를 16×16 색 타일로 (위에서 본 색 + 높이 음영)
+Minimap.prototype.chunkTile = function (c) {
+  if (c._mapTile && !c._mapDirty) return c._mapTile;
+  if (this.built > 6) return c._mapTile || null;   // 한 프레임에 몇 장만
+  this.built++;
+
+  const img = this.tileCtx.createImageData(MAP_TILE, MAP_TILE);
+  const d = img.data;
+  for (let lz = 0; lz < MAP_TILE; lz++) {
+    for (let lx = 0; lx < MAP_TILE; lx++) {
+      let y = -1, id = 0;
+      for (let yy = CHUNK_Y - 1; yy >= 1; yy--) {
+        const b = c.blocks[idx(lx, yy, lz)];
+        if (b !== 0) { y = yy; id = b; break; }
+      }
+      const o = (lz * MAP_TILE + lx) * 4;
+      if (y < 0) { d[o + 3] = 0; continue; }
+      const col = blockMapColor(id);
+      // 높낮이로 음영을 줘서 지형이 읽히게
+      const sh = 0.72 + Math.max(-0.3, Math.min(0.3, (y - SEA_LEVEL) / 46)) * 0.9;
+      d[o] = Math.min(255, col[0] * sh);
+      d[o + 1] = Math.min(255, col[1] * sh);
+      d[o + 2] = Math.min(255, col[2] * sh);
+      d[o + 3] = 255;
+    }
+  }
+  const cv = document.createElement('canvas');
+  cv.width = MAP_TILE; cv.height = MAP_TILE;
+  cv.getContext('2d').putImageData(img, 0, 0);
+  c._mapTile = cv;
+  c._mapDirty = false;
+  return cv;
+};
+
+Minimap.prototype.cycleZoom = function () {
+  this.zoom = (this.zoom + 1) % MAP_ZOOMS.length;
+  if (this.game.ui) this.game.ui.toast('지도 배율 1:' + MAP_ZOOMS[this.zoom]);
+};
+
+Minimap.prototype.draw = function () {
+  const ctx = this.ctx;
+  if (!ctx) return;
+  const g = this.game, p = g.player, w = g.world;
+  const S = MAP_SIZE, half = S / 2;
+  const bpp = MAP_ZOOMS[this.zoom];          // 1px 당 블록 수
+  const span = S * bpp;                       // 지도가 담는 블록 범위
+  this.built = 0;
+
+  ctx.clearRect(0, 0, S, S);
+  ctx.fillStyle = '#0d141d';
+  ctx.fillRect(0, 0, S, S);
+
+  // 월드 좌표 -> 지도 좌표
+  const cx = p.x, cz = p.z;
+  const toMap = function (x, z) { return [half + (x - cx) / bpp, half + (z - cz) / bpp]; };
+
+  // ── 지형 ──
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(half, half, half - 2, 0, Math.PI * 2);
+  ctx.clip();
+
+  const px = Math.floor(cx / CHUNK_X), pz = Math.floor(cz / CHUNK_Z);
+  const r = Math.ceil(span / 2 / CHUNK_X) + 1;
+  const tileScreen = CHUNK_X / bpp;
+  for (let dz = -r; dz <= r; dz++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const c = w.getChunk(px + dx, pz + dz);
+      if (!c || !c.generated) continue;
+      const tile = this.chunkTile(c);
+      if (!tile) continue;
+      const m = toMap(c.cx * CHUNK_X, c.cz * CHUNK_Z);
+      ctx.drawImage(tile, m[0], m[1], tileScreen + 0.6, tileScreen + 0.6);
+    }
+  }
+
+  // ── 마을 ──
+  if (w.nearestVillage) {
+    const rx = Math.floor(px / VILLAGE_REGION), rz = Math.floor(pz / VILLAGE_REGION);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const v = w.villageAt(rx + dx, rz + dz);
+        if (!v) continue;
+        const m = toMap(v.x, v.z);
+        if (m[0] < -8 || m[0] > S + 8 || m[1] < -8 || m[1] > S + 8) continue;
+        ctx.fillStyle = '#e0a44a';
+        ctx.beginPath(); ctx.arc(m[0], m[1], 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+
+  // ── 공항 (화면 밖이면 가장자리에 붙인다) ──
+  const aps = w.airports ? w.airports() : [];
+  for (let i = 0; i < aps.length; i++) {
+    const ap = aps[i];
+    let m = toMap(ap.x, ap.z);
+    const dxm = m[0] - half, dzm = m[1] - half;
+    const dd = Math.hypot(dxm, dzm);
+    let edge = false;
+    if (dd > half - 12) {
+      const k = (half - 12) / dd;
+      m = [half + dxm * k, half + dzm * k];
+      edge = true;
+    }
+    const target = (g.navTarget === i);
+    ctx.fillStyle = target ? '#6fd0a0' : '#7fc4ff';
+    ctx.strokeStyle = 'rgba(0,0,0,.75)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(m[0], m[1] - 5.5);
+    ctx.lineTo(m[0] + 4.5, m[1] + 4);
+    ctx.lineTo(m[0] - 4.5, m[1] + 4);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.font = 'bold 9px ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    ctx.fillText(ap.code, m[0] + 1, m[1] + 14);
+    ctx.fillStyle = target ? '#9ef0c4' : '#cfe6ff';
+    ctx.fillText(ap.code, m[0], m[1] + 13);
+    if (edge) {
+      const km = Math.round(Math.hypot(ap.x - cx, ap.z - cz));
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.font = '8px ui-monospace, Menlo, monospace';
+      ctx.fillText(km + 'm', m[0], m[1] + 22);
+    }
+  }
+
+  // ── 비행기 ──
+  const planes = g.entities.planes || [];
+  for (let i = 0; i < planes.length; i++) {
+    const pl = planes[i];
+    if (pl === p.riding) continue;
+    const m = toMap(pl.x, pl.z);
+    if (m[0] < 4 || m[0] > S - 4 || m[1] < 4 || m[1] > S - 4) continue;
+    ctx.save();
+    ctx.translate(m[0], m[1]);
+    ctx.rotate(-pl.yaw);
+    ctx.fillStyle = pl.ai ? '#ffd76a' : 'rgba(230,238,248,.75)';
+    ctx.beginPath();
+    ctx.moveTo(0, -4); ctx.lineTo(3, 3); ctx.lineTo(0, 1.6); ctx.lineTo(-3, 3);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // ── 나 ──
+  ctx.save();
+  ctx.translate(half, half);
+  ctx.rotate(-(p.riding ? p.riding.yaw : p.yaw) + Math.PI);
+  ctx.fillStyle = '#ff5f5f';
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -6); ctx.lineTo(4, 5); ctx.lineTo(0, 2.5); ctx.lineTo(-4, 5);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // ── 테두리와 방위 ──
+  ctx.strokeStyle = 'rgba(150,190,240,.45)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(half, half, half - 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(220,235,255,.85)';
+  ctx.font = 'bold 10px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', half, 13);
+  ctx.font = '9px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = 'rgba(190,215,240,.65)';
+  ctx.fillText('1:' + bpp + '  ' + Math.round(cx) + ', ' + Math.round(cz), half, S - 5);
+};
+
+</script>
+<script>
 /* ==== js/ui.js ==== */
 // ui.js - HUD와 화면(인벤토리, 제작대, 화로, 상자, 창작 모드 아이템, 사망).
 'use strict';
@@ -12198,8 +12960,18 @@ UI.prototype.build = function () {
     '<div class="fl-row"><span>지면</span><b id="fl-agl">0</b><em>m</em></div>' +
     '<div class="fl-thr"><i id="fl-bar"></i><span id="fl-thr">추력 0%</span></div>' +
     '<div class="fl-state" id="fl-state">지상</div>' +
+    '<div class="fl-nav">' +
+      '<div class="nv-head"><i id="nv-arrow">➤</i><b id="nv-name">—</b>' +
+        '<em id="nv-dist">—</em></div>' +
+      '<div class="nv-bar"><i id="nv-loc"></i><u></u></div>' +
+      '<div class="nv-msg" id="nv-msg">N 키로 목적지 변경</div>' +
+    '</div>' +
     '<div class="fl-help">W/S 추력 · 마우스 조종 · A/D 방향 · Space 제동 · Shift 내리기</div>';
   this.el.flight.style.display = 'none';
+
+  // 가운데 위쪽 경보 띠
+  this.el.alert = div('alert');
+  this.el.alert.style.display = 'none';
 
   this.el.hotbar = div('hotbar');
   this.el.hotbarSlots = [];
@@ -12922,6 +13694,7 @@ UI.prototype.updateFlight = function () {
   const el = this.el.flight;
   if (!pl) {
     if (el.style.display !== 'none') el.style.display = 'none';
+    if (this.el.alert.style.display !== 'none') this.el.alert.style.display = 'none';
     return;
   }
   if (el.style.display !== 'block') el.style.display = 'block';
@@ -12946,6 +13719,51 @@ UI.prototype.updateFlight = function () {
     st.textContent = '비행 중' + (h.gear ? ' (기어 내림)' : '');
     st.className = 'fl-state ok';
   }
+
+  // ── 관제탑 신호 (목적지 안내) ──
+  const nav = this.game.navInfo ? this.game.navInfo(pl) : null;
+  const arrow = document.getElementById('nv-arrow');
+  const msg = document.getElementById('nv-msg');
+  const locBar = document.getElementById('nv-loc');
+  if (nav) {
+    document.getElementById('nv-name').textContent = nav.ap.code + ' ' + nav.ap.name;
+    document.getElementById('nv-dist').textContent = nav.dist >= 1000
+      ? (nav.dist / 1000).toFixed(1) + 'km' : nav.dist + 'm';
+    arrow.style.transform = 'rotate(' + (nav.rel * 180 / Math.PI) + 'deg)';
+    arrow.style.color = Math.abs(nav.rel) < 0.18 ? '#7fd694' : '#8fc6ff';
+
+    if (nav.loc && nav.dist < 700) {
+      // 활주로 중심선에서 벗어난 정도 (-1 ~ 1)
+      const dev = Math.max(-1, Math.min(1, nav.loc.side / 60));
+      locBar.style.left = (50 + dev * 46) + '%';
+      locBar.style.background = nav.loc.aligned ? '#7fd694' : '#ffb04a';
+      document.getElementById('nv-loc').parentNode.style.visibility = 'visible';
+      if (nav.loc.ahead > 0 && nav.loc.aligned) {
+        msg.textContent = nav.loc.glideErr > 10 ? '활공각보다 높음 — 더 내려오세요'
+          : (nav.loc.glideErr < -6 ? '활공각보다 낮음 — 기수를 드세요' : '착륙 진입 양호 ✔');
+        msg.className = 'nv-msg' + (Math.abs(nav.loc.glideErr) <= 10 ? ' ok' : ' warn');
+      } else {
+        msg.textContent = nav.loc.aligned ? '활주로 통과 — 다시 선회하세요' : '활주로 중심선에 맞추세요';
+        msg.className = 'nv-msg warn';
+      }
+    } else {
+      document.getElementById('nv-loc').parentNode.style.visibility = 'hidden';
+      msg.textContent = '관제탑 신호 수신 중 · N 키로 목적지 변경';
+      msg.className = 'nv-msg';
+    }
+  } else {
+    document.getElementById('nv-name').textContent = '공항 없음';
+    document.getElementById('nv-dist').textContent = '—';
+  }
+
+  // ── 경보 ──
+  const al = this.game.alert;
+  const ae = this.el.alert;
+  if (al) {
+    if (ae.style.display !== 'block') ae.style.display = 'block';
+    ae.textContent = al.text;
+    ae.className = 'alert lv' + al.level;
+  } else if (ae.style.display !== 'none') ae.style.display = 'none';
 };
 
 UI.prototype.setDebug = function (lines) { this.el.debug.innerHTML = lines.join('<br>'); };
@@ -12987,9 +13805,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v5';
-const GAME_BUILD = '2026-08-22';
-const GAME_FEATURES = '인천공항과 747 · 구름·비·눈 · 주민 마을 · 화면 셰이더';
+const GAME_VERSION = 'v6';
+const GAME_BUILD = '2026-08-23';
+const GAME_FEATURES = '공항 3곳·747 자동운항 · 지도 · 오로라 · 주민 마을';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -13072,8 +13890,10 @@ Game.prototype.setupCallbacks = function () {
 
   // 구름은 시드마다 모양이 다르고, 날씨는 세계마다 따로 흐른다
   this.renderer.setClouds(buildCloudMesh(this.world.seed));
-  this.world.airport();          // 공항 도면을 미리 만들어 둔다 (한 번만)
+  this.world.airports();         // 공항 세 곳의 도면을 미리 만들어 둔다
   this.weather = new Weather(this.world);
+  if (!this.minimap) this.minimap = new Minimap(this);
+  this.minimap.game = this;
   this.weather.onBolt = function () {
     // 번쩍인 뒤 조금 있다가 우르릉
     setTimeout(function () { self.playSound('boom'); }, 300 + Math.random() * 900);
@@ -13158,18 +13978,21 @@ Game.prototype.spawnAtVillage = function (searchRegions) {
 // 공항 터미널 앞에서 시작
 Game.prototype.spawnAtAirport = function () {
   const w = this.world;
-  if (!w.airport) return null;
-  const ap = w.airport();
-  if (!ap) return null;
+  if (!w.airports) return null;
+  const list = w.airports();
+  if (!list.length) return null;
+  const ap = list[0];
   const p = this.player;
-  p.x = ap.x + 0.5; p.z = ap.z + TERM_Z + 8.5; p.y = ap.y + 2;
+  // 터미널 중앙 홀 안에서 시작한다 (안내 데스크 앞)
+  p.x = ap.x + 0.5; p.z = ap.z + 7.5; p.y = ap.y + 2;
+  p.yaw = 0; p.pitch = 0;
   p.vx = p.vy = p.vz = 0;
   p.spawnX = Math.floor(p.x); p.spawnY = ap.y + 1; p.spawnZ = Math.floor(p.z);
   this.forceLoad(2);
   for (let y = ap.y + 6; y > ap.y - 4; y--) {
     if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
   }
-  return { x: ap.x, z: ap.z, dist: Math.round(Math.hypot(ap.x, ap.z)) };
+  return { x: ap.x, z: ap.z, name: ap.name, dist: Math.round(Math.hypot(ap.x, ap.z)) };
 };
 
 Game.prototype.respawn = function () {
@@ -13419,6 +14242,10 @@ Game.prototype.bindInput = function () {
       case 'ShiftLeft': case 'ShiftRight':
         if (self.player.riding) { self.exitPlane(); e.preventDefault(); return; }
         break;
+      case 'KeyN':
+        self.cycleNavTarget(); break;
+      case 'KeyM':
+        if (self.minimap) self.minimap.cycleZoom(); break;
       case 'KeyR': {
         // 날씨 고정 돌려 가며 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개)
         const order = [null, 'clear', 'rain', 'snow', 'thunder'];
@@ -13788,25 +14615,104 @@ Game.prototype.enterPlane = function (plane) {
 Game.prototype.exitPlane = function () {
   const pl = this.player.riding;
   if (!pl) return;
+  const p = this.player;
   const flying = !pl.onGround;
   pl.unboard();
-  this.ui.toast(flying ? '비행기에서 뛰어내렸습니다!' : '비행기에서 내렸습니다');
+  if (flying) {
+    // 공중에서 내리면 낙하산이 펴진다
+    p.parachute = true;
+    p.vy = -2;
+    p.fallStart = p.y;
+    const self = this;
+    p.onParachuteEnd = function () { self.ui.toast('무사히 착지했습니다'); };
+    this.ui.toast('낙하산을 폈습니다 — WASD 로 방향을 잡으세요');
+    this.playSound('hiss');
+  } else {
+    this.ui.toast('비행기에서 내렸습니다');
+  }
 };
 
-// 비행 중 3인칭 카메라 (기수 뒤 위쪽에서 본다)
-Game.prototype.planeCamera = function (pl) {
-  const p = this.player;
-  const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch);
-  const dir = [-cp * Math.sin(p.yaw), sp, -cp * Math.cos(p.yaw)];
-  const back = pl.onGround ? 30 : 36;
-  const up = pl.onGround ? 8 : 9.5;
-  let ex = pl.x - dir[0] * back;
-  let ey = pl.y - dir[1] * back + up;
-  let ez = pl.z - dir[2] * back;
-  // 카메라가 땅에 파묻히지 않게
+// 비행 중 3인칭 카메라 — 비행기 "바로 뒤"에 붙어 기수 방향을 함께 본다.
+// 마우스는 비행기를 돌리고, 카메라는 비행기를 따라 부드럽게 돌아간다.
+Game.prototype.planeCamera = function (pl, dt) {
+  if (this._camYaw === undefined) { this._camYaw = pl.yaw; this._camPitch = pl.pitch; }
+  const step = Math.min(1, (dt || 0.016) * 3.4);
+  let d = pl.yaw - this._camYaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  this._camYaw += d * step;
+  this._camPitch += (pl.pitch - this._camPitch) * step;
+
+  const cp = Math.cos(this._camPitch), sp = Math.sin(this._camPitch);
+  // 기수 방향 (비행기 로컬 +Z)
+  const nose = [cp * Math.sin(this._camYaw), sp, cp * Math.cos(this._camYaw)];
+  const back = pl.onGround ? 30 : 34;
+  const up = pl.onGround ? 8 : 9;
+  let ex = pl.x - nose[0] * back;
+  let ey = pl.y - nose[1] * back + up;
+  let ez = pl.z - nose[2] * back;
   const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
-  if (gy >= 0 && ey < gy + 2) ey = gy + 2;
-  return { eye: [ex, ey, ez], yaw: p.yaw, pitch: p.pitch, roll: pl.roll * 0.35 };
+  if (gy >= 0 && ey < gy + 2.5) ey = gy + 2.5;
+  // 렌더러의 시선 규약(앞 = -Z)에 맞추려면 반 바퀴 돌린다
+  return {
+    eye: [ex, ey, ez],
+    yaw: this._camYaw + Math.PI,
+    pitch: this._camPitch,
+    roll: pl.roll * 0.35
+  };
+};
+
+// ── 항법 ──────────────────────────────────────────────────────────────
+// 관제탑 신호를 따라 목적지 공항으로 간다.
+Game.prototype.navInfo = function (pl) {
+  const list = this.world.airports ? this.world.airports() : [];
+  if (!list.length) return null;
+  if (this.navTarget === undefined || this.navTarget >= list.length) {
+    // 처음에는 "가장 가까운 다른 공항"을 목적지로 잡는다
+    let best = 0, bd = -1;
+    for (let i = 0; i < list.length; i++) {
+      const d = Math.hypot(list[i].x - pl.x, list[i].z - pl.z);
+      if (d > 400 && (bd < 0 || d < bd)) { bd = d; best = i; }
+    }
+    this.navTarget = best;
+  }
+  const ap = list[this.navTarget];
+  const dx = ap.x - pl.x, dz = ap.z - pl.z;
+  const dist = Math.hypot(dx, dz);
+  // 비행기 기수 기준 상대 방위 (좌 -, 우 +)
+  let rel = Math.atan2(dx, dz) - pl.yaw;
+  while (rel > Math.PI) rel -= Math.PI * 2;
+  while (rel < -Math.PI) rel += Math.PI * 2;
+
+  // 활주로 정렬 상태 (가까울 때만)
+  let loc = null;
+  if (dist < 900) {
+    let bestRw = null, bestD = 1e9;
+    for (let i = 0; i < ap.runways.length; i++) {
+      const r = ap.runways[i];
+      const d = Math.abs(pl.z - r.z);
+      if (d < bestD) { bestD = d; bestRw = r; }
+    }
+    if (bestRw) {
+      const ahead = bestRw.x0 + 40 - pl.x;          // 접지점까지 (+X 방향 진입)
+      const glide = bestRw.y + PLANE_REST + Math.max(0, ahead) * 0.09;
+      loc = {
+        side: pl.z - bestRw.z,                       // 활주로 중심선에서 벗어난 거리
+        aligned: Math.abs(pl.z - bestRw.z) < 14,
+        ahead: Math.round(ahead),
+        glideErr: Math.round(pl.y - glide),
+        rwY: bestRw.y
+      };
+    }
+  }
+  return { ap: ap, dist: Math.round(dist), rel: rel, loc: loc, index: this.navTarget, count: list.length };
+};
+
+Game.prototype.cycleNavTarget = function () {
+  const list = this.world.airports ? this.world.airports() : [];
+  if (!list.length) return;
+  this.navTarget = ((this.navTarget || 0) + 1) % list.length;
+  this.ui.toast('목적지: ' + list[this.navTarget].name + ' (' + list[this.navTarget].code + ')');
 };
 
 // 주민과 거래 화면 열기
@@ -14024,6 +14930,40 @@ Game.prototype.setRainSound = function (level) {
     if (ctx.state === 'suspended') return;   // 아직 소리를 낼 수 없다
     this.rainGain.gain.setTargetAtTime(Math.min(1, level) * 0.05, ctx.currentTime, 0.8);
   } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// ── 비행 경보 ─────────────────────────────────────────────────────────
+// 다른 비행기가 가까우면 충돌 경보, 땅이 가까우면 대지 접근 경보.
+Game.prototype.updateAlerts = function (dt) {
+  const p = this.player;
+  const pl = p.riding;
+  if (!pl) { this.alert = null; this.alertBeep = 0; return; }
+
+  let level = 0, text = '';
+  const near = this.entities.nearestOtherPlane(pl);
+  if (near && near.dist < 130) {
+    const label = near.plane.ai ? near.plane.flightLabel() : '주기 중인 기체';
+    if (near.dist < 55) { level = 2; text = '충돌 경보 — 즉시 회피! (' + label + ' ' + Math.round(near.dist) + 'm)'; }
+    else { level = 1; text = '주변 항공기 — ' + label + ' ' + Math.round(near.dist) + 'm'; }
+  }
+  // 대지 접근 (내려가는 중에 땅이 가까우면)
+  if (!pl.onGround) {
+    const agl = pl.y - pl.groundY(pl.x, pl.z);
+    const sinking = Math.sin(pl.pitch) * pl.speed;
+    if (agl < 22 && sinking < -6 && pl.gear < 0.5) {
+      level = 2; text = '대지 접근 경보 — 기수를 올리세요!';
+    }
+  }
+  this.alert = level ? { level: level, text: text } : null;
+
+  // 삑삑 소리
+  if (level) {
+    this.alertBeep = (this.alertBeep || 0) - dt;
+    if (this.alertBeep <= 0) {
+      this.alertBeep = level === 2 ? 0.45 : 1.2;
+      this.playSound(level === 2 ? 'hiss' : 'place');
+    }
+  } else this.alertBeep = 0;
 };
 
 // 제트 엔진 소리 — 낮게 깔리는 잡음, 추력에 따라 커진다
@@ -14344,6 +15284,7 @@ Game.prototype.update = function (dt) {
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
+  this.updateAlerts(dt);
   this.updateFurnaces(dt);
   if (this.shake > 0) this.shake -= dt * 1.6;
 
@@ -14351,6 +15292,12 @@ Game.prototype.update = function (dt) {
   // 비행기는 빠르니 청크를 더 부지런히 만든다
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
+  // 지도는 초당 여섯 번쯤이면 충분하다
+  this._mapTimer = (this._mapTimer || 0) - dt;
+  if (this.minimap && this._mapTimer <= 0) {
+    this._mapTimer = 0.16;
+    try { this.minimap.draw(); } catch (e) { /* 지도가 없어도 게임은 돈다 */ }
+  }
 };
 
 function mix3(a, b, t) {
@@ -14434,17 +15381,23 @@ Game.prototype.render = function (dt) {
   opts.night = fx.night;
   opts.sunset = fx.sunset;
   opts.under = fx.under;
+  // 구름 위로 올라가면 성층권 — 별과 오로라
+  const camY = (opts.cam ? opts.cam.eye[1] : p.y);
+  opts.high = Math.max(0, Math.min(1, (camY - (CLOUD_Y - 8)) / 18));
+  // 오로라는 높이 올라가야 보이고, 밤일수록 진해진다
+  opts.aurora = opts.high * (0.26 + 0.74 * fx.night) * (1 - wet * 0.9);
   // 폭발 직후 화면 흔들림
   if (this.shake > 0) {
     opts.shakeX = (Math.random() - 0.5) * this.shake * 0.06;
     opts.shakeY = (Math.random() - 0.5) * this.shake * 0.06;
   }
-  if (p.riding) opts.cam = this.planeCamera(p.riding);
+  if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawClouds(p, opts);
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawPlanes(this.entities, this.world, p, opts);
+  r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
@@ -14487,11 +15440,11 @@ Game.prototype.render = function (dt) {
       ' ' + Math.round(this.weather.strength * 100) + '%',
       (function (g) {
         const v = g.world.nearestVillage ? g.world.nearestVillage(p.x, p.z, 1) : null;
-        const ap = g.world.airport ? g.world.airport() : null;
+        const near = g.world.nearestAirport ? g.world.nearestAirport(p.x, p.z) : null;
         const vs = v ? '마을 ' + v.plan.x + ', ' + v.plan.z + ' (' + Math.round(v.dist) + '블록)'
           : '마을 없음';
-        const as = ap ? '  공항 ' + ap.x + ', ' + ap.z + ' (' +
-          Math.round(Math.hypot(ap.x - p.x, ap.z - p.z)) + '블록)' : '';
+        const as = near ? '  공항 ' + near.plan.code + ' ' + near.plan.x + ', ' + near.plan.z +
+          ' (' + Math.round(near.dist) + '블록)' : '';
         return vs + as;
       })(this),
       '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length +

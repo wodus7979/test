@@ -237,6 +237,9 @@ const SKY_FS = [
   'uniform float uNight;',     // 0 낮 ~ 1 밤
   'uniform float uSunset;',    // 해가 지평선에 가까울수록 1
   'uniform float uUnder;',     // 물속이면 1 (해·별을 감춘다)
+  'uniform float uHigh;',      // 0 지상 ~ 1 성층권 (구름 위)
+  'uniform float uAurora;',    // 오로라 세기
+  'uniform float uTime;',
   'varying vec2 vPos;',
   'float hash13(vec3 p) {',
   '  p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));',
@@ -248,17 +251,39 @@ const SKY_FS = [
   '  vec3 dir = normalize(far.xyz / far.w - uCamPos);',
   '  float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);',
   '  vec3 col = mix(uBottom, uTop, pow(t, 0.8));',
+  // 높이 올라갈수록 하늘이 검푸르게 깊어진다 (성층권)
+  '  if (uHigh > 0.001) {',
+  '    vec3 deep = vec3(0.015, 0.025, 0.075) + uTop * 0.10;',
+  '    col = mix(col, deep, uHigh * clamp(dir.y * 1.6 + 0.35, 0.0, 1.0));',
+  '  }',
   '  if (uUnder < 0.5) {',
   // 지평선 노을
   '    float horiz = pow(1.0 - clamp(abs(dir.y) * 2.4, 0.0, 1.0), 3.0);',
   '    float toSun = max(dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);',
   '    col += uSunColor * horiz * pow(toSun, 3.0) * uSunset * 0.85;',
   // 별
-  '    if (uNight > 0.01) {',
+  '    float starLit = max(uNight, uHigh);',
+  '    if (starLit > 0.01) {',
   '      vec3 sp = floor(dir * 230.0);',
   '      float h = hash13(sp);',
   '      float star = smoothstep(0.9975, 0.9995, h) * clamp(dir.y * 2.0, 0.0, 1.0);',
-  '      col += vec3(0.85, 0.9, 1.0) * star * uNight * 1.4;',
+  '      col += vec3(0.85, 0.9, 1.0) * star * starLit * 1.4;',
+  '    }',
+  // 오로라 — 하늘 위쪽에서 물결치는 초록·보라 커튼
+  '    if (uAurora > 0.01 && dir.y > 0.04) {',
+  '      float u = atan(dir.z, dir.x);',
+  '      float a = 0.0;',
+  '      for (int k = 0; k < 3; k++) {',
+  '        float fk = float(k);',
+  '        float w = sin(u * (2.0 + fk) + uTime * (0.13 + fk * 0.05)) * 0.13',
+  '                + sin(u * (6.0 + fk * 2.0) - uTime * 0.09) * 0.05;',
+  '        float band = exp(-pow((dir.y - (0.40 + fk * 0.16) - w) * 7.0, 2.0));',
+  '        float shim = 0.55 + 0.45 * sin(u * (18.0 + fk * 9.0) + uTime * 0.8 + fk);',
+  '        a += band * shim * (1.0 - fk * 0.22);',
+  '      }',
+  '      vec3 acol = mix(vec3(0.20, 0.95, 0.55), vec3(0.55, 0.30, 0.95),',
+  '                      0.5 + 0.5 * sin(u * 1.7 + uTime * 0.2));',
+  '      col += acol * a * uAurora * 0.48;',
   '    }',
   // 해
   '    float sd = dot(dir, uSunDir);',

@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v5';
-const GAME_BUILD = '2026-08-22';
-const GAME_FEATURES = '인천공항과 747 · 구름·비·눈 · 주민 마을 · 화면 셰이더';
+const GAME_VERSION = 'v6';
+const GAME_BUILD = '2026-08-23';
+const GAME_FEATURES = '공항 3곳·747 자동운항 · 지도 · 오로라 · 주민 마을';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -113,8 +113,10 @@ Game.prototype.setupCallbacks = function () {
 
   // 구름은 시드마다 모양이 다르고, 날씨는 세계마다 따로 흐른다
   this.renderer.setClouds(buildCloudMesh(this.world.seed));
-  this.world.airport();          // 공항 도면을 미리 만들어 둔다 (한 번만)
+  this.world.airports();         // 공항 세 곳의 도면을 미리 만들어 둔다
   this.weather = new Weather(this.world);
+  if (!this.minimap) this.minimap = new Minimap(this);
+  this.minimap.game = this;
   this.weather.onBolt = function () {
     // 번쩍인 뒤 조금 있다가 우르릉
     setTimeout(function () { self.playSound('boom'); }, 300 + Math.random() * 900);
@@ -199,18 +201,21 @@ Game.prototype.spawnAtVillage = function (searchRegions) {
 // 공항 터미널 앞에서 시작
 Game.prototype.spawnAtAirport = function () {
   const w = this.world;
-  if (!w.airport) return null;
-  const ap = w.airport();
-  if (!ap) return null;
+  if (!w.airports) return null;
+  const list = w.airports();
+  if (!list.length) return null;
+  const ap = list[0];
   const p = this.player;
-  p.x = ap.x + 0.5; p.z = ap.z + TERM_Z + 8.5; p.y = ap.y + 2;
+  // 터미널 중앙 홀 안에서 시작한다 (안내 데스크 앞)
+  p.x = ap.x + 0.5; p.z = ap.z + 7.5; p.y = ap.y + 2;
+  p.yaw = 0; p.pitch = 0;
   p.vx = p.vy = p.vz = 0;
   p.spawnX = Math.floor(p.x); p.spawnY = ap.y + 1; p.spawnZ = Math.floor(p.z);
   this.forceLoad(2);
   for (let y = ap.y + 6; y > ap.y - 4; y--) {
     if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
   }
-  return { x: ap.x, z: ap.z, dist: Math.round(Math.hypot(ap.x, ap.z)) };
+  return { x: ap.x, z: ap.z, name: ap.name, dist: Math.round(Math.hypot(ap.x, ap.z)) };
 };
 
 Game.prototype.respawn = function () {
@@ -460,6 +465,10 @@ Game.prototype.bindInput = function () {
       case 'ShiftLeft': case 'ShiftRight':
         if (self.player.riding) { self.exitPlane(); e.preventDefault(); return; }
         break;
+      case 'KeyN':
+        self.cycleNavTarget(); break;
+      case 'KeyM':
+        if (self.minimap) self.minimap.cycleZoom(); break;
       case 'KeyR': {
         // 날씨 고정 돌려 가며 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개)
         const order = [null, 'clear', 'rain', 'snow', 'thunder'];
@@ -829,25 +838,104 @@ Game.prototype.enterPlane = function (plane) {
 Game.prototype.exitPlane = function () {
   const pl = this.player.riding;
   if (!pl) return;
+  const p = this.player;
   const flying = !pl.onGround;
   pl.unboard();
-  this.ui.toast(flying ? '비행기에서 뛰어내렸습니다!' : '비행기에서 내렸습니다');
+  if (flying) {
+    // 공중에서 내리면 낙하산이 펴진다
+    p.parachute = true;
+    p.vy = -2;
+    p.fallStart = p.y;
+    const self = this;
+    p.onParachuteEnd = function () { self.ui.toast('무사히 착지했습니다'); };
+    this.ui.toast('낙하산을 폈습니다 — WASD 로 방향을 잡으세요');
+    this.playSound('hiss');
+  } else {
+    this.ui.toast('비행기에서 내렸습니다');
+  }
 };
 
-// 비행 중 3인칭 카메라 (기수 뒤 위쪽에서 본다)
-Game.prototype.planeCamera = function (pl) {
-  const p = this.player;
-  const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch);
-  const dir = [-cp * Math.sin(p.yaw), sp, -cp * Math.cos(p.yaw)];
-  const back = pl.onGround ? 30 : 36;
-  const up = pl.onGround ? 8 : 9.5;
-  let ex = pl.x - dir[0] * back;
-  let ey = pl.y - dir[1] * back + up;
-  let ez = pl.z - dir[2] * back;
-  // 카메라가 땅에 파묻히지 않게
+// 비행 중 3인칭 카메라 — 비행기 "바로 뒤"에 붙어 기수 방향을 함께 본다.
+// 마우스는 비행기를 돌리고, 카메라는 비행기를 따라 부드럽게 돌아간다.
+Game.prototype.planeCamera = function (pl, dt) {
+  if (this._camYaw === undefined) { this._camYaw = pl.yaw; this._camPitch = pl.pitch; }
+  const step = Math.min(1, (dt || 0.016) * 3.4);
+  let d = pl.yaw - this._camYaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  this._camYaw += d * step;
+  this._camPitch += (pl.pitch - this._camPitch) * step;
+
+  const cp = Math.cos(this._camPitch), sp = Math.sin(this._camPitch);
+  // 기수 방향 (비행기 로컬 +Z)
+  const nose = [cp * Math.sin(this._camYaw), sp, cp * Math.cos(this._camYaw)];
+  const back = pl.onGround ? 30 : 34;
+  const up = pl.onGround ? 8 : 9;
+  let ex = pl.x - nose[0] * back;
+  let ey = pl.y - nose[1] * back + up;
+  let ez = pl.z - nose[2] * back;
   const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
-  if (gy >= 0 && ey < gy + 2) ey = gy + 2;
-  return { eye: [ex, ey, ez], yaw: p.yaw, pitch: p.pitch, roll: pl.roll * 0.35 };
+  if (gy >= 0 && ey < gy + 2.5) ey = gy + 2.5;
+  // 렌더러의 시선 규약(앞 = -Z)에 맞추려면 반 바퀴 돌린다
+  return {
+    eye: [ex, ey, ez],
+    yaw: this._camYaw + Math.PI,
+    pitch: this._camPitch,
+    roll: pl.roll * 0.35
+  };
+};
+
+// ── 항법 ──────────────────────────────────────────────────────────────
+// 관제탑 신호를 따라 목적지 공항으로 간다.
+Game.prototype.navInfo = function (pl) {
+  const list = this.world.airports ? this.world.airports() : [];
+  if (!list.length) return null;
+  if (this.navTarget === undefined || this.navTarget >= list.length) {
+    // 처음에는 "가장 가까운 다른 공항"을 목적지로 잡는다
+    let best = 0, bd = -1;
+    for (let i = 0; i < list.length; i++) {
+      const d = Math.hypot(list[i].x - pl.x, list[i].z - pl.z);
+      if (d > 400 && (bd < 0 || d < bd)) { bd = d; best = i; }
+    }
+    this.navTarget = best;
+  }
+  const ap = list[this.navTarget];
+  const dx = ap.x - pl.x, dz = ap.z - pl.z;
+  const dist = Math.hypot(dx, dz);
+  // 비행기 기수 기준 상대 방위 (좌 -, 우 +)
+  let rel = Math.atan2(dx, dz) - pl.yaw;
+  while (rel > Math.PI) rel -= Math.PI * 2;
+  while (rel < -Math.PI) rel += Math.PI * 2;
+
+  // 활주로 정렬 상태 (가까울 때만)
+  let loc = null;
+  if (dist < 900) {
+    let bestRw = null, bestD = 1e9;
+    for (let i = 0; i < ap.runways.length; i++) {
+      const r = ap.runways[i];
+      const d = Math.abs(pl.z - r.z);
+      if (d < bestD) { bestD = d; bestRw = r; }
+    }
+    if (bestRw) {
+      const ahead = bestRw.x0 + 40 - pl.x;          // 접지점까지 (+X 방향 진입)
+      const glide = bestRw.y + PLANE_REST + Math.max(0, ahead) * 0.09;
+      loc = {
+        side: pl.z - bestRw.z,                       // 활주로 중심선에서 벗어난 거리
+        aligned: Math.abs(pl.z - bestRw.z) < 14,
+        ahead: Math.round(ahead),
+        glideErr: Math.round(pl.y - glide),
+        rwY: bestRw.y
+      };
+    }
+  }
+  return { ap: ap, dist: Math.round(dist), rel: rel, loc: loc, index: this.navTarget, count: list.length };
+};
+
+Game.prototype.cycleNavTarget = function () {
+  const list = this.world.airports ? this.world.airports() : [];
+  if (!list.length) return;
+  this.navTarget = ((this.navTarget || 0) + 1) % list.length;
+  this.ui.toast('목적지: ' + list[this.navTarget].name + ' (' + list[this.navTarget].code + ')');
 };
 
 // 주민과 거래 화면 열기
@@ -1065,6 +1153,40 @@ Game.prototype.setRainSound = function (level) {
     if (ctx.state === 'suspended') return;   // 아직 소리를 낼 수 없다
     this.rainGain.gain.setTargetAtTime(Math.min(1, level) * 0.05, ctx.currentTime, 0.8);
   } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// ── 비행 경보 ─────────────────────────────────────────────────────────
+// 다른 비행기가 가까우면 충돌 경보, 땅이 가까우면 대지 접근 경보.
+Game.prototype.updateAlerts = function (dt) {
+  const p = this.player;
+  const pl = p.riding;
+  if (!pl) { this.alert = null; this.alertBeep = 0; return; }
+
+  let level = 0, text = '';
+  const near = this.entities.nearestOtherPlane(pl);
+  if (near && near.dist < 130) {
+    const label = near.plane.ai ? near.plane.flightLabel() : '주기 중인 기체';
+    if (near.dist < 55) { level = 2; text = '충돌 경보 — 즉시 회피! (' + label + ' ' + Math.round(near.dist) + 'm)'; }
+    else { level = 1; text = '주변 항공기 — ' + label + ' ' + Math.round(near.dist) + 'm'; }
+  }
+  // 대지 접근 (내려가는 중에 땅이 가까우면)
+  if (!pl.onGround) {
+    const agl = pl.y - pl.groundY(pl.x, pl.z);
+    const sinking = Math.sin(pl.pitch) * pl.speed;
+    if (agl < 22 && sinking < -6 && pl.gear < 0.5) {
+      level = 2; text = '대지 접근 경보 — 기수를 올리세요!';
+    }
+  }
+  this.alert = level ? { level: level, text: text } : null;
+
+  // 삑삑 소리
+  if (level) {
+    this.alertBeep = (this.alertBeep || 0) - dt;
+    if (this.alertBeep <= 0) {
+      this.alertBeep = level === 2 ? 0.45 : 1.2;
+      this.playSound(level === 2 ? 'hiss' : 'place');
+    }
+  } else this.alertBeep = 0;
 };
 
 // 제트 엔진 소리 — 낮게 깔리는 잡음, 추력에 따라 커진다
@@ -1385,6 +1507,7 @@ Game.prototype.update = function (dt) {
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
+  this.updateAlerts(dt);
   this.updateFurnaces(dt);
   if (this.shake > 0) this.shake -= dt * 1.6;
 
@@ -1392,6 +1515,12 @@ Game.prototype.update = function (dt) {
   // 비행기는 빠르니 청크를 더 부지런히 만든다
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
+  // 지도는 초당 여섯 번쯤이면 충분하다
+  this._mapTimer = (this._mapTimer || 0) - dt;
+  if (this.minimap && this._mapTimer <= 0) {
+    this._mapTimer = 0.16;
+    try { this.minimap.draw(); } catch (e) { /* 지도가 없어도 게임은 돈다 */ }
+  }
 };
 
 function mix3(a, b, t) {
@@ -1475,17 +1604,23 @@ Game.prototype.render = function (dt) {
   opts.night = fx.night;
   opts.sunset = fx.sunset;
   opts.under = fx.under;
+  // 구름 위로 올라가면 성층권 — 별과 오로라
+  const camY = (opts.cam ? opts.cam.eye[1] : p.y);
+  opts.high = Math.max(0, Math.min(1, (camY - (CLOUD_Y - 8)) / 18));
+  // 오로라는 높이 올라가야 보이고, 밤일수록 진해진다
+  opts.aurora = opts.high * (0.26 + 0.74 * fx.night) * (1 - wet * 0.9);
   // 폭발 직후 화면 흔들림
   if (this.shake > 0) {
     opts.shakeX = (Math.random() - 0.5) * this.shake * 0.06;
     opts.shakeY = (Math.random() - 0.5) * this.shake * 0.06;
   }
-  if (p.riding) opts.cam = this.planeCamera(p.riding);
+  if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawClouds(p, opts);
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawPlanes(this.entities, this.world, p, opts);
+  r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
@@ -1528,11 +1663,11 @@ Game.prototype.render = function (dt) {
       ' ' + Math.round(this.weather.strength * 100) + '%',
       (function (g) {
         const v = g.world.nearestVillage ? g.world.nearestVillage(p.x, p.z, 1) : null;
-        const ap = g.world.airport ? g.world.airport() : null;
+        const near = g.world.nearestAirport ? g.world.nearestAirport(p.x, p.z) : null;
         const vs = v ? '마을 ' + v.plan.x + ', ' + v.plan.z + ' (' + Math.round(v.dist) + '블록)'
           : '마을 없음';
-        const as = ap ? '  공항 ' + ap.x + ', ' + ap.z + ' (' +
-          Math.round(Math.hypot(ap.x - p.x, ap.z - p.z)) + '블록)' : '';
+        const as = near ? '  공항 ' + near.plan.code + ' ' + near.plan.x + ', ' + near.plan.z +
+          ' (' + Math.round(near.dist) + '블록)' : '';
         return vs + as;
       })(this),
       '몹 ' + this.entities.mobs.length + '  아이템 ' + this.entities.items.length +

@@ -367,6 +367,9 @@ Renderer.prototype.beginFrame = function (player, opts) {
   gl.uniform1f(sp.u.uNight, opts.night);
   gl.uniform1f(sp.u.uSunset, opts.sunset);
   gl.uniform1f(sp.u.uUnder, opts.under > 0.5 ? 1 : 0);
+  gl.uniform1f(sp.u.uHigh, opts.high || 0);
+  gl.uniform1f(sp.u.uAurora, opts.aurora || 0);
+  gl.uniform1f(sp.u.uTime, opts.time);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST);
 
@@ -624,6 +627,59 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
   gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   this.stats.tris += idxArr.length / 3;
+};
+
+// ── 낙하산 ────────────────────────────────────────────────────────────
+// 1인칭이라 플레이어는 안 보이지만, 위를 보면 머리 위 캐노피가 보인다.
+const CHUTE_BOXES = [
+  { x: 0, y: 4.6, z: 0, w: 3.2, h: 0.5, d: 3.2, tex: 'chute_b' },
+  { x: -2.2, y: 4.3, z: 0, w: 1.6, h: 0.5, d: 2.6, tex: 'chute_a' },
+  { x: 2.2, y: 4.3, z: 0, w: 1.6, h: 0.5, d: 2.6, tex: 'chute_a' },
+  { x: 0, y: 4.3, z: -2.2, w: 2.6, h: 0.5, d: 1.6, tex: 'chute_a' },
+  { x: 0, y: 4.3, z: 2.2, w: 2.6, h: 0.5, d: 1.6, tex: 'chute_a' },
+  { x: -1.6, y: 3.9, z: -1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  { x: 1.6, y: 3.9, z: -1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  { x: -1.6, y: 3.9, z: 1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  { x: 1.6, y: 3.9, z: 1.6, w: 1.2, h: 0.4, d: 1.2, tex: 'chute_b' },
+  // 줄
+  { x: -1.3, y: 2.6, z: -1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' },
+  { x: 1.3, y: 2.6, z: -1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' },
+  { x: -1.3, y: 2.6, z: 1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' },
+  { x: 1.3, y: 2.6, z: 1.3, w: 0.12, h: 2.6, d: 0.12, tex: 'chute_line' }
+];
+
+Renderer.prototype.drawParachute = function (player, world, opts) {
+  if (!player.parachute) return;
+  const gl = this.gl;
+  _ev.length = 0; _ei.length = 0;
+  const bx = Math.floor(player.x), by = Math.min(CHUNK_Y - 1, Math.floor(player.y + 4));
+  const bz = Math.floor(player.z);
+  const light = [Math.max(0.8, world.getSky(bx, by, bz) / 15), world.getBlockLight(bx, by, bz) / 15];
+  // 바람에 살짝 흔들린다
+  const sway = Math.sin(opts.time * 1.6) * 0.10;
+  const cs = Math.cos(sway), ss = Math.sin(sway);
+
+  for (let i = 0; i < CHUTE_BOXES.length; i++) {
+    const b = CHUTE_BOXES[i];
+    const bh = b.h;
+    const transform = function (px, py, pz) {
+      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+      return [lx * cs - ly * ss * 0.2, ly * cs, lz + lx * ss * 0.15];
+    };
+    emitBox(_ev, _ei, player.x, player.y, player.z, b.w, bh, b.d, b.tex, null, transform, light);
+  }
+
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const ia = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ia, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, ia.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
 };
 
 // 떨어진 아이템: 카메라를 향하는 얇은 판

@@ -226,7 +226,8 @@ MOB_BRAINS.villager = function (e, dt, player, mgr) {
   const night = mgr.daylight < 0.32;
 
   // 2) 밤이거나 너무 멀어지면 집 쪽으로
-  if (homeD > (night ? 5 : VILLAGER_HOME_R)) {
+  const homeR = e.homeR || VILLAGER_HOME_R;
+  if (homeD > (night ? Math.min(5, homeR) : homeR)) {
     e.targetYaw = Math.atan2(hx, hz);
     return { move: true, speed: night ? speed * 1.2 : speed };
   }
@@ -245,7 +246,7 @@ MOB_BRAINS.villager = function (e, dt, player, mgr) {
     e.wanderTimer = 2 + Math.random() * 4;
     e.moving = Math.random() < (night ? 0.3 : 0.6);
     // 집에서 멀수록 안쪽을 향하도록 살짝 당긴다
-    const bias = Math.min(1, homeD / VILLAGER_HOME_R);
+    const bias = Math.min(1, homeD / homeR);
     e.targetYaw = (Math.random() < bias)
       ? Math.atan2(hx, hz) + (Math.random() - 0.5)
       : Math.random() * Math.PI * 2;

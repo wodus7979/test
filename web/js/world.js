@@ -209,6 +209,8 @@ World.prototype.setBlock = function (x, y, z, id, meta, skipUpdate) {
 };
 
 World.prototype.markDirtyAround = function (x, y, z) {
+  const mc = this.chunkAt(x, z);
+  if (mc) mc._mapDirty = true;
   const cx = Math.floor(x / CHUNK_X), cz = Math.floor(z / CHUNK_Z);
   const lx = x - cx * CHUNK_X, lz = z - cz * CHUNK_Z;
   const self = this;

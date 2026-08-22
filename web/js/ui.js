@@ -48,8 +48,18 @@ UI.prototype.build = function () {
     '<div class="fl-row"><span>지면</span><b id="fl-agl">0</b><em>m</em></div>' +
     '<div class="fl-thr"><i id="fl-bar"></i><span id="fl-thr">추력 0%</span></div>' +
     '<div class="fl-state" id="fl-state">지상</div>' +
+    '<div class="fl-nav">' +
+      '<div class="nv-head"><i id="nv-arrow">➤</i><b id="nv-name">—</b>' +
+        '<em id="nv-dist">—</em></div>' +
+      '<div class="nv-bar"><i id="nv-loc"></i><u></u></div>' +
+      '<div class="nv-msg" id="nv-msg">N 키로 목적지 변경</div>' +
+    '</div>' +
     '<div class="fl-help">W/S 추력 · 마우스 조종 · A/D 방향 · Space 제동 · Shift 내리기</div>';
   this.el.flight.style.display = 'none';
+
+  // 가운데 위쪽 경보 띠
+  this.el.alert = div('alert');
+  this.el.alert.style.display = 'none';
 
   this.el.hotbar = div('hotbar');
   this.el.hotbarSlots = [];
@@ -772,6 +782,7 @@ UI.prototype.updateFlight = function () {
   const el = this.el.flight;
   if (!pl) {
     if (el.style.display !== 'none') el.style.display = 'none';
+    if (this.el.alert.style.display !== 'none') this.el.alert.style.display = 'none';
     return;
   }
   if (el.style.display !== 'block') el.style.display = 'block';
@@ -796,6 +807,51 @@ UI.prototype.updateFlight = function () {
     st.textContent = '비행 중' + (h.gear ? ' (기어 내림)' : '');
     st.className = 'fl-state ok';
   }
+
+  // ── 관제탑 신호 (목적지 안내) ──
+  const nav = this.game.navInfo ? this.game.navInfo(pl) : null;
+  const arrow = document.getElementById('nv-arrow');
+  const msg = document.getElementById('nv-msg');
+  const locBar = document.getElementById('nv-loc');
+  if (nav) {
+    document.getElementById('nv-name').textContent = nav.ap.code + ' ' + nav.ap.name;
+    document.getElementById('nv-dist').textContent = nav.dist >= 1000
+      ? (nav.dist / 1000).toFixed(1) + 'km' : nav.dist + 'm';
+    arrow.style.transform = 'rotate(' + (nav.rel * 180 / Math.PI) + 'deg)';
+    arrow.style.color = Math.abs(nav.rel) < 0.18 ? '#7fd694' : '#8fc6ff';
+
+    if (nav.loc && nav.dist < 700) {
+      // 활주로 중심선에서 벗어난 정도 (-1 ~ 1)
+      const dev = Math.max(-1, Math.min(1, nav.loc.side / 60));
+      locBar.style.left = (50 + dev * 46) + '%';
+      locBar.style.background = nav.loc.aligned ? '#7fd694' : '#ffb04a';
+      document.getElementById('nv-loc').parentNode.style.visibility = 'visible';
+      if (nav.loc.ahead > 0 && nav.loc.aligned) {
+        msg.textContent = nav.loc.glideErr > 10 ? '활공각보다 높음 — 더 내려오세요'
+          : (nav.loc.glideErr < -6 ? '활공각보다 낮음 — 기수를 드세요' : '착륙 진입 양호 ✔');
+        msg.className = 'nv-msg' + (Math.abs(nav.loc.glideErr) <= 10 ? ' ok' : ' warn');
+      } else {
+        msg.textContent = nav.loc.aligned ? '활주로 통과 — 다시 선회하세요' : '활주로 중심선에 맞추세요';
+        msg.className = 'nv-msg warn';
+      }
+    } else {
+      document.getElementById('nv-loc').parentNode.style.visibility = 'hidden';
+      msg.textContent = '관제탑 신호 수신 중 · N 키로 목적지 변경';
+      msg.className = 'nv-msg';
+    }
+  } else {
+    document.getElementById('nv-name').textContent = '공항 없음';
+    document.getElementById('nv-dist').textContent = '—';
+  }
+
+  // ── 경보 ──
+  const al = this.game.alert;
+  const ae = this.el.alert;
+  if (al) {
+    if (ae.style.display !== 'block') ae.style.display = 'block';
+    ae.textContent = al.text;
+    ae.className = 'alert lv' + al.level;
+  } else if (ae.style.display !== 'none') ae.style.display = 'none';
 };
 
 UI.prototype.setDebug = function (lines) { this.el.debug.innerHTML = lines.join('<br>'); };

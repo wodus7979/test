@@ -387,12 +387,7 @@ EntityManager.prototype.trySpawn = function (player) {
     const sky = w.getSky(x, y, z);
     const light = Math.max(sky * this.daylight, w.getBlockLight(x, y, z));
 
-    if (night && this.countHostile() < this.maxHostile && light < 5) {
-      const HOSTILE_TYPES = ['zombie', 'zombie', 'skeleton', 'skeleton', 'creeper', 'spider'];
-      const type = HOSTILE_TYPES[(Math.random() * HOSTILE_TYPES.length) | 0];
-      this.spawnMob(type, x + 0.5, y, z + 0.5);
-      return;
-    }
+    // 몬스터는 저절로 생기지 않는다 (창작 모드 생성 알로는 여전히 부를 수 있다)
     if (!night && passive < this.maxPassive && ground === B.grass_block && sky >= 9) {
       const types = ['pig', 'cow', 'sheep', 'chicken'];
       const type = types[(Math.random() * types.length) | 0];
@@ -409,6 +404,10 @@ EntityManager.prototype.trySpawn = function (player) {
 EntityManager.prototype.update = function (dt, player, daylight) {
   this.daylight = daylight;
   const self = this;
+  // 이미 있던 몬스터도 조용히 사라진다
+  for (let i = this.mobs.length - 1; i >= 0; i--) {
+    if (this.mobs[i].def.hostile) { this.mobs[i].despawned = true; this.mobs[i].dead = true; }
+  }
 
   for (let i = this.mobs.length - 1; i >= 0; i--) {
     const m = this.mobs[i];

@@ -119,11 +119,17 @@ Plane.prototype.update = function (dt, game) {
   const input = game.input;
   const prevYaw = this.yaw;
 
+  // 자동 운항이면 여기서 조종간을 대신 잡는다
+  const ai = this.ai ? this.aiControl(dt, game) : null;
+
   // ── 추력 ──
   if (rider) {
     if (input.forward) this.throttle += 0.42 * dt;
     if (input.back) this.throttle -= 0.55 * dt;
     if (input.jump && this.onGround) this.throttle -= 1.2 * dt;   // 지상 제동
+    this.throttle = Math.max(0, Math.min(1, this.throttle));
+  } else if (ai) {
+    this.throttle += Math.max(-dt * 0.8, Math.min(dt * 0.6, ai.throttle - this.throttle));
     this.throttle = Math.max(0, Math.min(1, this.throttle));
   } else {
     this.throttle = Math.max(0, this.throttle - dt * 0.6);
@@ -141,6 +147,9 @@ Plane.prototype.update = function (dt, game) {
     // A/D 는 러더 — 기수를 조금씩 옆으로 민다
     if (input.left) wantYaw -= 0.5;
     if (input.right) wantYaw += 0.5;
+  } else if (ai) {
+    wantYaw = ai.yaw;
+    wantPitch = ai.pitch;
   }
 
   if (this.onGround) {
@@ -149,8 +158,9 @@ Plane.prototype.update = function (dt, game) {
     this.yaw = approachAngle(this.yaw, wantYaw, rate * dt);
     this.pitch += (0 - this.pitch) * Math.min(1, dt * 4);
     this.roll += (0 - this.roll) * Math.min(1, dt * 4);
-    // 이륙 — 충분히 빠르고 조종사가 기수를 들면
-    if (this.speed >= PLANE_TAKEOFF && rider && rider.pitch > 0.06) {
+    // 이륙 — 충분히 빠르고 조종간을 당기면
+    const pull = rider ? rider.pitch > 0.06 : (ai ? ai.rotate : false);
+    if (this.speed >= PLANE_TAKEOFF && pull) {
       this.onGround = false;
       this.vy = 4;
       this.gear = 1;
@@ -279,29 +289,40 @@ EntityManager.prototype.updatePlanes = function (dt, player, game) {
   if (!this.planes) this.planes = [];
   for (let i = this.planes.length - 1; i >= 0; i--) {
     const p = this.planes[i];
-    // 아무도 안 타고 아주 멀어지면 정리한다 (공항에서 다시 생긴다)
-    if (!p.rider && Math.hypot(p.x - player.x, p.z - player.z) > 420) {
+    // 세워 둔 비행기는 멀어지면 정리한다 (정기편은 계속 난다)
+    if (!p.rider && !p.ai && Math.hypot(p.x - player.x, p.z - player.z) > 420) {
       this.planes.splice(i, 1);
       continue;
     }
     p.update(dt, game);
   }
+  this.updateAirlines(dt, game);
   this.populateAirport(player);
 };
 
-// 공항 주기장에 비행기를 세워 둔다
+// 가까운 공항 주기장에 비행기를 세워 두고, 터미널에 사람을 채운다
 EntityManager.prototype.populateAirport = function (player) {
   const w = this.world;
-  if (!w.airport) return;
-  const ap = w.airport();
-  if (!ap || !ap.stands) return;
-  if (Math.hypot(ap.x - player.x, ap.z - player.z) > 340) return;
+  if (!w.airports) return;
+  const list = w.airports();
   if (!this.planes) this.planes = [];
 
-  const want = 5;
+  for (let n = 0; n < list.length; n++) {
+    const ap = list[n];
+    if (Math.hypot(ap.x - player.x, ap.z - player.z) > 320) continue;
+    this.populateStands(ap);
+    this.populateTerminal(ap);
+  }
+};
+
+EntityManager.prototype.populateStands = function (ap) {
+  const w = this.world;
+  if (!ap.stands) return;
+  const want = 4;
   let here = 0;
   for (let i = 0; i < this.planes.length; i++) {
-    if (Math.hypot(this.planes[i].x - ap.x, this.planes[i].z - ap.z) < 220) here++;
+    if (this.planes[i].ai) continue;
+    if (Math.hypot(this.planes[i].x - ap.x, this.planes[i].z - ap.z) < 240) here++;
   }
   if (here >= want) return;
 
@@ -309,7 +330,7 @@ EntityManager.prototype.populateAirport = function (player) {
     const s = ap.stands[k];
     let taken = false;
     for (let i = 0; i < this.planes.length; i++) {
-      if (Math.hypot(this.planes[i].x - s.x, this.planes[i].z - s.z) < 24) { taken = true; break; }
+      if (Math.hypot(this.planes[i].x - s.x, this.planes[i].z - s.z) < 26) { taken = true; break; }
     }
     if (taken) continue;
     const c = w.chunkAt(s.x, s.z);
@@ -318,9 +339,46 @@ EntityManager.prototype.populateAirport = function (player) {
     if (top < 0) continue;
     const pl = this.spawnPlane(s.x + 0.5, top + PLANE_REST, s.z + 0.5, s.yaw);
     pl.home = { x: s.x + 0.5, z: s.z + 0.5, yaw: s.yaw };
+    pl.airport = ap;
     return;
   }
 };
+
+// 터미널 안에 직원과 승객을 세운다
+EntityManager.prototype.populateTerminal = function (ap) {
+  if (!ap.people || !ap.people.length) return;
+  if (ap._peopleDone === undefined) ap._peopleDone = 0;
+  let count = 0;
+  for (let i = 0; i < this.mobs.length; i++) {
+    const m = this.mobs[i];
+    if (m.def.brain !== 'villager') continue;
+    if (Math.hypot(m.x - ap.x, m.z - ap.z) < 200) count++;
+  }
+  const want = Math.min(26, ap.people.length);
+  if (count >= want) return;
+
+  for (let t = 0; t < 8; t++) {
+    const sp = ap.people[(Math.random() * ap.people.length) | 0];
+    let near = false;
+    for (let i = 0; i < this.mobs.length; i++) {
+      const m = this.mobs[i];
+      if (m.def.brain !== 'villager') continue;
+      if (Math.hypot(m.x - sp.x, m.z - sp.z) < 3.5) { near = true; break; }
+    }
+    if (near) continue;
+    const y = this.findStand(sp.x, sp.y, sp.z);
+    if (y === null) continue;
+    const job = sp.job || AIRPORT_PASSENGER_JOBS[(Math.random() * AIRPORT_PASSENGER_JOBS.length) | 0];
+    const type = MOB_TYPES['villager_' + job] ? 'villager_' + job : 'villager_unemployed';
+    const e = this.spawnMob(type, sp.x, y, sp.z);
+    e.home = { x: sp.x, z: sp.z };
+    e.homeR = 9;               // 공항 사람은 제 구역을 벗어나지 않는다
+    return;
+  }
+};
+
+const AIRPORT_PASSENGER_JOBS = ['unemployed', 'shepherd', 'mason', 'toolsmith',
+  'fisherman', 'nitwit', 'leatherworker', 'farmer'];
 
 // 시선에 걸리는 비행기 (탑승용). 동체가 커서 넉넉한 상자로 본다.
 EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
@@ -334,4 +392,210 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
     if (t !== null && t < bestT) { bestT = t; best = p; }
   }
   return best ? { plane: best, dist: bestT } : null;
+};
+
+// ── 자동 운항 (공항 사이를 오가는 정기편) ─────────────────────────────
+// 상태: taxi_out → takeoff → climb → cruise → descend → final → rollout →
+//       taxi_in → park → (다시 taxi_out)
+const AI_CRUISE_ALT = 74;      // 순항 고도 (구름 아래)
+const AI_STATE_LIMIT = {       // 상태마다 최대 시간 (막히면 다음으로 넘긴다)
+  taxi_out: 90, takeoff: 60, climb: 60, cruise: 400,
+  descend: 200, final: 90, rollout: 40, taxi_in: 90, park: 25
+};
+
+function aiHeadingTo(x, z, tx, tz) { return Math.atan2(tx - x, tz - z); }
+
+Plane.prototype.startFlight = function (fromAp, toAp) {
+  this.ai = {
+    state: 'taxi_out', t: 0, from: fromAp, to: toAp,
+    rw: fromAp.runways[0], wp: [], wpi: 0
+  };
+  // 주기장 → 유도로 → 활주로 시작점
+  const rw = this.ai.rw;
+  this.ai.wp = [
+    [this.x, fromAp.z - TAXI_Z],
+    [rw.x0 + 24, fromAp.z - TAXI_Z],
+    [rw.x0 + 18, rw.z]
+  ];
+  this.ai.wpi = 0;
+};
+
+// 조종간을 대신 잡는다. {throttle, yaw, pitch, rotate} 를 돌려준다.
+Plane.prototype.aiControl = function (dt, game) {
+  const a = this.ai;
+  a.t += dt;
+  const out = { throttle: 0, yaw: this.yaw, pitch: 0, rotate: false };
+  const lim = AI_STATE_LIMIT[a.state] || 60;
+  const stuck = a.t > lim;
+
+  switch (a.state) {
+    case 'park':
+      out.throttle = 0;
+      if (a.t > 8) {
+        const list = this.world.airports();
+        const here = a.to;
+        const others = [];
+        for (let i = 0; i < list.length; i++) if (list[i] !== here) others.push(list[i]);
+        if (others.length) {
+          this.startFlight(here, others[(Math.random() * others.length) | 0]);
+        } else {
+          a.t = 0;   // 갈 곳이 없으면 그냥 세워 둔다
+        }
+      }
+      break;
+
+    case 'taxi_out': {
+      const wp = a.wp[a.wpi];
+      out.throttle = 0.14;
+      if (wp) {
+        out.yaw = aiHeadingTo(this.x, this.z, wp[0], wp[1]);
+        if (Math.hypot(wp[0] - this.x, wp[1] - this.z) < 10) a.wpi++;
+      }
+      if (!wp || a.wpi >= a.wp.length || stuck) {
+        // 활주로에 정렬
+        this.x = a.rw.x0 + 16; this.z = a.rw.z;
+        this.y = a.rw.y + PLANE_REST;
+        this.yaw = Math.PI / 2; this.onGround = true;
+        a.state = 'takeoff'; a.t = 0;
+      }
+      break;
+    }
+
+    case 'takeoff':
+      out.throttle = 1;
+      out.yaw = Math.PI / 2;                 // +X 방향
+      out.rotate = this.speed >= PLANE_TAKEOFF + 2;
+      if (!this.onGround) { a.state = 'climb'; a.t = 0; }
+      else if (stuck) { this.onGround = false; this.y += 6; a.state = 'climb'; a.t = 0; }
+      break;
+
+    case 'climb':
+      out.throttle = 1;
+      out.yaw = aiHeadingTo(this.x, this.z, a.to.x, a.to.z);
+      out.pitch = 0.22;
+      if (this.y >= AI_CRUISE_ALT || stuck) { a.state = 'cruise'; a.t = 0; }
+      break;
+
+    case 'cruise': {
+      out.throttle = 0.92;
+      out.yaw = aiHeadingTo(this.x, this.z, a.to.x, a.to.z);
+      out.pitch = Math.max(-0.12, Math.min(0.12, (AI_CRUISE_ALT - this.y) * 0.02));
+      const d = Math.hypot(a.to.x - this.x, a.to.z - this.z);
+      if (d < 620 || stuck) {
+        a.rwTo = a.to.runways[0];
+        a.state = 'descend'; a.t = 0;
+      }
+      break;
+    }
+
+    case 'descend': {
+      // 활주로 연장선 위 진입점으로 간다
+      const rw = a.rwTo;
+      const fixX = rw.x0 - 300, fixZ = rw.z;
+      out.throttle = 0.6;
+      out.yaw = aiHeadingTo(this.x, this.z, fixX, fixZ);
+      const wantY = rw.y + 42;
+      out.pitch = Math.max(-0.16, Math.min(0.12, (wantY - this.y) * 0.02));
+      if (Math.hypot(fixX - this.x, fixZ - this.z) < 60 || stuck) { a.state = 'final'; a.t = 0; }
+      break;
+    }
+
+    case 'final': {
+      const rw = a.rwTo;
+      const touch = rw.x0 + 40;
+      out.throttle = 0.48;
+      // 늘 150블록 앞의 중심선을 겨눠 활주로에 붙는다
+      out.yaw = aiHeadingTo(this.x, this.z, this.x + 150, rw.z);
+      // 3도쯤 되는 활공각. 접지점을 지나면 목표를 노면 아래로 낮춰 확실히 내려앉힌다.
+      const ahead = Math.max(-8, touch - this.x);
+      const wantY = rw.y + PLANE_REST + ahead * 0.09;
+      out.pitch = Math.max(-0.22, Math.min(0.10, (wantY - this.y) * 0.05));
+      if (this.onGround) { a.state = 'rollout'; a.t = 0; }
+      else if (this.x > rw.x1 + 40) {
+        // 활주로를 지나쳤다 — 다시 돌아 진입한다 (복행)
+        a.state = 'descend'; a.t = 0;
+      } else if (stuck) {
+        this.x = touch; this.z = rw.z; this.y = rw.y + PLANE_REST;
+        this.onGround = true; this.speed = 20;
+        a.state = 'rollout'; a.t = 0;
+      }
+      break;
+    }
+
+    case 'rollout':
+      out.throttle = 0;
+      out.yaw = Math.PI / 2;
+      if (!this.onGround && a.t > 1.5) { a.state = 'final'; a.t = 0; break; }
+      if (this.speed < 4 || stuck) {
+        const ap = a.to;
+        const st = ap.stands[(Math.random() * ap.stands.length) | 0];
+        a.wp = [[this.x, ap.z - TAXI_Z], [st.x, ap.z - TAXI_Z], [st.x, st.z]];
+        a.wpi = 0; a.stand = st;
+        a.state = 'taxi_in'; a.t = 0;
+      }
+      break;
+
+    case 'taxi_in': {
+      const wp = a.wp[a.wpi];
+      out.throttle = 0.13;
+      if (wp) {
+        out.yaw = aiHeadingTo(this.x, this.z, wp[0], wp[1]);
+        if (Math.hypot(wp[0] - this.x, wp[1] - this.z) < 9) a.wpi++;
+      }
+      if (!wp || a.wpi >= a.wp.length || stuck) {
+        const st = a.stand;
+        this.x = st.x + 0.5; this.z = st.z + 0.5; this.yaw = st.yaw;
+        this.speed = 0; this.onGround = true;
+        a.state = 'park'; a.t = 0;
+      }
+      break;
+    }
+  }
+  return out;
+};
+
+// 정기편 두 대를 항상 띄워 둔다 (플레이어가 어디에 있든 계속 난다)
+EntityManager.prototype.updateAirlines = function (dt, game) {
+  const w = this.world;
+  if (!w.airports) return;
+  const list = w.airports();
+  if (list.length < 2) return;
+  if (!this.planes) this.planes = [];
+
+  let n = 0;
+  for (let i = 0; i < this.planes.length; i++) if (this.planes[i].ai) n++;
+  if (n < 2) {
+    const fi = (Math.random() * list.length) | 0;
+    const from = list[fi];
+    const to = list[(fi + 1 + ((Math.random() * (list.length - 1)) | 0)) % list.length];
+    const st = from.stands[(Math.random() * from.stands.length) | 0];
+    const pl = this.spawnPlane(st.x + 0.5, from.y + PLANE_REST, st.z + 0.5, st.yaw);
+    pl.airline = true;
+    pl.airport = from;
+    pl.startFlight(from, to);
+    pl.ai.state = 'park';
+    pl.ai.t = 6 + Math.random() * 6;
+    pl.ai.to = from;
+    pl.ai.nextTo = to;
+  }
+};
+
+// 자동 운항편은 몇 번 편인지 (계기판·경보에 쓴다)
+Plane.prototype.flightLabel = function () {
+  if (!this.ai) return null;
+  const a = this.ai;
+  return (a.from ? a.from.code : '??') + ' → ' + (a.to ? a.to.code : '??');
+};
+
+// 가장 가까운 다른 비행기 (공중 충돌 경보)
+EntityManager.prototype.nearestOtherPlane = function (self) {
+  if (!this.planes) return null;
+  let best = null, bd = Infinity;
+  for (let i = 0; i < this.planes.length; i++) {
+    const p = this.planes[i];
+    if (p === self) continue;
+    const d = Math.hypot(p.x - self.x, p.y - self.y, p.z - self.z);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best ? { plane: best, dist: bd } : null;
 };
