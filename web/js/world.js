@@ -360,6 +360,8 @@ World.prototype.decorateChunk = function (c) {
   }
   // 마을은 나무·풀 다음에 찍어야 집 안으로 나무가 자라지 않는다
   if (this.paintVillage) c.hasVillage = this.paintVillage(c);
+  // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
+  if (this.snowChunk) this.snowChunk(c);
   c.decorated = true;
   c.dirty = true;
 };
@@ -634,8 +636,8 @@ World.prototype.blockUpdate = function (x, y, z) {
   if (d.needsSupport) {
     const below = this.getBlock(x, y - 1, z);
     const bd = blockDef(below);
-    const ok = below !== 0 && (bd.opaque || below === B.farmland || below === id ||
-      (bd.render === RENDER_BOXES && bd.solid));
+    // 잎처럼 불투명하지 않아도 실체가 있으면 눈·횃불을 받칠 수 있다
+    const ok = below !== 0 && (bd.solid || below === B.farmland || below === id);
     if (!ok) {
       this.setBlock(x, y, z, 0);
       if (this.onBlockDrop) this.onBlockDrop(x, y, z, id);

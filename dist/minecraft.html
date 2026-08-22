@@ -574,6 +574,7 @@ body.touch .hand { display: none !important; }
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
       <label><input type="checkbox" id="chk-village"> 마을에서 시작</label>
       <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
+      <label><input type="checkbox" id="chk-clouds" checked> 구름 보이기</label>
       <label>화면 셰이더
         <select id="sel-shader">
           <option value="0">꺼짐</option>
@@ -595,6 +596,7 @@ body.touch .hand { display: none !important; }
           <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>C</b> 전체 아이템 목록(창작)</li>
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
+          <li><b>R</b> 날씨 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개). 추운 지방에서는 비 대신 눈이 온다</li>
           <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
@@ -5434,6 +5436,83 @@ const SKY_FS = [
   '}'
 ].join('\n');
 
+// ── 구름 ──────────────────────────────────────────────────────────────
+// 원작처럼 하늘 높이 떠 있는 납작한 덩어리. 멀어질수록 하늘색으로 사라진다.
+const CLOUD_VS = [
+  'precision highp float;',
+  'attribute vec3 aPos;',
+  'attribute float aShade;',
+  'uniform mat4 uProj; uniform mat4 uView; uniform mat4 uModel;',
+  'uniform vec3 uCam;',
+  'uniform float uNear; uniform float uFar;',
+  'varying float vShade;',
+  'varying float vFade;',
+  'void main() {',
+  '  vec4 w = uModel * vec4(aPos, 1.0);',
+  '  vShade = aShade;',
+  '  float d = length(w.xz - uCam.xz);',
+  '  vFade = 1.0 - clamp((d - uNear) / max(1.0, uFar - uNear), 0.0, 1.0);',
+  '  gl_Position = uProj * uView * w;',
+  '}'
+].join('\n');
+
+const CLOUD_FS = [
+  'precision highp float;',
+  'uniform vec3 uColor;',
+  'uniform float uAlpha;',
+  'varying float vShade;',
+  'varying float vFade;',
+  'void main() {',
+  '  float a = uAlpha * vFade;',
+  '  if (a < 0.012) discard;',
+  '  gl_FragColor = vec4(uColor * vShade, a);',
+  '}'
+].join('\n');
+
+// ── 비·눈 ─────────────────────────────────────────────────────────────
+// 입자 위치는 전부 셰이더에서 계산한다 (정점 버퍼는 한 번만 만들고 고정).
+// aSeed = (x오프셋, z오프셋, 위상)
+const WEATHER_VS = [
+  'precision highp float;',
+  'attribute vec2 aCorner;',
+  'attribute vec3 aSeed;',
+  'uniform mat4 uProj; uniform mat4 uView;',
+  'uniform vec3 uOrigin; uniform vec3 uRight; uniform vec3 uUp;',
+  'uniform float uTime; uniform float uFall; uniform float uSize;',
+  'uniform float uStretch; uniform float uSway; uniform float uSpan;',
+  'uniform float uRadius;',
+  'varying float vFade;',
+  'varying vec2 vC;',
+  'void main() {',
+  '  float y = uOrigin.y + uSpan * 0.6 - mod(uTime * uFall + aSeed.z * uSpan * 3.0, uSpan);',
+  '  vec3 base = vec3(uOrigin.x + aSeed.x, y, uOrigin.z + aSeed.y);',
+  '  if (uSway > 0.0) {',
+  '    base.x += sin(uTime * 1.4 + aSeed.z * 29.0) * uSway;',
+  '    base.z += cos(uTime * 1.1 + aSeed.z * 23.0) * uSway;',
+  '  }',
+  '  vec3 p = base + uRight * (aCorner.x * uSize) + uUp * (aCorner.y * uSize * uStretch);',
+  '  float d = length(vec2(aSeed.x, aSeed.y));',
+  '  vFade = 1.0 - smoothstep(uRadius * 0.55, uRadius, d);',
+  '  vC = aCorner;',
+  '  gl_Position = uProj * uView * vec4(p, 1.0);',
+  '}'
+].join('\n');
+
+const WEATHER_FS = [
+  'precision highp float;',
+  'uniform vec3 uColor;',
+  'uniform float uAlpha;',
+  'uniform float uRound;',
+  'varying float vFade;',
+  'varying vec2 vC;',
+  'void main() {',
+  '  if (uRound > 0.5 && dot(vC, vC) > 0.25) discard;',   // 눈송이는 동그랗게
+  '  float a = uAlpha * vFade;',
+  '  if (a < 0.02) discard;',
+  '  gl_FragColor = vec4(uColor, a);',
+  '}'
+].join('\n');
+
 // 블록 선택 외곽선
 const LINE_VS = [
   'precision highp float;',
@@ -6145,6 +6224,8 @@ World.prototype.decorateChunk = function (c) {
   }
   // 마을은 나무·풀 다음에 찍어야 집 안으로 나무가 자라지 않는다
   if (this.paintVillage) c.hasVillage = this.paintVillage(c);
+  // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
+  if (this.snowChunk) this.snowChunk(c);
   c.decorated = true;
   c.dirty = true;
 };
@@ -6419,8 +6500,8 @@ World.prototype.blockUpdate = function (x, y, z) {
   if (d.needsSupport) {
     const below = this.getBlock(x, y - 1, z);
     const bd = blockDef(below);
-    const ok = below !== 0 && (bd.opaque || below === B.farmland || below === id ||
-      (bd.render === RENDER_BOXES && bd.solid));
+    // 잎처럼 불투명하지 않아도 실체가 있으면 눈·횃불을 받칠 수 있다
+    const ok = below !== 0 && (bd.solid || below === B.farmland || below === id);
     if (!ok) {
       this.setBlock(x, y, z, 0);
       if (this.onBlockDrop) this.onBlockDrop(x, y, z, id);
@@ -7435,6 +7516,259 @@ World.prototype.nearestVillage = function (x, z, regionRadius) {
     }
   }
   return best ? { plan: best, dist: bestD } : null;
+};
+
+</script>
+<script>
+/* ==== js/weather.js ==== */
+// weather.js - 하늘의 구름, 비와 눈, 그리고 쌓이는 눈.
+'use strict';
+
+// ── 구름 ──────────────────────────────────────────────────────────────
+const CLOUD_Y = 84;        // 구름이 뜨는 높이
+const CLOUD_H = 4;         // 두께
+const CLOUD_CELL = 14;     // 한 덩어리의 한 변(블록)
+const CLOUD_TILES = 40;    // 한 판에 들어가는 칸 수 (40 × 14 = 560블록마다 반복)
+const CLOUD_SPEED = 0.55;  // 초당 흘러가는 거리
+const CLOUD_NEAR = 150;    // 이 거리부터 옅어지기 시작
+const CLOUD_FAR = 460;     // 이 거리에서 완전히 사라진다 (반복이 눈에 안 띄게)
+
+// 이어 붙여도 티가 나지 않도록 격자를 도넛처럼 감아서 다듬는다.
+function buildCloudGrid(seed) {
+  const N = CLOUD_TILES;
+  const rnd = makeRandom(hashSeed('cloud:' + seed));
+  let g = new Uint8Array(N * N);
+  for (let i = 0; i < g.length; i++) g[i] = rnd() < 0.44 ? 1 : 0;
+  const at = function (a, x, z) { return a[((z % N) + N) % N * N + ((x % N) + N) % N]; };
+  for (let pass = 0; pass < 3; pass++) {
+    const out = new Uint8Array(N * N);
+    for (let z = 0; z < N; z++) {
+      for (let x = 0; x < N; x++) {
+        let n = 0;
+        for (let dz = -1; dz <= 1; dz++) {
+          for (let dx = -1; dx <= 1; dx++) n += at(g, x + dx, z + dz);
+        }
+        out[z * N + x] = n >= 5 ? 1 : 0;
+      }
+    }
+    g = out;
+  }
+  return g;
+}
+
+// 격자를 납작한 상자 덩어리 메시로. 이웃과 맞닿은 옆면은 생략한다.
+function buildCloudMesh(seed) {
+  const N = CLOUD_TILES, C = CLOUD_CELL;
+  const g = buildCloudGrid(seed);
+  const at = function (x, z) { return g[((z % N) + N) % N * N + ((x % N) + N) % N]; };
+  const v = [], idx = [];
+
+  function quad(pts, shade) {
+    const b = v.length / 4;
+    for (let i = 0; i < 4; i++) v.push(pts[i][0], pts[i][1], pts[i][2], shade);
+    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  }
+
+  const y0 = CLOUD_Y, y1 = CLOUD_Y + CLOUD_H;
+  for (let z = 0; z < N; z++) {
+    for (let x = 0; x < N; x++) {
+      if (!at(x, z)) continue;
+      const x0 = x * C, x1 = x0 + C, z0 = z * C, z1 = z0 + C;
+      // 윗면 / 아랫면
+      quad([[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], 1.0);
+      quad([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], 0.62);
+      // 옆면 (빈 칸과 맞닿은 쪽만)
+      if (!at(x - 1, z)) quad([[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], 0.80);
+      if (!at(x + 1, z)) quad([[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], 0.80);
+      if (!at(x, z - 1)) quad([[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], 0.72);
+      if (!at(x, z + 1)) quad([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], 0.72);
+    }
+  }
+  return { verts: new Float32Array(v), idx: new Uint32Array(idx), span: N * C };
+}
+
+// ── 날씨 ──────────────────────────────────────────────────────────────
+const WEATHER_KINDS = ['clear', 'rain', 'snow', 'thunder'];
+const WEATHER_KR = { clear: '맑음', rain: '비', snow: '눈', thunder: '천둥번개' };
+
+// 입자 개수 (품질에 따라 줄어든다)
+const RAIN_PARTICLES = 1100;
+const WEATHER_RADIUS = 15;   // 플레이어 주변 반지름
+const WEATHER_SPAN = 22;     // 위아래로 도는 높이
+
+function Weather(world) {
+  this.world = world;
+  this.state = 'clear';      // 실제로 하늘에서 벌어지는 일
+  this.forced = null;        // R 키로 고정했을 때
+  this.strength = 0;         // 0~1, 부드럽게 오르내린다
+  this.timer = 60 + Math.random() * 240;
+  this.flash = 0;            // 번개 번쩍임
+  this.boltTimer = 6;
+  this.snowTimer = 0;
+  this.rainVolume = 0;
+}
+
+// 이 자리에 내리는 것이 눈인가 (추운 곳이면 눈)
+Weather.prototype.isSnowAt = function (x, z) {
+  if (this.forced === 'snow') return true;
+  if (this.forced === 'rain' || this.forced === 'thunder') return false;
+  return this.world.isCold(x, z);
+};
+
+// 사막에는 비가 오지 않는다 (원작과 동일)
+Weather.prototype.fallsAt = function (x, z) {
+  if (this.forced) return this.forced !== 'clear';
+  if (this.state === 'clear') return false;
+  const h = this.world.heightAt(x, z);
+  return this.world.biomeAt(x, z, h) !== BIOME.DESERT;
+};
+
+Weather.prototype.setForced = function (kind) {
+  this.forced = kind;
+  if (kind) this.state = kind === 'clear' ? 'clear' : kind;
+};
+
+Weather.prototype.update = function (dt, player) {
+  // 날씨가 저절로 바뀐다 (맑음 5~20분 → 궂은 날 1~5분)
+  if (!this.forced) {
+    this.timer -= dt;
+    if (this.timer <= 0) {
+      if (this.state === 'clear') {
+        this.state = Math.random() < 0.22 ? 'thunder' : 'rain';
+        this.timer = 60 + Math.random() * 240;
+      } else {
+        this.state = 'clear';
+        this.timer = 300 + Math.random() * 900;
+      }
+    }
+  }
+
+  const falling = this.fallsAt(player.x, player.z);
+  const target = falling ? 1 : 0;
+  const rate = falling ? 0.28 : 0.20;      // 서서히 시작하고 서서히 갠다
+  this.strength += Math.max(-rate * dt, Math.min(rate * dt, target - this.strength));
+  this.strength = Math.max(0, Math.min(1, this.strength));
+
+  // 번개
+  if (this.flash > 0) this.flash = Math.max(0, this.flash - dt * 3.2);
+  const stormy = (this.forced === 'thunder') || (!this.forced && this.state === 'thunder');
+  if (stormy && this.strength > 0.6) {
+    this.boltTimer -= dt;
+    if (this.boltTimer <= 0) {
+      this.boltTimer = 5 + Math.random() * 22;
+      this.flash = 1;
+      this.onBolt && this.onBolt();
+    }
+  }
+
+  // 눈이 쌓이고 비에 녹는다
+  this.snowTimer -= dt;
+  if (this.snowTimer <= 0) {
+    this.snowTimer = 0.5;
+    if (this.strength > 0.35) this.accumulate(player, this.isSnowAt(player.x, player.z));
+  }
+};
+
+// 플레이어 주변에서 아무 기둥이나 골라 눈을 얹거나(눈) 녹인다(비).
+Weather.prototype.accumulate = function (player, snowing) {
+  const w = this.world;
+  const px = Math.floor(player.x), pz = Math.floor(player.z);
+  for (let n = 0; n < 12; n++) {
+    const x = px + ((Math.random() * 49) | 0) - 24;
+    const z = pz + ((Math.random() * 49) | 0) - 24;
+    const c = w.chunkAt(x, z);
+    if (!c || !c.lit) continue;
+    const y = w.topSolidY(x, z);
+    if (y < 1) continue;
+    const here = w.getBlock(x, y, z);
+    const above = w.getBlock(x, y + 1, z);
+    if (w.getSky(x, y + 1, z) < 14) continue;    // 지붕 밑에는 쌓이지 않는다
+
+    if (snowing) {
+      if (above !== 0) continue;
+      const d = blockDef(here);
+      if (!d.solid || d.liquid) continue;
+      if (here === B.snow || here === B.snow_block || here === B.ice) continue;
+      w.setBlock(x, y + 1, z, B.snow);
+      return;
+    }
+    // 비가 오면 쌓인 눈이 녹는다
+    if (here === B.snow) { w.setBlock(x, y, z, 0); return; }
+    if (here === B.ice && !w.isCold(x, z)) { w.setBlock(x, y, z, B.water); return; }
+  }
+};
+
+// 화면에 그릴 값들
+Weather.prototype.visuals = function (player) {
+  const s = this.strength;
+  const snow = this.isSnowAt(player.x, player.z);
+  return {
+    strength: s,
+    snow: snow,
+    flash: this.flash,
+    // 머리 위가 뚫려 있어야 입자가 보인다 (동굴·실내에서는 사라진다)
+    sky: this.world.getSky(Math.floor(player.x), Math.floor(player.y + 1.6), Math.floor(player.z))
+  };
+};
+
+Weather.prototype.label = function (player) {
+  if (this.strength < 0.05) return WEATHER_KR.clear;
+  const snow = this.isSnowAt(player.x, player.z);
+  const stormy = (this.forced || this.state) === 'thunder';
+  return snow ? WEATHER_KR.snow : (stormy ? WEATHER_KR.thunder : WEATHER_KR.rain);
+};
+
+// ── 세계 쪽 도우미 ────────────────────────────────────────────────────
+// 눈이 얼고 쌓일 만큼 추운 곳인가.
+// 생물 군계가 아니라 기온 자체로 판단해야 추운 지방의 호수와 해변도 언다
+// (설원 판정은 물가에서 바다·해변으로 밀려나기 때문).
+World.prototype.isCold = function (x, z, h) {
+  const t = this.pTemp.fbm2(x / 520, z / 520, 3, 2, 0.5);
+  if (t < -0.28) return true;
+  if (h === undefined) h = this.heightAt(x, z);
+  return h > SEA_LEVEL + 32 && this.biomeAt(x, z, h) === BIOME.MOUNTAINS;
+};
+
+// 그 기둥에서 가장 높은 "실체가 있는" 블록의 y (없으면 -1)
+World.prototype.topSolidY = function (x, z) {
+  const c = this.chunkAt(x, z);
+  if (!c || !c.generated) return -1;
+  const lx = x - c.cx * CHUNK_X, lz = z - c.cz * CHUNK_Z;
+  for (let y = CHUNK_Y - 2; y >= 1; y--) {
+    const id = c.blocks[idx(lx, y, lz)];
+    if (id !== 0) return y;
+  }
+  return -1;
+};
+
+// 추운 곳이면 지형 위에 눈을 얹는다. 나무·지붕처럼 하늘에 닿은 것은
+// 무엇이든 하얗게 덮이고, 물은 언다. (장식·마을을 찍은 뒤에 부른다)
+World.prototype.snowChunk = function (c) {
+  const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
+  for (let lz = 0; lz < CHUNK_Z; lz++) {
+    for (let lx = 0; lx < CHUNK_X; lx++) {
+      const wx = bx + lx, wz = bz + lz;
+      // 기둥 꼭대기를 먼저 찾는다 (heightAt 을 다시 부르지 않으려고)
+      let y = -1;
+      for (let yy = CHUNK_Y - 2; yy >= 1; yy--) {
+        if (c.blocks[idx(lx, yy, lz)] !== 0) { y = yy; break; }
+      }
+      if (y < 1) continue;
+      // 기온이 낮거나 아주 높은 곳이면 춥다
+      const t = this.pTemp.fbm2(wx / 520, wz / 520, 3, 2, 0.5);
+      if (!(t < -0.28 || y > SEA_LEVEL + 36)) continue;
+
+      const id = c.blocks[idx(lx, y, lz)];
+      const d = blockDef(id);
+      if (d.liquid) {
+        if (id === B.water) c.blocks[idx(lx, y, lz)] = B.ice;    // 수면이 언다
+        continue;
+      }
+      if (!d.solid) continue;                                    // 풀·꽃 위에는 안 쌓인다
+      if (id === B.snow || id === B.snow_block || id === B.ice) continue;
+      c.blocks[idx(lx, y + 1, lz)] = B.snow;
+    }
+  }
 };
 
 </script>
@@ -10053,6 +10387,8 @@ function Renderer(canvas) {
   this.terrainProg = createProgram(gl, TERRAIN_VS, TERRAIN_FS, ['aPos', 'aUV', 'aLight']);
   this.skyProg = createProgram(gl, SKY_VS, SKY_FS, ['aPos']);
   this.lineProg = createProgram(gl, LINE_VS, LINE_FS, ['aPos']);
+  this.cloudProg = createProgram(gl, CLOUD_VS, CLOUD_FS, ['aPos', 'aShade']);
+  this.weatherProg = createProgram(gl, WEATHER_VS, WEATHER_FS, ['aCorner', 'aSeed']);
 
   // 하늘용 전체 화면 삼각형
   this.skyBuf = makeBuffer(gl, gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]));
@@ -10091,11 +10427,172 @@ function Renderer(canvas) {
   this.post = new PostFX(gl);
   this.invViewProj = mat4.create();
 
+  this.cloud = null;         // {vbo, ibo, count, span}
+  this.rainBuf = null;       // 비·눈 입자 (한 번 만들고 계속 쓴다)
+
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
   gl.cullFace(gl.BACK);
   gl.frontFace(gl.CCW);
 }
+
+// ── 구름 ──────────────────────────────────────────────────────────────
+Renderer.prototype.setClouds = function (mesh) {
+  const gl = this.gl;
+  if (this.cloud) { gl.deleteBuffer(this.cloud.vbo); gl.deleteBuffer(this.cloud.ibo); }
+  const vbo = makeBuffer(gl, gl.ARRAY_BUFFER, mesh.verts);
+  const ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  let idxArr = mesh.idx, type = gl.UNSIGNED_INT;
+  if (!this.uintExt) {
+    // 16비트 인덱스뿐이면 앞부분만 쓴다 (구름이 조금 줄어들 뿐)
+    const max = Math.min(mesh.idx.length, 65535);
+    idxArr = new Uint16Array(mesh.idx.subarray(0, max));
+    type = gl.UNSIGNED_SHORT;
+  }
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.STATIC_DRAW);
+  this.cloud = { vbo: vbo, ibo: ibo, count: idxArr.length, type: type, span: mesh.span };
+};
+
+// 구름 판을 플레이어 주변 3×3으로 이어 붙여 끝없이 보이게 한다.
+Renderer.prototype.drawClouds = function (player, opts) {
+  const c = this.cloud;
+  if (!c || !c.count || opts.cloudAlpha <= 0.01) return;
+  const gl = this.gl;
+  const p = this.cloudProg;
+  const span = c.span;
+  const drift = opts.cloudDrift;
+
+  gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u.uProj, false, this.proj);
+  gl.uniformMatrix4fv(p.u.uView, false, this.view);
+  gl.uniform3fv(p.u.uCam, player.eyePos());
+  gl.uniform3fv(p.u.uColor, opts.cloudColor);
+  gl.uniform1f(p.u.uAlpha, opts.cloudAlpha);
+  gl.uniform1f(p.u.uNear, CLOUD_NEAR);
+  gl.uniform1f(p.u.uFar, CLOUD_FAR);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, c.vbo);
+  gl.enableVertexAttribArray(0);
+  gl.enableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 16, 0);
+  gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 12);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, c.ibo);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.disable(gl.CULL_FACE);           // 구름 속에 들어가도 보이게
+
+  const cx = Math.round((player.x - drift) / span);
+  const cz = Math.round(player.z / span);
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const ox = (cx + dx) * span + drift, oz = (cz + dz) * span;
+      if (!this.boxInFrustum(ox, CLOUD_Y, oz, ox + span, CLOUD_Y + CLOUD_H, oz + span)) continue;
+      mat4.identity(this.model);
+      mat4.translate(this.model, this.model, [ox, 0, oz]);
+      gl.uniformMatrix4fv(p.u.uModel, false, this.model);
+      gl.drawElements(gl.TRIANGLES, c.count, c.type, 0);
+      this.stats.tris += c.count / 3;
+    }
+  }
+
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+};
+
+// ── 비·눈 ─────────────────────────────────────────────────────────────
+// 입자는 셰이더가 시간으로 위치를 계산하므로 버퍼는 한 번만 만들면 된다.
+Renderer.prototype.buildWeatherBuffer = function (count, radius) {
+  const gl = this.gl;
+  if (this.rainBuf && this.rainBuf.count === count) return this.rainBuf;
+  if (this.rainBuf) { gl.deleteBuffer(this.rainBuf.vbo); gl.deleteBuffer(this.rainBuf.ibo); }
+
+  const rnd = makeRandom(0x51ab3c7);
+  const v = new Float32Array(count * 4 * 5);
+  const useInt = !!this.uintExt;
+  const idx = useInt ? new Uint32Array(count * 6) : new Uint16Array(Math.min(count, 10920) * 6);
+  const corners = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+  let vi = 0, ii = 0;
+  const quads = useInt ? count : Math.min(count, 10920);
+  for (let i = 0; i < count; i++) {
+    // 원판 안에 고르게 뿌린다
+    const ang = rnd() * Math.PI * 2;
+    const r = radius * Math.sqrt(rnd());
+    const ox = Math.cos(ang) * r, oz = Math.sin(ang) * r;
+    const phase = rnd();
+    for (let k = 0; k < 4; k++) {
+      v[vi++] = corners[k][0]; v[vi++] = corners[k][1];
+      v[vi++] = ox; v[vi++] = oz; v[vi++] = phase;
+    }
+    if (i < quads) {
+      const b = i * 4;
+      idx[ii++] = b; idx[ii++] = b + 1; idx[ii++] = b + 2;
+      idx[ii++] = b; idx[ii++] = b + 2; idx[ii++] = b + 3;
+    }
+  }
+  const vbo = makeBuffer(gl, gl.ARRAY_BUFFER, v);
+  const ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  this.rainBuf = {
+    vbo: vbo, ibo: ibo, count: count, idxCount: ii,
+    type: useInt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT
+  };
+  return this.rainBuf;
+};
+
+Renderer.prototype.drawWeather = function (player, opts) {
+  const w = opts.weather;
+  if (!w || w.alpha <= 0.01) return;
+  const gl = this.gl;
+  const buf = this.buildWeatherBuffer(w.count, WEATHER_RADIUS);
+  const p = this.weatherProg;
+
+  // 카메라 오른쪽 벡터 (뷰 행렬의 첫 번째 행)
+  const vm = this.view;
+  const right = [vm[0], vm[4], vm[8]];
+  const up = w.snow ? [vm[1], vm[5], vm[9]] : [0, 1, 0];
+
+  gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u.uProj, false, this.proj);
+  gl.uniformMatrix4fv(p.u.uView, false, this.view);
+  // 입자가 플레이어를 따라 미끄러지지 않게 블록 단위로 붙인다
+  gl.uniform3f(p.u.uOrigin, Math.floor(player.x), player.y, Math.floor(player.z));
+  gl.uniform3fv(p.u.uRight, right);
+  gl.uniform3fv(p.u.uUp, up);
+  gl.uniform1f(p.u.uTime, opts.time);
+  gl.uniform1f(p.u.uFall, w.snow ? 2.2 : 22.0);
+  gl.uniform1f(p.u.uSize, w.snow ? 0.095 : 0.045);
+  gl.uniform1f(p.u.uStretch, w.snow ? 1.0 : 16.0);
+  gl.uniform1f(p.u.uSway, w.snow ? 0.9 : 0.0);
+  gl.uniform1f(p.u.uSpan, WEATHER_SPAN);
+  gl.uniform1f(p.u.uRadius, WEATHER_RADIUS);
+  gl.uniform3fv(p.u.uColor, w.color);
+  gl.uniform1f(p.u.uAlpha, w.alpha);
+  gl.uniform1f(p.u.uRound, w.snow ? 1 : 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf.vbo);
+  gl.enableVertexAttribArray(0);
+  gl.enableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 20, 0);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 20, 8);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.ibo);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.disable(gl.CULL_FACE);
+  gl.drawElements(gl.TRIANGLES, buf.idxCount, buf.type, 0);
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+  this.stats.tris += buf.idxCount / 3;
+};
 
 Renderer.prototype.setAtlases = function (blockCanvas, itemCanvas) {
   this.atlasTex = makeTextureFromCanvas(this.gl, blockCanvas);
@@ -11516,9 +12013,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v4';
+const GAME_VERSION = 'v4.1';
 const GAME_BUILD = '2026-08-22';
-const GAME_FEATURES = '주민 마을 · 화면 셰이더 · 입체 아이템 · 블록 795 · 아이템 1239';
+const GAME_FEATURES = '구름·비·눈 · 주민 마을 · 화면 셰이더 · 블록 795 · 아이템 1239';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -11540,7 +12037,8 @@ function Game(canvas) {
     fov: 70,
     sensitivity: 0.0022,
     invertY: false,
-    shader: SHADER_DEFAULT      // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
+    shader: SHADER_DEFAULT,     // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
+    clouds: 1                   // 0 이면 구름을 그리지 않는다
   };
   this.input = {
     forward: false, back: false, left: false, right: false,
@@ -11597,6 +12095,15 @@ Game.prototype.attachUI = function () {
 
 Game.prototype.setupCallbacks = function () {
   const self = this;
+
+  // 구름은 시드마다 모양이 다르고, 날씨는 세계마다 따로 흐른다
+  this.renderer.setClouds(buildCloudMesh(this.world.seed));
+  this.weather = new Weather(this.world);
+  this.weather.onBolt = function () {
+    // 번쩍인 뒤 조금 있다가 우르릉
+    setTimeout(function () { self.playSound('boom'); }, 300 + Math.random() * 900);
+  };
+
   this.world.onBlockDrop = function (x, y, z, id) {
     const d = blockDef(id);
     if (d.drop) self.entities.dropItem(d.drop, d.dropCount, x + 0.5, y + 0.25, z + 0.5);
@@ -11917,6 +12424,15 @@ Game.prototype.bindInput = function () {
         self.save(); break;
       case 'KeyK':
         self.exportSave(); break;
+      case 'KeyR': {
+        // 날씨 고정 돌려 가며 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개)
+        const order = [null, 'clear', 'rain', 'snow', 'thunder'];
+        const cur = order.indexOf(self.weather.forced);
+        const next = order[(cur + 1) % order.length];
+        self.weather.setForced(next);
+        self.ui.toast('날씨: ' + (next === null ? '자동' : WEATHER_KR[next] + ' (고정)'));
+        break;
+      }
       case 'KeyP': {
         // 셰이더 품질 돌려 가며 켜기
         const n = (self.settings.shader + 1) % SHADER_LEVELS.length;
@@ -12367,8 +12883,7 @@ Game.prototype.placeBlock = function (hit, blockId) {
   if (def.needsSupport) {
     const below = w.getBlock(tx, ty - 1, tz);
     const bd = blockDef(below);
-    const ok = below !== 0 && (bd.opaque || below === B.farmland || below === blockId ||
-      (bd.render === RENDER_BOXES && bd.solid));
+    const ok = below !== 0 && (bd.solid || below === B.farmland || below === blockId);
     if (!ok) return;
   }
 
@@ -12441,6 +12956,36 @@ Game.prototype.playSound = function (kind) {
     o.connect(g); g.connect(ctx.destination);
     o.start(now); o.stop(now + dur + 0.01);
   } catch (err) { /* 소리는 없어도 그만 */ }
+};
+
+// 빗소리 — 하얀 잡음을 한 번 만들어 계속 돌리고 크기만 바꾼다
+Game.prototype.setRainSound = function (level) {
+  try {
+    if (level < 0.01 && !this.rainGain) return;
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (!this.rainGain) {
+      const len = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const flt = ctx.createBiquadFilter();
+      flt.type = 'bandpass'; flt.frequency.value = 1500; flt.Q.value = 0.55;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(flt); flt.connect(g); g.connect(ctx.destination);
+      src.start();
+      this.rainGain = g;
+    }
+    if (ctx.state === 'suspended') return;   // 아직 소리를 낼 수 없다
+    this.rainGain.gain.setTargetAtTime(Math.min(1, level) * 0.05, ctx.currentTime, 0.8);
+  } catch (e) { /* 소리는 없어도 그만 */ }
 };
 
 // ── 화로 ──────────────────────────────────────────────────────────────
@@ -12715,6 +13260,8 @@ Game.prototype.update = function (dt) {
   }
 
   const daylight = this.dayFactor();
+  this.weather.update(dt, p);
+  this.setRainSound(this.weather.strength * (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
   this.world.updateFluids(dt);
   this.entities.update(dt, p, daylight);
   this.entities.updatePhysics(dt, p);
@@ -12726,15 +13273,38 @@ Game.prototype.update = function (dt) {
   this.ui.updateHUD(dt);
 };
 
+function mix3(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
 Game.prototype.render = function (dt) {
   const p = this.player;
-  const daylight = this.dayFactor();
+  let daylight = this.dayFactor();
   const sky = this.skyColors();
+
+  // 날씨 — 궂은 날은 어둡고 뿌옇다
+  const wv = this.weather.visuals(p);
+  const wet = wv.strength;
+  const flash = wv.flash;
+  let skyTop = sky.top, skyBottom = sky.bottom;
+  if (wet > 0.01) {
+    const gray = [0.34 + daylight * 0.20, 0.36 + daylight * 0.21, 0.40 + daylight * 0.22];
+    skyTop = mix3(skyTop, gray, wet * 0.85);
+    skyBottom = mix3(skyBottom, gray, wet * 0.85);
+    daylight *= 1 - 0.30 * wet;
+  }
+  if (flash > 0.01) {
+    const f = flash * 0.8;
+    skyTop = mix3(skyTop, [1, 1, 1], f * 0.55);
+    skyBottom = mix3(skyBottom, [1, 1, 1], f * 0.55);
+    daylight = Math.min(1, daylight + f * 0.55);
+  }
 
   const R = this.settings.renderDistance;
   const far = R * CHUNK_X;
-  let fogColor = sky.bottom.slice();
+  let fogColor = skyBottom.slice();
   let fogStart = far * 0.55, fogEnd = far * 0.95;
+  if (wet > 0.01) { fogStart *= 1 - 0.35 * wet; fogEnd *= 1 - 0.30 * wet; }
 
   if (p.headInWater) {
     fogColor = [0.08, 0.22, 0.45];
@@ -12747,15 +13317,38 @@ Game.prototype.render = function (dt) {
     fogColor: fogColor,
     fogStart: fogStart,
     fogEnd: fogEnd,
-    skyTop: p.headInWater ? [0.05, 0.15, 0.35] : sky.top,
+    skyTop: p.headInWater ? [0.05, 0.15, 0.35] : skyTop,
     skyBottom: fogColor,
     time: this.time
   };
+
+  // 구름
+  const cloudLit = Math.max(0.16, daylight);
+  let cloudColor = [cloudLit * 1.0, cloudLit * 1.0, cloudLit * 1.03];
+  if (wet > 0.01) cloudColor = mix3(cloudColor, [cloudLit * 0.58, cloudLit * 0.60, cloudLit * 0.66], wet);
+  if (flash > 0.01) cloudColor = mix3(cloudColor, [1, 1, 1], flash * 0.7);
+  opts.cloudColor = cloudColor;
+  opts.cloudAlpha = p.headInWater ? 0 : (0.82 + wet * 0.14) * this.settings.clouds;
+  opts.cloudDrift = (this.time * CLOUD_SPEED) % (CLOUD_TILES * CLOUD_CELL);
+
+  // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다
+  const skyOpen = Math.max(0, Math.min(1, (wv.sky - 1) / 5));
+  opts.weather = (wet > 0.02 && skyOpen > 0.01 && !p.headInWater) ? {
+    count: RAIN_PARTICLES,
+    snow: wv.snow,
+    color: wv.snow ? [0.94, 0.97, 1.0] : [0.55, 0.66, 0.86],
+    alpha: wet * (wv.snow ? 0.85 : 0.42) * skyOpen
+  } : null;
 
   const r = this.renderer;
   r.post.setLevel(this.settings.shader);
   // 하늘 셰이더와 후처리가 함께 쓰는 값
   const fx = this.shaderOpts(daylight, p.headInWater);
+  fx.saturation *= 1 - 0.30 * wet;
+  fx.exposure *= 1 - 0.12 * wet;
+  fx.exposure += flash * 0.55;
+  fx.rays *= 1 - wet;                  // 구름이 끼면 햇살이 없다
+  fx.sunOnScreen = fx.sunOnScreen && wet < 0.4;
   opts.sunDir = fx.sunDir;
   opts.sunColor = fx.sunColor;
   opts.night = fx.night;
@@ -12768,6 +13361,7 @@ Game.prototype.render = function (dt) {
   }
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
+  r.drawClouds(p, opts);
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
@@ -12777,6 +13371,7 @@ Game.prototype.render = function (dt) {
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }
   r.drawChunks(this.world, p, opts, 'water');
+  r.drawWeather(p, opts);
   r.endFrame(fx);
 
   // 채굴 진행 표시
@@ -12805,7 +13400,9 @@ Game.prototype.render = function (dt) {
       (r.post.ok ? '' : ' (미지원)'),
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
-      '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
+      '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))] +
+      '  날씨 ' + this.weather.label(p) + (this.weather.forced ? ' (고정)' : '') +
+      ' ' + Math.round(this.weather.strength * 100) + '%',
       (function (g) {
         const v = g.world.nearestVillage ? g.world.nearestVillage(p.x, p.z, 1) : null;
         return v ? '마을 ' + v.plan.x + ', ' + v.plan.z + '  (' + Math.round(v.dist) + '블록, ' +
@@ -12846,15 +13443,31 @@ Game.prototype.render = function (dt) {
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
 
+  // 주의: <canvas id="game"> 때문에 window.game 은 게임이 시작되기 전에도
+  // "존재"한다(캔버스 엘리먼트). 반드시 settings 까지 확인해야 한다.
+  function live() {
+    return (window.game && window.game.settings) ? window.game : null;
+  }
+
   rngDist.addEventListener('input', function () {
     distVal.textContent = rngDist.value;
-    if (window.game) window.game.settings.renderDistance = parseInt(rngDist.value, 10);
+    const g = live();
+    if (g) g.settings.renderDistance = parseInt(rngDist.value, 10);
   });
 
   const selShader = document.getElementById('sel-shader');
   if (selShader) {
     selShader.addEventListener('change', function () {
-      if (window.game) window.game.settings.shader = parseInt(selShader.value, 10);
+      const g = live();
+      if (g) g.settings.shader = parseInt(selShader.value, 10);
+    });
+  }
+
+  const chkClouds = document.getElementById('chk-clouds');
+  if (chkClouds) {
+    chkClouds.addEventListener('change', function () {
+      const g = live();
+      if (g) g.settings.clouds = chkClouds.checked ? 1 : 0;
     });
   }
 
@@ -12888,6 +13501,7 @@ Game.prototype.render = function (dt) {
         window.game = game;
         game.settings.renderDistance = parseInt(rngDist.value, 10);
         if (selShader) game.settings.shader = parseInt(selShader.value, 10);
+        if (chkClouds) game.settings.clouds = chkClouds.checked ? 1 : 0;
 
         if (mode === 'file') {
           if (!game.loadFromText(pendingSaveText)) throw new Error('세계 파일을 불러오지 못했습니다.');
@@ -12954,7 +13568,7 @@ Game.prototype.render = function (dt) {
   });
 
   window.addEventListener('error', function (e) {
-    if (!window.game) fail(e.error || e.message);
+    if (!live()) fail(e.error || e.message);
   });
 })();
 

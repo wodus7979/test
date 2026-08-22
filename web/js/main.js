@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v4';
+const GAME_VERSION = 'v4.1';
 const GAME_BUILD = '2026-08-22';
-const GAME_FEATURES = '주민 마을 · 화면 셰이더 · 입체 아이템 · 블록 795 · 아이템 1239';
+const GAME_FEATURES = '구름·비·눈 · 주민 마을 · 화면 셰이더 · 블록 795 · 아이템 1239';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -52,7 +52,8 @@ function Game(canvas) {
     fov: 70,
     sensitivity: 0.0022,
     invertY: false,
-    shader: SHADER_DEFAULT      // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
+    shader: SHADER_DEFAULT,     // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
+    clouds: 1                   // 0 이면 구름을 그리지 않는다
   };
   this.input = {
     forward: false, back: false, left: false, right: false,
@@ -109,6 +110,15 @@ Game.prototype.attachUI = function () {
 
 Game.prototype.setupCallbacks = function () {
   const self = this;
+
+  // 구름은 시드마다 모양이 다르고, 날씨는 세계마다 따로 흐른다
+  this.renderer.setClouds(buildCloudMesh(this.world.seed));
+  this.weather = new Weather(this.world);
+  this.weather.onBolt = function () {
+    // 번쩍인 뒤 조금 있다가 우르릉
+    setTimeout(function () { self.playSound('boom'); }, 300 + Math.random() * 900);
+  };
+
   this.world.onBlockDrop = function (x, y, z, id) {
     const d = blockDef(id);
     if (d.drop) self.entities.dropItem(d.drop, d.dropCount, x + 0.5, y + 0.25, z + 0.5);
@@ -429,6 +439,15 @@ Game.prototype.bindInput = function () {
         self.save(); break;
       case 'KeyK':
         self.exportSave(); break;
+      case 'KeyR': {
+        // 날씨 고정 돌려 가며 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개)
+        const order = [null, 'clear', 'rain', 'snow', 'thunder'];
+        const cur = order.indexOf(self.weather.forced);
+        const next = order[(cur + 1) % order.length];
+        self.weather.setForced(next);
+        self.ui.toast('날씨: ' + (next === null ? '자동' : WEATHER_KR[next] + ' (고정)'));
+        break;
+      }
       case 'KeyP': {
         // 셰이더 품질 돌려 가며 켜기
         const n = (self.settings.shader + 1) % SHADER_LEVELS.length;
@@ -879,8 +898,7 @@ Game.prototype.placeBlock = function (hit, blockId) {
   if (def.needsSupport) {
     const below = w.getBlock(tx, ty - 1, tz);
     const bd = blockDef(below);
-    const ok = below !== 0 && (bd.opaque || below === B.farmland || below === blockId ||
-      (bd.render === RENDER_BOXES && bd.solid));
+    const ok = below !== 0 && (bd.solid || below === B.farmland || below === blockId);
     if (!ok) return;
   }
 
@@ -953,6 +971,36 @@ Game.prototype.playSound = function (kind) {
     o.connect(g); g.connect(ctx.destination);
     o.start(now); o.stop(now + dur + 0.01);
   } catch (err) { /* 소리는 없어도 그만 */ }
+};
+
+// 빗소리 — 하얀 잡음을 한 번 만들어 계속 돌리고 크기만 바꾼다
+Game.prototype.setRainSound = function (level) {
+  try {
+    if (level < 0.01 && !this.rainGain) return;
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (!this.rainGain) {
+      const len = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const flt = ctx.createBiquadFilter();
+      flt.type = 'bandpass'; flt.frequency.value = 1500; flt.Q.value = 0.55;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(flt); flt.connect(g); g.connect(ctx.destination);
+      src.start();
+      this.rainGain = g;
+    }
+    if (ctx.state === 'suspended') return;   // 아직 소리를 낼 수 없다
+    this.rainGain.gain.setTargetAtTime(Math.min(1, level) * 0.05, ctx.currentTime, 0.8);
+  } catch (e) { /* 소리는 없어도 그만 */ }
 };
 
 // ── 화로 ──────────────────────────────────────────────────────────────
@@ -1227,6 +1275,8 @@ Game.prototype.update = function (dt) {
   }
 
   const daylight = this.dayFactor();
+  this.weather.update(dt, p);
+  this.setRainSound(this.weather.strength * (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
   this.world.updateFluids(dt);
   this.entities.update(dt, p, daylight);
   this.entities.updatePhysics(dt, p);
@@ -1238,15 +1288,38 @@ Game.prototype.update = function (dt) {
   this.ui.updateHUD(dt);
 };
 
+function mix3(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
 Game.prototype.render = function (dt) {
   const p = this.player;
-  const daylight = this.dayFactor();
+  let daylight = this.dayFactor();
   const sky = this.skyColors();
+
+  // 날씨 — 궂은 날은 어둡고 뿌옇다
+  const wv = this.weather.visuals(p);
+  const wet = wv.strength;
+  const flash = wv.flash;
+  let skyTop = sky.top, skyBottom = sky.bottom;
+  if (wet > 0.01) {
+    const gray = [0.34 + daylight * 0.20, 0.36 + daylight * 0.21, 0.40 + daylight * 0.22];
+    skyTop = mix3(skyTop, gray, wet * 0.85);
+    skyBottom = mix3(skyBottom, gray, wet * 0.85);
+    daylight *= 1 - 0.30 * wet;
+  }
+  if (flash > 0.01) {
+    const f = flash * 0.8;
+    skyTop = mix3(skyTop, [1, 1, 1], f * 0.55);
+    skyBottom = mix3(skyBottom, [1, 1, 1], f * 0.55);
+    daylight = Math.min(1, daylight + f * 0.55);
+  }
 
   const R = this.settings.renderDistance;
   const far = R * CHUNK_X;
-  let fogColor = sky.bottom.slice();
+  let fogColor = skyBottom.slice();
   let fogStart = far * 0.55, fogEnd = far * 0.95;
+  if (wet > 0.01) { fogStart *= 1 - 0.35 * wet; fogEnd *= 1 - 0.30 * wet; }
 
   if (p.headInWater) {
     fogColor = [0.08, 0.22, 0.45];
@@ -1259,15 +1332,38 @@ Game.prototype.render = function (dt) {
     fogColor: fogColor,
     fogStart: fogStart,
     fogEnd: fogEnd,
-    skyTop: p.headInWater ? [0.05, 0.15, 0.35] : sky.top,
+    skyTop: p.headInWater ? [0.05, 0.15, 0.35] : skyTop,
     skyBottom: fogColor,
     time: this.time
   };
+
+  // 구름
+  const cloudLit = Math.max(0.16, daylight);
+  let cloudColor = [cloudLit * 1.0, cloudLit * 1.0, cloudLit * 1.03];
+  if (wet > 0.01) cloudColor = mix3(cloudColor, [cloudLit * 0.58, cloudLit * 0.60, cloudLit * 0.66], wet);
+  if (flash > 0.01) cloudColor = mix3(cloudColor, [1, 1, 1], flash * 0.7);
+  opts.cloudColor = cloudColor;
+  opts.cloudAlpha = p.headInWater ? 0 : (0.82 + wet * 0.14) * this.settings.clouds;
+  opts.cloudDrift = (this.time * CLOUD_SPEED) % (CLOUD_TILES * CLOUD_CELL);
+
+  // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다
+  const skyOpen = Math.max(0, Math.min(1, (wv.sky - 1) / 5));
+  opts.weather = (wet > 0.02 && skyOpen > 0.01 && !p.headInWater) ? {
+    count: RAIN_PARTICLES,
+    snow: wv.snow,
+    color: wv.snow ? [0.94, 0.97, 1.0] : [0.55, 0.66, 0.86],
+    alpha: wet * (wv.snow ? 0.85 : 0.42) * skyOpen
+  } : null;
 
   const r = this.renderer;
   r.post.setLevel(this.settings.shader);
   // 하늘 셰이더와 후처리가 함께 쓰는 값
   const fx = this.shaderOpts(daylight, p.headInWater);
+  fx.saturation *= 1 - 0.30 * wet;
+  fx.exposure *= 1 - 0.12 * wet;
+  fx.exposure += flash * 0.55;
+  fx.rays *= 1 - wet;                  // 구름이 끼면 햇살이 없다
+  fx.sunOnScreen = fx.sunOnScreen && wet < 0.4;
   opts.sunDir = fx.sunDir;
   opts.sunColor = fx.sunColor;
   opts.night = fx.night;
@@ -1280,6 +1376,7 @@ Game.prototype.render = function (dt) {
   }
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
+  r.drawClouds(p, opts);
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
@@ -1289,6 +1386,7 @@ Game.prototype.render = function (dt) {
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }
   r.drawChunks(this.world, p, opts, 'water');
+  r.drawWeather(p, opts);
   r.endFrame(fx);
 
   // 채굴 진행 표시
@@ -1317,7 +1415,9 @@ Game.prototype.render = function (dt) {
       (r.post.ok ? '' : ' (미지원)'),
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
-      '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))],
+      '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))] +
+      '  날씨 ' + this.weather.label(p) + (this.weather.forced ? ' (고정)' : '') +
+      ' ' + Math.round(this.weather.strength * 100) + '%',
       (function (g) {
         const v = g.world.nearestVillage ? g.world.nearestVillage(p.x, p.z, 1) : null;
         return v ? '마을 ' + v.plan.x + ', ' + v.plan.z + '  (' + Math.round(v.dist) + '블록, ' +

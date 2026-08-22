@@ -274,6 +274,83 @@ const SKY_FS = [
   '}'
 ].join('\n');
 
+// ── 구름 ──────────────────────────────────────────────────────────────
+// 원작처럼 하늘 높이 떠 있는 납작한 덩어리. 멀어질수록 하늘색으로 사라진다.
+const CLOUD_VS = [
+  'precision highp float;',
+  'attribute vec3 aPos;',
+  'attribute float aShade;',
+  'uniform mat4 uProj; uniform mat4 uView; uniform mat4 uModel;',
+  'uniform vec3 uCam;',
+  'uniform float uNear; uniform float uFar;',
+  'varying float vShade;',
+  'varying float vFade;',
+  'void main() {',
+  '  vec4 w = uModel * vec4(aPos, 1.0);',
+  '  vShade = aShade;',
+  '  float d = length(w.xz - uCam.xz);',
+  '  vFade = 1.0 - clamp((d - uNear) / max(1.0, uFar - uNear), 0.0, 1.0);',
+  '  gl_Position = uProj * uView * w;',
+  '}'
+].join('\n');
+
+const CLOUD_FS = [
+  'precision highp float;',
+  'uniform vec3 uColor;',
+  'uniform float uAlpha;',
+  'varying float vShade;',
+  'varying float vFade;',
+  'void main() {',
+  '  float a = uAlpha * vFade;',
+  '  if (a < 0.012) discard;',
+  '  gl_FragColor = vec4(uColor * vShade, a);',
+  '}'
+].join('\n');
+
+// ── 비·눈 ─────────────────────────────────────────────────────────────
+// 입자 위치는 전부 셰이더에서 계산한다 (정점 버퍼는 한 번만 만들고 고정).
+// aSeed = (x오프셋, z오프셋, 위상)
+const WEATHER_VS = [
+  'precision highp float;',
+  'attribute vec2 aCorner;',
+  'attribute vec3 aSeed;',
+  'uniform mat4 uProj; uniform mat4 uView;',
+  'uniform vec3 uOrigin; uniform vec3 uRight; uniform vec3 uUp;',
+  'uniform float uTime; uniform float uFall; uniform float uSize;',
+  'uniform float uStretch; uniform float uSway; uniform float uSpan;',
+  'uniform float uRadius;',
+  'varying float vFade;',
+  'varying vec2 vC;',
+  'void main() {',
+  '  float y = uOrigin.y + uSpan * 0.6 - mod(uTime * uFall + aSeed.z * uSpan * 3.0, uSpan);',
+  '  vec3 base = vec3(uOrigin.x + aSeed.x, y, uOrigin.z + aSeed.y);',
+  '  if (uSway > 0.0) {',
+  '    base.x += sin(uTime * 1.4 + aSeed.z * 29.0) * uSway;',
+  '    base.z += cos(uTime * 1.1 + aSeed.z * 23.0) * uSway;',
+  '  }',
+  '  vec3 p = base + uRight * (aCorner.x * uSize) + uUp * (aCorner.y * uSize * uStretch);',
+  '  float d = length(vec2(aSeed.x, aSeed.y));',
+  '  vFade = 1.0 - smoothstep(uRadius * 0.55, uRadius, d);',
+  '  vC = aCorner;',
+  '  gl_Position = uProj * uView * vec4(p, 1.0);',
+  '}'
+].join('\n');
+
+const WEATHER_FS = [
+  'precision highp float;',
+  'uniform vec3 uColor;',
+  'uniform float uAlpha;',
+  'uniform float uRound;',
+  'varying float vFade;',
+  'varying vec2 vC;',
+  'void main() {',
+  '  if (uRound > 0.5 && dot(vC, vC) > 0.25) discard;',   // 눈송이는 동그랗게
+  '  float a = uAlpha * vFade;',
+  '  if (a < 0.02) discard;',
+  '  gl_FragColor = vec4(uColor, a);',
+  '}'
+].join('\n');
+
 // 블록 선택 외곽선
 const LINE_VS = [
   'precision highp float;',

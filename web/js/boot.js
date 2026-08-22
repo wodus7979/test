@@ -21,15 +21,31 @@
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
 
+  // 주의: <canvas id="game"> 때문에 window.game 은 게임이 시작되기 전에도
+  // "존재"한다(캔버스 엘리먼트). 반드시 settings 까지 확인해야 한다.
+  function live() {
+    return (window.game && window.game.settings) ? window.game : null;
+  }
+
   rngDist.addEventListener('input', function () {
     distVal.textContent = rngDist.value;
-    if (window.game) window.game.settings.renderDistance = parseInt(rngDist.value, 10);
+    const g = live();
+    if (g) g.settings.renderDistance = parseInt(rngDist.value, 10);
   });
 
   const selShader = document.getElementById('sel-shader');
   if (selShader) {
     selShader.addEventListener('change', function () {
-      if (window.game) window.game.settings.shader = parseInt(selShader.value, 10);
+      const g = live();
+      if (g) g.settings.shader = parseInt(selShader.value, 10);
+    });
+  }
+
+  const chkClouds = document.getElementById('chk-clouds');
+  if (chkClouds) {
+    chkClouds.addEventListener('change', function () {
+      const g = live();
+      if (g) g.settings.clouds = chkClouds.checked ? 1 : 0;
     });
   }
 
@@ -63,6 +79,7 @@
         window.game = game;
         game.settings.renderDistance = parseInt(rngDist.value, 10);
         if (selShader) game.settings.shader = parseInt(selShader.value, 10);
+        if (chkClouds) game.settings.clouds = chkClouds.checked ? 1 : 0;
 
         if (mode === 'file') {
           if (!game.loadFromText(pendingSaveText)) throw new Error('세계 파일을 불러오지 못했습니다.');
@@ -129,6 +146,6 @@
   });
 
   window.addEventListener('error', function (e) {
-    if (!window.game) fail(e.error || e.message);
+    if (!live()) fail(e.error || e.message);
   });
 })();

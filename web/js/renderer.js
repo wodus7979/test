@@ -13,6 +13,8 @@ function Renderer(canvas) {
   this.terrainProg = createProgram(gl, TERRAIN_VS, TERRAIN_FS, ['aPos', 'aUV', 'aLight']);
   this.skyProg = createProgram(gl, SKY_VS, SKY_FS, ['aPos']);
   this.lineProg = createProgram(gl, LINE_VS, LINE_FS, ['aPos']);
+  this.cloudProg = createProgram(gl, CLOUD_VS, CLOUD_FS, ['aPos', 'aShade']);
+  this.weatherProg = createProgram(gl, WEATHER_VS, WEATHER_FS, ['aCorner', 'aSeed']);
 
   // 하늘용 전체 화면 삼각형
   this.skyBuf = makeBuffer(gl, gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]));
@@ -51,11 +53,172 @@ function Renderer(canvas) {
   this.post = new PostFX(gl);
   this.invViewProj = mat4.create();
 
+  this.cloud = null;         // {vbo, ibo, count, span}
+  this.rainBuf = null;       // 비·눈 입자 (한 번 만들고 계속 쓴다)
+
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
   gl.cullFace(gl.BACK);
   gl.frontFace(gl.CCW);
 }
+
+// ── 구름 ──────────────────────────────────────────────────────────────
+Renderer.prototype.setClouds = function (mesh) {
+  const gl = this.gl;
+  if (this.cloud) { gl.deleteBuffer(this.cloud.vbo); gl.deleteBuffer(this.cloud.ibo); }
+  const vbo = makeBuffer(gl, gl.ARRAY_BUFFER, mesh.verts);
+  const ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  let idxArr = mesh.idx, type = gl.UNSIGNED_INT;
+  if (!this.uintExt) {
+    // 16비트 인덱스뿐이면 앞부분만 쓴다 (구름이 조금 줄어들 뿐)
+    const max = Math.min(mesh.idx.length, 65535);
+    idxArr = new Uint16Array(mesh.idx.subarray(0, max));
+    type = gl.UNSIGNED_SHORT;
+  }
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.STATIC_DRAW);
+  this.cloud = { vbo: vbo, ibo: ibo, count: idxArr.length, type: type, span: mesh.span };
+};
+
+// 구름 판을 플레이어 주변 3×3으로 이어 붙여 끝없이 보이게 한다.
+Renderer.prototype.drawClouds = function (player, opts) {
+  const c = this.cloud;
+  if (!c || !c.count || opts.cloudAlpha <= 0.01) return;
+  const gl = this.gl;
+  const p = this.cloudProg;
+  const span = c.span;
+  const drift = opts.cloudDrift;
+
+  gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u.uProj, false, this.proj);
+  gl.uniformMatrix4fv(p.u.uView, false, this.view);
+  gl.uniform3fv(p.u.uCam, player.eyePos());
+  gl.uniform3fv(p.u.uColor, opts.cloudColor);
+  gl.uniform1f(p.u.uAlpha, opts.cloudAlpha);
+  gl.uniform1f(p.u.uNear, CLOUD_NEAR);
+  gl.uniform1f(p.u.uFar, CLOUD_FAR);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, c.vbo);
+  gl.enableVertexAttribArray(0);
+  gl.enableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 16, 0);
+  gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 12);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, c.ibo);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.disable(gl.CULL_FACE);           // 구름 속에 들어가도 보이게
+
+  const cx = Math.round((player.x - drift) / span);
+  const cz = Math.round(player.z / span);
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const ox = (cx + dx) * span + drift, oz = (cz + dz) * span;
+      if (!this.boxInFrustum(ox, CLOUD_Y, oz, ox + span, CLOUD_Y + CLOUD_H, oz + span)) continue;
+      mat4.identity(this.model);
+      mat4.translate(this.model, this.model, [ox, 0, oz]);
+      gl.uniformMatrix4fv(p.u.uModel, false, this.model);
+      gl.drawElements(gl.TRIANGLES, c.count, c.type, 0);
+      this.stats.tris += c.count / 3;
+    }
+  }
+
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+};
+
+// ── 비·눈 ─────────────────────────────────────────────────────────────
+// 입자는 셰이더가 시간으로 위치를 계산하므로 버퍼는 한 번만 만들면 된다.
+Renderer.prototype.buildWeatherBuffer = function (count, radius) {
+  const gl = this.gl;
+  if (this.rainBuf && this.rainBuf.count === count) return this.rainBuf;
+  if (this.rainBuf) { gl.deleteBuffer(this.rainBuf.vbo); gl.deleteBuffer(this.rainBuf.ibo); }
+
+  const rnd = makeRandom(0x51ab3c7);
+  const v = new Float32Array(count * 4 * 5);
+  const useInt = !!this.uintExt;
+  const idx = useInt ? new Uint32Array(count * 6) : new Uint16Array(Math.min(count, 10920) * 6);
+  const corners = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+  let vi = 0, ii = 0;
+  const quads = useInt ? count : Math.min(count, 10920);
+  for (let i = 0; i < count; i++) {
+    // 원판 안에 고르게 뿌린다
+    const ang = rnd() * Math.PI * 2;
+    const r = radius * Math.sqrt(rnd());
+    const ox = Math.cos(ang) * r, oz = Math.sin(ang) * r;
+    const phase = rnd();
+    for (let k = 0; k < 4; k++) {
+      v[vi++] = corners[k][0]; v[vi++] = corners[k][1];
+      v[vi++] = ox; v[vi++] = oz; v[vi++] = phase;
+    }
+    if (i < quads) {
+      const b = i * 4;
+      idx[ii++] = b; idx[ii++] = b + 1; idx[ii++] = b + 2;
+      idx[ii++] = b; idx[ii++] = b + 2; idx[ii++] = b + 3;
+    }
+  }
+  const vbo = makeBuffer(gl, gl.ARRAY_BUFFER, v);
+  const ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  this.rainBuf = {
+    vbo: vbo, ibo: ibo, count: count, idxCount: ii,
+    type: useInt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT
+  };
+  return this.rainBuf;
+};
+
+Renderer.prototype.drawWeather = function (player, opts) {
+  const w = opts.weather;
+  if (!w || w.alpha <= 0.01) return;
+  const gl = this.gl;
+  const buf = this.buildWeatherBuffer(w.count, WEATHER_RADIUS);
+  const p = this.weatherProg;
+
+  // 카메라 오른쪽 벡터 (뷰 행렬의 첫 번째 행)
+  const vm = this.view;
+  const right = [vm[0], vm[4], vm[8]];
+  const up = w.snow ? [vm[1], vm[5], vm[9]] : [0, 1, 0];
+
+  gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u.uProj, false, this.proj);
+  gl.uniformMatrix4fv(p.u.uView, false, this.view);
+  // 입자가 플레이어를 따라 미끄러지지 않게 블록 단위로 붙인다
+  gl.uniform3f(p.u.uOrigin, Math.floor(player.x), player.y, Math.floor(player.z));
+  gl.uniform3fv(p.u.uRight, right);
+  gl.uniform3fv(p.u.uUp, up);
+  gl.uniform1f(p.u.uTime, opts.time);
+  gl.uniform1f(p.u.uFall, w.snow ? 2.2 : 22.0);
+  gl.uniform1f(p.u.uSize, w.snow ? 0.095 : 0.045);
+  gl.uniform1f(p.u.uStretch, w.snow ? 1.0 : 16.0);
+  gl.uniform1f(p.u.uSway, w.snow ? 0.9 : 0.0);
+  gl.uniform1f(p.u.uSpan, WEATHER_SPAN);
+  gl.uniform1f(p.u.uRadius, WEATHER_RADIUS);
+  gl.uniform3fv(p.u.uColor, w.color);
+  gl.uniform1f(p.u.uAlpha, w.alpha);
+  gl.uniform1f(p.u.uRound, w.snow ? 1 : 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf.vbo);
+  gl.enableVertexAttribArray(0);
+  gl.enableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 20, 0);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 20, 8);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.ibo);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.disable(gl.CULL_FACE);
+  gl.drawElements(gl.TRIANGLES, buf.idxCount, buf.type, 0);
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+  this.stats.tris += buf.idxCount / 3;
+};
 
 Renderer.prototype.setAtlases = function (blockCanvas, itemCanvas) {
   this.atlasTex = makeTextureFromCanvas(this.gl, blockCanvas);
