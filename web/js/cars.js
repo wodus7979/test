@@ -12,156 +12,20 @@ const CARS_PER_CITY = 38;   // 도시가 넓어진 만큼 차도 늘렸다
 const CAR_SPAWN_R = 260;     // 이 안에 들어오면 차를 굴린다
 const CAR_DESPAWN_R = 420;
 
-// ── 차종 다섯 (+ 순찰차 · 소방차) ─────────────────────────────────────
-// 상자마다 {x,y,z} 는 가운데, 앞은 +Z. y 는 바퀴가 닿는 바닥이 0.
-function carBody(paint, opts) {
-  opts = opts || {};
-  const L = opts.len || 4.2, W = opts.wide || 1.9;
-  const P = [];
-  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
-  // 차체
-  box(0, 0.72, 0, W, 0.75, L, paint);
-  // 앞뒤 범퍼
-  box(0, 0.55, L / 2 + 0.12, W - 0.16, 0.35, 0.26, 'car_black');
-  box(0, 0.55, -L / 2 - 0.12, W - 0.16, 0.35, 0.26, 'car_black');
-  // 객실
-  box(0, 1.42, -0.25, W - 0.24, 0.66, L * 0.52, paint);
-  box(0, 1.42, -0.25 + L * 0.26 - 0.03, W - 0.3, 0.56, 0.1, 'car_glass');   // 앞유리
-  box(0, 1.42, -0.25 - L * 0.26 + 0.03, W - 0.3, 0.56, 0.1, 'car_glass');   // 뒷유리
-  for (const s of [-1, 1]) box(s * (W - 0.28) / 2, 1.42, -0.25, 0.1, 0.5, L * 0.44, 'car_glass');
-  // 등
-  for (const s of [-1, 1]) {
-    box(s * (W / 2 - 0.42), 0.86, L / 2 + 0.1, 0.5, 0.26, 0.14, 'car_lightF');
-    box(s * (W / 2 - 0.42), 0.86, -L / 2 - 0.1, 0.5, 0.26, 0.14, 'car_lightR');
-  }
-  // 바퀴 넷 — 축간거리는 차 길이의 6할쯤 (실제 승용차 비율)
-  const axle = L * 0.30;
-  for (const s of [-1, 1]) {
-    for (const z of [axle, -axle]) {
-      P.push({ wheel: true, x: s * (W / 2 - 0.06), y: CAR_WHEEL_R, z: z, r: CAR_WHEEL_R, w: 0.3 });
-    }
-  }
-  // 바퀴 위 흙받이 — 바퀴가 차체 밖으로 조금 나오므로 위를 덮어 준다
-  for (const s of [-1, 1]) {
-    for (const z of [axle, -axle]) {
-      box(s * (W / 2 - 0.02), CAR_WHEEL_R + 0.42, z, 0.16, 0.18, CAR_WHEEL_R * 2.3, 'car_black');
-    }
-  }
-  if (opts.extra) opts.extra(P, box, L, W);
-  return P;
-}
-
-function busBody() {
-  const P = [];
-  const L = 9.5, W = 2.5;
-  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
-  box(0, 1.45, 0, W, 2.2, L, 'car_bus');
-  box(0, 1.9, L / 2 + 0.04, W - 0.3, 1.1, 0.12, 'car_glass');
-  box(0, 1.9, -L / 2 - 0.04, W - 0.3, 1.0, 0.12, 'car_glass');
-  for (const s of [-1, 1]) box(s * (W / 2 + 0.02), 2.05, -0.4, 0.1, 0.9, L - 2.4, 'car_bus_win');
-  box(0, 2.66, 0, W - 0.2, 0.2, L - 0.4, 'car_silver');
-  for (const s of [-1, 1]) {
-    box(s * (W / 2 - 0.5), 0.9, L / 2 + 0.06, 0.5, 0.3, 0.14, 'car_lightF');
-    box(s * (W / 2 - 0.5), 0.9, -L / 2 - 0.06, 0.5, 0.3, 0.14, 'car_lightR');
-  }
-  box(0, 0.5, 0, W - 0.2, 0.5, L - 0.6, 'car_black');
-  for (const s of [-1, 1]) {
-    for (const z of [L / 2 - 1.6, -L / 2 + 1.8]) {
-      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.5, z: z, r: 0.5, w: 0.34 });
-    }
-  }
-  return P;
-}
-
-function truckBody() {
-  const P = [];
-  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
-  const W = 2.3;
-  // 운전실
-  box(0, 1.35, 2.4, W, 1.9, 2.6, 'car_green');
-  box(0, 1.75, 3.66, W - 0.3, 0.9, 0.12, 'car_glass');
-  box(0, 0.6, 0, W - 0.2, 0.5, 8.2, 'car_black');
-  // 짐칸
-  box(0, 1.85, -1.7, W, 2.1, 5.4, 'car_cargo');
-  for (const s of [-1, 1]) {
-    box(s * (W / 2 - 0.5), 0.86, 3.75, 0.5, 0.3, 0.14, 'car_lightF');
-    box(s * (W / 2 - 0.5), 0.86, -4.2, 0.5, 0.3, 0.14, 'car_lightR');
-  }
-  for (const s of [-1, 1]) {
-    for (const z of [2.5, -1.0, -3.0]) {
-      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.48, z: z, r: 0.48, w: 0.32 });
-    }
-  }
-  return P;
-}
-
-function fireBody() {
-  const P = [];
-  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
-  const W = 2.4;
-  box(0, 1.35, 2.6, W, 1.9, 2.4, 'car_fire');
-  box(0, 1.75, 3.76, W - 0.3, 0.9, 0.12, 'car_glass');
-  box(0, 1.6, -1.4, W, 1.7, 6.0, 'car_fire');
-  box(0, 0.6, 0, W - 0.2, 0.5, 8.4, 'car_black');
-  box(0, 2.6, -1.4, 0.6, 0.5, 5.4, 'car_silver');           // 사다리
-  box(0, 2.62, 3.4, 1.2, 0.3, 0.6, 'car_siren');            // 경광등
-  for (const s of [-1, 1]) {
-    box(s * (W / 2 - 0.5), 0.86, 3.85, 0.5, 0.3, 0.14, 'car_lightF');
-    box(s * (W / 2 - 0.5), 0.86, -4.35, 0.5, 0.3, 0.14, 'car_lightR');
-    for (const z of [2.6, -1.0, -3.4]) {
-      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.5, z: z, r: 0.5, w: 0.34 });
-    }
-  }
-  return P;
-}
-
-// 덤프트럭 — 짐칸이 위로 열려 있어 흙을 부을 수 있다
-function dumpBody() {
-  const P = [];
-  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
-  const W = 2.5;
-  // 운전실
-  box(0, 1.45, 2.9, W, 2.1, 2.4, 'car_dump');
-  box(0, 1.95, 4.06, W - 0.3, 1.0, 0.12, 'car_glass');
-  box(0, 0.62, 0, W - 0.2, 0.55, 9.0, 'car_black');
-  // 짐칸 — 바닥과 옆·앞 벽만 (위는 열린다)
-  box(0, 1.05, -1.9, W, 0.3, 5.8, 'car_cargo');
-  for (const s of [-1, 1]) box(s * (W / 2 - 0.12), 1.75, -1.9, 0.24, 1.5, 5.8, 'car_dump');
-  box(0, 1.75, 0.9, W, 1.5, 0.24, 'car_dump');
-  box(0, 1.75, -4.7, W, 1.5, 0.24, 'car_dump');
-  for (const s of [-1, 1]) {
-    box(s * (W / 2 - 0.5), 0.9, 4.16, 0.5, 0.3, 0.14, 'car_lightF');
-    box(s * (W / 2 - 0.5), 0.9, -4.9, 0.5, 0.3, 0.14, 'car_lightR');
-  }
-  for (const s of [-1, 1]) {
-    for (const z of [3.0, -1.2, -3.4]) {
-      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.52, z: z, r: 0.52, w: 0.36 });
-    }
-  }
-  return P;
-}
+// ── 차종 아홉 ─────────────────────────────────────────────────────────
+// 생김새(곡면 모형)는 model3d.js 에 있다. 여기에는 길이·폭·속도만 둔다.
+// len·wide 는 그림뿐 아니라 충돌·시선 판정에도 쓰이므로 모형과 맞춰야 한다.
 
 const CAR_TYPES = [
-  { key: 'sedan', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0,
-    parts: carBody('car_silver', { len: 4.2, wide: 1.9 }) },
-  { key: 'sedan2', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0,
-    parts: carBody('car_blue', { len: 4.2, wide: 1.9 }) },
-  { key: 'taxi', kr: '택시', len: 4.4, wide: 1.9, speed: 1.1,
-    parts: carBody('car_taxi', { len: 4.4, wide: 1.9, extra: function (P, box) {
-      box(0, 1.82, -0.25, 0.9, 0.28, 0.5, 'car_lightF');   // 갓등
-    } }) },
-  { key: 'van', kr: '승합차', len: 5.4, wide: 2.1, speed: 0.9,
-    parts: carBody('car_white', { len: 5.4, wide: 2.1, extra: function (P, box, L, W) {
-      box(0, 1.82, -0.9, W - 0.3, 0.7, L * 0.4, 'car_white');
-    } }) },
-  { key: 'bus', kr: '버스', len: 9.5, wide: 2.5, speed: 0.72, parts: busBody() },
-  { key: 'truck', kr: '트럭', len: 8.4, wide: 2.3, speed: 0.68, parts: truckBody() },
-  { key: 'police', kr: '순찰차', len: 4.4, wide: 2.0, speed: 1.15,
-    parts: carBody('car_police', { len: 4.4, wide: 2.0, extra: function (P, box) {
-      box(0, 1.84, -0.1, 1.1, 0.3, 0.5, 'car_siren');
-    } }) },
-  { key: 'fire', kr: '소방차', len: 8.6, wide: 2.4, speed: 0.7, parts: fireBody() },
-  { key: 'dump', kr: '덤프트럭', len: 9.2, wide: 2.5, speed: 0.66, parts: dumpBody() }
+  { key: 'sedan', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0 },
+  { key: 'sedan2', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0 },
+  { key: 'taxi', kr: '택시', len: 4.4, wide: 1.95, speed: 1.05 },
+  { key: 'van', kr: '승합차', len: 5.4, wide: 2.1, speed: 0.9 },
+  { key: 'bus', kr: '버스', len: 9.5, wide: 2.5, speed: 0.78 },
+  { key: 'truck', kr: '트럭', len: 8.4, wide: 2.3, speed: 0.72 },
+  { key: 'police', kr: '순찰차', len: 4.4, wide: 2.0, speed: 1.1 },
+  { key: 'fire', kr: '소방차', len: 8.6, wide: 2.4, speed: 0.7 },
+  { key: 'dump', kr: '덤프트럭', len: 9.2, wide: 2.5, speed: 0.66 }
 ];
 
 // 도로에 실제로 보이는 비율대로 뽑는다 — 승용차가 대부분, 소방차는 아주 드물게.

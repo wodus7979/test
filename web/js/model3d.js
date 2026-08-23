@@ -275,76 +275,358 @@ function buildPlaneMesh() {
 
 // ── 전동차 ────────────────────────────────────────────────────────────
 // 옆면·객실은 그대로 두고, 블록처럼 보이던 지붕과 앞머리만 곡면으로 만든다.
-function buildTrainMesh() {
+// 량 하나 몫만 만든다 (편성 전체를 한 덩어리로 두면 코너에서 레일을 벗어난다).
+function buildTrainCarMesh(isFront, isBack) {
   const m = new Mesh3D();
   const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
 
   // 지붕 — 어깨부터 둥글게 넘어가는 활 모양 단면
-  const roofRing = function (z, s) {
+  const roofRing = function (z) {
     const pts = [];
     const n = 9;
     for (let i = 0; i <= n; i++) {
       const t = (i / n) * Math.PI;                 // +X → +Y → -X (반시계)
-      const x = HW * Math.cos(t) * s;
-      const y = TRAIN_CEIL - 0.06 + 0.70 * Math.pow(Math.sin(t), 0.7) * s;
+      const x = HW * Math.cos(t);
+      const y = TRAIN_CEIL - 0.06 + 0.70 * Math.pow(Math.sin(t), 0.7);
       pts.push([x, y, z]);
     }
     return pts;
   };
-  for (let c = 0; c < TRAIN_CARS; c++) {
-    const zc = (c - (TRAIN_CARS - 1) / 2) * TRAIN_PITCH;
-    loft(m, roofRing(zc - L / 2, 1), roofRing(zc + L / 2, 1),
-      function () { return 'tr_roof'; }, true, false);
-  }
+  loft(m, roofRing(-L / 2), roofRing(L / 2),
+    function () { return 'tr_roof'; }, true, false);
 
   // 앞머리 — 운전실 쪽을 비스듬히 좁혀 내려가게 깎는다
-  const noseStart = m.t.length;
-  const zc = (TRAIN_CARS - 1) / 2 * TRAIN_PITCH;   // 맨 앞 량 중심
   const base = ringSquircle(HW, 2.24, 0.06, 3.2, 18, 0);
-  const steps = [
-    [zc + L / 2 - 0.05, 1.00, 0.00],
-    [zc + L / 2 + 0.55, 0.985, 0.03],
-    [zc + L / 2 + 1.15, 0.93, 0.10],
-    [zc + L / 2 + 1.70, 0.81, 0.22],
-    [zc + L / 2 + 2.12, 0.62, 0.38],
-    [zc + L / 2 + 2.40, 0.34, 0.54]
-  ];
-  const noseTex = function (my, mz) {
+  const noseTex = function (my) {
     if (my < -1.35) return 'tr_skirt';
     if (my > 0.25 && my < 1.65) return 'tr_face';       // 앞유리
     if (my > -0.66 && my < -0.14) return 'tr_stripe';   // 옆구리 띠를 코까지 잇는다
     return 'tr_body';
   };
-  let prev = null;
-  for (let i = 0; i < steps.length; i++) {
-    const s = steps[i];
-    const ring = ringScale(base, s[1], s[2], s[0]);
-    if (prev) loft(m, prev, ring, noseTex, false);
-    prev = ring;
-  }
-  capRing(m, prev, [0, 0.62, zc + L / 2 + 2.55], 'tr_face', false);
-  // 전조등 두 개
-  for (const sx of [-1, 1]) {
-    const lx = sx * 0.62, ly = -0.55, lz = zc + L / 2 + 2.28;
-    m.quad([lx - 0.24, ly - 0.14, lz], [lx + 0.24, ly - 0.14, lz],
-      [lx + 0.24, ly + 0.14, lz], [lx - 0.24, ly + 0.14, lz], 'tr_light', false);
-  }
-
-  // 맨 뒤 량의 뒷머리 — 앞머리를 z 방향으로 뒤집어 붙인다
-  const n = m.t.length;
-  for (let q = noseStart; q < n; q++) {
-    const pts = [];
-    for (let cc = 3; cc >= 0; cc--) {
-      const i = (q * 4 + cc) * 3;
-      pts.push([m.p[i], m.p[i + 1], -m.p[i + 2]]);
+  const nose = function (e) {
+    const q0 = m.t.length;
+    const steps = [
+      [L / 2 - 0.05, 1.00, 0.00],
+      [L / 2 + 0.55, 0.985, 0.03],
+      [L / 2 + 1.15, 0.93, 0.10],
+      [L / 2 + 1.70, 0.81, 0.22],
+      [L / 2 + 2.12, 0.62, 0.38],
+      [L / 2 + 2.40, 0.34, 0.54]
+    ];
+    let prev = null;
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i];
+      const ring = ringScale(base, st[1], st[2], st[0]);
+      if (prev) loft(m, prev, ring, noseTex, false);
+      prev = ring;
     }
-    m.quad(pts[0], pts[1], pts[2], pts[3], m.t[q], !!m.w[q]);
-  }
+    capRing(m, prev, [0, 0.62, L / 2 + 2.55], 'tr_face', false);
+    // 전조등 둘
+    for (const sx of [-1, 1]) {
+      const lx = sx * 0.62, ly = -0.55, lz = L / 2 + 2.3;
+      m.quad([lx - 0.24, ly - 0.14, lz], [lx + 0.24, ly - 0.14, lz],
+        [lx + 0.24, ly + 0.14, lz], [lx - 0.24, ly + 0.14, lz], 'tr_light', false);
+    }
+    if (e < 0) {
+      // 뒤쪽 운전실 — 방금 만든 것을 z 로 뒤집어 옮긴다
+      const n = m.t.length;
+      const keep = [];
+      for (let q = q0; q < n; q++) keep.push(q);
+      for (let i = 0; i < keep.length; i++) {
+        const q = keep[i];
+        const pts = [];
+        for (let cc = 3; cc >= 0; cc--) {
+          const j = (q * 4 + cc) * 3;
+          pts.push([m.p[j], m.p[j + 1], -m.p[j + 2]]);
+        }
+        m.quad(pts[0], pts[1], pts[2], pts[3], m.t[q], !!m.w[q]);
+      }
+      // 원본(앞쪽)은 지운다 — 뒤 운전실만 남겨야 한다
+      m.p.splice(q0 * 12, (n - q0) * 12);
+      m.u.splice(q0 * 8, (n - q0) * 8);
+      m.n.splice(q0 * 3, (n - q0) * 3);
+      m.t.splice(q0, n - q0);
+      m.w.splice(q0, n - q0);
+    }
+  };
+  if (isFront) nose(1);
+  if (isBack) nose(-1);
 
   return m.build();
 }
 
-// 아틀라스가 준비된 뒤에 한 번만 만든다
-let PLANE_MESH = null, TRAIN_MESH = null;
+// ── 자동차 ────────────────────────────────────────────────────────────
+// 단면을 이어 붙여 둥근 차체를 만든다. 창은 높이 띠로 골라 붙인다.
+const CAR_RING_N = 12;
+
+// [z, 반폭, 아래y, 위y] 목록을 고리로 바꿔 이어 붙인다
+function carLoft(m, sec, pw, texFn, capTex, n) {
+  const N = n || CAR_RING_N;
+  const ring = function (v) {
+    return ringSquircle(v[1], (v[3] - v[2]) / 2, (v[2] + v[3]) / 2, pw, N, v[0]);
+  };
+  let prev = null;
+  for (let i = 0; i < sec.length; i++) {
+    const r = ring(sec[i]);
+    if (prev) loft(m, prev, r, texFn, false);
+    prev = r;
+  }
+  if (capTex) {
+    const a = sec[0], b = sec[sec.length - 1];
+    capRing(m, ring(a), [0, (a[2] + a[3]) / 2, a[0] - 0.02], capTex, true);
+    capRing(m, ring(b), [0, (b[2] + b[3]) / 2, b[0] + 0.02], capTex, false);
+  }
+}
+
+// 잔부품(등·범퍼·경광등)은 그냥 상자로
+Mesh3D.prototype.box = function (x, y, z, w, h, d, tex) {
+  const hx = w / 2, hy = h / 2, hz = d / 2;
+  const P = function (a, b, c) { return [x + a * hx, y + b * hy, z + c * hz]; };
+  this.quad(P(1, -1, 1), P(1, -1, -1), P(1, 1, -1), P(1, 1, 1), tex, false);
+  this.quad(P(-1, -1, -1), P(-1, -1, 1), P(-1, 1, 1), P(-1, 1, -1), tex, false);
+  this.quad(P(-1, 1, 1), P(1, 1, 1), P(1, 1, -1), P(-1, 1, -1), tex, false);
+  this.quad(P(-1, -1, -1), P(1, -1, -1), P(1, -1, 1), P(-1, -1, 1), tex, false);
+  this.quad(P(-1, -1, 1), P(1, -1, 1), P(1, 1, 1), P(-1, 1, 1), tex, false);
+  this.quad(P(1, -1, -1), P(-1, -1, -1), P(-1, 1, -1), P(1, 1, -1), tex, false);
+  return this;
+};
+
+// 승용차 꼴 (승용차·택시·순찰차) — 길이·폭에 맞춰 늘어난다
+function sedanMesh(paint, L, W, extra) {
+  const m = new Mesh3D();
+  const HL = L / 2, HW = W / 2;
+  const body = [
+    [-HL, HW * 0.74, 0.40, 0.82], [-HL + 0.16, HW * 0.94, 0.30, 0.96],
+    [-HL + 0.50, HW * 1.00, 0.26, 1.02], [-L * 0.16, HW * 1.00, 0.24, 1.06],
+    [L * 0.13, HW * 1.00, 0.24, 1.06], [HL - 0.62, HW * 1.00, 0.26, 1.02],
+    [HL - 0.20, HW * 0.94, 0.30, 0.96], [HL, HW * 0.74, 0.40, 0.84]
+  ];
+  carLoft(m, body, 3.5, function (my) {
+    return my < 0.34 ? 'car_black' : paint;      // 아래쪽은 그늘진 하부
+  }, paint);
+  const cabin = [
+    [-L * 0.33, HW * 0.34, 1.00, 1.10], [-L * 0.26, HW * 0.78, 1.00, 1.34],
+    [-L * 0.13, HW * 0.86, 1.00, 1.50], [L * 0.08, HW * 0.86, 1.00, 1.52],
+    [L * 0.20, HW * 0.82, 1.00, 1.42], [L * 0.30, HW * 0.56, 1.00, 1.16]
+  ];
+  carLoft(m, cabin, 2.5, function (my) {
+    return (my > 1.06 && my < 1.44) ? 'car_glass' : paint;
+  }, paint);
+  // 범퍼와 등
+  m.box(0, 0.56, HL + 0.06, W - 0.3, 0.30, 0.2, 'car_black');
+  m.box(0, 0.56, -HL - 0.06, W - 0.3, 0.30, 0.2, 'car_black');
+  for (const s of [-1, 1]) {
+    m.box(s * (HW - 0.38), 0.88, HL - 0.02, 0.44, 0.22, 0.14, 'car_lightF');
+    m.box(s * (HW - 0.38), 0.88, -HL + 0.02, 0.44, 0.22, 0.14, 'car_lightR');
+    // 바퀴 위 흙받이
+    for (const z of [L * 0.30, -L * 0.30]) {
+      m.box(s * (HW + 0.02), 0.86, z, 0.14, 0.16, CAR_WHEEL_R * 2.4, 'car_black');
+    }
+    // 백미러
+    m.box(s * (HW + 0.06), 1.24, L * 0.20, 0.18, 0.12, 0.1, 'car_black');
+  }
+  if (extra) extra(m, HL, HW);
+  return m.build();
+}
+
+// 승합차 — 앞이 짧고 지붕이 높다
+function vanMesh(paint, L, W) {
+  const m = new Mesh3D();
+  const HL = L / 2, HW = W / 2;
+  const body = [
+    [-HL, HW * 0.66, 0.34, 1.90], [-HL + 0.22, HW * 0.96, 0.28, 2.02],
+    [-HL + 0.8, HW * 1.00, 0.24, 2.06], [HL - 1.5, HW * 1.00, 0.24, 2.06],
+    [HL - 0.75, HW * 0.98, 0.26, 1.92], [HL - 0.25, HW * 0.90, 0.30, 1.62],
+    [HL, HW * 0.66, 0.38, 1.30]
+  ];
+  carLoft(m, body, 3.2, function (my, mz) {
+    if (my < 0.34) return 'car_black';
+    if (my > 1.16 && my < 1.80) return 'car_glass';
+    return paint;
+  }, paint);
+  m.box(0, 0.56, HL + 0.04, W - 0.3, 0.30, 0.2, 'car_black');
+  m.box(0, 0.56, -HL - 0.04, W - 0.3, 0.30, 0.2, 'car_black');
+  for (const s of [-1, 1]) {
+    m.box(s * (HW - 0.42), 0.92, HL - 0.06, 0.46, 0.24, 0.14, 'car_lightF');
+    m.box(s * (HW - 0.42), 0.92, -HL + 0.06, 0.46, 0.24, 0.14, 'car_lightR');
+    for (const z of [L * 0.30, -L * 0.30]) {
+      m.box(s * (HW + 0.02), 0.90, z, 0.14, 0.16, 1.1, 'car_black');
+    }
+  }
+  return m.build();
+}
+
+// 시내버스 — 한 덩어리 상자에 창 띠, 지붕은 살짝 둥글게
+function busMesh() {
+  const m = new Mesh3D();
+  const L = 9.5, W = 2.5, HL = L / 2, HW = W / 2;
+  const body = [
+    [-HL, HW * 0.80, 0.34, 2.44], [-HL + 0.30, HW * 1.00, 0.28, 2.58],
+    [-HL + 1.2, HW * 1.00, 0.26, 2.62], [HL - 1.2, HW * 1.00, 0.26, 2.62],
+    [HL - 0.30, HW * 1.00, 0.28, 2.58], [HL, HW * 0.80, 0.34, 2.44]
+  ];
+  carLoft(m, body, 3.8, function (my, mz) {
+    if (my < 0.42) return 'car_black';
+    if (my > 1.50 && my < 2.32) {
+      return (mz > HL - 0.7 || mz < -HL + 0.7) ? 'car_glass' : 'car_bus_win';
+    }
+    return 'car_bus';
+  }, 'car_bus');
+  m.box(0, 2.72, 0, W - 0.3, 0.14, L - 0.9, 'car_silver');    // 지붕 냉방
+  for (const s of [-1, 1]) {
+    m.box(s * (HW - 0.5), 0.90, HL - 0.02, 0.5, 0.3, 0.14, 'car_lightF');
+    m.box(s * (HW - 0.5), 0.90, -HL + 0.02, 0.5, 0.3, 0.14, 'car_lightR');
+  }
+  return m.build();
+}
+
+// 짐칸이 따로 있는 큰 차 (트럭·소방차·덤프트럭 공통 뼈대)
+function rigMesh(o) {
+  const m = new Mesh3D();
+  const W = o.wide, HW = W / 2;
+  // 운전실
+  const cab = [
+    [o.cabZ0, HW * 0.80, 0.40, o.cabTop - 0.35],
+    [o.cabZ0 + 0.3, HW * 1.00, 0.34, o.cabTop],
+    [o.cabZ1 - 0.55, HW * 1.00, 0.32, o.cabTop],
+    [o.cabZ1 - 0.18, HW * 0.98, 0.36, o.cabTop - 0.30],
+    [o.cabZ1, HW * 0.78, 0.44, o.cabTop - 0.62]
+  ];
+  carLoft(m, cab, 3.4, function (my) {
+    if (my < 0.5) return 'car_black';
+    if (my > o.glassLo && my < o.glassHi) return 'car_glass';
+    return o.cabTex;
+  }, o.cabTex);
+  // 짐칸
+  if (o.boxZ0 !== undefined) {
+    const cargo = [
+      [o.boxZ0, HW * 0.96, o.boxY0, o.boxY1], [o.boxZ0 + 0.2, HW * 1.00, o.boxY0, o.boxY1],
+      [o.boxZ1 - 0.2, HW * 1.00, o.boxY0, o.boxY1], [o.boxZ1, HW * 0.96, o.boxY0, o.boxY1]
+    ];
+    carLoft(m, cargo, 4.5, function () { return o.boxTex; }, o.boxTex);
+  }
+  // 대차(섀시)
+  m.box(0, 0.58, (o.cabZ1 + o.tailZ) / 2, W - 0.3, 0.5, Math.abs(o.cabZ1 - o.tailZ), 'car_black');
+  for (const s of [-1, 1]) {
+    m.box(s * (HW - 0.5), 0.88, o.cabZ1 - 0.06, 0.5, 0.3, 0.14, 'car_lightF');
+    m.box(s * (HW - 0.5), 0.88, o.tailZ + 0.06, 0.5, 0.3, 0.14, 'car_lightR');
+  }
+  if (o.extra) o.extra(m, HW);
+  return m.build();
+}
+
+// 바퀴 — 굴대가 X 축인 원기둥. 크기는 그릴 때 곱한다 (반지름 1, 폭 1).
+function buildWheelMesh(n) {
+  const m = new Mesh3D();
+  const N = n || 12;
+  const ring = function (x) {
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * Math.PI * 2;           // +Y → +Z → -Y → -Z (X 축 둘레 반시계)
+      pts.push([x, Math.cos(t), Math.sin(t)]);
+    }
+    return pts;
+  };
+  const a = ring(-0.5), b = ring(0.5);
+  // 겉면(타이어)
+  const n2 = a.length;
+  for (let i = 0; i < n2; i++) {
+    const j = (i + 1) % n2;
+    m.quad(a[i], a[j], b[j], b[i], 'car_wheel', false,
+      [[0, i / n2], [0, (i + 1) / n2], [1, (i + 1) / n2], [1, i / n2]]);
+  }
+  // 양옆 휠캡
+  capRing(m, b, [0.52, 0, 0], 'car_silver', false);
+  capRing(m, a, [-0.52, 0, 0], 'car_silver', true);
+  return m.build();
+}
+
+// ── 차종별 모형 ───────────────────────────────────────────────────────
+const CAR_MESH_MAKERS = {
+  sedan: function () { return sedanMesh('car_red', 4.2, 1.9); },
+  sedan2: function () { return sedanMesh('car_blue', 4.2, 1.9); },
+  taxi: function () { return sedanMesh('car_taxi', 4.4, 1.95, function (m, HL, HW) {
+    m.box(0, 1.62, -0.1, 0.9, 0.22, 0.4, 'car_siren');        // 갓등
+  }); },
+  police: function () { return sedanMesh('car_police', 4.4, 2.0, function (m, HL, HW) {
+    m.box(0, 1.66, -0.1, 1.1, 0.24, 0.44, 'car_siren');       // 경광등
+  }); },
+  van: function () { return vanMesh('car_white', 5.4, 2.1); },
+  bus: busMesh,
+  truck: function () {
+    return rigMesh({ wide: 2.3, cabZ0: 1.1, cabZ1: 3.9, cabTop: 2.28,
+      glassLo: 1.34, glassHi: 2.14, cabTex: 'car_green',
+      boxZ0: -4.3, boxZ1: 1.0, boxY0: 0.86, boxY1: 2.9, boxTex: 'car_cargo',
+      tailZ: -4.2 });
+  },
+  fire: function () {
+    return rigMesh({ wide: 2.4, cabZ0: 1.4, cabZ1: 4.0, cabTop: 2.3,
+      glassLo: 1.36, glassHi: 2.16, cabTex: 'car_fire',
+      boxZ0: -4.4, boxZ1: 1.3, boxY0: 0.78, boxY1: 2.48, boxTex: 'car_fire',
+      tailZ: -4.3,
+      extra: function (m, HW) {
+        m.box(0, 2.66, -1.4, 0.5, 0.4, 5.2, 'car_silver');     // 사다리
+        m.box(0, 2.6, 3.3, 1.2, 0.28, 0.5, 'car_siren');       // 경광등
+      } });
+  },
+  dump: function () {
+    const m = new Mesh3D();
+    const W = 2.5, HW = W / 2;
+    // 운전실만 곡면으로, 짐칸은 위가 열려 있어야 해서 판으로 세운다
+    const cab = [
+      [1.6, HW * 0.80, 0.44, 2.15], [1.95, HW * 1.00, 0.38, 2.5],
+      [3.6, HW * 1.00, 0.36, 2.5], [4.0, HW * 0.98, 0.4, 2.2], [4.2, HW * 0.78, 0.5, 1.7]
+    ];
+    carLoft(m, cab, 3.4, function (my) {
+      if (my < 0.6) return 'car_black';
+      if (my > 1.5 && my < 2.36) return 'car_glass';
+      return 'car_dump';
+    }, 'car_dump');
+    m.box(0, 0.62, -0.5, W - 0.2, 0.55, 9.0, 'car_black');
+    m.box(0, 1.05, -1.9, W, 0.3, 5.8, 'car_cargo');            // 짐칸 바닥
+    for (const s of [-1, 1]) m.box(s * (HW - 0.12), 1.75, -1.9, 0.24, 1.5, 5.8, 'car_dump');
+    m.box(0, 1.75, 0.9, W, 1.5, 0.24, 'car_dump');
+    m.box(0, 1.75, -4.7, W, 1.5, 0.24, 'car_dump');
+    for (const s of [-1, 1]) {
+      m.box(s * (HW - 0.5), 0.9, 4.16, 0.5, 0.3, 0.14, 'car_lightF');
+      m.box(s * (HW - 0.5), 0.9, -4.9, 0.5, 0.3, 0.14, 'car_lightR');
+    }
+    return m.build();
+  }
+};
+
+// 바퀴 자리 — 차종마다 (x 는 좌우 대칭이라 +쪽만 적는다)
+const CAR_WHEELS = {
+  sedan: { r: 0.42, w: 0.30, x: 0.83, z: [1.26, -1.26] },
+  sedan2: { r: 0.42, w: 0.30, x: 0.83, z: [1.26, -1.26] },
+  taxi: { r: 0.42, w: 0.30, x: 0.86, z: [1.32, -1.32] },
+  police: { r: 0.42, w: 0.30, x: 0.88, z: [1.32, -1.32] },
+  van: { r: 0.44, w: 0.32, x: 0.92, z: [1.62, -1.62] },
+  bus: { r: 0.50, w: 0.34, x: 1.12, z: [3.15, -2.95] },
+  truck: { r: 0.48, w: 0.32, x: 1.02, z: [2.5, -1.0, -3.0] },
+  fire: { r: 0.50, w: 0.34, x: 1.06, z: [2.6, -1.0, -3.4] },
+  dump: { r: 0.52, w: 0.36, x: 1.12, z: [3.0, -1.2, -3.4] }
+};
+
+let CAR_MESHES = null, WHEEL_MESH = null;
+function carMesh(key) {
+  if (!CAR_MESHES) {
+    CAR_MESHES = {};
+    for (const k in CAR_MESH_MAKERS) CAR_MESHES[k] = CAR_MESH_MAKERS[k]();
+  }
+  return CAR_MESHES[key] || CAR_MESHES.sedan;
+}
+function wheelMesh() { if (!WHEEL_MESH) WHEEL_MESH = buildWheelMesh(12); return WHEEL_MESH; }
+
+// 처음 그릴 때 한 번만 만들어 두고 계속 쓴다
+let PLANE_MESH = null, TRAIN_MESHES = null;
 function planeMesh() { if (!PLANE_MESH) PLANE_MESH = buildPlaneMesh(); return PLANE_MESH; }
-function trainMesh() { if (!TRAIN_MESH) TRAIN_MESH = buildTrainMesh(); return TRAIN_MESH; }
+function trainCarMesh(k) {
+  if (!TRAIN_MESHES) {
+    TRAIN_MESHES = [];
+    for (let c = 0; c < TRAIN_CARS; c++) {
+      TRAIN_MESHES.push(buildTrainCarMesh(c === TRAIN_CARS - 1, c === 0));
+    }
+  }
+  return TRAIN_MESHES[k];
+}

@@ -551,6 +551,8 @@ Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opt
   const P = mesh.pos, U = mesh.uv, N = mesh.nrm, T = mesh.tex, TW = mesh.two;
   const nq = T.length;
   const glow = opts && opts.glow;
+  // 자리 옮김이 섞인 변환(바퀴처럼)에서는 법선용 변환을 따로 받는다
+  const nrot = (opts && opts.nxf) ? opts.nxf : rot;
   buf.reserveQuads(nq * 2);
   const V = buf.i, F = buf.v;
   const o = _out3, no = _out3b;
@@ -560,7 +562,7 @@ Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opt
     if (opts && opts.skip && opts.skip[name]) continue;
     const t = texUV(name);
     const du = t.u1 - t.u0, dv = t.v1 - t.v0;
-    rot(N[q * 3], N[q * 3 + 1], N[q * 3 + 2], no);
+    nrot(N[q * 3], N[q * 3 + 1], N[q * 3 + 2], no);
     const lit = (glow && glow[name]) ? 1 : shadeOfNormal(no[0], no[1], no[2]);
     const gl0 = (glow && glow[name]) ? 1 : l0;
     const gl1 = (glow && glow[name]) ? 1 : l1;
@@ -828,45 +830,51 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
     const light = [Math.max(sky, 0.55), Math.max(blk, 0.35)];
 
-    const cy = Math.cos(t.yaw), sy = Math.sin(t.yaw);
-    // 지붕과 앞머리는 곡면 모형으로 한 번에 (블록처럼 각지지 않게)
-    const rot = function (lx, ly, lz, out) {
-      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-    };
-    this.emitMesh(trainMesh(), t.x, t.y, t.z, rot, 1, light, TRAIN_MESH_OPTS);
-
     // 거리에 따라 부품을 줄인다 — 멀리 있는 열차는 겉모습만 그린다
     const near = Math.sqrt(dx * dx + dz * dz);
     const showInner = (t.rider === player) || near < 90;
     const showWheels = near < 300;
-    for (let k = 0; k < TRAIN_PARTS.length; k++) {
-      const b = TRAIN_PARTS[k];
-      if (b.inner && !showInner) continue;
-      if (b.wheel) {
-        if (!showWheels) continue;
-        // 바퀴 — 얇은 판 세 장을 60°씩 어긋나게 겹쳐 둥글게 보이게 하고,
-        // 달린 거리만큼 굴린다.
-        const spokes = near < 70 ? 3 : 1;
-        for (let sp = 0; sp < spokes; sp++) {
-          const ang = t.wheelAngle + sp * (Math.PI / 3);
-          const ca = Math.cos(ang), sa = Math.sin(ang);
-          const wt = function (px, py, pz, out) {
-            // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전. b.y 는 굴대 높이다.
-            const ry = py - b.r, rz = pz;
-            const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-            const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
-            out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-          };
-          emitBox(_geom, t.x, t.y, t.z, b.w, b.r * 2, b.r, 'tr_wheel', null, wt, light);
-        }
-        continue;
-      }
-      const bh = b.h;
-      const transform = function (px, py, pz, out) {
-        const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+
+    // 량마다 제 자리·제 방향으로 그린다. 편성을 한 덩어리로 두면
+    // 코너에서 앞뒤 량이 레일 밖으로 밀려난다.
+    for (let ci = 0; ci < TRAIN_CARS; ci++) {
+      const po = (t.pose && t.pose[ci]) ? t.pose[ci] : t;
+      const cy = Math.cos(po.yaw), sy = Math.sin(po.yaw);
+      const rot = function (lx, ly, lz, out) {
         out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
       };
-      emitBox(_geom, t.x, t.y, t.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+      // 둥근 지붕과 운전실 코
+      this.emitMesh(trainCarMesh(ci), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+
+      const parts = TRAIN_CAR_PARTS[ci];
+      for (let k = 0; k < parts.length; k++) {
+        const b = parts[k];
+        if (b.inner && !showInner) continue;
+        if (b.wheel) {
+          if (!showWheels) continue;
+          // 바퀴 — 얇은 판 세 장을 60°씩 어긋나게 겹쳐 둥글게 보이게 하고,
+          // 달린 거리만큼 굴린다.
+          const spokes = near < 70 ? 3 : 1;
+          for (let sp = 0; sp < spokes; sp++) {
+            const ang = t.wheelAngle + sp * (Math.PI / 3);
+            const ca = Math.cos(ang), sa = Math.sin(ang);
+            const wt = function (px, py, pz, out) {
+              // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전. b.y 는 굴대 높이다.
+              const ry = py - b.r, rz = pz;
+              const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+              const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
+              rot(lx, ly, lz, out);
+            };
+            emitBox(_geom, po.x, po.y, po.z, b.w, b.r * 2, b.r, 'tr_wheel', null, wt, light);
+          }
+          continue;
+        }
+        const bh = b.h;
+        const transform = function (px, py, pz, out) {
+          rot(px + b.x, py - bh / 2 + b.y, pz + b.z, out);
+        };
+        emitBox(_geom, po.x, po.y, po.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+      }
     }
   }
 
@@ -876,11 +884,43 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
 // ── 자동차 ────────────────────────────────────────────────────────────
 // 스스로 빛나는 부품 표면
 const CAR_GLOW = { car_lightF: 1, car_lightR: 1, car_siren: 1 };
+const CAR_MESH_OPTS = { glow: CAR_GLOW };
+
+// 차 한 대를 통째로 얹는다 (차체는 곡면 모형, 바퀴는 굴러가는 원기둥).
+Renderer.prototype.emitVehicle = function (key, x, y, z, yaw, wheelAngle, light, showWheels) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const rot = function (lx, ly, lz, out) {
+    out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+  };
+  this.emitMesh(carMesh(key), x, y, z, rot, 1, light, CAR_MESH_OPTS);
+  if (showWheels === false) return;
+
+  const w = CAR_WHEELS[key] || CAR_WHEELS.sedan;
+  const ca = Math.cos(wheelAngle), sa = Math.sin(wheelAngle);
+  const wm = wheelMesh();
+  for (let si = 0; si < 2; si++) {
+    const sx = si ? 1 : -1;
+    for (let zi = 0; zi < w.z.length; zi++) {
+      const bx = sx * w.x, bz = w.z[zi];
+      // 크기 → 굴림 → 차 안 자리 → 차 방향
+      const wrot = function (lx, ly, lz, out) {
+        const px = lx * w.w, py = ly * w.r, pz = lz * w.r;
+        const y2 = py * ca - pz * sa, z2 = py * sa + pz * ca;
+        rot(px + bx, y2 + w.r, z2 + bz, out);
+      };
+      // 법선은 자리 옮김 없이 굴림과 차 방향만 먹인다
+      const nrot = function (lx, ly, lz, out) {
+        const y2 = ly * ca - lz * sa, z2 = ly * sa + lz * ca;
+        rot(lx, y2, z2, out);
+      };
+      this.emitMesh(wm, x, y, z, wrot, 1, light, { nxf: nrot });
+    }
+  }
+};
 
 Renderer.prototype.drawCars = function (mgr, world, player, opts) {
   const list = mgr.cars;
   if (!list || !list.length) return;
-  const gl = this.gl;
   _geom.reset();
 
   for (let i = 0; i < list.length; i++) {
@@ -895,43 +935,14 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
     const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 1), bz) / 15;
     const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
     const light = [Math.max(sky, 0.3), Math.max(blk, 0.25)];
-    const glow = [light[0], 1];
 
-    const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
-    const near = Math.sqrt(d2);
-    const spokes = near < 40 ? 3 : 1;
-    const parts = c.type.parts;
-    for (let k = 0; k < parts.length; k++) {
-      const b = parts[k];
-      if (b.wheel) {
-        if (near > 110) continue;
-        for (let sp = 0; sp < spokes; sp++) {
-          const ang = c.wheelAngle + sp * (Math.PI / 3);
-          const ca = Math.cos(ang), sa = Math.sin(ang);
-          const wt = function (px, py, pz, out) {
-            // b.y 는 굴대 높이 — 반지름을 또 더하면 바퀴가 반지름만큼 떠오른다
-            const ry = py - b.r, rz = pz;
-            const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-            const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
-            out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-          };
-          emitBox(_geom, c.x, c.y, c.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
-        }
-        continue;
-      }
-      const bh = b.h;
-      const transform = function (px, py, pz, out) {
-        const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
-        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-      };
-      // 전조등·미등·경광등은 밤에도 스스로 빛난다
-      const lit = CAR_GLOW[b.tex] ? glow : light;
-      emitBox(_geom, c.x, c.y, c.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
-    }
+    // 멀리 있는 차는 바퀴를 그리지 않는다
+    this.emitVehicle(c.type.key, c.x, c.y, c.z, c.yaw, c.wheelAngle, light, d2 < 110 * 110);
   }
 
   this.flushEntityGeom(opts);
 };
+
 
 // ── 포크레인 ──────────────────────────────────────────────────────────
 // 궤도(하부) 위에 상부가 얹히고, 붐 → 암 → 버킷이 이어 붙는다.
@@ -1014,41 +1025,12 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
 // 공사장 덤프트럭 하나를 _geom 에 얹는다 (drawDiggers 가 한꺼번에 flush 한다)
 Renderer.prototype.emitSiteTruck = function (tr, light) {
   if (!tr) return;
-  const type = (typeof CAR_TYPES !== 'undefined')
-    ? CAR_TYPES.find(function (t) { return t.key === 'dump'; }) : null;
-  if (!type) return;
-  const cy = Math.cos(tr.yaw), sy = Math.sin(tr.yaw);
-  const glow = [1, 1];
-  const parts = type.parts;
-  for (let k = 0; k < parts.length; k++) {
-    const b = parts[k];
-    if (b.wheel) {
-      // 세워 둔 차라 굴러가지는 않지만, 달리는 차와 같은 모양으로 그린다
-      for (let sp = 0; sp < 3; sp++) {
-        const ang = sp * (Math.PI / 3);
-        const ca = Math.cos(ang), sa = Math.sin(ang);
-        const wt = function (px, py, pz, out) {
-          const ry = py - b.r, rz = pz;
-          const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-          const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
-          out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-        };
-        emitBox(_geom, tr.x, tr.y, tr.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
-      }
-      continue;
-    }
-    const bh = b.h;
-    const transform = function (px, py, pz, out) {
-      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
-      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-    };
-    const lit = (typeof CAR_GLOW !== 'undefined' && CAR_GLOW[b.tex]) ? glow : light;
-    emitBox(_geom, tr.x, tr.y, tr.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
-  }
+  this.emitVehicle('dump', tr.x, tr.y, tr.z, tr.yaw, 0, light, true);
   // 짐칸에 실린 흙 — 부을 때마다 높아진다
   const fill = Math.min(EX_LOADS_TO_FILL, tr.fill || 0);
   if (fill > 0) {
     const h = 0.18 + (fill / EX_LOADS_TO_FILL) * 1.25;
+    const cy = Math.cos(tr.yaw), sy = Math.sin(tr.yaw);
     const dt2 = function (px, py, pz, out) {
       const lx = px, ly = py + 1.2 + h / 2, lz = pz - 1.9;
       out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
@@ -1057,45 +1039,19 @@ Renderer.prototype.emitSiteTruck = function (tr, light) {
   }
 };
 
+
 // 쫓아오는 순찰차 — 실제 Car 가 아니라 게임이 들고 있는 간단한 표적이다
 Renderer.prototype.drawChase = function (game, world, player, opts) {
   const ch = game.chase;
   if (!ch) return;
-  const type = (typeof CAR_TYPES !== 'undefined')
-    ? CAR_TYPES.find(function (t) { return t.key === 'police'; }) : null;
-  if (!type) return;
   _geom.reset();
-  const cy = Math.cos(ch.yaw), sy = Math.sin(ch.yaw);
   // 경광등이 번갈아 번쩍인다
   const flash = (Math.floor(ch.siren * 6) % 2) === 0;
-  const light = [1, 0.5];
-  const glow = [1, 1];
-  const parts = type.parts;
-  for (let k = 0; k < parts.length; k++) {
-    const b = parts[k];
-    if (b.wheel) {
-      const ang = ch.siren * 9;
-      const ca = Math.cos(ang), sa = Math.sin(ang);
-      const wt = function (px, py, pz, out) {
-        const ry = py - b.r, rz = pz;
-        const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-        const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
-        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-      };
-      emitBox(_geom, ch.x, ch.y, ch.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
-      continue;
-    }
-    const bh = b.h;
-    const transform = function (px, py, pz, out) {
-      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
-      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-    };
-    const lit = (b.tex === 'car_siren') ? (flash ? glow : light)
-      : (CAR_GLOW[b.tex] ? glow : light);
-    emitBox(_geom, ch.x, ch.y, ch.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
-  }
+  const light = flash ? [1, 1] : [1, 0.5];
+  this.emitVehicle('police', ch.x, ch.y, ch.z, ch.yaw, ch.siren * 9, light, true);
   this.flushEntityGeom(opts);
 };
+
 
 // ── 낙하산 ────────────────────────────────────────────────────────────
 // 1인칭이라 플레이어는 안 보이지만, 위를 보면 머리 위 캐노피가 보인다.

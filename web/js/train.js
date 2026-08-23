@@ -121,13 +121,15 @@ function trainCarParts(P, zc, isFront, isBack) {
   if (isBack) cab(-1);
 }
 
-const TRAIN_PARTS = (function () {
-  const P = [];
+// 량마다 따로 담아 둔다 (앞뒤 자리는 그릴 때 더한다)
+const TRAIN_CAR_PARTS = (function () {
+  const out = [];
   for (let c = 0; c < TRAIN_CARS; c++) {
-    const zc = (c - (TRAIN_CARS - 1) / 2) * TRAIN_PITCH;
-    trainCarParts(P, zc, c === TRAIN_CARS - 1, c === 0);
+    const P = [];
+    trainCarParts(P, 0, c === TRAIN_CARS - 1, c === 0);
+    out.push(P);
   }
-  return P;
+  return out;
 })();
 
 // ── 노선 ──────────────────────────────────────────────────────────────
@@ -148,9 +150,20 @@ function TrainRoute(rail, stations, name) {
   }
 }
 
-// 시작점에서 s 만큼 간 자리
+// 시작점에서 s 만큼 간 자리.
+// 편성은 가운데 자리(s)를 기준으로 앞뒤로 뻗으므로 끝 량은 노선 밖까지 나간다.
+// 그때는 끝 구간을 곧게 이어서 준다 (붙잡아 두면 량들이 한 자리에 뭉친다).
 TrainRoute.prototype.at = function (s) {
-  s = Math.max(0, Math.min(this.len, s));
+  if (!this.segs.length) return { x: 0, z: 0, yaw: 0 };
+  if (s < 0) {
+    const g = this.segs[0];
+    return { x: g.x0 + g.dx * s, z: g.z0 + g.dz * s, yaw: g.yaw };
+  }
+  if (s > this.len) {
+    const g = this.segs[this.segs.length - 1];
+    const over = s - this.len;
+    return { x: g.x0 + g.dx * (g.len + over), z: g.z0 + g.dz * (g.len + over), yaw: g.yaw };
+  }
   let rest = s;
   for (let i = 0; i < this.segs.length; i++) {
     const g = this.segs[i];
@@ -185,6 +198,7 @@ function Train(world, route, s, dir) {
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
   const o = this.trackOffset(p.yaw);
   this.x = p.x + o[0]; this.y = route.y + TRAIN_RIDE; this.z = p.z + o[1];
+  this.updatePoses(0);
 }
 
 // 노선 중심선에서 제 선로까지의 옆거리.
@@ -235,12 +249,53 @@ Train.prototype.update = function (dt) {
   const o = this.trackOffset(p.yaw);
   this.x = p.x + o[0]; this.z = p.z + o[1];
   this.wheelAngle += (this.speed * dt) / TRAIN_WHEEL_R;
+  this.updatePoses(dt);
 };
 
-// 객실 안 로컬 좌표 -> 월드
+// 편성 안 앞뒤 자리(lz)가 몇 번째 량인가
+Train.prototype.carIndexAt = function (lz) {
+  const k = Math.round(lz / TRAIN_PITCH) + (TRAIN_CARS - 1) / 2;
+  return Math.max(0, Math.min(TRAIN_CARS - 1, Math.round(k)));
+};
+
+// 량 하나가 편성 가운데에서 얼마나 앞뒤로 떨어져 있나
+function trainCarOffset(k) {
+  return (k - (TRAIN_CARS - 1) / 2) * TRAIN_PITCH;
+}
+
+// 량마다 제 자리의 노선 방향을 따로 구한다.
+// 편성을 한 덩어리로 두면 코너에서 앞뒤 량이 레일 밖으로 밀려난다.
+Train.prototype.updatePoses = function (dt) {
+  if (!this.pose) {
+    this.pose = [];
+    for (let k = 0; k < TRAIN_CARS; k++) this.pose.push({ x: 0, y: 0, z: 0, yaw: 0, init: false });
+  }
+  const r = this.route;
+  for (let k = 0; k < TRAIN_CARS; k++) {
+    const s = this.s + trainCarOffset(k) * this.dir;
+    const p = r.at(s);
+    const o = this.trackOffset(p.yaw);
+    const po = this.pose[k];
+    po.x = p.x + o[0]; po.y = this.y; po.z = p.z + o[1];
+    const want = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+    if (!po.init) { po.yaw = want; po.init = true; continue; }
+    // 구간을 넘을 때 방향이 톡톡 튀는 걸 눌러 준다
+    let d = want - po.yaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    if (Math.abs(d) > 1.4) po.yaw = want;          // 종착역에서 뒤집을 때는 바로
+    else po.yaw += d * Math.min(1, (dt || 0.016) * 3.2);
+  }
+};
+
+// 객실 안 로컬 좌표 -> 월드.
+// lz 가 속한 량의 자세를 써야 코너에서도 객실이 제 량을 따라간다.
 Train.prototype.toWorld = function (lx, ly, lz) {
-  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
-  return [this.x + lx * c + lz * s, this.y + ly, this.z - lx * s + lz * c];
+  const k = this.carIndexAt(lz);
+  const po = (this.pose && this.pose[k]) ? this.pose[k] : this;
+  const rz = lz - trainCarOffset(k);
+  const c = Math.cos(po.yaw), s = Math.sin(po.yaw);
+  return [po.x + lx * c + rz * s, po.y + ly, po.z - lx * s + rz * c];
 };
 
 Train.prototype.seatPos = function () {
@@ -307,14 +362,16 @@ const TRAIN_SEAT_TOP = 0.55;   // 의자에 올라섰을 때 높이
 Train.prototype.ridePlayer = function (p, dt, game) {
   if (p.trainX === undefined) { p.trainX = 0; p.trainZ = 0; }
 
-  // 열차가 돈 만큼 시선을 같이 돌린다
+  // 지금 서 있는 량이 돈 만큼 시선을 같이 돌린다
+  const myCar = this.carIndexAt(p.trainZ);
+  const myYaw = (this.pose && this.pose[myCar]) ? this.pose[myCar].yaw : this.yaw;
   if (this._prevYaw !== undefined) {
-    let d = this.yaw - this._prevYaw;
+    let d = myYaw - this._prevYaw;
     while (d > Math.PI) d -= Math.PI * 2;
     while (d < -Math.PI) d += Math.PI * 2;
     p.yaw += d;
   }
-  this._prevYaw = this.yaw;
+  this._prevYaw = myYaw;
 
   const inp = game && game.input ? game.input : null;
   if (inp && !(game.ui && game.ui.open) && !p.dead) {
@@ -327,7 +384,7 @@ Train.prototype.ridePlayer = function (p, dt, game) {
     if (len > 0) {
       fx /= len; fz /= len;
       // 플레이어가 보는 쪽(월드)을 열차 로컬 방향으로 옮긴다
-      const rel = p.yaw - this.yaw;
+      const rel = p.yaw - myYaw;
       const sr = Math.sin(rel), cr = Math.cos(rel);
       const dz = fz * -cr + fx * -sr;
       const dx = fz * -sr + fx * cr;
