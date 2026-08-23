@@ -89,12 +89,17 @@
           if (!game.load()) throw new Error('저장본을 불러오지 못했습니다.');
           game.ui.toast('불러왔습니다');
         } else {
+          // 'new' 와 'city:CODE' — 둘 다 새 세계를 만든다
           const seed = seedInput.value.trim();
           game.init(seed === '' ? null : seed);
           game.player.creative = chkCreative.checked;
           if (chkCreative.checked) game.player.flying = false;
           game.ui.toast('시드: ' + game.world.seed);
-          if (chkAirport && chkAirport.checked) {
+          if (mode.indexOf('city:') === 0) {
+            const c = game.spawnAtCity(mode.slice(5));
+            if (c) game.ui.toast(c.name + ' 큰길에서 시작합니다 — ' + c.x + ', ' + c.z);
+            else game.ui.toast('이 세계에는 도시를 지을 만한 곳이 없었습니다');
+          } else if (chkAirport && chkAirport.checked) {
             const a = game.spawnAtAirport();
             if (a) game.ui.toast('인천공항에서 시작합니다 — ' + a.x + ', ' + a.z);
             else game.ui.toast('이 세계에는 공항을 지을 만한 곳이 없었습니다');
@@ -129,6 +134,12 @@
 
   btnNew.addEventListener('click', function () { boot('new'); });
   btnContinue.addEventListener('click', function () { boot('continue'); });
+
+  // 도시에서 바로 시작 — 공항 딸린 도시 세 곳
+  ['ICN', 'GMP', 'CJU'].forEach(function (code) {
+    const btn = document.getElementById('btn-city-' + code);
+    if (btn) btn.addEventListener('click', function () { boot('city:' + code); });
+  });
 
   // 내려받은 세계 파일로 이어하기
   const fileInput = document.getElementById('file-input');

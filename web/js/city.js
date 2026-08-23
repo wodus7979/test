@@ -1046,6 +1046,17 @@ function buildCityPlan(world, ap, index) {
     for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 5, null);
   }
 
+  // ── 도시에서 시작할 자리 ──
+  // 광장에서 두 블록 떨어진 큰길 위. 길 위는 cityRoads 가 하늘까지 비워 두므로
+  // 건물에 끼일 일이 없고, 북(-Z)쪽으로 큰길이 쭉 뚫려 있다. 시선을 살짝
+  // 광장 쪽으로 틀어 두어 랜드마크가 화면에 들어오게 한다.
+  // (광장 바로 앞에 세우면 랜드마크 벽에 코를 박아 아무것도 안 보인다)
+  plan.spawn = {
+    x: best.x + plaza.x + CITY_GRID / 2,
+    z: best.z + plaza.z + CITY_GRID / 2 + CITY_GRID,
+    yaw: 0.35
+  };
+
   // ── 공원과 밭 ──
   for (let i = 0; i < parks.length; i++) {
     const lot = parks[i];

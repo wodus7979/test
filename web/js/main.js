@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.2';
+const GAME_VERSION = 'v7.3';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '도시 교통 · 경찰서와 소방서 · 3량 전동차 · 저마다 다른 도시 3곳';
+const GAME_FEATURES = '도시에서 바로 시작 · 도시 교통 · 경찰서와 소방서 · 3량 전동차';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -217,6 +217,32 @@ Game.prototype.spawnAtAirport = function () {
     if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
   }
   return { x: ap.x, z: ap.z, name: ap.name, dist: Math.round(Math.hypot(ap.x, ap.z)) };
+};
+
+// 도시 광장 앞 큰길에서 시작한다 (code 는 딸린 공항 코드: ICN·GMP·CJU)
+Game.prototype.spawnAtCity = function (code) {
+  const w = this.world;
+  if (!w.cities) return null;
+  const list = w.cities();
+  if (!list.length) return null;
+  let c = null;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].code === code) { c = list[i]; break; }
+  }
+  if (!c) c = list[0];
+  if (!c.spawn) return null;
+
+  const p = this.player;
+  p.x = c.spawn.x + 0.5; p.z = c.spawn.z + 0.5; p.y = c.y + 2;
+  p.yaw = c.spawn.yaw; p.pitch = 0;
+  p.vx = p.vy = p.vz = 0;
+  p.spawnX = Math.floor(p.x); p.spawnY = c.y + 1; p.spawnZ = Math.floor(p.z);
+  this.forceLoad(2);
+  // 발밑을 찾아 내려놓는다 (공항에서 시작할 때와 같은 방식)
+  for (let y = c.y + 6; y > c.y - 4; y--) {
+    if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
+  }
+  return { x: c.spawn.x, z: c.spawn.z, name: c.name, code: c.code };
 };
 
 Game.prototype.respawn = function () {
@@ -525,6 +551,10 @@ Game.prototype.bindInput = function () {
 
   document.addEventListener('mousemove', function (e) {
     if (!self.isPointerLocked()) return;
+    // 포인터 잠금이 막 걸린 직후, 브라우저가 잠그기 전 위치와의 차이를 한 번에
+    // 큰 값으로 던지는 일이 있다. 그대로 받으면 시작하자마자 시점이 홱 돈다.
+    // 실제 마우스는 한 이벤트에 이만큼 움직이지 않으므로 그냥 버린다.
+    if (Math.abs(e.movementX) > 200 || Math.abs(e.movementY) > 200) return;
     const s = self.settings.sensitivity;
     self.player.yaw -= e.movementX * s;
     self.player.pitch += (self.settings.invertY ? 1 : -1) * e.movementY * s;
