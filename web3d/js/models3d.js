@@ -109,7 +109,6 @@ function loftWing(sections, mirror) {
 }
 
 // ── 보잉 747 ──────────────────────────────────────────────────────────
-const PLANE_LEN = 70;        // 기수에서 꼬리까지
 function buildAirliner() {
   initTextures3D();
   const g = new THREE.Group();

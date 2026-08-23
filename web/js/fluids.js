@@ -67,12 +67,6 @@ World.prototype.scheduleFluidAround = function (x, y, z) {
 };
 
 // ── 조회 ──────────────────────────────────────────────────────────────
-World.prototype.isFluid = function (id) { return !!FLUID_CONFIG[id]; };
-
-World.prototype.fluidLevel = function (x, y, z) {
-  return this.getMeta(x, y, z) & META_FLUID_LEVEL;
-};
-
 World.prototype.isFluidFalling = function (x, y, z) {
   return (this.getMeta(x, y, z) & META_FLUID_FALLING) !== 0;
 };

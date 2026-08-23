@@ -167,14 +167,7 @@ Airliner.prototype.hud = function () {
   };
 };
 
-Airliner.prototype.flightLabel = function () {
-  if (this.ambient) return '통과 항공기';
-  if (this.ai && this.ai.flight) return this.ai.flight;
-  return '주기 중인 기체';
-};
-
 // ── 자동 운항 · 자동 착륙 ─────────────────────────────────────────────
-const AI_CRUISE_ALT = 190;
 const AI_LIMIT = { taxi_out: 90, takeoff: 70, climb: 150, cruise: 900, descend: 260, final: 200, rollout: 60, taxi_in: 120, park: 20, ferry: 900 };
 
 Airliner.prototype.beginAutoland = function (ap) {
@@ -314,13 +307,6 @@ Train.prototype.update = function (dt) {
   this.x = p.x; this.z = p.z;
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
   this.sync();
-};
-Train.prototype.atStation = function () {
-  for (let i = 0; i < this.route.stations.length; i++) {
-    const st = this.route.stations[i];
-    if (Math.hypot(st.x - this.x, st.z - this.z) < 20) return st;
-  }
-  return null;
 };
 Train.prototype.nextStation = function () {
   const l = this.route.stations;

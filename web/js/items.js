@@ -134,11 +134,6 @@ defItem('elytra', '겉날개', {
 // ── 헬퍼 ──────────────────────────────────────────────────────────────
 function itemDef(name) { return ITEMS[name] || null; }
 
-function itemNameForBlock(id) {
-  const d = blockDef(id);
-  return d && ITEMS[d.name] ? d.name : null;
-}
-
 function itemDisplayName(name) {
   const d = itemDef(name);
   return d ? d.kr : name;
@@ -147,8 +142,4 @@ function itemDisplayName(name) {
 function maxStack(name) {
   const d = itemDef(name);
   return d ? d.stack : 64;
-}
-
-function itemsInGroup(group) {
-  return ITEM_LIST.filter(function (i) { return i.group === group; });
 }

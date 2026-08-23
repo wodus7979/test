@@ -338,9 +338,10 @@ function policeStation(plan, cx, cz, half) {
       set(cx + dx, H + 2, cz + dz, band);
     }
   }
-  // 경광등
-  set(cx, H + 3, cz + (z0 + z1) / 2 | 0, bid('blue_stained_glass'));
-  set(cx, H + 4, cz + (z0 + z1) / 2 | 0, bid('sea_lantern'));
+  // 경광등 — 지붕 한가운데
+  const beaconZ = cz + ((z0 + z1) >> 1);
+  set(cx, H + 3, beaconZ, bid('blue_stained_glass'));
+  set(cx, H + 4, beaconZ, bid('sea_lantern'));
   // 게양대
   set(cx - hw + 1, H + 2, cz + z0 + 1, bid('iron_bars'), 0, 5);
 
@@ -1099,16 +1100,6 @@ World.prototype.cities = function () {
     if (p) { this._cities.push(p); aps[i].city = p; }
   }
   return this._cities;
-};
-
-World.prototype.nearestCity = function (x, z) {
-  const list = this.cities();
-  let best = null, bd = Infinity;
-  for (let i = 0; i < list.length; i++) {
-    const d = Math.hypot(list[i].x - x, list[i].z - z);
-    if (d < bd) { bd = d; best = list[i]; }
-  }
-  return best ? { plan: best, dist: bd } : null;
 };
 
 // 청크에 도시를 찍는다. 땅 고르기는 도시 원 안에서만 한다.

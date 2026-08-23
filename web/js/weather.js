@@ -65,7 +65,6 @@ function buildCloudMesh(seed) {
 }
 
 // ── 날씨 ──────────────────────────────────────────────────────────────
-const WEATHER_KINDS = ['clear', 'rain', 'snow', 'thunder'];
 const WEATHER_KR = { clear: '맑음', rain: '비', snow: '눈', thunder: '천둥번개' };
 
 // 입자 개수 (품질에 따라 줄어든다)

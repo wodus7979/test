@@ -228,17 +228,6 @@ Player.prototype.moveAxis = function (dx, dy, dz) {
   }
 };
 
-// 자동 오르기 (1블록 계단)
-Player.prototype.tryStepUp = function (dx, dz) {
-  if (!this.onGround) return false;
-  const upY = this.y + 1.02;
-  if (this.collides(this.x + dx, upY, this.z + dz)) return false;
-  if (!this.collides(this.x + dx, this.y, this.z + dz)) return false;
-  // 위로 올린 후 이동 가능하면 계단 오르기
-  this.y = upY;
-  return true;
-};
-
 // ── 업데이트 ──────────────────────────────────────────────────────────
 Player.prototype.update = function (dt, input) {
   if (this.dead) return;

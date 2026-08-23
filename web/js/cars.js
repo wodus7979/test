@@ -188,19 +188,23 @@ Car.prototype.update = function (dt, game) {
   if (target > this.speed) this.speed = Math.min(target, this.speed + CAR_ACC * dt);
   else this.speed = Math.max(target, this.speed - CAR_BRAKE * dt);
 
+  const was = this.pos;
   this.pos += this.dir * this.speed * dt;
   this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
   this.turnCool -= dt;
 
-  // 교차로에서 방향 틀기
+  // 교차로에서 방향 틀기 — "가까운가"가 아니라 "이번에 지나갔는가"로 본다.
+  // 프레임이 느려 한 번에 여러 칸을 가도 교차로를 놓치지 않는다.
   if (this.turnCool <= 0) {
     const lines = c.roadLines;
     for (let i = 0; i < lines.length; i++) {
-      if (Math.abs(this.pos - lines[i]) < 0.7) {
+      const L = lines[i];
+      if ((was - L) * (this.pos - L) <= 0) {
         if (Math.random() < 0.34) {
-          const newLine = this.pos;
+          // 격자 값끼리 맞바꾼다. 지나친 만큼을 그대로 쓰면 line 이 격자에서
+          // 어긋나 앞차를 못 알아보게 된다.
           this.pos = this.line;
-          this.line = newLine;
+          this.line = L;
           this.axis = this.axis ? 0 : 1;
           if (Math.random() < 0.5) this.dir = -this.dir;
           this.turnCool = 3.0;

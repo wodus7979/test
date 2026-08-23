@@ -9378,7 +9378,6 @@ function loftWing(sections, mirror) {
 }
 
 // ── 보잉 747 ──────────────────────────────────────────────────────────
-const PLANE_LEN = 70;        // 기수에서 꼬리까지
 function buildAirliner() {
   initTextures3D();
   const g = new THREE.Group();
@@ -11281,14 +11280,7 @@ Airliner.prototype.hud = function () {
   };
 };
 
-Airliner.prototype.flightLabel = function () {
-  if (this.ambient) return '통과 항공기';
-  if (this.ai && this.ai.flight) return this.ai.flight;
-  return '주기 중인 기체';
-};
-
 // ── 자동 운항 · 자동 착륙 ─────────────────────────────────────────────
-const AI_CRUISE_ALT = 190;
 const AI_LIMIT = { taxi_out: 90, takeoff: 70, climb: 150, cruise: 900, descend: 260, final: 200, rollout: 60, taxi_in: 120, park: 20, ferry: 900 };
 
 Airliner.prototype.beginAutoland = function (ap) {
@@ -11429,13 +11421,6 @@ Train.prototype.update = function (dt) {
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
   this.sync();
 };
-Train.prototype.atStation = function () {
-  for (let i = 0; i < this.route.stations.length; i++) {
-    const st = this.route.stations[i];
-    if (Math.hypot(st.x - this.x, st.z - this.z) < 20) return st;
-  }
-  return null;
-};
 Train.prototype.nextStation = function () {
   const l = this.route.stations;
   return this.dir > 0 ? l[l.length - 1] : l[0];
@@ -11449,7 +11434,7 @@ Train.prototype.seatPos = function () { return [this.x, this.y + 0.4, this.z]; }
 'use strict';
 
 const GAME3D_VERSION = 'v1.0';
-const GAME3D_BUILD = '2026-08-24';
+const GAME3D_BUILD = '2026-08-23';
 
 function Game3D(seed, opts) {
   opts = opts || {};
@@ -11954,7 +11939,7 @@ Game3D.prototype.updateHUD = function (dt) {
   const bi = BIOME_NAMES[this.world.biomeAt(p.x, p.z)];
   if (this.el.stats) {
     this.el.stats.innerHTML =
-      '<b>WebCraft 3D</b> ' + GAME3D_VERSION + ' · ' + Math.round(this.fps || 0) + ' fps<br>' +
+      '<b>WebCraft 3D</b> ' + GAME3D_VERSION + ' (' + GAME3D_BUILD + ') · ' + Math.round(this.fps || 0) + ' fps<br>' +
       'X ' + Math.round(p.x) + ' Y ' + Math.round(p.y) + ' Z ' + Math.round(p.z) + '<br>' +
       bi + ' · ' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm +
       (this.sky.wet > 0.05 ? ' · 궂은 날' : '') +

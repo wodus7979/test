@@ -537,6 +537,3 @@ function findRecipe(grid, size) {
 }
 
 function smeltResult(name) { return SMELTING[name] || null; }
-function recipesFor(name) {
-  return RECIPES.filter(function (r) { return r.result === name; });
-}

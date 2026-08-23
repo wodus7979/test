@@ -478,43 +478,151 @@ Renderer.prototype.drawChunks = function (world, player, opts, pass) {
 };
 
 // ── 엔티티 ────────────────────────────────────────────────────────────
-const _ev = [];
-const _ei = [];
+// 몹·비행기·전동차·자동차는 모양이 매 프레임 바뀌므로 그때그때 다시 만든다.
+// 프레임마다 배열을 새로 만들면 쓰레기가 쌓이니, 늘어나는 타입 배열 하나를
+// 계속 다시 쓴다.
+function GeomBuf(verts) {
+  this.v = new Float32Array(verts * 8);
+  this.i = new Uint32Array(verts * 6 / 4);
+  this.i16 = null;      // uint32 확장이 없는 기기에서만 쓴다
+  this.vn = 0;          // 채워 넣은 float 개수
+  this.inn = 0;         // 채워 넣은 index 개수
+}
 
-function emitBox(varr, iarr, cx, cy, cz, w, h, d, texName, frontTex, transform, light) {
-  const hw = w / 2, hd = d / 2;
+GeomBuf.prototype.reset = function () { this.vn = 0; this.inn = 0; };
+
+// 상자 하나(정점 24, 인덱스 36)를 더 담을 자리를 만든다
+GeomBuf.prototype.reserveBox = function () {
+  if (this.vn + 24 * 8 > this.v.length) {
+    const nv = new Float32Array(this.v.length * 2);
+    nv.set(this.v.subarray(0, this.vn));
+    this.v = nv;
+  }
+  if (this.inn + 36 > this.i.length) {
+    const ni = new Uint32Array(this.i.length * 2);
+    ni.set(this.i.subarray(0, this.inn));
+    this.i = ni;
+  }
+};
+
+// 그릴 인덱스 배열 — uint32 를 못 쓰는 기기에서는 16비트로 옮겨 담는다
+GeomBuf.prototype.indices = function (uint32) {
+  if (uint32) return this.i.subarray(0, this.inn);
+  if (!this.i16 || this.i16.length < this.inn) this.i16 = new Uint16Array(this.i.length);
+  this.i16.set(this.i.subarray(0, this.inn));
+  return this.i16.subarray(0, this.inn);
+};
+
+const _geom = new GeomBuf(8192);
+const _out3 = [0, 0, 0];
+
+// 면 6 × 모서리 4 마다 [단위큐브 x, y, z, 텍스처 u, v] — 매번 다시 셈하지 않는다
+const BOX_CORNER = (function () {
+  const a = new Float32Array(6 * 4 * 5);
+  let k = 0;
   for (let f = 0; f < 6; f++) {
     const face = FACES[f];
-    const name = (f === 4 && frontTex) ? frontTex : texName;
-    const t = texUV(name);
-    const shade = FACE_SHADE[f];
-    const base = varr.length / 8;
     for (let ci = 0; ci < 4; ci++) {
       const tu = (ci === 1 || ci === 2) ? 1 : 0;
       const tv = (ci === 2 || ci === 3) ? 1 : 0;
-      // 단위 큐브 좌표 -> 상자 크기
-      const ux = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
-      const uy = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
-      const uz = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
-      let px = (ux - 0.5) * w;
-      let py = uy * h;
-      let pz = (uz - 0.5) * d;
-      const out = transform(px, py, pz);
       const uvp = face.uv(tu, tv);
-      varr.push(
-        cx + out[0], cy + out[1], cz + out[2],
-        t.u0 + (t.u1 - t.u0) * uvp[0],
-        t.v0 + (t.v1 - t.v0) * uvp[1],
-        light[0], light[1], shade
-      );
+      a[k++] = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
+      a[k++] = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
+      a[k++] = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
+      a[k++] = uvp[0];
+      a[k++] = uvp[1];
     }
-    iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  return a;
+})();
+
+// transform 은 결과를 out[0..2] 에 적는다 (배열을 새로 만들지 않으려고)
+function emitBox(buf, cx, cy, cz, w, h, d, texName, frontTex, transform, light) {
+  buf.reserveBox();                 // 자리부터 잡는다 (아래에서 배열을 붙잡고 쓰므로)
+  const V = buf.v, I = buf.i;
+  const l0 = light[0], l1 = light[1];
+  const out = _out3;
+  const tMain = texUV(texName);
+  const tFront = frontTex ? texUV(frontTex) : tMain;
+  for (let f = 0; f < 6; f++) {
+    const t = (f === 4) ? tFront : tMain;
+    const u0 = t.u0, du = t.u1 - t.u0, v0 = t.v0, dv = t.v1 - t.v0;
+    const shade = FACE_SHADE[f];
+    let vn = buf.vn;
+    const base = vn / 8;
+    let c = f * 20;
+    for (let ci = 0; ci < 4; ci++) {
+      transform((BOX_CORNER[c] - 0.5) * w, BOX_CORNER[c + 1] * h, (BOX_CORNER[c + 2] - 0.5) * d, out);
+      V[vn] = cx + out[0];
+      V[vn + 1] = cy + out[1];
+      V[vn + 2] = cz + out[2];
+      V[vn + 3] = u0 + du * BOX_CORNER[c + 3];
+      V[vn + 4] = v0 + dv * BOX_CORNER[c + 4];
+      V[vn + 5] = l0;
+      V[vn + 6] = l1;
+      V[vn + 7] = shade;
+      vn += 8; c += 5;
+    }
+    buf.vn = vn;
+    let inn = buf.inn;
+    I[inn] = base; I[inn + 1] = base + 1; I[inn + 2] = base + 2;
+    I[inn + 3] = base; I[inn + 4] = base + 2; I[inn + 5] = base + 3;
+    buf.inn = inn + 6;
   }
 }
 
+// 면마다 텍스처가 다른 단위 정육면체 (떨어지는 모래, 터지기 직전 TNT).
+// emitBox 는 앞면 하나만 바꿀 수 있어서 따로 둔다.
+function emitUnitCube(buf, x, y, z, id, sky, blk, flash) {
+  buf.reserveBox();
+  const V = buf.v, I = buf.i;
+  let vn = buf.vn, inn = buf.inn;
+  for (let f = 0; f < 6; f++) {
+    const t = texUV(blockTexName(id, f));
+    const u0 = t.u0, du = t.u1 - t.u0, v0 = t.v0, dv = t.v1 - t.v0;
+    const shade = flash ? 1 : FACE_SHADE[f];
+    const base = vn / 8;
+    let c = f * 20;
+    for (let ci = 0; ci < 4; ci++) {
+      V[vn] = x - 0.5 + BOX_CORNER[c];
+      V[vn + 1] = y + BOX_CORNER[c + 1];
+      V[vn + 2] = z - 0.5 + BOX_CORNER[c + 2];
+      V[vn + 3] = u0 + du * BOX_CORNER[c + 3];
+      V[vn + 4] = v0 + dv * BOX_CORNER[c + 4];
+      V[vn + 5] = sky;
+      V[vn + 6] = blk;
+      V[vn + 7] = shade;
+      vn += 8; c += 5;
+    }
+    I[inn] = base; I[inn + 1] = base + 1; I[inn + 2] = base + 2;
+    I[inn + 3] = base; I[inn + 4] = base + 2; I[inn + 5] = base + 3;
+    inn += 6;
+  }
+  buf.vn = vn; buf.inn = inn;
+}
+
+// 쌓아 둔 엔티티 지오메트리를 한 번에 올려 그린다 (다섯 군데가 쓰던 같은 코드)
+Renderer.prototype.flushEntityGeom = function (opts, countTris) {
+  const buf = _geom;
+  if (!buf.inn) return;
+  const gl = this.gl;
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, buf.v.subarray(0, buf.vn), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idx = buf.indices(this.uintExt);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  if (countTris !== false) this.stats.tris += idx.length / 3;
+};
+
 Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
   const gl = this.gl;
-  _ev.length = 0; _ei.length = 0;
+  _geom.reset();
 
   for (let i = 0; i < mgr.mobs.length; i++) {
     const m = mgr.mobs[i];
@@ -538,7 +646,7 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
       if (part.arm !== undefined) { angle = m.def.hostile ? -1.5 : swing * 0.6; pivotY = part.y + part.h; }
       const ca = Math.cos(angle), sa = Math.sin(angle);
 
-      const transform = function (px, py, pz) {
+      const transform = function (px, py, pz, out) {
         // 부위 로컬 좌표 -> 사지 회전(X축) -> 몹 위치 오프셋 -> 몸 전체 Y회전
         let ly = py + part.y;
         let lz = pz;
@@ -549,28 +657,15 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
         }
         const lx = px + part.x;
         lz = lz + part.z;
-        return [lx * cosY + lz * sinY, ly, -lx * sinY + lz * cosY];
+        out[0] = lx * cosY + lz * sinY; out[1] = ly; out[2] = -lx * sinY + lz * cosY;
       };
 
-      emitBox(_ev, _ei, m.x, m.y, m.z, part.w, part.h, part.d,
+      emitBox(_geom, m.x, m.y, m.z, part.w, part.h, part.d,
         part.tex, part.front, transform, light);
     }
   }
 
-  if (_ei.length === 0) return;
-
-  const p = this.setupTerrainProgram(opts);
-  mat4.identity(this.model);
-  gl.uniformMatrix4fv(p.u.uModel, false, this.model);
-  gl.uniform1f(p.u.uAlphaCut, 0.5);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
-  this.bindTerrainAttribs(this.entityBuf);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
-  const idx = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.flushEntityGeom(opts, false);
 };
 
 // ── 비행기 ────────────────────────────────────────────────────────────
@@ -578,7 +673,7 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   const list = mgr.planes;
   if (!list || !list.length) return;
   const gl = this.gl;
-  _ev.length = 0; _ei.length = 0;
+  _geom.reset();
 
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
@@ -606,30 +701,18 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
       // 착륙장치는 접히면서 동체 안으로 들어간다
       const tuck = gearPart ? (1 - p.gear) * 1.7 : 0;
       const bh = b.h;
-      const transform = function (px, py, pz) {
+      const transform = function (px, py, pz, out) {
         // 상자 안 좌표(px,py,pz)는 이미 크기가 곱해져 들어오므로 위치만 배율을 준다
         const lx = px + b.x * PS, ly = py - bh * PS / 2 + (b.y + tuck) * PS, lz = pz + b.z * PS;
         const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
         const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
-        return [x1 * cy + z2 * sy, y2, -x1 * sy + z2 * cy];
+        out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
       };
-      emitBox(_ev, _ei, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, b.tex, b.front, transform, light);
+      emitBox(_geom, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, b.tex, b.front, transform, light);
     }
   }
 
-  if (!_ei.length) return;
-  const prog = this.setupTerrainProgram(opts);
-  mat4.identity(this.model);
-  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
-  gl.uniform1f(prog.u.uAlphaCut, 0.5);
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
-  this.bindTerrainAttribs(this.entityBuf);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
-  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
-  this.stats.tris += idxArr.length / 3;
+  this.flushEntityGeom(opts);
 };
 
 // ── 열차 ──────────────────────────────────────────────────────────────
@@ -637,7 +720,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
   const list = mgr.trains;
   if (!list || !list.length) return;
   const gl = this.gl;
-  _ev.length = 0; _ei.length = 0;
+  _geom.reset();
 
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
@@ -666,39 +749,27 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
         for (let sp = 0; sp < spokes; sp++) {
           const ang = t.wheelAngle + sp * (Math.PI / 3);
           const ca = Math.cos(ang), sa = Math.sin(ang);
-          const wt = function (px, py, pz) {
+          const wt = function (px, py, pz, out) {
             // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전
             const ry = py - b.r, rz = pz;
             const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
             const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
-            return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+            out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
           };
-          emitBox(_ev, _ei, t.x, t.y, t.z, b.w, b.r * 2, b.r * 0.62, 'tr_wheel', null, wt, light);
+          emitBox(_geom, t.x, t.y, t.z, b.w, b.r * 2, b.r * 0.62, 'tr_wheel', null, wt, light);
         }
         continue;
       }
       const bh = b.h;
-      const transform = function (px, py, pz) {
+      const transform = function (px, py, pz, out) {
         const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
-        return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
       };
-      emitBox(_ev, _ei, t.x, t.y, t.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+      emitBox(_geom, t.x, t.y, t.z, b.w, bh, b.d, b.tex, b.front, transform, light);
     }
   }
 
-  if (!_ei.length) return;
-  const prog = this.setupTerrainProgram(opts);
-  mat4.identity(this.model);
-  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
-  gl.uniform1f(prog.u.uAlphaCut, 0.5);
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
-  this.bindTerrainAttribs(this.entityBuf);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
-  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
-  this.stats.tris += idxArr.length / 3;
+  this.flushEntityGeom(opts);
 };
 
 // ── 자동차 ────────────────────────────────────────────────────────────
@@ -709,7 +780,7 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
   const list = mgr.cars;
   if (!list || !list.length) return;
   const gl = this.gl;
-  _ev.length = 0; _ei.length = 0;
+  _geom.reset();
 
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
@@ -736,40 +807,28 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
         for (let sp = 0; sp < spokes; sp++) {
           const ang = c.wheelAngle + sp * (Math.PI / 3);
           const ca = Math.cos(ang), sa = Math.sin(ang);
-          const wt = function (px, py, pz) {
+          const wt = function (px, py, pz, out) {
             const ry = py - b.r, rz = pz;
             const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
             const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
-            return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+            out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
           };
-          emitBox(_ev, _ei, c.x, c.y, c.z, b.w, b.r * 2, b.r * 0.62, 'car_wheel', null, wt, light);
+          emitBox(_geom, c.x, c.y, c.z, b.w, b.r * 2, b.r * 0.62, 'car_wheel', null, wt, light);
         }
         continue;
       }
       const bh = b.h;
-      const transform = function (px, py, pz) {
+      const transform = function (px, py, pz, out) {
         const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
-        return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
       };
       // 전조등·미등·경광등은 밤에도 스스로 빛난다
       const lit = CAR_GLOW[b.tex] ? glow : light;
-      emitBox(_ev, _ei, c.x, c.y, c.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
+      emitBox(_geom, c.x, c.y, c.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
     }
   }
 
-  if (!_ei.length) return;
-  const prog = this.setupTerrainProgram(opts);
-  mat4.identity(this.model);
-  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
-  gl.uniform1f(prog.u.uAlphaCut, 0.5);
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
-  this.bindTerrainAttribs(this.entityBuf);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
-  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
-  this.stats.tris += idxArr.length / 3;
+  this.flushEntityGeom(opts);
 };
 
 // ── 낙하산 ────────────────────────────────────────────────────────────
@@ -794,7 +853,7 @@ const CHUTE_BOXES = [
 Renderer.prototype.drawParachute = function (player, world, opts) {
   if (!player.parachute) return;
   const gl = this.gl;
-  _ev.length = 0; _ei.length = 0;
+  _geom.reset();
   const bx = Math.floor(player.x), by = Math.min(CHUNK_Y - 1, Math.floor(player.y + 4));
   const bz = Math.floor(player.z);
   const light = [Math.max(0.8, world.getSky(bx, by, bz) / 15), world.getBlockLight(bx, by, bz) / 15];
@@ -805,24 +864,14 @@ Renderer.prototype.drawParachute = function (player, world, opts) {
   for (let i = 0; i < CHUTE_BOXES.length; i++) {
     const b = CHUTE_BOXES[i];
     const bh = b.h;
-    const transform = function (px, py, pz) {
+    const transform = function (px, py, pz, out) {
       const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
-      return [lx * cs - ly * ss * 0.2, ly * cs, lz + lx * ss * 0.15];
+      out[0] = lx * cs - ly * ss * 0.2; out[1] = ly * cs; out[2] = lz + lx * ss * 0.15;
     };
-    emitBox(_ev, _ei, player.x, player.y, player.z, b.w, bh, b.d, b.tex, null, transform, light);
+    emitBox(_geom, player.x, player.y, player.z, b.w, bh, b.d, b.tex, null, transform, light);
   }
 
-  const prog = this.setupTerrainProgram(opts);
-  mat4.identity(this.model);
-  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
-  gl.uniform1f(prog.u.uAlphaCut, 0.5);
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
-  this.bindTerrainAttribs(this.entityBuf);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
-  const ia = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ia, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, ia.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.flushEntityGeom(opts, false);
 };
 
 // 떨어진 아이템: 카메라를 향하는 얇은 판
@@ -850,10 +899,11 @@ const ITEM_STACK_OFF = [
 ];
 
 const _iv = [], _ii = [];   // 정육면체(블록 아틀라스) 배치용
+const _fv = [], _fi = [];   // 납작 아이템(아이콘 아틀라스) 배치용
 
 Renderer.prototype.drawItems = function (mgr, world, player, opts) {
   const gl = this.gl;
-  _ev.length = 0; _ei.length = 0;   // 납작 아이템 (아이템 아틀라스)
+  _fv.length = 0; _fi.length = 0;   // 납작 아이템 (아이템 아틀라스)
   _iv.length = 0; _ii.length = 0;   // 블록 아이템 (블록 아틀라스)
 
   // 멀리 있는 간이 판은 늘 카메라를 바라보게 한다 (옆에서 사라지지 않게)
@@ -888,7 +938,7 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
     // 정점 예산 (16비트 인덱스뿐인 기기에서는 65535를 넘으면 안 된다)
     const cap = this.uintExt ? ITEM_VERT_BUDGET : 60000;
     const need = isCube ? 24 : (far ? 8 : mesh.v.length / 6);
-    const used = _ev.length / 8 + _iv.length / 8;
+    const used = _fv.length / 8 + _iv.length / 8;
     if (used + need * copies > cap) {
       copies = 1;
       if (used + need > cap) break;
@@ -897,12 +947,12 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
     for (let c = 0; c < copies; c++) {
       const off = ITEM_STACK_OFF[c];
       if (isCube) this.emitItemCube(_iv, _ii, it, bid, off, rc, rs, bob, sky, blk);
-      else if (far) this.emitItemFlat(_ev, _ei, it, off, prc, prs, bob, sky, blk);
-      else this.emitItemMesh(_ev, _ei, mesh, it, off, rc, rs, bob, sky, blk);
+      else if (far) this.emitItemFlat(_fv, _fi, it, off, prc, prs, bob, sky, blk);
+      else this.emitItemMesh(_fv, _fi, mesh, it, off, rc, rs, bob, sky, blk);
     }
   }
 
-  if (!_ei.length && !_ii.length) return;
+  if (!_fi.length && !_ii.length) return;
 
   const p = this.setupTerrainProgram(opts);
   mat4.identity(this.model);
@@ -923,14 +973,14 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
   }
 
   // 2) 납작 아이템 — 아이콘 아틀라스
-  if (_ei.length) {
+  if (_fi.length) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.itemTex);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.itemBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_fv), gl.DYNAMIC_DRAW);
     this.bindTerrainAttribs(this.itemBuf);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.itemIdxBuf);
-    const fa = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+    const fa = this.uintExt ? new Uint32Array(_fi) : new Uint16Array(_fi);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, fa, gl.DYNAMIC_DRAW);
     gl.drawElements(gl.TRIANGLES, fa.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
     gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
@@ -1012,7 +1062,7 @@ Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
   const tnts = mgr.tnt || [];
   if (!falling.length && !tnts.length) return;
 
-  _ev.length = 0; _ei.length = 0;
+  _geom.reset();
 
   const list = [];
   for (let i = 0; i < falling.length; i++) {
@@ -1035,42 +1085,10 @@ Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
     const sky = world.getSky(bx, by, bz) / 15;
     const blk = e.flash ? 1 : world.getBlockLight(bx, by, bz) / 15;
 
-    for (let f = 0; f < 6; f++) {
-      const face = FACES[f];
-      const t = texUV(blockTexName(e.id, f));
-      const shadeF = e.flash ? 1 : FACE_SHADE[f];
-      const base = _ev.length / 8;
-      for (let ci = 0; ci < 4; ci++) {
-        const tu = (ci === 1 || ci === 2) ? 1 : 0;
-        const tv = (ci === 2 || ci === 3) ? 1 : 0;
-        const ux = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
-        const uy = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
-        const uz = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
-        const uvp = face.uv(tu, tv);
-        _ev.push(
-          e.x - 0.5 + ux, e.y + uy, e.z - 0.5 + uz,
-          t.u0 + (t.u1 - t.u0) * uvp[0],
-          t.v0 + (t.v1 - t.v0) * uvp[1],
-          sky, blk, shadeF);
-      }
-      _ei.push(base, base + 1, base + 2, base, base + 2, base + 3);
-    }
+    emitUnitCube(_geom, e.x, e.y, e.z, e.id, sky, blk, e.flash);
   }
 
-  if (!_ei.length) return;
-
-  const p = this.setupTerrainProgram(opts);
-  mat4.identity(this.model);
-  gl.uniformMatrix4fv(p.u.uModel, false, this.model);
-  gl.uniform1f(p.u.uAlphaCut, 0.5);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
-  this.bindTerrainAttribs(this.entityBuf);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
-  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.flushEntityGeom(opts, false);
 };
 
 // ── 선택 외곽선 ───────────────────────────────────────────────────────

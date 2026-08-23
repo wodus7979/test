@@ -311,8 +311,15 @@ Game.prototype.streamChunks = function (budgetMs, forceRadius) {
     });
     toDelete.forEach(function (key) {
       const c = w.chunks.get(key);
-      if (c && c.modified) return; // 수정된 청크는 유지 (저장 대상)
+      if (!c) return;
       self.renderer.dropChunk(c.cx, c.cz);
+      if (c.modified) {
+        // 손댄 청크는 저장해야 하니 블록은 들고 있되, 화면에 쓰던 것은 버린다.
+        // 다시 가까워지면 dirty 를 보고 메시를 새로 만든다.
+        c.meshData = null;
+        c.dirty = true;
+        return;
+      }
       w.chunks.delete(key);
     });
   }
@@ -1476,10 +1483,6 @@ Game.prototype.exportSave = function () {
   }
 };
 
-Game.prototype.hasSave = function () {
-  try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
-};
-
 Game.prototype.load = function (given) {
   let data = given || null;
   if (!data) {
@@ -1563,10 +1566,6 @@ Game.prototype.loadFromText = function (text) {
   try { localStorage.setItem(SAVE_KEY, text); } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
   this._pendingSave = data;
   return this.load(data);
-};
-
-Game.prototype.deleteSave = function () {
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ }
 };
 
 // ── 루프 ──────────────────────────────────────────────────────────────

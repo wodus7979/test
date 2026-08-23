@@ -29,6 +29,31 @@ const FACES = [
 const AO_LEVELS = [0.46, 0.63, 0.81, 1.0];
 const FACE_SHADE = [0.80, 0.80, 1.0, 0.55, 0.68, 0.68];
 
+// 면 6 × 모서리 4 마다 미리 셈해 두는 값 11개:
+//   [단위칸 x, y, z, 텍스처 u, v, 옆칸1 x, y, z, 옆칸2 x, y, z]
+// 정점마다 작은 배열 예닐곱 개를 만들던 것을 없애려고 표로 뽑아 둔다.
+const FACE_CORNER = (function () {
+  const a = new Float32Array(6 * 4 * 11);
+  let k = 0;
+  for (let f = 0; f < 6; f++) {
+    const face = FACES[f];
+    for (let ci = 0; ci < 4; ci++) {
+      const tu = (ci === 1 || ci === 2) ? 1 : 0;
+      const tv = (ci === 2 || ci === 3) ? 1 : 0;
+      const uvp = face.uv(tu, tv);
+      const su = tu ? 1 : -1, sv = tv ? 1 : -1;
+      a[k++] = face.origin[0] + face.u[0] * tu + face.v[0] * tv;
+      a[k++] = face.origin[1] + face.u[1] * tu + face.v[1] * tv;
+      a[k++] = face.origin[2] + face.u[2] * tu + face.v[2] * tv;
+      a[k++] = uvp[0];
+      a[k++] = uvp[1];
+      a[k++] = face.u[0] * su; a[k++] = face.u[1] * su; a[k++] = face.u[2] * su;
+      a[k++] = face.v[0] * sv; a[k++] = face.v[1] * sv; a[k++] = face.v[2] * sv;
+    }
+  }
+  return a;
+})();
+
 // 담장·벽·유리판 이음새 상자 (0~16 단위)
 const CONNECT_BOXES = {
   fence: {
@@ -844,46 +869,43 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
     } else if (!shouldDrawFace(id, nid)) continue;
 
     const t = texUV(blockTexName(id, f));
+    const u0 = t.u0, du0 = t.u1 - t.u0, v0 = t.v0, dv0 = t.v1 - t.v0;
     const shadeF = FACE_SHADE[f];
     const yShrink = (isLiquid && f === 2) ? 0.12 : 0;
     const base = varr.length / 8;
 
+    let q = f * 44;
     for (let ci = 0; ci < 4; ci++) {
-      const tu = (ci === 1 || ci === 2) ? 1 : 0;
-      const tv = (ci === 2 || ci === 3) ? 1 : 0;
-      let px = wx + face.origin[0] + face.u[0] * tu + face.v[0] * tv;
-      let py = wy + face.origin[1] + face.u[1] * tu + face.v[1] * tv;
-      let pz = wz + face.origin[2] + face.u[2] * tu + face.v[2] * tv;
+      const px = wx + FACE_CORNER[q];
+      let py = wy + FACE_CORNER[q + 1];
+      const pz = wz + FACE_CORNER[q + 2];
       if (yShrink && py > wy) py -= yShrink;
 
-      const uvp = face.uv(tu, tv);
-      const u = t.u0 + (t.u1 - t.u0) * uvp[0];
-      const v = t.v0 + (t.v1 - t.v0) * uvp[1];
+      const u = u0 + du0 * FACE_CORNER[q + 3];
+      const v = v0 + dv0 * FACE_CORNER[q + 4];
 
-      const du = [face.u[0] * (tu ? 1 : -1), face.u[1] * (tu ? 1 : -1), face.u[2] * (tu ? 1 : -1)];
-      const dv = [face.v[0] * (tv ? 1 : -1), face.v[1] * (tv ? 1 : -1), face.v[2] * (tv ? 1 : -1)];
-      const s1 = [nx + du[0], ny + du[1], nz + du[2]];
-      const s2 = [nx + dv[0], ny + dv[1], nz + dv[2]];
-      const co = [nx + du[0] + dv[0], ny + du[1] + dv[1], nz + du[2] + dv[2]];
+      // 이웃 칸 세 곳 — 그림자(AO)와 빛을 섞는 데 쓴다
+      const ax = nx + FACE_CORNER[q + 5], ay = ny + FACE_CORNER[q + 6], az = nz + FACE_CORNER[q + 7];
+      const bx2 = nx + FACE_CORNER[q + 8], by2 = ny + FACE_CORNER[q + 9], bz2 = nz + FACE_CORNER[q + 10];
+      const cx2 = ax + FACE_CORNER[q + 8], cy2 = ay + FACE_CORNER[q + 9], cz2 = az + FACE_CORNER[q + 10];
+      q += 11;
 
-      const o1 = blockDef(this.getBlock(s1[0], s1[1], s1[2])).opaque;
-      const o2 = blockDef(this.getBlock(s2[0], s2[1], s2[2])).opaque;
-      const oc = blockDef(this.getBlock(co[0], co[1], co[2])).opaque;
+      const o1 = blockDef(this.getBlock(ax, ay, az)).opaque;
+      const o2 = blockDef(this.getBlock(bx2, by2, bz2)).opaque;
+      const oc = blockDef(this.getBlock(cx2, cy2, cz2)).opaque;
       const occ = (o1 && o2) ? 0 : 3 - ((o1 ? 1 : 0) + (o2 ? 1 : 0) + (oc ? 1 : 0));
       const ao = AO_LEVELS[occ < 0 ? 0 : (occ > 3 ? 3 : occ)] * shadeF;
 
       let skySum = 0, blkSum = 0, cnt = 0;
-      const cells = [[nx, ny, nz], s1, s2, co];
-      for (let k = 0; k < 4; k++) {
-        const cc = cells[k];
-        if (blockDef(this.getBlock(cc[0], cc[1], cc[2])).opaque) continue;
-        skySum += this.getSky(cc[0], cc[1], cc[2]);
-        blkSum += this.getBlockLight(cc[0], cc[1], cc[2]);
-        cnt++;
+      if (!blockDef(this.getBlock(nx, ny, nz)).opaque) {
+        skySum += this.getSky(nx, ny, nz); blkSum += this.getBlockLight(nx, ny, nz); cnt++;
       }
+      if (!o1) { skySum += this.getSky(ax, ay, az); blkSum += this.getBlockLight(ax, ay, az); cnt++; }
+      if (!o2) { skySum += this.getSky(bx2, by2, bz2); blkSum += this.getBlockLight(bx2, by2, bz2); cnt++; }
+      if (!oc) { skySum += this.getSky(cx2, cy2, cz2); blkSum += this.getBlockLight(cx2, cy2, cz2); cnt++; }
       if (cnt === 0) { skySum = this.getSky(nx, ny, nz); blkSum = this.getBlockLight(nx, ny, nz); cnt = 1; }
 
-      pushVertex(varr, px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao);
+      varr.push(px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao);
     }
     iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }

@@ -85,7 +85,6 @@ const SHAPES = {
 const STAIR_BOXES = [box(0, 0, 0, 16, 8, 16), box(0, 8, 8, 16, 16, 16)];
 // 담장 기둥/가로대
 const FENCE_POST = box(6, 0, 6, 10, 16, 10);
-const FENCE_ARM_Z = [box(7, 3, 10, 9, 15, 16), box(7, 3, 10, 9, 15, 16)];
 // 벽 기둥
 const WALL_POST = box(4, 0, 4, 12, 16, 12);
 // 유리판 중심
@@ -177,9 +176,6 @@ B.air = 0;
 
 // ── 헬퍼 ──────────────────────────────────────────────────────────────
 function blockDef(id) { return BLOCKS[id] || BLOCKS[0]; }
-function isAir(id) { return id === 0; }
-function isSolid(id) { return blockDef(id).solid; }
-function isOpaque(id) { return blockDef(id).opaque; }
 function isLiquid(id) { return blockDef(id).liquid; }
 
 // face: 0=+X 1=-X 2=+Y 3=-Y 4=+Z 5=-Z

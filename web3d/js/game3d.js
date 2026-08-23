@@ -2,7 +2,7 @@
 'use strict';
 
 const GAME3D_VERSION = 'v1.0';
-const GAME3D_BUILD = '2026-08-24';
+const GAME3D_BUILD = '2026-08-23';
 
 function Game3D(seed, opts) {
   opts = opts || {};
@@ -507,7 +507,7 @@ Game3D.prototype.updateHUD = function (dt) {
   const bi = BIOME_NAMES[this.world.biomeAt(p.x, p.z)];
   if (this.el.stats) {
     this.el.stats.innerHTML =
-      '<b>WebCraft 3D</b> ' + GAME3D_VERSION + ' · ' + Math.round(this.fps || 0) + ' fps<br>' +
+      '<b>WebCraft 3D</b> ' + GAME3D_VERSION + ' (' + GAME3D_BUILD + ') · ' + Math.round(this.fps || 0) + ' fps<br>' +
       'X ' + Math.round(p.x) + ' Y ' + Math.round(p.y) + ' Z ' + Math.round(p.z) + '<br>' +
       bi + ' · ' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm +
       (this.sky.wet > 0.05 ? ' · 궂은 날' : '') +

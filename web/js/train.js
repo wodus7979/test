@@ -320,7 +320,6 @@ Train.prototype.ridePlayer = function (p, dt, game) {
 };
 
 // 옛 이름 (한 자리에 앉혀 두기)
-Train.prototype.seatPlayer = function (p) { this.ridePlayer(p, 0, null); };
 
 // ── 엔티티 관리 ───────────────────────────────────────────────────────
 EntityManager.prototype.trainRoutes = function () {
@@ -379,19 +378,6 @@ EntityManager.prototype.pickTrain = function (ox, oy, oz, dx, dy, dz, maxDist) {
     const b = [-1.8, -2.6, -14.4, 1.8, 1.8, 14.4];
     const hit = rayBoxHit(rx, oy - t.y, rz, rdx, dy, rdz, b);
     if (hit && hit.t < bestT) { bestT = hit.t; best = { train: t, t: hit.t }; }
-  }
-  return best;
-};
-
-// 가까이 있는 열차 (F 키로 타기)
-EntityManager.prototype.nearestTrain = function (x, y, z, maxDist) {
-  if (!this.trains) return null;
-  let best = null, bd = maxDist;
-  for (let i = 0; i < this.trains.length; i++) {
-    const t = this.trains[i];
-    if (t.rider) continue;
-    const d = Math.hypot(t.x - x, t.z - z) + Math.abs(t.y - y) * 0.8;
-    if (d < bd) { bd = d; best = t; }
   }
   return best;
 };
