@@ -102,7 +102,8 @@ function apRect(plan, x0, z0, x1, z1, id, dy) {
 }
 
 // 글자 찍기. vertical=true 면 활주로 진행 방향에서 읽히도록 눕힌다.
-function apText(plan, text, cx, cz, scale, id, vertical, y) {
+// flip 을 주면 반대편(작은 z 쪽)에서 읽히도록 글자를 뒤집는다.
+function apText(plan, text, cx, cz, scale, id, vertical, y, flip) {
   const gw = 3, gh = 5, gap = 1;
   const total = text.length * (gw + gap) - gap;
   let cur = -Math.floor(total / 2);
@@ -117,8 +118,9 @@ function apText(plan, text, cx, cz, scale, id, vertical, y) {
             for (let sx = 0; sx < scale; sx++) {
               const a = (cur + c) * scale + sx;
               const b = (gh - 1 - r) * scale + sy;
-              const ox = vertical ? b : a;
-              const oz = vertical ? a : -b;
+              let ox = vertical ? b : a;
+              let oz = vertical ? a : -b;
+              if (flip) { ox = -ox; oz = -oz; }
               plan.set(plan.x + cx + ox, yy, plan.z + cz + oz, id, 0, true);
             }
           }

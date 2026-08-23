@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.1';
-const GAME_BUILD = '2026-08-25';
-const GAME_FEATURES = '3량 전동차(객실 탑승) · 저마다 다른 도시 3곳 · 가구 · 롯데타워';
+const GAME_VERSION = 'v7.2';
+const GAME_BUILD = '2026-08-23';
+const GAME_FEATURES = '도시 교통 · 경찰서와 소방서 · 3량 전동차 · 저마다 다른 도시 3곳';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -915,8 +915,9 @@ Game.prototype.planeCamera = function (pl, dt) {
   const cp = Math.cos(this._camPitch), sp = Math.sin(this._camPitch);
   // 기수 방향 (비행기 로컬 +Z)
   const nose = [cp * Math.sin(this._camYaw), sp, cp * Math.cos(this._camYaw)];
-  const back = pl.onGround ? 30 : 34;
-  const up = pl.onGround ? 8 : 9;
+  // 기체를 줄인 만큼 카메라도 붙는다 — 화면에 보이는 크기는 그대로, 세상이 넓어 보인다
+  const back = (pl.onGround ? 30 : 34) * PLANE_SCALE;
+  const up = (pl.onGround ? 8 : 9) * PLANE_SCALE;
   let ex = pl.x - nose[0] * back;
   let ey = pl.y - nose[1] * back + up;
   let ez = pl.z - nose[2] * back;
@@ -1629,6 +1630,7 @@ Game.prototype.update = function (dt) {
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
+  if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -1747,6 +1749,7 @@ Game.prototype.render = function (dt) {
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawPlanes(this.entities, this.world, p, opts);
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
+  if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);

@@ -421,3 +421,63 @@ defFurnTex('tr_bogie', function (p, rnd) {
   p.noise(rnd, '#2e343b', 6, 3);
   p.rect(0, 4, 16, 2, '#454c55');
 });
+
+// ── 자동차 표면 (cars.js) ─────────────────────────────────────────────
+function carPaint(base, dark) {
+  return function (p, rnd) {
+    p.noise(rnd, base, 5, 4);
+    p.rect(0, 0, 16, 1, dark);
+    p.rect(0, 15, 16, 1, dark);
+  };
+}
+defFurnTex('car_red', carPaint('#b62a28', '#8d1f1e'));
+defFurnTex('car_blue', carPaint('#2a4f9c', '#1e3a76'));
+defFurnTex('car_white', carPaint('#e6e9ec', '#c3c8cd'));
+defFurnTex('car_black', carPaint('#25282d', '#171a1e'));
+defFurnTex('car_silver', carPaint('#9aa2ab', '#7b838c'));
+defFurnTex('car_green', carPaint('#2f7a46', '#215c34'));
+defFurnTex('car_glass', function (p, rnd) {
+  p.noise(rnd, '#1b2530', 5, 3);
+  p.rect(0, 2, 16, 3, '#31465c');
+});
+defFurnTex('car_wheel', function (p, rnd) {
+  p.noise(rnd, '#1c1f23', 5, 3);
+  p.rect(5, 5, 6, 6, '#8b939c');
+});
+defFurnTex('car_lightF', function (p, rnd) { p.noise(rnd, '#fff3c8', 4, 5); });
+defFurnTex('car_lightR', function (p, rnd) { p.noise(rnd, '#d33a30', 5, 4); });
+// 택시 — 노란 차체에 갓등
+defFurnTex('car_taxi', function (p, rnd) {
+  p.noise(rnd, '#e8b23a', 5, 4);
+  p.rect(0, 6, 16, 4, '#2b2f35');
+});
+// 버스 — 파란 띠를 두른 흰 차체
+defFurnTex('car_bus', function (p, rnd) {
+  p.noise(rnd, '#f0f2f4', 4, 5);
+  p.rect(0, 9, 16, 3, '#1f5fb0');
+  p.rect(0, 12, 16, 2, '#12a3a3');
+});
+defFurnTex('car_bus_win', function (p, rnd) {
+  p.noise(rnd, '#f0f2f4', 4, 5);
+  p.rect(1, 3, 14, 8, '#16202c');
+});
+// 트럭 짐칸
+defFurnTex('car_cargo', function (p, rnd) {
+  p.noise(rnd, '#8a8f96', 5, 3);
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#71767c');
+});
+// 순찰차
+defFurnTex('car_police', function (p, rnd) {
+  p.noise(rnd, '#f0f2f4', 4, 5);
+  p.rect(0, 5, 16, 6, '#1b3f8c');
+  p.rect(2, 6, 12, 4, '#f0f2f4');
+});
+defFurnTex('car_siren', function (p, rnd) {
+  p.rect(0, 0, 8, 16, '#d33a30');
+  p.rect(8, 0, 8, 16, '#2f6fd0');
+});
+// 소방차
+defFurnTex('car_fire', function (p, rnd) {
+  p.noise(rnd, '#c22f26', 5, 4);
+  p.rect(0, 10, 16, 2, '#f0f2f4');
+});

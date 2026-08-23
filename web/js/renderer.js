@@ -584,7 +584,9 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
     const p = list[i];
     const dx = p.x - player.x, dz = p.z - player.z;
     if (dx * dx + dz * dz > 720 * 720) continue;
-    if (!this.boxInFrustum(p.x - 13, p.y - 5, p.z - 14, p.x + 13, p.y + 8, p.z + 14)) continue;
+    const PS = PLANE_SCALE;
+    if (!this.boxInFrustum(p.x - 13 * PS, p.y - 5 * PS, p.z - 14 * PS,
+      p.x + 13 * PS, p.y + 8 * PS, p.z + 14 * PS)) continue;
 
     const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
     const sky = (p.y > CHUNK_Y - 4) ? 1 : world.getSky(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
@@ -605,12 +607,13 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
       const tuck = gearPart ? (1 - p.gear) * 1.7 : 0;
       const bh = b.h;
       const transform = function (px, py, pz) {
-        const lx = px + b.x, ly = py - bh / 2 + b.y + tuck, lz = pz + b.z;
+        // 상자 안 좌표(px,py,pz)는 이미 크기가 곱해져 들어오므로 위치만 배율을 준다
+        const lx = px + b.x * PS, ly = py - bh * PS / 2 + (b.y + tuck) * PS, lz = pz + b.z * PS;
         const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
         const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
         return [x1 * cy + z2 * sy, y2, -x1 * sy + z2 * cy];
       };
-      emitBox(_ev, _ei, p.x, p.y, p.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+      emitBox(_ev, _ei, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, b.tex, b.front, transform, light);
     }
   }
 
@@ -680,6 +683,77 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
         return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
       };
       emitBox(_ev, _ei, t.x, t.y, t.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+    }
+  }
+
+  if (!_ei.length) return;
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.stats.tris += idxArr.length / 3;
+};
+
+// ── 자동차 ────────────────────────────────────────────────────────────
+// 스스로 빛나는 부품 표면
+const CAR_GLOW = { car_lightF: 1, car_lightR: 1, car_siren: 1 };
+
+Renderer.prototype.drawCars = function (mgr, world, player, opts) {
+  const list = mgr.cars;
+  if (!list || !list.length) return;
+  const gl = this.gl;
+  _ev.length = 0; _ei.length = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    const dx = c.x - player.x, dz = c.z - player.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 > 220 * 220) continue;
+    const L = c.type.len;
+    if (!this.boxInFrustum(c.x - L, c.y - 1, c.z - L, c.x + L, c.y + 4, c.z + L)) continue;
+
+    const bx = Math.floor(c.x), by = Math.floor(c.y), bz = Math.floor(c.z);
+    const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 1), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    const light = [Math.max(sky, 0.3), Math.max(blk, 0.25)];
+    const glow = [light[0], 1];
+
+    const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+    const near = Math.sqrt(d2);
+    const spokes = near < 40 ? 3 : 1;
+    const parts = c.type.parts;
+    for (let k = 0; k < parts.length; k++) {
+      const b = parts[k];
+      if (b.wheel) {
+        if (near > 110) continue;
+        for (let sp = 0; sp < spokes; sp++) {
+          const ang = c.wheelAngle + sp * (Math.PI / 3);
+          const ca = Math.cos(ang), sa = Math.sin(ang);
+          const wt = function (px, py, pz) {
+            const ry = py - b.r, rz = pz;
+            const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+          };
+          emitBox(_ev, _ei, c.x, c.y, c.z, b.w, b.r * 2, b.r * 0.62, 'car_wheel', null, wt, light);
+        }
+        continue;
+      }
+      const bh = b.h;
+      const transform = function (px, py, pz) {
+        const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+        return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+      };
+      // 전조등·미등·경광등은 밤에도 스스로 빛난다
+      const lit = CAR_GLOW[b.tex] ? glow : light;
+      emitBox(_ev, _ei, c.x, c.y, c.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
     }
   }
 

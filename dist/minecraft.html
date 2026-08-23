@@ -737,6 +737,9 @@ body.touch .hand { display: none !important; }
               <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기(공중이면 낙하산)</li>
           <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li>목적지까지 <b>500블록</b>이 남으면 <b>자동 착륙 승인 창</b>이 뜬다 — <b>Y</b> 승인, <b>N</b> 취소</li>
+          <li>도시 길에는 <b>자동차 여덟 종류</b>(승용차·택시·승합차·버스·트럭·순찰차·소방차)가
+              우측통행으로 달리고, 교차로에서 방향을 튼다. 앞에 서 있으면 멈춘다.
+              도시마다 <b>경찰서</b>와 <b>소방서</b>도 있다</li>
           <li>공항마다 <b>도시</b>가 하나씩 딸려 있고 <b>생김새가 저마다 다르다</b> —
               유리 신도시 <b>인천 송도</b>, <b>롯데타워</b>와 벽돌 상가 거리가 섞인 <b>김포 도심</b>,
               현무암 기단에 주황 기와를 얹은 <b>제주시</b>. 횡단보도와 가로수도 있다.
@@ -2986,6 +2989,66 @@ defFurnTex('tr_wheel', function (p, rnd) {
 defFurnTex('tr_bogie', function (p, rnd) {
   p.noise(rnd, '#2e343b', 6, 3);
   p.rect(0, 4, 16, 2, '#454c55');
+});
+
+// ── 자동차 표면 (cars.js) ─────────────────────────────────────────────
+function carPaint(base, dark) {
+  return function (p, rnd) {
+    p.noise(rnd, base, 5, 4);
+    p.rect(0, 0, 16, 1, dark);
+    p.rect(0, 15, 16, 1, dark);
+  };
+}
+defFurnTex('car_red', carPaint('#b62a28', '#8d1f1e'));
+defFurnTex('car_blue', carPaint('#2a4f9c', '#1e3a76'));
+defFurnTex('car_white', carPaint('#e6e9ec', '#c3c8cd'));
+defFurnTex('car_black', carPaint('#25282d', '#171a1e'));
+defFurnTex('car_silver', carPaint('#9aa2ab', '#7b838c'));
+defFurnTex('car_green', carPaint('#2f7a46', '#215c34'));
+defFurnTex('car_glass', function (p, rnd) {
+  p.noise(rnd, '#1b2530', 5, 3);
+  p.rect(0, 2, 16, 3, '#31465c');
+});
+defFurnTex('car_wheel', function (p, rnd) {
+  p.noise(rnd, '#1c1f23', 5, 3);
+  p.rect(5, 5, 6, 6, '#8b939c');
+});
+defFurnTex('car_lightF', function (p, rnd) { p.noise(rnd, '#fff3c8', 4, 5); });
+defFurnTex('car_lightR', function (p, rnd) { p.noise(rnd, '#d33a30', 5, 4); });
+// 택시 — 노란 차체에 갓등
+defFurnTex('car_taxi', function (p, rnd) {
+  p.noise(rnd, '#e8b23a', 5, 4);
+  p.rect(0, 6, 16, 4, '#2b2f35');
+});
+// 버스 — 파란 띠를 두른 흰 차체
+defFurnTex('car_bus', function (p, rnd) {
+  p.noise(rnd, '#f0f2f4', 4, 5);
+  p.rect(0, 9, 16, 3, '#1f5fb0');
+  p.rect(0, 12, 16, 2, '#12a3a3');
+});
+defFurnTex('car_bus_win', function (p, rnd) {
+  p.noise(rnd, '#f0f2f4', 4, 5);
+  p.rect(1, 3, 14, 8, '#16202c');
+});
+// 트럭 짐칸
+defFurnTex('car_cargo', function (p, rnd) {
+  p.noise(rnd, '#8a8f96', 5, 3);
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#71767c');
+});
+// 순찰차
+defFurnTex('car_police', function (p, rnd) {
+  p.noise(rnd, '#f0f2f4', 4, 5);
+  p.rect(0, 5, 16, 6, '#1b3f8c');
+  p.rect(2, 6, 12, 4, '#f0f2f4');
+});
+defFurnTex('car_siren', function (p, rnd) {
+  p.rect(0, 0, 8, 16, '#d33a30');
+  p.rect(8, 0, 8, 16, '#2f6fd0');
+});
+// 소방차
+defFurnTex('car_fire', function (p, rnd) {
+  p.noise(rnd, '#c22f26', 5, 4);
+  p.rect(0, 10, 16, 2, '#f0f2f4');
 });
 
 </script>
@@ -8635,7 +8698,8 @@ function apRect(plan, x0, z0, x1, z1, id, dy) {
 }
 
 // 글자 찍기. vertical=true 면 활주로 진행 방향에서 읽히도록 눕힌다.
-function apText(plan, text, cx, cz, scale, id, vertical, y) {
+// flip 을 주면 반대편(작은 z 쪽)에서 읽히도록 글자를 뒤집는다.
+function apText(plan, text, cx, cz, scale, id, vertical, y, flip) {
   const gw = 3, gh = 5, gap = 1;
   const total = text.length * (gw + gap) - gap;
   let cur = -Math.floor(total / 2);
@@ -8650,8 +8714,9 @@ function apText(plan, text, cx, cz, scale, id, vertical, y) {
             for (let sx = 0; sx < scale; sx++) {
               const a = (cur + c) * scale + sx;
               const b = (gh - 1 - r) * scale + sy;
-              const ox = vertical ? b : a;
-              const oz = vertical ? a : -b;
+              let ox = vertical ? b : a;
+              let oz = vertical ? a : -b;
+              if (flip) { ox = -ox; oz = -oz; }
               plan.set(plan.x + cx + ox, yy, plan.z + cz + oz, id, 0, true);
             }
           }
@@ -9418,6 +9483,175 @@ function balconyBlock(plan, cx, cz, hw, hd, h, pal, rnd) {
   set(cx, top + 2, cz, B.glowstone);
 }
 
+// ── 경찰서 ────────────────────────────────────────────────────────────
+// 앞쪽은 순찰차를 대는 주차장, 뒤쪽이 2층 청사. 지붕에 파란 경광등.
+function policeStation(plan, cx, cz, half) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  const wall = bid('white_concrete');
+  const band = bid('blue_concrete');
+  const trim = bid('light_gray_concrete');
+  const dark = bid('gray_concrete');
+  const hw = half - 1, hd = half - 1;
+
+  // 부지 바닥 — 앞은 아스팔트 주차장, 뒤는 청사 바닥
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      set(cx + dx, 0, cz + dz, dz < 0 ? bid('black_concrete') : trim);
+    }
+  }
+  // 주차 구획선
+  for (let dx = -hw + 1; dx <= hw - 1; dx += 3) {
+    for (let dz = -hd + 1; dz <= -2; dz++) set(cx + dx, 0, cz + dz, bid('white_concrete'));
+  }
+  // 앞마당은 위를 비워둔다 — 가로수가 넘어와 바닥 글씨를 가리지 않게
+  for (let dz = -hd; dz <= -1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 1, cz + dz, 0, 0, 8);
+  }
+
+  // 청사 (뒤쪽 절반) — 2층
+  const H = 9;
+  const z0 = 0, z1 = hd;
+  for (let y = 1; y <= H; y++) {
+    for (let dz = z0; dz <= z1; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        const edge = (dx === -hw || dx === hw || dz === z0 || dz === z1);
+        if (!edge) continue;
+        const corner = (dx === -hw || dx === hw) && (dz === z0 || dz === z1);
+        if (y === 1 || y === 5 || y === H) { set(cx + dx, y, cz + dz, band); continue; }
+        const along = (dz === z0 || dz === z1) ? (dx + hw) : (dz - z0);
+        // 층마다 창 두 줄만 — 나머지는 벽으로 채워 속이 비어 보이지 않게
+        const winRow = (y === 2 || y === 3 || y === 6 || y === 7);
+        const win = winRow && !corner && (along % 2 === 0);
+        set(cx + dx, y, cz + dz, win ? bid('glass_pane') : wall);
+      }
+    }
+  }
+  // 정문 (앞쪽 가운데)
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let y = 2; y <= 4; y++) set(cx + dx, y, cz + z0, 0);
+  }
+  set(cx, 2, cz + z0, bid('oak_door'), 0);
+  set(cx, 3, cz + z0, bid('oak_door'), META_HALF2);
+  // 현관 차양
+  for (let dx = -2; dx <= 2; dx++) set(cx + dx, 5, cz + z0 - 1, band);
+  for (const dx of [-2, 2]) set(cx + dx, 2, cz + z0 - 1, dark, 0, 3);
+
+  // 지붕
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, H + 1, cz + dz, trim);
+  }
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      if (dx !== -hw && dx !== hw && dz !== z0 && dz !== z1) continue;
+      set(cx + dx, H + 2, cz + dz, band);
+    }
+  }
+  // 경광등
+  set(cx, H + 3, cz + (z0 + z1) / 2 | 0, bid('blue_stained_glass'));
+  set(cx, H + 4, cz + (z0 + z1) / 2 | 0, bid('sea_lantern'));
+  // 게양대
+  set(cx - hw + 1, H + 2, cz + z0 + 1, bid('iron_bars'), 0, 5);
+
+  // 앞마당 표시
+  // 길에서 읽히도록 뒤집어 찍는다
+  apText(plan, 'POLICE', cx, cz - 6, 1, band, false, gy, true);
+  plan.police = { x: plan.x + cx, y: gy + 1, z: plan.z + cz - hd + 3, half: half };
+}
+
+// ── 소방서 ────────────────────────────────────────────────────────────
+// 소방차가 드나드는 차고 세 칸과 훈련탑.
+function fireStation(plan, cx, cz, half) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  const wall = bid('red_concrete');
+  const brick = bid('bricks');
+  const trim = bid('white_concrete');
+  const dark = bid('gray_concrete');
+  const hw = half - 1, hd = half - 1;
+
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      set(cx + dx, 0, cz + dz, dz < 0 ? bid('light_gray_concrete') : trim);
+    }
+  }
+  // 차고 앞 진출입로
+  for (let dx = -hw + 1; dx <= hw - 1; dx++) {
+    for (let dz = -hd; dz <= -1; dz++) {
+      if ((dx + 32) % 6 < 4) set(cx + dx, 0, cz + dz, bid('gray_concrete'));
+    }
+  }
+  // 차고 앞은 위를 비워둔다 — 소방차가 나갈 길을 가로수가 막지 않게
+  for (let dz = -hd; dz <= -1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 1, cz + dz, 0, 0, 8);
+  }
+
+  const H = 10;
+  const z0 = 0, z1 = hd;
+  for (let y = 1; y <= H; y++) {
+    for (let dz = z0; dz <= z1; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        const edge = (dx === -hw || dx === hw || dz === z0 || dz === z1);
+        if (!edge) continue;
+        if (y === 1 || y === H) { set(cx + dx, y, cz + dz, brick); continue; }
+        if (y === 6) { set(cx + dx, y, cz + dz, trim); continue; }
+        const along = (dz === z0 || dz === z1) ? (dx + hw) : (dz - z0);
+        const win = (y > 6) && (along % 2 === 0) && dx !== -hw && dx !== hw;
+        set(cx + dx, y, cz + dz, win ? bid('glass_pane') : wall);
+      }
+    }
+  }
+  // 차고 문 세 칸 (앞면을 뚫는다)
+  const bays = [-hw + 2, 0, hw - 2];
+  for (const bx of bays) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let y = 1; y <= 5; y++) set(cx + bx + dx, y, cz + z0, 0);
+      set(cx + bx + dx, 6, cz + z0, trim);
+    }
+    // 열린 문 (위로 말려 올라간 셔터)
+    for (let dx = -1; dx <= 1; dx++) set(cx + bx + dx, 5, cz + z0, dark);
+  }
+  // 차고 안 바닥
+  for (let dz = z0 + 1; dz <= z0 + 5 && dz <= z1 - 1; dz++) {
+    for (let dx = -hw + 1; dx <= hw - 1; dx++) set(cx + dx, 0, cz + dz, bid('gray_concrete'));
+  }
+
+  // 지붕과 난간
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, H + 1, cz + dz, dark);
+  }
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      if (dx !== -hw && dx !== hw && dz !== z0 && dz !== z1) continue;
+      set(cx + dx, H + 2, cz + dz, bid('iron_bars'));
+    }
+  }
+  // 훈련탑 (호스를 말리는 탑)
+  const tx = cx + hw - 2, tz = cz + z1 - 2;
+  for (let y = 1; y <= H + 8; y++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const edge = Math.abs(dx) === 1 || Math.abs(dz) === 1;
+        set(tx + dx, y, tz + dz, edge ? brick : 0);
+      }
+    }
+  }
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) set(tx + dx, H + 9, tz + dz, dark);
+  }
+  set(tx, H + 10, tz, bid('red_concrete'));
+  set(tx, H + 11, tz, bid('glowstone'));
+
+  apText(plan, 'FIRE', cx, cz - 6, 1, trim, false, gy, true);
+  plan.fire = { x: plan.x + cx, y: gy + 1, z: plan.z + cz - hd + 3, half: half, bays: bays.map(function (b) {
+    return { x: plan.x + cx + b, z: plan.z + cz + z0 + 3 };
+  }) };
+}
+
 // ── 횡단보도 ──────────────────────────────────────────────────────────
 function crossWalks(plan, lines, st) {
   const gy = plan.y;
@@ -9929,9 +10163,24 @@ function buildCityPlan(world, ap, index) {
 
   let tallLeft = st.tall;
   const parks = [];
+  // 도심 가까운 두 구획은 경찰서와 소방서 — 아래 두 반복문 모두 이 자리를 비워 둔다
+  const POLICE_LOT = 1, FIRE_LOT = 2;
   for (let i = 0; i < lots.length; i++) {
     const lot = lots[i];
     if (i % 7 === 3) { parks.push(lot); continue; }
+    if (i === POLICE_LOT || i === FIRE_LOT) {
+      for (let dz = -half - 2; dz <= half + 2; dz++) {
+        for (let dx = -half - 2; dx <= half + 2; dx++) {
+          plan.set(best.x + lot.x + dx, gy, best.z + lot.z + dz,
+            (Math.abs(dx) > half || Math.abs(dz) > half) ? st.walk : st.plaza, 0, true);
+        }
+      }
+      if (i === POLICE_LOT) policeStation(plan, lot.x, lot.z, half);
+      else fireStation(plan, lot.x, lot.z, half);
+      put(lot.x - 2, lot.z - half - 2, i === POLICE_LOT ? 'armorer' : 'toolsmith');
+      put(lot.x + 2, lot.z - half - 2, null);
+      continue;
+    }
     // 구획 바닥을 포장한다 (건물이 잔디 위에 뜬 것처럼 보이지 않게)
     for (let dz = -half - 2; dz <= half + 2; dz++) {
       for (let dx = -half - 2; dx <= half + 2; dx++) {
@@ -9967,6 +10216,7 @@ function buildCityPlan(world, ap, index) {
   for (let i = 0; i < lots.length && tallLeft > 0; i++) {
     const lot = lots[i];
     if (i % 7 === 3) continue;
+    if (i === POLICE_LOT || i === FIRE_LOT) continue;
     if (archList[i % archList.length] === 'glass') continue;
     const h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
     cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, { pal: glassPals[(rnd() * glassPals.length) | 0] });
@@ -11594,7 +11844,10 @@ const PLANE_SPOOL = 0.55;      // 추력 반응 (엔진이 천천히 붙는다)
 const PLANE_TURN = 0.95;       // 초당 최대 선회(라디안)
 const PLANE_PITCH_RATE = 0.80;
 const PLANE_SINK = 15;         // 실속했을 때 가라앉는 속도
-const PLANE_REST = 3.4;        // 바퀴가 땅에 닿을 때 동체 중심 높이
+// 기체 크기 배율. 맵에 견줘 너무 커서 60%로 줄였다.
+// 모델 상자는 그대로 두고 그릴 때·좌표를 옮길 때만 곱한다.
+const PLANE_SCALE = 0.6;
+const PLANE_REST = 3.4 * PLANE_SCALE;   // 바퀴가 땅에 닿을 때 동체 중심 높이
 const PLANE_CEIL = 154;        // 이 위로는 못 올라간다 (세계 높이 한계)
 const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
 
@@ -11623,6 +11876,7 @@ Plane.prototype.nose = function () {
 
 // 로컬 좌표 -> 월드 좌표 (롤 → 피치 → 요)
 Plane.prototype.toWorld = function (lx, ly, lz) {
+  lx *= PLANE_SCALE; ly *= PLANE_SCALE; lz *= PLANE_SCALE;
   const cr = Math.cos(this.roll), sr = Math.sin(this.roll);
   let x = lx * cr - ly * sr, y = lx * sr + ly * cr, z = lz;
   const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
@@ -11942,8 +12196,10 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
   for (let i = 0; i < this.planes.length; i++) {
     const p = this.planes[i];
     if (p.rider || p.ambient || p.airline) continue;
+    const S = PLANE_SCALE;
     const t = rayBox(ox, oy, oz, dx, dy, dz,
-      p.x - 12, p.y - 4, p.z - 13, p.x + 12, p.y + 7, p.z + 13);
+      p.x - 12 * S, p.y - 4 * S, p.z - 13 * S,
+      p.x + 12 * S, p.y + 7 * S, p.z + 13 * S);
     if (t !== null && t < bestT) { bestT = t; best = p; }
   }
   return best ? { plane: best, dist: bestT } : null;
@@ -12642,6 +12898,273 @@ EntityManager.prototype.nearestTrain = function (x, y, z, maxDist) {
     if (d < bd) { bd = d; best = t; }
   }
   return best;
+};
+
+</script>
+<script>
+/* ==== js/cars.js ==== */
+// cars.js - 도시 길 위를 달리는 자동차.
+// 도시의 격자 도로를 따라 우측통행으로 달리고, 교차로에서 가끔 방향을 튼다.
+// 앞이 막히면(사람이든 다른 차든) 속도를 줄이고, 밤에는 전조등이 켜진다.
+'use strict';
+
+const CAR_LANE = 1.6;        // 도로 중심선에서 차선까지
+const CAR_MAX = 9.0;         // 최고 속도 (블록/초)
+const CAR_ACC = 5.0;
+const CAR_BRAKE = 9.0;
+const CAR_WHEEL_R = 0.42;
+const CARS_PER_CITY = 26;
+const CAR_SPAWN_R = 260;     // 이 안에 들어오면 차를 굴린다
+const CAR_DESPAWN_R = 420;
+
+// ── 차종 다섯 (+ 순찰차 · 소방차) ─────────────────────────────────────
+// 상자마다 {x,y,z} 는 가운데, 앞은 +Z. y 는 바퀴가 닿는 바닥이 0.
+function carBody(paint, opts) {
+  opts = opts || {};
+  const L = opts.len || 4.2, W = opts.wide || 1.9;
+  const P = [];
+  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
+  // 차체
+  box(0, 0.72, 0, W, 0.75, L, paint);
+  // 앞뒤 범퍼
+  box(0, 0.55, L / 2 + 0.12, W - 0.16, 0.35, 0.26, 'car_black');
+  box(0, 0.55, -L / 2 - 0.12, W - 0.16, 0.35, 0.26, 'car_black');
+  // 객실
+  box(0, 1.42, -0.25, W - 0.24, 0.66, L * 0.52, paint);
+  box(0, 1.42, -0.25 + L * 0.26 - 0.03, W - 0.3, 0.56, 0.1, 'car_glass');   // 앞유리
+  box(0, 1.42, -0.25 - L * 0.26 + 0.03, W - 0.3, 0.56, 0.1, 'car_glass');   // 뒷유리
+  for (const s of [-1, 1]) box(s * (W - 0.28) / 2, 1.42, -0.25, 0.1, 0.5, L * 0.44, 'car_glass');
+  // 등
+  for (const s of [-1, 1]) {
+    box(s * (W / 2 - 0.42), 0.86, L / 2 + 0.1, 0.5, 0.26, 0.14, 'car_lightF');
+    box(s * (W / 2 - 0.42), 0.86, -L / 2 - 0.1, 0.5, 0.26, 0.14, 'car_lightR');
+  }
+  // 바퀴 넷
+  for (const s of [-1, 1]) {
+    for (const z of [L / 2 - 1.05, -L / 2 + 1.05]) {
+      P.push({ wheel: true, x: s * (W / 2 - 0.06), y: CAR_WHEEL_R, z: z, r: CAR_WHEEL_R, w: 0.3 });
+    }
+  }
+  if (opts.extra) opts.extra(P, box, L, W);
+  return P;
+}
+
+function busBody() {
+  const P = [];
+  const L = 9.5, W = 2.5;
+  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
+  box(0, 1.45, 0, W, 2.2, L, 'car_bus');
+  box(0, 1.9, L / 2 + 0.04, W - 0.3, 1.1, 0.12, 'car_glass');
+  box(0, 1.9, -L / 2 - 0.04, W - 0.3, 1.0, 0.12, 'car_glass');
+  for (const s of [-1, 1]) box(s * (W / 2 + 0.02), 2.05, -0.4, 0.1, 0.9, L - 2.4, 'car_bus_win');
+  box(0, 2.66, 0, W - 0.2, 0.2, L - 0.4, 'car_silver');
+  for (const s of [-1, 1]) {
+    box(s * (W / 2 - 0.5), 0.9, L / 2 + 0.06, 0.5, 0.3, 0.14, 'car_lightF');
+    box(s * (W / 2 - 0.5), 0.9, -L / 2 - 0.06, 0.5, 0.3, 0.14, 'car_lightR');
+  }
+  box(0, 0.5, 0, W - 0.2, 0.5, L - 0.6, 'car_black');
+  for (const s of [-1, 1]) {
+    for (const z of [L / 2 - 1.6, -L / 2 + 1.8]) {
+      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.5, z: z, r: 0.5, w: 0.34 });
+    }
+  }
+  return P;
+}
+
+function truckBody() {
+  const P = [];
+  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
+  const W = 2.3;
+  // 운전실
+  box(0, 1.35, 2.4, W, 1.9, 2.6, 'car_green');
+  box(0, 1.75, 3.66, W - 0.3, 0.9, 0.12, 'car_glass');
+  box(0, 0.6, 0, W - 0.2, 0.5, 8.2, 'car_black');
+  // 짐칸
+  box(0, 1.85, -1.7, W, 2.1, 5.4, 'car_cargo');
+  for (const s of [-1, 1]) {
+    box(s * (W / 2 - 0.5), 0.86, 3.75, 0.5, 0.3, 0.14, 'car_lightF');
+    box(s * (W / 2 - 0.5), 0.86, -4.2, 0.5, 0.3, 0.14, 'car_lightR');
+  }
+  for (const s of [-1, 1]) {
+    for (const z of [2.5, -1.0, -3.0]) {
+      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.48, z: z, r: 0.48, w: 0.32 });
+    }
+  }
+  return P;
+}
+
+function fireBody() {
+  const P = [];
+  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
+  const W = 2.4;
+  box(0, 1.35, 2.6, W, 1.9, 2.4, 'car_fire');
+  box(0, 1.75, 3.76, W - 0.3, 0.9, 0.12, 'car_glass');
+  box(0, 1.6, -1.4, W, 1.7, 6.0, 'car_fire');
+  box(0, 0.6, 0, W - 0.2, 0.5, 8.4, 'car_black');
+  box(0, 2.6, -1.4, 0.6, 0.5, 5.4, 'car_silver');           // 사다리
+  box(0, 2.62, 3.4, 1.2, 0.3, 0.6, 'car_siren');            // 경광등
+  for (const s of [-1, 1]) {
+    box(s * (W / 2 - 0.5), 0.86, 3.85, 0.5, 0.3, 0.14, 'car_lightF');
+    box(s * (W / 2 - 0.5), 0.86, -4.35, 0.5, 0.3, 0.14, 'car_lightR');
+    for (const z of [2.6, -1.0, -3.4]) {
+      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.5, z: z, r: 0.5, w: 0.34 });
+    }
+  }
+  return P;
+}
+
+const CAR_TYPES = [
+  { key: 'sedan', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0,
+    parts: carBody('car_silver', { len: 4.2, wide: 1.9 }) },
+  { key: 'sedan2', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0,
+    parts: carBody('car_blue', { len: 4.2, wide: 1.9 }) },
+  { key: 'taxi', kr: '택시', len: 4.4, wide: 1.9, speed: 1.1,
+    parts: carBody('car_taxi', { len: 4.4, wide: 1.9, extra: function (P, box) {
+      box(0, 1.82, -0.25, 0.9, 0.28, 0.5, 'car_lightF');   // 갓등
+    } }) },
+  { key: 'van', kr: '승합차', len: 5.4, wide: 2.1, speed: 0.9,
+    parts: carBody('car_white', { len: 5.4, wide: 2.1, extra: function (P, box, L, W) {
+      box(0, 1.82, -0.9, W - 0.3, 0.7, L * 0.4, 'car_white');
+    } }) },
+  { key: 'bus', kr: '버스', len: 9.5, wide: 2.5, speed: 0.72, parts: busBody() },
+  { key: 'truck', kr: '트럭', len: 8.4, wide: 2.3, speed: 0.68, parts: truckBody() },
+  { key: 'police', kr: '순찰차', len: 4.4, wide: 2.0, speed: 1.15,
+    parts: carBody('car_police', { len: 4.4, wide: 2.0, extra: function (P, box) {
+      box(0, 1.84, -0.1, 1.1, 0.3, 0.5, 'car_siren');
+    } }) },
+  { key: 'fire', kr: '소방차', len: 8.6, wide: 2.4, speed: 0.7, parts: fireBody() }
+];
+
+// 도로에 실제로 보이는 비율대로 뽑는다 — 승용차가 대부분, 소방차는 아주 드물게.
+const CAR_WEIGHT = [26, 22, 16, 13, 9, 9, 4, 1];
+const CAR_WEIGHT_SUM = CAR_WEIGHT.reduce(function (a, b) { return a + b; }, 0);
+function pickCarType() {
+  let r = Math.random() * CAR_WEIGHT_SUM;
+  for (let i = 0; i < CAR_WEIGHT.length; i++) {
+    r -= CAR_WEIGHT[i];
+    if (r <= 0) return CAR_TYPES[i];
+  }
+  return CAR_TYPES[0];
+}
+
+// ── 차 한 대 ──────────────────────────────────────────────────────────
+// axis 0 = X 방향 도로(z 고정), 1 = Z 방향 도로(x 고정)
+function Car(city, type, axis, line, dir, pos) {
+  this.city = city;
+  this.type = type;
+  this.axis = axis;
+  this.line = line;         // 도로 중심선의 좌표 (도시 중심 기준)
+  this.dir = dir;           // +1 / -1
+  this.pos = pos;           // 진행 축 위 좌표 (도시 중심 기준)
+  this.speed = 0;
+  this.wheelAngle = 0;
+  this.y = city.y + 1;
+  this.turnCool = 6;
+  this.sync();
+}
+
+Car.prototype.sync = function () {
+  const c = this.city;
+  // 우측통행 — 진행 방향 기준 오른쪽 차선
+  const off = this.dir > 0 ? CAR_LANE : -CAR_LANE;
+  if (this.axis === 0) {
+    this.x = c.x + this.pos;
+    this.z = c.z + this.line + off;
+    this.yaw = this.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+  } else {
+    this.x = c.x + this.line - off;
+    this.z = c.z + this.pos;
+    this.yaw = this.dir > 0 ? 0 : Math.PI;
+  }
+};
+
+Car.prototype.update = function (dt, game) {
+  const c = this.city;
+  // 앞이 막혔는지 — 플레이어와 다른 차
+  let want = CAR_MAX * this.type.speed;
+  const p = game.player;
+  const ax = this.axis === 0 ? 'x' : 'z';
+  const ahead = (p[ax] - (this.axis === 0 ? this.x : this.z)) * this.dir;
+  const side = Math.abs(this.axis === 0 ? (p.z - this.z) : (p.x - this.x));
+  if (ahead > 0 && ahead < 7 && side < 2.4 && Math.abs(p.y - this.y) < 3) want = 0;
+  if (this._blocked) want = Math.min(want, this._blocked);
+
+  const target = want;
+  if (target > this.speed) this.speed = Math.min(target, this.speed + CAR_ACC * dt);
+  else this.speed = Math.max(target, this.speed - CAR_BRAKE * dt);
+
+  this.pos += this.dir * this.speed * dt;
+  this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
+  this.turnCool -= dt;
+
+  // 교차로에서 방향 틀기
+  if (this.turnCool <= 0) {
+    const lines = c.roadLines;
+    for (let i = 0; i < lines.length; i++) {
+      if (Math.abs(this.pos - lines[i]) < 0.7) {
+        if (Math.random() < 0.34) {
+          const newLine = this.pos;
+          this.pos = this.line;
+          this.line = newLine;
+          this.axis = this.axis ? 0 : 1;
+          if (Math.random() < 0.5) this.dir = -this.dir;
+          this.turnCool = 3.0;
+        } else this.turnCool = 1.2;
+        break;
+      }
+    }
+  }
+  // 도시 밖으로 나가면 반대편에서 다시 들어온다
+  const R = CITY_R - 6;
+  if (this.pos > R) { this.pos = -R; }
+  else if (this.pos < -R) { this.pos = R; }
+
+  this.y = c.y + 1;
+  this.sync();
+};
+
+// ── 관리 ──────────────────────────────────────────────────────────────
+EntityManager.prototype.updateCars = function (dt, player, game) {
+  if (!this.cars) this.cars = [];
+  const w = this.world;
+  if (!w.cities) return;
+  const cities = w.cities();
+
+  // 가까운 도시에 차를 채운다
+  for (let i = 0; i < cities.length; i++) {
+    const c = cities[i];
+    if (Math.hypot(c.x - player.x, c.z - player.z) > CAR_SPAWN_R) continue;
+    let here = 0;
+    for (let k = 0; k < this.cars.length; k++) if (this.cars[k].city === c) here++;
+    while (here < CARS_PER_CITY) {
+      const lines = c.roadLines;
+      if (!lines || !lines.length) break;
+      const axis = Math.random() < 0.5 ? 0 : 1;
+      const line = lines[(Math.random() * lines.length) | 0];
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const pos = (Math.random() * 2 - 1) * (CITY_R - 10);
+      this.cars.push(new Car(c, pickCarType(), axis, line, dir, pos));
+      here++;
+    }
+  }
+
+  // 굴리기 + 앞차 살피기
+  for (let i = this.cars.length - 1; i >= 0; i--) {
+    const car = this.cars[i];
+    if (Math.hypot(car.city.x - player.x, car.city.z - player.z) > CAR_DESPAWN_R) {
+      this.cars.splice(i, 1);
+      continue;
+    }
+    car._blocked = null;
+    for (let k = 0; k < this.cars.length; k++) {
+      if (k === i) continue;
+      const o = this.cars[k];
+      if (o.city !== car.city || o.axis !== car.axis || o.line !== car.line || o.dir !== car.dir) continue;
+      const gap = (o.pos - car.pos) * car.dir;
+      if (gap > 0 && gap < car.type.len + 2.5) car._blocked = Math.min(o.speed * 0.85, 2);
+    }
+    car.update(dt, game);
+  }
 };
 
 </script>
@@ -14433,7 +14956,9 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
     const p = list[i];
     const dx = p.x - player.x, dz = p.z - player.z;
     if (dx * dx + dz * dz > 720 * 720) continue;
-    if (!this.boxInFrustum(p.x - 13, p.y - 5, p.z - 14, p.x + 13, p.y + 8, p.z + 14)) continue;
+    const PS = PLANE_SCALE;
+    if (!this.boxInFrustum(p.x - 13 * PS, p.y - 5 * PS, p.z - 14 * PS,
+      p.x + 13 * PS, p.y + 8 * PS, p.z + 14 * PS)) continue;
 
     const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
     const sky = (p.y > CHUNK_Y - 4) ? 1 : world.getSky(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
@@ -14454,12 +14979,13 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
       const tuck = gearPart ? (1 - p.gear) * 1.7 : 0;
       const bh = b.h;
       const transform = function (px, py, pz) {
-        const lx = px + b.x, ly = py - bh / 2 + b.y + tuck, lz = pz + b.z;
+        // 상자 안 좌표(px,py,pz)는 이미 크기가 곱해져 들어오므로 위치만 배율을 준다
+        const lx = px + b.x * PS, ly = py - bh * PS / 2 + (b.y + tuck) * PS, lz = pz + b.z * PS;
         const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
         const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
         return [x1 * cy + z2 * sy, y2, -x1 * sy + z2 * cy];
       };
-      emitBox(_ev, _ei, p.x, p.y, p.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+      emitBox(_ev, _ei, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, b.tex, b.front, transform, light);
     }
   }
 
@@ -14529,6 +15055,77 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
         return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
       };
       emitBox(_ev, _ei, t.x, t.y, t.z, b.w, bh, b.d, b.tex, b.front, transform, light);
+    }
+  }
+
+  if (!_ei.length) return;
+  const prog = this.setupTerrainProgram(opts);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(prog.u.uModel, false, this.model);
+  gl.uniform1f(prog.u.uAlphaCut, 0.5);
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.entityBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(_ev), gl.DYNAMIC_DRAW);
+  this.bindTerrainAttribs(this.entityBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.entityIdxBuf);
+  const idxArr = this.uintExt ? new Uint32Array(_ei) : new Uint16Array(_ei);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.DYNAMIC_DRAW);
+  gl.drawElements(gl.TRIANGLES, idxArr.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+  this.stats.tris += idxArr.length / 3;
+};
+
+// ── 자동차 ────────────────────────────────────────────────────────────
+// 스스로 빛나는 부품 표면
+const CAR_GLOW = { car_lightF: 1, car_lightR: 1, car_siren: 1 };
+
+Renderer.prototype.drawCars = function (mgr, world, player, opts) {
+  const list = mgr.cars;
+  if (!list || !list.length) return;
+  const gl = this.gl;
+  _ev.length = 0; _ei.length = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    const dx = c.x - player.x, dz = c.z - player.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 > 220 * 220) continue;
+    const L = c.type.len;
+    if (!this.boxInFrustum(c.x - L, c.y - 1, c.z - L, c.x + L, c.y + 4, c.z + L)) continue;
+
+    const bx = Math.floor(c.x), by = Math.floor(c.y), bz = Math.floor(c.z);
+    const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 1), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    const light = [Math.max(sky, 0.3), Math.max(blk, 0.25)];
+    const glow = [light[0], 1];
+
+    const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+    const near = Math.sqrt(d2);
+    const spokes = near < 40 ? 3 : 1;
+    const parts = c.type.parts;
+    for (let k = 0; k < parts.length; k++) {
+      const b = parts[k];
+      if (b.wheel) {
+        if (near > 110) continue;
+        for (let sp = 0; sp < spokes; sp++) {
+          const ang = c.wheelAngle + sp * (Math.PI / 3);
+          const ca = Math.cos(ang), sa = Math.sin(ang);
+          const wt = function (px, py, pz) {
+            const ry = py - b.r, rz = pz;
+            const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+          };
+          emitBox(_ev, _ei, c.x, c.y, c.z, b.w, b.r * 2, b.r * 0.62, 'car_wheel', null, wt, light);
+        }
+        continue;
+      }
+      const bh = b.h;
+      const transform = function (px, py, pz) {
+        const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+        return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+      };
+      // 전조등·미등·경광등은 밤에도 스스로 빛난다
+      const lit = CAR_GLOW[b.tex] ? glow : light;
+      emitBox(_ev, _ei, c.x, c.y, c.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
     }
   }
 
@@ -16049,9 +16646,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.1';
-const GAME_BUILD = '2026-08-25';
-const GAME_FEATURES = '3량 전동차(객실 탑승) · 저마다 다른 도시 3곳 · 가구 · 롯데타워';
+const GAME_VERSION = 'v7.2';
+const GAME_BUILD = '2026-08-23';
+const GAME_FEATURES = '도시 교통 · 경찰서와 소방서 · 3량 전동차 · 저마다 다른 도시 3곳';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -16936,8 +17533,9 @@ Game.prototype.planeCamera = function (pl, dt) {
   const cp = Math.cos(this._camPitch), sp = Math.sin(this._camPitch);
   // 기수 방향 (비행기 로컬 +Z)
   const nose = [cp * Math.sin(this._camYaw), sp, cp * Math.cos(this._camYaw)];
-  const back = pl.onGround ? 30 : 34;
-  const up = pl.onGround ? 8 : 9;
+  // 기체를 줄인 만큼 카메라도 붙는다 — 화면에 보이는 크기는 그대로, 세상이 넓어 보인다
+  const back = (pl.onGround ? 30 : 34) * PLANE_SCALE;
+  const up = (pl.onGround ? 8 : 9) * PLANE_SCALE;
   let ex = pl.x - nose[0] * back;
   let ey = pl.y - nose[1] * back + up;
   let ez = pl.z - nose[2] * back;
@@ -17650,6 +18248,7 @@ Game.prototype.update = function (dt) {
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
+  if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -17768,6 +18367,7 @@ Game.prototype.render = function (dt) {
   r.drawEntities(this.entities, this.world, p, opts);
   r.drawPlanes(this.entities, this.world, p, opts);
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
+  if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);

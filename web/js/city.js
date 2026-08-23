@@ -272,6 +272,175 @@ function balconyBlock(plan, cx, cz, hw, hd, h, pal, rnd) {
   set(cx, top + 2, cz, B.glowstone);
 }
 
+// ── 경찰서 ────────────────────────────────────────────────────────────
+// 앞쪽은 순찰차를 대는 주차장, 뒤쪽이 2층 청사. 지붕에 파란 경광등.
+function policeStation(plan, cx, cz, half) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  const wall = bid('white_concrete');
+  const band = bid('blue_concrete');
+  const trim = bid('light_gray_concrete');
+  const dark = bid('gray_concrete');
+  const hw = half - 1, hd = half - 1;
+
+  // 부지 바닥 — 앞은 아스팔트 주차장, 뒤는 청사 바닥
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      set(cx + dx, 0, cz + dz, dz < 0 ? bid('black_concrete') : trim);
+    }
+  }
+  // 주차 구획선
+  for (let dx = -hw + 1; dx <= hw - 1; dx += 3) {
+    for (let dz = -hd + 1; dz <= -2; dz++) set(cx + dx, 0, cz + dz, bid('white_concrete'));
+  }
+  // 앞마당은 위를 비워둔다 — 가로수가 넘어와 바닥 글씨를 가리지 않게
+  for (let dz = -hd; dz <= -1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 1, cz + dz, 0, 0, 8);
+  }
+
+  // 청사 (뒤쪽 절반) — 2층
+  const H = 9;
+  const z0 = 0, z1 = hd;
+  for (let y = 1; y <= H; y++) {
+    for (let dz = z0; dz <= z1; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        const edge = (dx === -hw || dx === hw || dz === z0 || dz === z1);
+        if (!edge) continue;
+        const corner = (dx === -hw || dx === hw) && (dz === z0 || dz === z1);
+        if (y === 1 || y === 5 || y === H) { set(cx + dx, y, cz + dz, band); continue; }
+        const along = (dz === z0 || dz === z1) ? (dx + hw) : (dz - z0);
+        // 층마다 창 두 줄만 — 나머지는 벽으로 채워 속이 비어 보이지 않게
+        const winRow = (y === 2 || y === 3 || y === 6 || y === 7);
+        const win = winRow && !corner && (along % 2 === 0);
+        set(cx + dx, y, cz + dz, win ? bid('glass_pane') : wall);
+      }
+    }
+  }
+  // 정문 (앞쪽 가운데)
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let y = 2; y <= 4; y++) set(cx + dx, y, cz + z0, 0);
+  }
+  set(cx, 2, cz + z0, bid('oak_door'), 0);
+  set(cx, 3, cz + z0, bid('oak_door'), META_HALF2);
+  // 현관 차양
+  for (let dx = -2; dx <= 2; dx++) set(cx + dx, 5, cz + z0 - 1, band);
+  for (const dx of [-2, 2]) set(cx + dx, 2, cz + z0 - 1, dark, 0, 3);
+
+  // 지붕
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, H + 1, cz + dz, trim);
+  }
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      if (dx !== -hw && dx !== hw && dz !== z0 && dz !== z1) continue;
+      set(cx + dx, H + 2, cz + dz, band);
+    }
+  }
+  // 경광등
+  set(cx, H + 3, cz + (z0 + z1) / 2 | 0, bid('blue_stained_glass'));
+  set(cx, H + 4, cz + (z0 + z1) / 2 | 0, bid('sea_lantern'));
+  // 게양대
+  set(cx - hw + 1, H + 2, cz + z0 + 1, bid('iron_bars'), 0, 5);
+
+  // 앞마당 표시
+  // 길에서 읽히도록 뒤집어 찍는다
+  apText(plan, 'POLICE', cx, cz - 6, 1, band, false, gy, true);
+  plan.police = { x: plan.x + cx, y: gy + 1, z: plan.z + cz - hd + 3, half: half };
+}
+
+// ── 소방서 ────────────────────────────────────────────────────────────
+// 소방차가 드나드는 차고 세 칸과 훈련탑.
+function fireStation(plan, cx, cz, half) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  const wall = bid('red_concrete');
+  const brick = bid('bricks');
+  const trim = bid('white_concrete');
+  const dark = bid('gray_concrete');
+  const hw = half - 1, hd = half - 1;
+
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      set(cx + dx, 0, cz + dz, dz < 0 ? bid('light_gray_concrete') : trim);
+    }
+  }
+  // 차고 앞 진출입로
+  for (let dx = -hw + 1; dx <= hw - 1; dx++) {
+    for (let dz = -hd; dz <= -1; dz++) {
+      if ((dx + 32) % 6 < 4) set(cx + dx, 0, cz + dz, bid('gray_concrete'));
+    }
+  }
+  // 차고 앞은 위를 비워둔다 — 소방차가 나갈 길을 가로수가 막지 않게
+  for (let dz = -hd; dz <= -1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 1, cz + dz, 0, 0, 8);
+  }
+
+  const H = 10;
+  const z0 = 0, z1 = hd;
+  for (let y = 1; y <= H; y++) {
+    for (let dz = z0; dz <= z1; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        const edge = (dx === -hw || dx === hw || dz === z0 || dz === z1);
+        if (!edge) continue;
+        if (y === 1 || y === H) { set(cx + dx, y, cz + dz, brick); continue; }
+        if (y === 6) { set(cx + dx, y, cz + dz, trim); continue; }
+        const along = (dz === z0 || dz === z1) ? (dx + hw) : (dz - z0);
+        const win = (y > 6) && (along % 2 === 0) && dx !== -hw && dx !== hw;
+        set(cx + dx, y, cz + dz, win ? bid('glass_pane') : wall);
+      }
+    }
+  }
+  // 차고 문 세 칸 (앞면을 뚫는다)
+  const bays = [-hw + 2, 0, hw - 2];
+  for (const bx of bays) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let y = 1; y <= 5; y++) set(cx + bx + dx, y, cz + z0, 0);
+      set(cx + bx + dx, 6, cz + z0, trim);
+    }
+    // 열린 문 (위로 말려 올라간 셔터)
+    for (let dx = -1; dx <= 1; dx++) set(cx + bx + dx, 5, cz + z0, dark);
+  }
+  // 차고 안 바닥
+  for (let dz = z0 + 1; dz <= z0 + 5 && dz <= z1 - 1; dz++) {
+    for (let dx = -hw + 1; dx <= hw - 1; dx++) set(cx + dx, 0, cz + dz, bid('gray_concrete'));
+  }
+
+  // 지붕과 난간
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, H + 1, cz + dz, dark);
+  }
+  for (let dz = z0; dz <= z1; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      if (dx !== -hw && dx !== hw && dz !== z0 && dz !== z1) continue;
+      set(cx + dx, H + 2, cz + dz, bid('iron_bars'));
+    }
+  }
+  // 훈련탑 (호스를 말리는 탑)
+  const tx = cx + hw - 2, tz = cz + z1 - 2;
+  for (let y = 1; y <= H + 8; y++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const edge = Math.abs(dx) === 1 || Math.abs(dz) === 1;
+        set(tx + dx, y, tz + dz, edge ? brick : 0);
+      }
+    }
+  }
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) set(tx + dx, H + 9, tz + dz, dark);
+  }
+  set(tx, H + 10, tz, bid('red_concrete'));
+  set(tx, H + 11, tz, bid('glowstone'));
+
+  apText(plan, 'FIRE', cx, cz - 6, 1, trim, false, gy, true);
+  plan.fire = { x: plan.x + cx, y: gy + 1, z: plan.z + cz - hd + 3, half: half, bays: bays.map(function (b) {
+    return { x: plan.x + cx + b, z: plan.z + cz + z0 + 3 };
+  }) };
+}
+
 // ── 횡단보도 ──────────────────────────────────────────────────────────
 function crossWalks(plan, lines, st) {
   const gy = plan.y;
@@ -783,9 +952,24 @@ function buildCityPlan(world, ap, index) {
 
   let tallLeft = st.tall;
   const parks = [];
+  // 도심 가까운 두 구획은 경찰서와 소방서 — 아래 두 반복문 모두 이 자리를 비워 둔다
+  const POLICE_LOT = 1, FIRE_LOT = 2;
   for (let i = 0; i < lots.length; i++) {
     const lot = lots[i];
     if (i % 7 === 3) { parks.push(lot); continue; }
+    if (i === POLICE_LOT || i === FIRE_LOT) {
+      for (let dz = -half - 2; dz <= half + 2; dz++) {
+        for (let dx = -half - 2; dx <= half + 2; dx++) {
+          plan.set(best.x + lot.x + dx, gy, best.z + lot.z + dz,
+            (Math.abs(dx) > half || Math.abs(dz) > half) ? st.walk : st.plaza, 0, true);
+        }
+      }
+      if (i === POLICE_LOT) policeStation(plan, lot.x, lot.z, half);
+      else fireStation(plan, lot.x, lot.z, half);
+      put(lot.x - 2, lot.z - half - 2, i === POLICE_LOT ? 'armorer' : 'toolsmith');
+      put(lot.x + 2, lot.z - half - 2, null);
+      continue;
+    }
     // 구획 바닥을 포장한다 (건물이 잔디 위에 뜬 것처럼 보이지 않게)
     for (let dz = -half - 2; dz <= half + 2; dz++) {
       for (let dx = -half - 2; dx <= half + 2; dx++) {
@@ -821,6 +1005,7 @@ function buildCityPlan(world, ap, index) {
   for (let i = 0; i < lots.length && tallLeft > 0; i++) {
     const lot = lots[i];
     if (i % 7 === 3) continue;
+    if (i === POLICE_LOT || i === FIRE_LOT) continue;
     if (archList[i % archList.length] === 'glass') continue;
     const h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
     cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, { pal: glassPals[(rnd() * glassPals.length) | 0] });

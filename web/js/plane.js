@@ -55,7 +55,10 @@ const PLANE_SPOOL = 0.55;      // 추력 반응 (엔진이 천천히 붙는다)
 const PLANE_TURN = 0.95;       // 초당 최대 선회(라디안)
 const PLANE_PITCH_RATE = 0.80;
 const PLANE_SINK = 15;         // 실속했을 때 가라앉는 속도
-const PLANE_REST = 3.4;        // 바퀴가 땅에 닿을 때 동체 중심 높이
+// 기체 크기 배율. 맵에 견줘 너무 커서 60%로 줄였다.
+// 모델 상자는 그대로 두고 그릴 때·좌표를 옮길 때만 곱한다.
+const PLANE_SCALE = 0.6;
+const PLANE_REST = 3.4 * PLANE_SCALE;   // 바퀴가 땅에 닿을 때 동체 중심 높이
 const PLANE_CEIL = 154;        // 이 위로는 못 올라간다 (세계 높이 한계)
 const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
 
@@ -84,6 +87,7 @@ Plane.prototype.nose = function () {
 
 // 로컬 좌표 -> 월드 좌표 (롤 → 피치 → 요)
 Plane.prototype.toWorld = function (lx, ly, lz) {
+  lx *= PLANE_SCALE; ly *= PLANE_SCALE; lz *= PLANE_SCALE;
   const cr = Math.cos(this.roll), sr = Math.sin(this.roll);
   let x = lx * cr - ly * sr, y = lx * sr + ly * cr, z = lz;
   const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
@@ -403,8 +407,10 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
   for (let i = 0; i < this.planes.length; i++) {
     const p = this.planes[i];
     if (p.rider || p.ambient || p.airline) continue;
+    const S = PLANE_SCALE;
     const t = rayBox(ox, oy, oz, dx, dy, dz,
-      p.x - 12, p.y - 4, p.z - 13, p.x + 12, p.y + 7, p.z + 13);
+      p.x - 12 * S, p.y - 4 * S, p.z - 13 * S,
+      p.x + 12 * S, p.y + 7 * S, p.z + 13 * S);
     if (t !== null && t < bestT) { bestT = t; best = p; }
   }
   return best ? { plane: best, dist: bestT } : null;
