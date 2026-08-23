@@ -22,6 +22,105 @@
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
 
+  // ── 캐릭터 만들기 ──
+  const PROFILE_KEY = 'webcraft.profile.v1';
+  const nameInput = document.getElementById('char-name');
+  const preview = document.getElementById('char-preview');
+  const pctx = preview ? preview.getContext('2d') : null;
+
+  function loadProfile() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { saved = null; }
+    if (saved && saved.skin) {
+      return { name: String(saved.name || '').slice(0, 12), skin: normalizeSkin(saved.skin) };
+    }
+    return { name: '', skin: randomSkin() };
+  }
+  const profile = loadProfile();
+  if (nameInput) nameInput.value = profile.name;
+
+  function saveProfile() {
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) { /* 무시 */ }
+  }
+
+  // 고르는 단추 한 줄 만들기
+  function makeSwatches(id, key, list, colorOf, labelOf) {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.innerHTML = '';
+    for (let i = 0; i < list.length; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.title = list[i].name;
+      const c = colorOf(list[i], i);
+      if (c) b.style.background = c;
+      if (labelOf) b.textContent = labelOf(list[i], i);
+      b.addEventListener('click', function () {
+        profile.skin[key] = i;
+        saveProfile();
+        refresh();
+      });
+      box.appendChild(b);
+    }
+  }
+  makeSwatches('opt-tone', 'tone', SKIN_TONES, function (o) { return o.c; });
+  makeSwatches('opt-face', 'face', FACE_STYLES, function () { return 'rgba(255,255,255,.10)'; },
+    function (o, i) { return String(i + 1); });
+  makeSwatches('opt-hair', 'hair', HAIR_COLORS, function (o) { return o.c; });
+  makeSwatches('opt-shirt', 'shirt', SHIRT_COLORS, function (o) { return o.c; });
+  makeSwatches('opt-pants', 'pants', PANTS_COLORS, function (o) { return o.c; });
+
+  function markOn(id, idx) {
+    const box = document.getElementById(id);
+    if (!box) return;
+    for (let i = 0; i < box.children.length; i++) {
+      box.children[i].classList.toggle('on', i === idx);
+    }
+  }
+  function refresh() {
+    markOn('opt-tone', profile.skin.tone);
+    markOn('opt-face', profile.skin.face);
+    markOn('opt-hair', profile.skin.hair);
+    markOn('opt-shirt', profile.skin.shirt);
+    markOn('opt-pants', profile.skin.pants);
+  }
+  refresh();
+
+  // 미리보기 - 제자리걸음을 시켜 둔다
+  let previewPhase = 0;
+  if (pctx) {
+    (function tick() {
+      if (titleEl.style.display !== 'none') {
+        previewPhase += 0.06;
+        drawSkinPreview(pctx, profile.skin, preview.width, preview.height, previewPhase);
+      }
+      requestAnimationFrame(tick);
+    })();
+  }
+
+  const btnRandom = document.getElementById('btn-random');
+  if (btnRandom) {
+    btnRandom.addEventListener('click', function () {
+      const r = randomSkin();
+      for (const k in r) profile.skin[k] = r[k];
+      saveProfile();
+      refresh();
+    });
+  }
+  if (nameInput) {
+    nameInput.addEventListener('input', function () {
+      profile.name = nameInput.value.slice(0, 12);
+      saveProfile();
+    });
+  }
+
+  // 이름이 비어 있으면 적당히 지어 준다
+  function finalName() {
+    const n = (profile.name || '').trim();
+    if (n) return n.slice(0, 12);
+    return '손님' + (100 + Math.floor(Math.random() * 900));
+  }
+
   // 주의: <canvas id="game"> 때문에 window.game 은 게임이 시작되기 전에도
   // "존재"한다(캔버스 엘리먼트). 반드시 settings 까지 확인해야 한다.
   function live() {
@@ -110,8 +209,16 @@
           }
         }
 
+        // 캐릭터와 이름을 게임에 넘기고, 같은 시드 창끼리 만나게 한다
+        profile.name = finalName();
+        if (nameInput) nameInput.value = profile.name;
+        saveProfile();
+        game.profile = { name: profile.name, skin: normalizeSkin(profile.skin) };
+        if (game.startNet) game.startNet();
+
         game.start();
         if (!isTouch) game.requestPointerLock();
+        game.ui.toast(profile.name + ' 님 환영합니다 — T 대화 · 같은 시드로 창을 더 열면 함께 놉니다');
 
         // 저장소가 막힌 웹뷰라면 알려 준다
         if (!game.storageAvailable()) {

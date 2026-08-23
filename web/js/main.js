@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.10';
+const GAME_VERSION = 'v8.0';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
+const GAME_FEATURES = '로컬 멀티플레이 · 캐릭터 꾸미기 · 시내버스 · 도시 간 고속도로';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -516,6 +516,13 @@ Game.prototype.bindInput = function () {
 
   window.addEventListener('keydown', function (e) {
     if (e.code === 'F5' || (e.ctrlKey && e.code === 'KeyR')) return;
+    // 대화 입력 중에는 게임이 키를 가로채지 않는다
+    if (self.chatOpen) return;
+    if (e.code === 'KeyT' && self.net && !self.ui.open && !self.player.dead) {
+      self.openChat();
+      e.preventDefault();
+      return;
+    }
     const act = keyMap[e.code];
     if (act) {
       // 스페이스 두 번 = 비행 전환 (창작 모드)
@@ -837,6 +844,10 @@ Game.prototype.bindTouch = function () {
   });
   btn('btn-fly', function () {
     if (self.player.creative) self.player.flying = !self.player.flying;
+  });
+  btn('btn-chat', function () {
+    if (self.chatOpen) self.closeChat();
+    else if (self.openChat) self.openChat();
   });
 };
 
@@ -1467,6 +1478,13 @@ Game.prototype.dropHeld = function (all) {
   const e = this.entities.dropItem(s.name, n, p.x + d[0], p.y + 1.2, p.z + d[2]);
   if (e) { e.vx = d[0] * 5; e.vy = d[1] * 3 + 2; e.vz = d[2] * 5; e.pickupDelay = 1.2; }
   p.consumeHeld(n);
+};
+
+// 시작 화면을 거치지 않고 만들어졌을 때를 위한 기본 캐릭터
+Game.prototype.ensureProfile = function () {
+  if (this.profile && this.profile.skin) return this.profile;
+  this.profile = { name: '손님', skin: normalizeSkin(null) };
+  return this.profile;
 };
 
 Game.prototype.playSound = function (kind) {
@@ -2191,6 +2209,8 @@ Game.prototype.update = function (dt) {
   this.entities.updatePlanes(dt, p, this);
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
   if (this.updateStationAnnounce) this.updateStationAnnounce(dt);
+  if (this.updateNet) this.updateNet(dt);
+  if (this.updateChat) this.updateChat(dt);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
@@ -2212,6 +2232,8 @@ Game.prototype.update = function (dt) {
   this.updateDigHud();
   if (this.updateBusHud) this.updateBusHud();
   if (this.updateUseHint) this.updateUseHint();
+  if (this.updateNetHud) this.updateNetHud();
+  if (this.updateNameTags) this.updateNameTags();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -2329,6 +2351,7 @@ Game.prototype.render = function (dt) {
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
+  if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);

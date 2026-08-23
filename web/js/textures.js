@@ -979,6 +979,10 @@ function registerExtraTextures() {
   if (typeof FURNITURE_TEX === 'object') {
     Object.keys(FURNITURE_TEX).forEach(function (k) { defTex(k, FURNITURE_TEX[k]); });
   }
+  // 캐릭터 겉모습 (skin.js 가 모아 둔 것)
+  if (typeof SKIN_TEX === 'object') {
+    Object.keys(SKIN_TEX).forEach(function (k) { defTex(k, SKIN_TEX[k]); });
+  }
 
   function skin(base, spot, spots) {
     return function (p, rnd) {

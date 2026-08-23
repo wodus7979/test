@@ -731,6 +731,94 @@ body.touch .hand { display: none !important; }
 #bus-hud .warn { color: #ff7a6a; font-weight: 700; }
 #bus-hud .ok { color: #7cc44a; }
 
+
+/* ── 멀티플레이 ─────────────────────────────────────────────── */
+#nametags { position: fixed; inset: 0; z-index: 36; pointer-events: none; }
+.nametag {
+  position: absolute; display: none; transform: translate(-50%, -100%);
+  white-space: nowrap; pointer-events: none;
+  background: rgba(8,12,20,.6); border: 1px solid rgba(150,190,240,.3);
+  border-radius: 5px; padding: 1px 7px;
+  font: 12px/1.4 ui-monospace, Menlo, monospace; color: #eaf2ff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.85);
+}
+
+#net-hud {
+  display: none;
+  position: fixed; right: 16px; top: 216px;
+  z-index: 40; pointer-events: none; max-width: 220px;
+  background: rgba(10,14,22,.66);
+  border: 1px solid rgba(150,190,240,.22);
+  border-radius: 8px; padding: 7px 12px;
+  font: 12px/1.6 ui-monospace, Menlo, monospace; color: #cfe0f5;
+}
+#net-hud .me { color: #9ef0c4; }
+#net-hud .d { color: #8fa2bb; }
+
+#chat-log {
+  display: none;
+  position: fixed; left: 16px; bottom: 148px;
+  z-index: 40; pointer-events: none; max-width: 46vw;
+  font: 13px/1.55 ui-monospace, Menlo, monospace; color: #eaf2ff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+}
+#chat-log div { background: rgba(8,12,20,.45); border-radius: 4px; padding: 1px 7px; margin-top: 2px; }
+#chat-log b { color: #ffd666; }
+
+#chat-input {
+  display: none;
+  position: fixed; left: 16px; right: 16px; bottom: 116px;
+  z-index: 60;
+  background: rgba(8,12,20,.9); color: #eaf2ff;
+  border: 1px solid rgba(150,190,240,.45); border-radius: 7px;
+  padding: 9px 12px; font: 14px/1.4 ui-monospace, Menlo, monospace;
+  outline: none;
+}
+
+/* ── 캐릭터 만들기 ──────────────────────────────────────────── */
+.char-box {
+  margin: 12px 0 4px; padding: 12px 14px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(150,190,240,.18); border-radius: 10px;
+}
+.char-main { display: flex; gap: 14px; align-items: flex-start; }
+#char-preview {
+  flex: 0 0 auto; width: 150px; height: 220px;
+  background: linear-gradient(180deg, rgba(90,140,210,.28), rgba(20,30,50,.35));
+  border: 1px solid rgba(150,190,240,.2); border-radius: 8px;
+  image-rendering: pixelated;
+}
+.char-opts { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.char-opts .name-row { display: flex; align-items: center; gap: 8px; }
+.char-opts .name-row span { flex: 0 0 44px; font-size: 12px; color: #b9c9de; }
+.char-opts .name-row input {
+  flex: 1 1 auto; min-width: 0;
+  background: rgba(0,0,0,.35); color: #eaf2ff;
+  border: 1px solid rgba(150,190,240,.28); border-radius: 6px;
+  padding: 6px 9px; font: 14px/1.3 inherit; outline: none;
+}
+.opt-row { display: flex; align-items: center; gap: 8px; }
+.opt-row > span { flex: 0 0 44px; font-size: 12px; color: #b9c9de; }
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+.swatches button {
+  width: 24px; height: 24px; padding: 0; border-radius: 6px; cursor: pointer;
+  border: 2px solid rgba(255,255,255,.18); background: #888;
+  font: 11px/1 ui-monospace, Menlo, monospace; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.8);
+}
+.swatches button.on { border-color: #7cffa8; box-shadow: 0 0 0 2px rgba(124,255,168,.28); }
+.char-box .hint { margin: 10px 0 0; font-size: 12px; color: #9fb0c8; line-height: 1.55; }
+button.tiny {
+  align-self: flex-start; padding: 5px 10px; font-size: 12px;
+  border-radius: 6px; cursor: pointer;
+  background: rgba(255,255,255,.08); color: #dbe8fa;
+  border: 1px solid rgba(150,190,240,.28);
+}
+@media (max-width: 560px) {
+  .char-main { flex-direction: column; align-items: center; }
+  .char-opts { width: 100%; }
+}
+
 </style>
 </head>
 <body>
@@ -746,6 +834,10 @@ body.touch .hand { display: none !important; }
 <!-- 채굴 진행 -->
 <div id="crack"></div>
 <div id="use-hint"></div>
+<div id="nametags"></div>
+<div id="net-hud"></div>
+<div id="chat-log"></div>
+<input id="chat-input" type="text" maxlength="120" placeholder="하고 싶은 말 (Enter 보내기 · Esc 취소)" autocomplete="off">
 <div id="drive-hud"></div>
 <div id="dig-hud"></div>
 <div id="bus-hud"></div>
@@ -757,6 +849,7 @@ body.touch .hand { display: none !important; }
   <button id="btn-fly" type="button">비행</button>
   <button id="btn-sneak" type="button">웅크리기</button>
   <button id="btn-sprint" type="button">빨리 뛰기</button>
+  <button id="btn-chat" type="button">대화</button>
   <button id="btn-jump" type="button">점프</button>
 </div>
 
@@ -768,6 +861,27 @@ body.touch .hand { display: none !important; }
     <h1>WebCraft</h1>
     <p class="sub">웹뷰에서 도는 자바 마인크래프트 스타일 복셀 게임<br>외부 라이브러리 없이 순수 WebGL로 처음부터 제작</p>
     <p class="version" id="version-line"></p>
+
+    <div class="char-box">
+      <p class="row-label">내 캐릭터</p>
+      <div class="char-main">
+        <canvas id="char-preview" width="150" height="220"></canvas>
+        <div class="char-opts">
+          <label class="name-row">
+            <span>이름</span>
+            <input id="char-name" type="text" maxlength="12" placeholder="예: 재동" autocomplete="off">
+          </label>
+          <div class="opt-row"><span>피부</span><div id="opt-tone" class="swatches"></div></div>
+          <div class="opt-row"><span>얼굴</span><div id="opt-face" class="swatches"></div></div>
+          <div class="opt-row"><span>머리색</span><div id="opt-hair" class="swatches"></div></div>
+          <div class="opt-row"><span>상의</span><div id="opt-shirt" class="swatches"></div></div>
+          <div class="opt-row"><span>하의</span><div id="opt-pants" class="swatches"></div></div>
+          <button id="btn-random" type="button" class="tiny">무작위로 꾸미기</button>
+        </div>
+      </div>
+      <p class="hint">같이 놀려면 <b>같은 시드</b>로 이 파일을 창(또는 탭)마다 하나씩 열면 됩니다.
+        같은 세계에서 서로 만나고 <b>T</b> 키로 대화할 수 있습니다.</p>
+    </div>
 
     <label class="seed-row">
       <span>시드</span>
@@ -856,6 +970,18 @@ body.touch .hand { display: none !important; }
           <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다.
               하늘이 두 배로 높아져 <b>고도 150</b>까지 올라갈 수 있다</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
+        </ul>
+        <h4>함께 놀기 (로컬 멀티플레이)</h4>
+        <ul>
+          <li>시작 화면에서 <b>이름</b>을 적고 <b>피부·얼굴·머리색·상의·하의</b>를 고른다.
+              고른 것은 저장돼서 다음에도 그대로 나온다</li>
+          <li>같이 놀려면 이 파일을 <b>창(또는 탭)마다 하나씩</b> 열고
+              <b>시드를 똑같이</b> 적어 시작하면 된다. 같은 시드 = 같은 세계 = 같은 방이다</li>
+          <li>서로의 캐릭터가 이름표를 달고 보이고, 걸으면 팔다리가 움직인다.
+              오른쪽에 <b>같이 노는 사람</b> 목록과 거리가 뜬다</li>
+          <li><b>T</b> 키(모바일은 <b>대화</b> 버튼)로 이야기할 수 있다</li>
+          <li>서버도 인터넷도 쓰지 않는다 — 한 기기 안에서만 오간다.
+              지금은 <b>서로의 모습·이름·대화</b>가 오가고, 블록을 부수고 놓은 것은 각자 세계에 남는다</li>
         </ul>
         <h4>모바일 / 웹뷰</h4>
         <ul>
@@ -3742,6 +3868,273 @@ SPAWN_EGGS.forEach(function (e) {
 
 </script>
 <script>
+/* ==== js/skin.js ==== */
+// skin.js - 캐릭터 겉모습. 피부색·얼굴·머리색·옷을 고르면 그 조합대로
+// 아틀라스에 텍스처를 굽고, 시작 화면 미리보기도 같은 색으로 그린다.
+// 이미지 파일은 쓰지 않는다 — 전부 그 자리에서 그린다.
+'use strict';
+
+// ── 고를 수 있는 것들 ─────────────────────────────────────────────────
+const SKIN_TONES = [
+  { name: '밝은', c: '#f3d0b0', d: '#ddb694' },
+  { name: '중간', c: '#e0b088', d: '#c8946c' },
+  { name: '구릿빛', c: '#b07a50', d: '#96643e' },
+  { name: '짙은', c: '#7a4c30', d: '#633a23' }
+];
+
+const FACE_STYLES = [
+  { name: '기본' }, { name: '웃는' }, { name: '진지' }, { name: '안경' }, { name: '주근깨' }
+];
+
+const HAIR_COLORS = [
+  { name: '검정', c: '#1b1b20' }, { name: '흑갈', c: '#3a2418' },
+  { name: '갈색', c: '#5c3a1e' }, { name: '금발', c: '#d8b25a' },
+  { name: '빨강', c: '#a83a24' }, { name: '은발', c: '#a8a8b0' },
+  { name: '파랑', c: '#2f6bd0' }, { name: '분홍', c: '#e06aa0' }
+];
+
+const SHIRT_COLORS = [
+  { name: '빨강', c: '#c0392b' }, { name: '파랑', c: '#2f6bd0' },
+  { name: '초록', c: '#2e8b57' }, { name: '노랑', c: '#dcae24' },
+  { name: '보라', c: '#7a4ac0' }, { name: '하양', c: '#e6e6ea' },
+  { name: '검정', c: '#2a2a30' }, { name: '하늘', c: '#45b7d1' }
+];
+
+const PANTS_COLORS = [
+  { name: '청바지', c: '#3a5a8c' }, { name: '검정', c: '#2a2a30' },
+  { name: '회색', c: '#6a6a72' }, { name: '갈색', c: '#6b4a2a' },
+  { name: '카키', c: '#7a7a4a' }, { name: '하양', c: '#d0d0d6' }
+];
+
+// 눈·입 색
+const EYE_DARK = '#22242c';
+const EYE_WHITE = '#f2f2f4';
+const MOUTH = '#8a4a44';
+
+function clampIdx(v, n) {
+  v = (typeof v === 'number' && isFinite(v)) ? Math.floor(v) : 0;
+  return (v < 0 || v >= n) ? 0 : v;
+}
+
+// 겉모습 하나를 안전한 값으로 다듬는다 (남이 보내 준 값도 여기를 지난다)
+function normalizeSkin(sk) {
+  sk = sk || {};
+  return {
+    tone: clampIdx(sk.tone, SKIN_TONES.length),
+    face: clampIdx(sk.face, FACE_STYLES.length),
+    hair: clampIdx(sk.hair, HAIR_COLORS.length),
+    shirt: clampIdx(sk.shirt, SHIRT_COLORS.length),
+    pants: clampIdx(sk.pants, PANTS_COLORS.length)
+  };
+}
+
+function randomSkin() {
+  const r = function (n) { return (Math.random() * n) | 0; };
+  return {
+    tone: r(SKIN_TONES.length), face: r(FACE_STYLES.length), hair: r(HAIR_COLORS.length),
+    shirt: r(SHIRT_COLORS.length), pants: r(PANTS_COLORS.length)
+  };
+}
+
+// 겉모습 → 텍스처 이름
+function skinTex(sk) {
+  const s = normalizeSkin(sk);
+  return {
+    skin: 'pl_skin' + s.tone,
+    face: 'pl_face' + s.tone + '_' + s.face,
+    hair: 'pl_hair' + s.hair,
+    shirt: 'pl_shirt' + s.shirt,
+    pants: 'pl_pants' + s.pants,
+    shoe: 'pl_shoe'
+  };
+}
+
+// ── 아틀라스에 구울 텍스처 ────────────────────────────────────────────
+// textures.js 의 registerExtraTextures() 가 이 표를 읽어 간다.
+const SKIN_TEX = {};
+
+(function () {
+  // 피부 — 살짝 얼룩만
+  for (let t = 0; t < SKIN_TONES.length; t++) {
+    const tone = SKIN_TONES[t];
+    SKIN_TEX['pl_skin' + t] = function (p, rnd) {
+      p.noise(rnd, tone.c, 5, 3);
+    };
+  }
+
+  // 얼굴 — 피부 위에 눈·입을 얹는다
+  for (let t = 0; t < SKIN_TONES.length; t++) {
+    for (let f = 0; f < FACE_STYLES.length; f++) {
+      const tone = SKIN_TONES[t], style = f;
+      SKIN_TEX['pl_face' + t + '_' + f] = function (p, rnd) {
+        p.noise(rnd, tone.c, 5, 3);
+        const L = 3, R = 10;               // 두 눈의 왼쪽 x
+        if (style === 1) {
+          // 웃는 눈 (^ ^) 과 큰 미소
+          for (const x of [L, R]) {
+            p.rect(x, 6, 1, 1, EYE_DARK); p.rect(x + 1, 5, 1, 1, EYE_DARK);
+            p.rect(x + 2, 6, 1, 1, EYE_DARK);
+          }
+          p.rect(5, 11, 6, 1, MOUTH);
+          p.rect(4, 10, 1, 1, MOUTH); p.rect(11, 10, 1, 1, MOUTH);
+        } else if (style === 2) {
+          // 진지한 눈매 + 눈썹
+          for (const x of [L, R]) {
+            p.rect(x, 5, 3, 1, tone.d);
+            p.rect(x, 7, 3, 2, EYE_WHITE);
+            p.rect(x + (x === L ? 1 : 1), 7, 1, 2, EYE_DARK);
+          }
+          p.rect(6, 11, 4, 1, MOUTH);
+        } else if (style === 3) {
+          // 안경
+          for (const x of [L, R]) {
+            p.rect(x, 6, 3, 3, EYE_WHITE);
+            p.rect(x + 1, 7, 1, 1, EYE_DARK);
+          }
+          p.frame(L - 1, 5, 5, 5, '#3a3a42');
+          p.frame(R - 1, 5, 5, 5, '#3a3a42');
+          p.rect(L + 4, 7, 2, 1, '#3a3a42');
+          p.rect(5, 11, 6, 1, MOUTH);
+        } else if (style === 4) {
+          // 주근깨
+          for (const x of [L, R]) {
+            p.rect(x, 6, 3, 2, EYE_WHITE);
+            p.rect(x + 1, 6, 1, 2, EYE_DARK);
+          }
+          for (const s of [[2, 9], [4, 10], [11, 9], [13, 10], [3, 11], [12, 11]]) {
+            p.rect(s[0], s[1], 1, 1, tone.d);
+          }
+          p.rect(6, 11, 4, 1, MOUTH);
+        } else {
+          // 기본
+          for (const x of [L, R]) {
+            p.rect(x, 6, 3, 2, EYE_WHITE);
+            p.rect(x + 1, 6, 1, 2, EYE_DARK);
+          }
+          p.rect(6, 11, 4, 1, MOUTH);
+        }
+      };
+    }
+  }
+
+  // 머리카락 — 색에 결을 조금
+  for (let h = 0; h < HAIR_COLORS.length; h++) {
+    const c = HAIR_COLORS[h].c;
+    SKIN_TEX['pl_hair' + h] = function (p, rnd) {
+      p.noise(rnd, c, 8, 4);
+      for (let x = 1; x < 16; x += 3) {
+        const y0 = (rnd() * 4) | 0;
+        for (let y = y0; y < 16; y += 2) p.set(x, y, '#00000029');
+      }
+    };
+  }
+
+  // 상의 — 옷깃과 단추
+  for (let s = 0; s < SHIRT_COLORS.length; s++) {
+    const c = SHIRT_COLORS[s].c;
+    SKIN_TEX['pl_shirt' + s] = function (p, rnd) {
+      p.noise(rnd, c, 6, 3);
+      p.rect(0, 0, 16, 2, '#00000038');       // 옷깃
+      for (let y = 4; y < 14; y += 3) p.rect(8, y, 1, 1, '#ffffff59');
+      p.rect(0, 14, 16, 2, '#00000024');      // 밑단
+    };
+  }
+
+  // 하의 — 가운데 솔기
+  for (let n = 0; n < PANTS_COLORS.length; n++) {
+    const c = PANTS_COLORS[n].c;
+    SKIN_TEX['pl_pants' + n] = function (p, rnd) {
+      p.noise(rnd, c, 6, 3);
+      p.rect(0, 0, 16, 2, '#00000033');        // 허리
+      for (let y = 3; y < 16; y++) p.set(8, y, '#00000026');
+    };
+  }
+
+  SKIN_TEX['pl_shoe'] = function (p, rnd) {
+    p.noise(rnd, '#33343a', 6, 3);
+    p.rect(0, 12, 16, 4, '#22232a');
+  };
+})();
+
+// ── 시작 화면 미리보기 ────────────────────────────────────────────────
+// 2D 캔버스에 같은 색으로 정면 모습을 그린다 (아틀라스와 따로 논다).
+function drawSkinPreview(ctx, sk, w, h, phase) {
+  const s = normalizeSkin(sk);
+  const tone = SKIN_TONES[s.tone], hair = HAIR_COLORS[s.hair];
+  const shirt = SHIRT_COLORS[s.shirt], pants = PANTS_COLORS[s.pants];
+  ctx.clearRect(0, 0, w, h);
+
+  // 캐릭터 전체 높이를 화면의 82% 로 맞춘다
+  const H = h * 0.82, u = H / 32;               // u = 한 칸
+  const cx = w / 2, top = (h - H) / 2;
+  const R = function (x, y, bw, bh, c) {
+    ctx.fillStyle = c;
+    ctx.fillRect(Math.round(cx + x * u), Math.round(top + y * u),
+      Math.ceil(bw * u), Math.ceil(bh * u));
+  };
+  const sw = Math.sin((phase || 0)) * 2.2;      // 팔다리 흔들기
+
+  // 다리
+  R(-4, 20 + Math.max(0, sw) * 0.0, 4, 12 - Math.abs(sw) * 0.3, pants.c);
+  R(0, 20, 4, 12 - Math.abs(sw) * 0.3, pants.c);
+  R(-4, 30.5, 4, 1.5, '#2a2b31');
+  R(0, 30.5, 4, 1.5, '#2a2b31');
+  // 몸통
+  R(-4, 10, 8, 10, shirt.c);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(Math.round(cx - 4 * u), Math.round(top + 10 * u), Math.ceil(8 * u), Math.ceil(1.4 * u));
+  // 팔
+  R(-6.5, 10 + sw * 0.35, 2.5, 9.5, shirt.c);
+  R(4, 10 - sw * 0.35, 2.5, 9.5, shirt.c);
+  R(-6.5, 19 + sw * 0.35, 2.5, 1.6, tone.c);
+  R(4, 19 - sw * 0.35, 2.5, 1.6, tone.c);
+  // 머리
+  R(-4, 2, 8, 8, tone.c);
+  // 머리카락 — 위와 옆, 앞머리
+  R(-4.6, 1.2, 9.2, 2.6, hair.c);
+  R(-4.6, 1.2, 1.4, 6.5, hair.c);
+  R(3.2, 1.2, 1.4, 6.5, hair.c);
+  R(-4.6, 3.4, 9.2, 1.1, hair.c);
+
+  // 얼굴
+  const eyeY = 5.2, eyeW = 1.5, eyeH = 1.4;
+  const put = function (x, y, bw, bh, c) { R(x, y, bw, bh, c); };
+  if (s.face === 1) {
+    put(-2.8, eyeY + 0.5, 0.8, 0.7, EYE_DARK); put(-2.0, eyeY, 0.8, 0.7, EYE_DARK);
+    put(-1.2, eyeY + 0.5, 0.8, 0.7, EYE_DARK);
+    put(1.2, eyeY + 0.5, 0.8, 0.7, EYE_DARK); put(2.0, eyeY, 0.8, 0.7, EYE_DARK);
+    put(2.8, eyeY + 0.5, 0.8, 0.7, EYE_DARK);
+    put(-2.2, 7.6, 4.4, 0.8, MOUTH);
+  } else if (s.face === 2) {
+    put(-2.8, eyeY - 1, 2.6, 0.6, tone.d); put(0.2, eyeY - 1, 2.6, 0.6, tone.d);
+    put(-2.8, eyeY, eyeW * 1.7, eyeH, EYE_WHITE); put(0.2, eyeY, eyeW * 1.7, eyeH, EYE_WHITE);
+    put(-2.0, eyeY, 0.9, eyeH, EYE_DARK); put(1.0, eyeY, 0.9, eyeH, EYE_DARK);
+    put(-1.6, 7.8, 3.2, 0.7, MOUTH);
+  } else if (s.face === 3) {
+    put(-2.9, eyeY - 0.4, 2.8, 2.4, EYE_WHITE); put(0.1, eyeY - 0.4, 2.8, 2.4, EYE_WHITE);
+    put(-2.0, eyeY + 0.3, 0.9, 1, EYE_DARK); put(1.1, eyeY + 0.3, 0.9, 1, EYE_DARK);
+    ctx.strokeStyle = '#3a3a42'; ctx.lineWidth = Math.max(1, u * 0.35);
+    ctx.strokeRect(cx - 3.1 * u, top + (eyeY - 0.6) * u, 3.2 * u, 2.8 * u);
+    ctx.strokeRect(cx - 0.1 * u, top + (eyeY - 0.6) * u, 3.2 * u, 2.8 * u);
+    ctx.beginPath();
+    ctx.moveTo(cx + 0.1 * u, top + (eyeY + 0.8) * u);
+    ctx.lineTo(cx - 0.1 * u, top + (eyeY + 0.8) * u);
+    ctx.stroke();
+    put(-2.2, 7.8, 4.4, 0.7, MOUTH);
+  } else {
+    put(-2.8, eyeY, eyeW * 1.8, eyeH, EYE_WHITE); put(0.2, eyeY, eyeW * 1.8, eyeH, EYE_WHITE);
+    put(-2.1, eyeY, 1, eyeH, EYE_DARK); put(1.1, eyeY, 1, eyeH, EYE_DARK);
+    put(-1.6, 7.8, 3.2, 0.7, MOUTH);
+    if (s.face === 4) {
+      for (const f of [[-3.4, 6.9], [-2.6, 7.4], [2.6, 6.9], [3.2, 7.4]]) {
+        put(f[0], f[1], 0.6, 0.6, tone.d);
+      }
+    }
+  }
+}
+
+</script>
+<script>
 /* ==== js/textures.js ==== */
 // textures.js - 블록 텍스처를 코드로 직접 그린다(외부 이미지 파일 없음).
 // blocks.js 의 TEX_SPEC 에 등록된 요청을 종류별 생성기로 그려 아틀라스에 배치한다.
@@ -4723,6 +5116,10 @@ function registerExtraTextures() {
   // 가구 전용 텍스처 (furniture.js 가 모아 둔 것)
   if (typeof FURNITURE_TEX === 'object') {
     Object.keys(FURNITURE_TEX).forEach(function (k) { defTex(k, FURNITURE_TEX[k]); });
+  }
+  // 캐릭터 겉모습 (skin.js 가 모아 둔 것)
+  if (typeof SKIN_TEX === 'object') {
+    Object.keys(SKIN_TEX).forEach(function (k) { defTex(k, SKIN_TEX[k]); });
   }
 
   function skin(base, spot, spots) {
@@ -17919,9 +18316,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.10';
+const GAME_VERSION = 'v8.0';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
+const GAME_FEATURES = '로컬 멀티플레이 · 캐릭터 꾸미기 · 시내버스 · 도시 간 고속도로';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -18407,6 +18804,13 @@ Game.prototype.bindInput = function () {
 
   window.addEventListener('keydown', function (e) {
     if (e.code === 'F5' || (e.ctrlKey && e.code === 'KeyR')) return;
+    // 대화 입력 중에는 게임이 키를 가로채지 않는다
+    if (self.chatOpen) return;
+    if (e.code === 'KeyT' && self.net && !self.ui.open && !self.player.dead) {
+      self.openChat();
+      e.preventDefault();
+      return;
+    }
     const act = keyMap[e.code];
     if (act) {
       // 스페이스 두 번 = 비행 전환 (창작 모드)
@@ -18728,6 +19132,10 @@ Game.prototype.bindTouch = function () {
   });
   btn('btn-fly', function () {
     if (self.player.creative) self.player.flying = !self.player.flying;
+  });
+  btn('btn-chat', function () {
+    if (self.chatOpen) self.closeChat();
+    else if (self.openChat) self.openChat();
   });
 };
 
@@ -19358,6 +19766,13 @@ Game.prototype.dropHeld = function (all) {
   const e = this.entities.dropItem(s.name, n, p.x + d[0], p.y + 1.2, p.z + d[2]);
   if (e) { e.vx = d[0] * 5; e.vy = d[1] * 3 + 2; e.vz = d[2] * 5; e.pickupDelay = 1.2; }
   p.consumeHeld(n);
+};
+
+// 시작 화면을 거치지 않고 만들어졌을 때를 위한 기본 캐릭터
+Game.prototype.ensureProfile = function () {
+  if (this.profile && this.profile.skin) return this.profile;
+  this.profile = { name: '손님', skin: normalizeSkin(null) };
+  return this.profile;
 };
 
 Game.prototype.playSound = function (kind) {
@@ -20082,6 +20497,8 @@ Game.prototype.update = function (dt) {
   this.entities.updatePlanes(dt, p, this);
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
   if (this.updateStationAnnounce) this.updateStationAnnounce(dt);
+  if (this.updateNet) this.updateNet(dt);
+  if (this.updateChat) this.updateChat(dt);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
@@ -20103,6 +20520,8 @@ Game.prototype.update = function (dt) {
   this.updateDigHud();
   if (this.updateBusHud) this.updateBusHud();
   if (this.updateUseHint) this.updateUseHint();
+  if (this.updateNetHud) this.updateNetHud();
+  if (this.updateNameTags) this.updateNameTags();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -20220,6 +20639,7 @@ Game.prototype.render = function (dt) {
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
+  if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
@@ -21415,6 +21835,423 @@ Game.prototype.ensureBuses = function () {
 
 </script>
 <script>
+/* ==== js/avatar.js ==== */
+// avatar.js - 다른 사람 캐릭터를 3D로 그린다.
+// 머리·몸통·팔·다리를 상자로 쌓고, 걸으면 팔다리가 흔들린다.
+// 이름표는 3D 로 굽지 않고 화면 좌표로 옮겨 HTML 로 띄운다 (한글이 또렷하다).
+'use strict';
+
+const AV_LEG_H = 0.72, AV_LEG_W = 0.22, AV_LEG_D = 0.26;
+const AV_BODY_H = 0.62, AV_BODY_W = 0.56, AV_BODY_D = 0.30;
+const AV_ARM_H = 0.60, AV_ARM_W = 0.20, AV_ARM_D = 0.24;
+const AV_HEAD = 0.50;
+
+// 캐릭터 한 명을 _geom 에 얹는다. p 는 {x,y,z,yaw,walk,sneak,skin}.
+Renderer.prototype.emitAvatar = function (a, light) {
+  const tex = skinTex(a.skin);
+  // 사람의 앞은 (-sin yaw, -cos yaw) 이다 (탈것과 반대). 상자를 얹을 때는
+  // 로컬 +Z 가 앞이 되도록 반 바퀴 돌려 놓는다.
+  const ya = a.yaw + Math.PI;
+  const cy = Math.cos(ya), sy = Math.sin(ya);
+  const sneak = a.sneak ? 0.16 : 0;
+  // 걸음에 따라 팔다리가 앞뒤로 흔들린다
+  const sw = Math.sin(a.walk || 0) * (a.moving ? 0.7 : 0.06);
+
+  // (ox, oy, oz) 만큼 옮긴 뒤 몸통 방향으로 돌린다
+  const at = function (ox, oy, oz, swing, pivot) {
+    return function (px, py, pz, out) {
+      let ly = py + oy, lz = pz + oz;
+      if (swing) {
+        // 어깨/엉덩이(pivot)를 축으로 앞뒤로 흔든다
+        const ry = ly - pivot, c2 = Math.cos(swing), s2 = Math.sin(swing);
+        ly = pivot + ry * c2 - lz * s2;
+        lz = ry * s2 + lz * c2;
+      }
+      const lx = px + ox;
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+  };
+
+  const legTop = AV_LEG_H;
+  // 다리 둘
+  for (const s of [-1, 1]) {
+    const ang = sw * s;
+    emitBox(_geom, a.x, a.y, a.z, AV_LEG_W, AV_LEG_H, AV_LEG_D,
+      tex.pants, null, at(s * (AV_LEG_W / 2 + 0.02), 0, 0, ang, legTop), light);
+    emitBox(_geom, a.x, a.y, a.z, AV_LEG_W + 0.02, 0.1, AV_LEG_D + 0.03,
+      tex.shoe, null, at(s * (AV_LEG_W / 2 + 0.02), 0, 0, ang, legTop), light);
+  }
+
+  const bodyY = legTop - sneak;
+  emitBox(_geom, a.x, a.y, a.z, AV_BODY_W, AV_BODY_H, AV_BODY_D,
+    tex.shirt, null, at(0, bodyY, 0, 0, 0), light);
+
+  // 팔 둘 — 다리와 반대로 흔든다
+  const armTop = bodyY + AV_BODY_H;
+  for (const s of [-1, 1]) {
+    const ang = -sw * s;
+    const ox = s * (AV_BODY_W / 2 + AV_ARM_W / 2);
+    emitBox(_geom, a.x, a.y, a.z, AV_ARM_W, AV_ARM_H, AV_ARM_D,
+      tex.shirt, null, at(ox, armTop - AV_ARM_H, 0, ang, armTop), light);
+    emitBox(_geom, a.x, a.y, a.z, AV_ARM_W + 0.01, 0.14, AV_ARM_D + 0.01,
+      tex.skin, null, at(ox, armTop - AV_ARM_H - 0.12, 0, ang, armTop), light);
+  }
+
+  // 머리 — 앞면만 얼굴
+  const headY = armTop + 0.03;
+  emitBox(_geom, a.x, a.y, a.z, AV_HEAD, AV_HEAD, AV_HEAD,
+    tex.skin, tex.face, at(0, headY, 0, 0, 0), light);
+  // 머리카락 — 정수리와 뒤통수, 옆
+  emitBox(_geom, a.x, a.y, a.z, AV_HEAD + 0.04, 0.14, AV_HEAD + 0.04,
+    tex.hair, null, at(0, headY + AV_HEAD - 0.08, 0, 0, 0), light);
+  emitBox(_geom, a.x, a.y, a.z, AV_HEAD + 0.04, AV_HEAD * 0.72, 0.08,
+    tex.hair, null, at(0, headY + AV_HEAD * 0.26, -(AV_HEAD / 2), 0, 0), light);
+  for (const s of [-1, 1]) {
+    emitBox(_geom, a.x, a.y, a.z, 0.06, AV_HEAD * 0.6, AV_HEAD + 0.02,
+      tex.hair, null, at(s * (AV_HEAD / 2), headY + AV_HEAD * 0.36, 0, 0, 0), light);
+  }
+  // 앞머리
+  emitBox(_geom, a.x, a.y, a.z, AV_HEAD + 0.02, 0.1, 0.06,
+    tex.hair, null, at(0, headY + AV_HEAD - 0.2, AV_HEAD / 2, 0, 0), light);
+};
+
+Renderer.prototype.drawPlayers = function (list, world, player, opts) {
+  if (!list || !list.length) return;
+  _geom.reset();
+  let any = false;
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    const dx = a.x - player.x, dz = a.z - player.z;
+    if (dx * dx + dz * dz > 260 * 260) continue;
+    if (!this.boxInFrustum(a.x - 1, a.y - 0.5, a.z - 1, a.x + 1, a.y + 2.4, a.z + 1)) continue;
+    const bx = Math.floor(a.x), by = Math.floor(a.y), bz = Math.floor(a.z);
+    const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 1), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by + 1), bz) / 15;
+    const light = [Math.max(sky, 0.34), Math.max(blk, 0.25)];
+    this.emitAvatar(a, light);
+    any = true;
+  }
+  if (any) this.flushEntityGeom(opts);
+};
+
+// ── 이름표 ────────────────────────────────────────────────────────────
+// 머리 위 한 점을 화면 좌표로 옮겨 그 자리에 이름을 띄운다.
+Renderer.prototype.projectPoint = function (x, y, z) {
+  const m = this.viewProj;
+  const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+  if (cw <= 0.0001) return null;                     // 카메라 뒤
+  const cx = m[0] * x + m[4] * y + m[8] * z + m[12];
+  const cyy = m[1] * x + m[5] * y + m[9] * z + m[13];
+  // CSS 픽셀 기준으로 돌려준다 (이름표는 HTML 이라 devicePixelRatio 와 무관하다)
+  const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+  return [(cx / cw * 0.5 + 0.5) * w, (0.5 - cyy / cw * 0.5) * h, cw];
+};
+
+Game.prototype.updateNameTags = function () {
+  const box = document.getElementById('nametags');
+  if (!box) return;
+  const list = (this.net && this.net.peerList) ? this.net.peerList() : [];
+  if (!this._tagEls) this._tagEls = [];
+  const r = this.renderer, p = this.player;
+  let n = 0;
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    const d = Math.hypot(a.x - p.x, a.z - p.z);
+    if (d > 90) continue;
+    const s = r.projectPoint(a.x, a.y + 2.05, a.z);
+    if (!s) continue;
+    const vw = r.canvas.clientWidth, vh = r.canvas.clientHeight;
+    if (s[0] < -80 || s[0] > vw + 80 || s[1] < -40 || s[1] > vh + 40) continue;
+    let el = this._tagEls[n];
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'nametag';
+      box.appendChild(el);
+      this._tagEls[n] = el;
+    }
+    const txt = a.name + (d > 12 ? ' · ' + Math.round(d) + 'm' : '');
+    if (el.textContent !== txt) el.textContent = txt;
+    el.style.left = Math.round(s[0]) + 'px';
+    el.style.top = Math.round(s[1]) + 'px';
+    el.style.opacity = String(Math.max(0.35, 1 - d / 110));
+    el.style.display = 'block';
+    n++;
+  }
+  for (let i = n; i < this._tagEls.length; i++) this._tagEls[i].style.display = 'none';
+};
+
+</script>
+<script>
+/* ==== js/net.js ==== */
+// net.js - 같은 기기(같은 브라우저)에서 여러 창을 띄워 함께 노는 로컬 멀티플레이.
+// 서버도 인터넷도 쓰지 않는다. 창끼리는 BroadcastChannel 로 이야기하고,
+// 그게 막힌 환경에서는 localStorage 의 storage 이벤트로 대신한다.
+// 같은 시드로 시작한 창끼리만 같은 방이 된다 (세계가 똑같이 만들어지므로).
+'use strict';
+
+const NET_TICK = 0.1;          // 내 자리를 알리는 간격(초)
+const NET_TIMEOUT = 3.5;       // 이 시간 동안 소식이 없으면 나간 것으로 본다
+const NET_CHAT_KEEP = 8;       // 화면에 남겨 두는 대화 줄 수
+const NET_LERP = 12;           // 남의 캐릭터를 따라가는 부드러움
+
+// 벽시계 — 프레임이 느려도 흐른다
+function netNow() {
+  return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+
+function LocalNet(room) {
+  this.room = 'webcraft.room.' + room;
+  this.id = 'p' + Math.floor(Math.random() * 1e9).toString(36) + Date.now().toString(36).slice(-4);
+  this.peers = new Map();
+  this.onMessage = null;
+  this.mode = 'none';
+  this.seq = 0;
+  const self = this;
+
+  // 1순위 - BroadcastChannel
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      this.ch = new BroadcastChannel(this.room);
+      this.ch.onmessage = function (e) { self.receive(e.data); };
+      this.mode = 'channel';
+    }
+  } catch (e) { this.ch = null; }
+
+  // 2순위 - localStorage 에 적으면 다른 창에 storage 이벤트가 간다
+  if (this.mode === 'none') {
+    try {
+      localStorage.setItem(this.room + '.probe', '1');
+      localStorage.removeItem(this.room + '.probe');
+      this.lsKey = this.room + '.msg';
+      this._onStorage = function (e) {
+        if (e.key !== self.lsKey || !e.newValue) return;
+        try { self.receive(JSON.parse(e.newValue)); } catch (err) { /* 깨진 줄은 버린다 */ }
+      };
+      window.addEventListener('storage', this._onStorage);
+      this.mode = 'storage';
+    } catch (e) { this.mode = 'none'; }
+  }
+}
+
+LocalNet.prototype.send = function (msg) {
+  if (this.mode === 'none') return;
+  msg.from = this.id;
+  try {
+    if (this.mode === 'channel') this.ch.postMessage(msg);
+    else localStorage.setItem(this.lsKey, JSON.stringify(msg));
+  } catch (e) { /* 한 번 실패해도 다음 틱에 다시 보낸다 */ }
+};
+
+LocalNet.prototype.receive = function (msg) {
+  if (!msg || msg.from === this.id) return;      // 내가 보낸 건 무시
+  if (this.onMessage) this.onMessage(msg);
+};
+
+LocalNet.prototype.close = function () {
+  try { if (this.ch) this.ch.close(); } catch (e) { /* 무시 */ }
+  try { if (this._onStorage) window.removeEventListener('storage', this._onStorage); } catch (e) { /* 무시 */ }
+  this.mode = 'none';
+};
+
+// ── 게임 쪽 연결 ──────────────────────────────────────────────────────
+Game.prototype.startNet = function () {
+  if (this.net) return;
+  this.ensureProfile();
+  const net = new LocalNet(String(this.world.seed));
+  this.net = net;
+  this.chatLog = [];
+  const self = this;
+
+  net.peerList = function () {
+    const out = [];
+    net.peers.forEach(function (p) { out.push(p); });
+    return out;
+  };
+
+  net.onMessage = function (m) {
+    if (m.t === 'hello') {
+      const isNew = !net.peers.has(m.from);
+      self.netUpsert(m);
+      if (isNew) {
+        self.ui.toast(m.name + ' 님이 들어왔습니다');
+        self.playSound('place');
+        self.netSend('hello');                    // 새로 온 사람에게 나를 알린다
+      }
+    } else if (m.t === 'state') {
+      self.netUpsert(m);
+    } else if (m.t === 'bye') {
+      const p = net.peers.get(m.from);
+      if (p) { self.ui.toast(p.name + ' 님이 나갔습니다'); net.peers.delete(m.from); }
+    } else if (m.t === 'chat') {
+      self.netUpsert(m);
+      self.pushChat(String(m.name || '손님').slice(0, 16), String(m.text || '').slice(0, 120));
+    }
+  };
+
+  this.netSend('hello');
+  this._netTick = 0;
+
+  window.addEventListener('beforeunload', function () { self.netSend('bye'); });
+};
+
+// 남의 소식을 받아 자리에 반영한다
+Game.prototype.netUpsert = function (m) {
+  const net = this.net;
+  let p = net.peers.get(m.from);
+  if (!p) {
+    p = { id: m.from, x: m.x, y: m.y, z: m.z, yaw: m.yaw || 0,
+      tx: m.x, ty: m.y, tz: m.z, tyaw: m.yaw || 0,
+      walk: 0, moving: false, sneak: false, name: '손님', skin: normalizeSkin(null),
+      last: netNow() };
+    net.peers.set(m.from, p);
+  }
+  // 목표 자리 - 매 프레임 이 쪽으로 부드럽게 따라간다
+  p.tx = m.x; p.ty = m.y; p.tz = m.z; p.tyaw = m.yaw || 0;
+  p.sneak = !!m.sneak;
+  p.last = netNow();
+  if (m.name) p.name = String(m.name).slice(0, 16);
+  if (m.skin) p.skin = normalizeSkin(m.skin);
+};
+
+Game.prototype.netSend = function (kind, extra) {
+  if (!this.net) return;
+  const p = this.player;
+  const msg = {
+    t: kind,
+    x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2),
+    yaw: +p.yaw.toFixed(3), sneak: !!p.sneaking
+  };
+  if (kind === 'hello' || kind === 'chat') {
+    msg.name = this.profile.name;
+    msg.skin = this.profile.skin;
+  }
+  if (extra) for (const k in extra) msg[k] = extra[k];
+  this.net.send(msg);
+};
+
+Game.prototype.updateNet = function (dt) {
+  const net = this.net;
+  if (!net) return;
+  this._netTick -= dt;
+  if (this._netTick <= 0) {
+    this._netTick = NET_TICK;
+    this.netSend('state');
+  }
+  // 남의 캐릭터를 목표 자리로 부드럽게 옮기고, 소식이 끊기면 지운다
+  const gone = [];
+  const now = netNow();
+  net.peers.forEach(function (p) {
+    // 창이 뒤로 밀리면 프레임이 거의 멈춰 dt 를 더하는 방식은 시계가 선다.
+    // 그래서 실제 시각으로 잰다.
+    if (now - p.last > NET_TIMEOUT * 1000) { gone.push(p.id); return; }
+    const k = Math.min(1, dt * NET_LERP);
+    const dx = p.tx - p.x, dz = p.tz - p.z;
+    const step = Math.hypot(dx, dz);
+    p.x += dx * k; p.y += (p.ty - p.y) * k; p.z += dz * k;
+    let d = p.tyaw - p.yaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    p.yaw += d * k;
+    p.moving = step > 0.04;
+    if (p.moving) p.walk += Math.min(0.9, step) * 9 * dt + dt * 4;
+    else p.walk += dt * 1.2;
+  });
+  for (let i = 0; i < gone.length; i++) {
+    const p = net.peers.get(gone[i]);
+    if (p) this.ui.toast(p.name + ' 님이 나갔습니다');
+    net.peers.delete(gone[i]);
+  }
+};
+
+// ── 대화 ──────────────────────────────────────────────────────────────
+function netEscape(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+Game.prototype.pushChat = function (who, text) {
+  if (!this.chatLog) this.chatLog = [];
+  this.chatLog.push({ who: who, text: text, life: 12 });
+  while (this.chatLog.length > NET_CHAT_KEEP) this.chatLog.shift();
+  this.renderChat();
+};
+
+Game.prototype.renderChat = function () {
+  const el = document.getElementById('chat-log');
+  if (!el) return;
+  const list = this.chatLog || [];
+  if (!list.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  let html = '';
+  for (let i = 0; i < list.length; i++) {
+    html += '<div><b>' + netEscape(list[i].who) + '</b> ' + netEscape(list[i].text) + '</div>';
+  }
+  el.innerHTML = html;
+};
+
+Game.prototype.updateChat = function (dt) {
+  const list = this.chatLog;
+  if (!list || !list.length) return;
+  let changed = false;
+  for (let i = list.length - 1; i >= 0; i--) {
+    list[i].life -= dt;
+    if (list[i].life <= 0) { list.splice(i, 1); changed = true; }
+  }
+  if (changed) this.renderChat();
+};
+
+Game.prototype.openChat = function () {
+  const box = document.getElementById('chat-input');
+  if (!box || !this.net) return;
+  this.chatOpen = true;
+  box.style.display = 'block';
+  box.value = '';
+  this.exitPointerLock();
+  const self = this;
+  setTimeout(function () { box.focus(); }, 0);
+  box.onkeydown = function (e) {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      const t = box.value.trim().slice(0, 120);
+      if (t) {
+        self.netSend('chat', { text: t });
+        self.pushChat(self.profile.name, t);
+      }
+      self.closeChat();
+    } else if (e.key === 'Escape') {
+      self.closeChat();
+    }
+  };
+};
+
+Game.prototype.closeChat = function () {
+  const box = document.getElementById('chat-input');
+  if (box) { box.style.display = 'none'; box.onkeydown = null; box.blur(); }
+  this.chatOpen = false;
+};
+
+// ── 접속자 목록 ───────────────────────────────────────────────────────
+Game.prototype.updateNetHud = function () {
+  const el = document.getElementById('net-hud');
+  if (!el) return;
+  if (!this.net) { el.style.display = 'none'; return; }
+  const list = this.net.peerList();
+  el.style.display = 'block';
+  let html = '<b>같이 노는 사람 ' + (list.length + 1) + '명</b><br>' +
+    '<span class="me">' + netEscape(this.profile.name) + ' (나)</span>';
+  for (let i = 0; i < list.length; i++) {
+    const d = Math.round(Math.hypot(list[i].x - this.player.x, list[i].z - this.player.z));
+    html += '<br>' + netEscape(list[i].name) + ' <span class="d">' + d + 'm</span>';
+  }
+  if (!list.length) {
+    html += '<br><span class="d">같은 시드로 창을 하나 더 열면 만납니다</span>';
+  }
+  html += '<br><span class="d">T 대화 · 시드 ' + netEscape(String(this.world.seed)) + '</span>';
+  if (el.innerHTML !== html) el.innerHTML = html;
+};
+
+</script>
+<script>
 /* ==== js/boot.js ==== */
 // boot.js - 시작 화면과 게임 기동.
 'use strict';
@@ -21439,6 +22276,105 @@ Game.prototype.ensureBuses = function () {
 
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
+
+  // ── 캐릭터 만들기 ──
+  const PROFILE_KEY = 'webcraft.profile.v1';
+  const nameInput = document.getElementById('char-name');
+  const preview = document.getElementById('char-preview');
+  const pctx = preview ? preview.getContext('2d') : null;
+
+  function loadProfile() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { saved = null; }
+    if (saved && saved.skin) {
+      return { name: String(saved.name || '').slice(0, 12), skin: normalizeSkin(saved.skin) };
+    }
+    return { name: '', skin: randomSkin() };
+  }
+  const profile = loadProfile();
+  if (nameInput) nameInput.value = profile.name;
+
+  function saveProfile() {
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) { /* 무시 */ }
+  }
+
+  // 고르는 단추 한 줄 만들기
+  function makeSwatches(id, key, list, colorOf, labelOf) {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.innerHTML = '';
+    for (let i = 0; i < list.length; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.title = list[i].name;
+      const c = colorOf(list[i], i);
+      if (c) b.style.background = c;
+      if (labelOf) b.textContent = labelOf(list[i], i);
+      b.addEventListener('click', function () {
+        profile.skin[key] = i;
+        saveProfile();
+        refresh();
+      });
+      box.appendChild(b);
+    }
+  }
+  makeSwatches('opt-tone', 'tone', SKIN_TONES, function (o) { return o.c; });
+  makeSwatches('opt-face', 'face', FACE_STYLES, function () { return 'rgba(255,255,255,.10)'; },
+    function (o, i) { return String(i + 1); });
+  makeSwatches('opt-hair', 'hair', HAIR_COLORS, function (o) { return o.c; });
+  makeSwatches('opt-shirt', 'shirt', SHIRT_COLORS, function (o) { return o.c; });
+  makeSwatches('opt-pants', 'pants', PANTS_COLORS, function (o) { return o.c; });
+
+  function markOn(id, idx) {
+    const box = document.getElementById(id);
+    if (!box) return;
+    for (let i = 0; i < box.children.length; i++) {
+      box.children[i].classList.toggle('on', i === idx);
+    }
+  }
+  function refresh() {
+    markOn('opt-tone', profile.skin.tone);
+    markOn('opt-face', profile.skin.face);
+    markOn('opt-hair', profile.skin.hair);
+    markOn('opt-shirt', profile.skin.shirt);
+    markOn('opt-pants', profile.skin.pants);
+  }
+  refresh();
+
+  // 미리보기 - 제자리걸음을 시켜 둔다
+  let previewPhase = 0;
+  if (pctx) {
+    (function tick() {
+      if (titleEl.style.display !== 'none') {
+        previewPhase += 0.06;
+        drawSkinPreview(pctx, profile.skin, preview.width, preview.height, previewPhase);
+      }
+      requestAnimationFrame(tick);
+    })();
+  }
+
+  const btnRandom = document.getElementById('btn-random');
+  if (btnRandom) {
+    btnRandom.addEventListener('click', function () {
+      const r = randomSkin();
+      for (const k in r) profile.skin[k] = r[k];
+      saveProfile();
+      refresh();
+    });
+  }
+  if (nameInput) {
+    nameInput.addEventListener('input', function () {
+      profile.name = nameInput.value.slice(0, 12);
+      saveProfile();
+    });
+  }
+
+  // 이름이 비어 있으면 적당히 지어 준다
+  function finalName() {
+    const n = (profile.name || '').trim();
+    if (n) return n.slice(0, 12);
+    return '손님' + (100 + Math.floor(Math.random() * 900));
+  }
 
   // 주의: <canvas id="game"> 때문에 window.game 은 게임이 시작되기 전에도
   // "존재"한다(캔버스 엘리먼트). 반드시 settings 까지 확인해야 한다.
@@ -21528,8 +22464,16 @@ Game.prototype.ensureBuses = function () {
           }
         }
 
+        // 캐릭터와 이름을 게임에 넘기고, 같은 시드 창끼리 만나게 한다
+        profile.name = finalName();
+        if (nameInput) nameInput.value = profile.name;
+        saveProfile();
+        game.profile = { name: profile.name, skin: normalizeSkin(profile.skin) };
+        if (game.startNet) game.startNet();
+
         game.start();
         if (!isTouch) game.requestPointerLock();
+        game.ui.toast(profile.name + ' 님 환영합니다 — T 대화 · 같은 시드로 창을 더 열면 함께 놉니다');
 
         // 저장소가 막힌 웹뷰라면 알려 준다
         if (!game.storageAvailable()) {
