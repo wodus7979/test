@@ -9267,6 +9267,7 @@ const ROAD_HALF = 3;        // 도로 반폭
 const RAIL_UP = 12;         // 고가 철로 높이
 const RAIL_HALF = 6;        // 고가 상판 반폭 (복선이라 넓다)
 const TRACK_OFFSET = 3;     // 상판 가운데에서 각 선로 중심까지 (상행 +, 하행 -)
+const RAIL_CURVE_R = 44;    // 철로 코너를 둥글리는 반지름
 
 // ── 도시 색채 ─────────────────────────────────────────────────────────
 let CSTYLE = null;
@@ -10012,6 +10013,94 @@ function cityRoads(plan, st) {
   }
 }
 
+
+// ── 굽은 길 만들기 ────────────────────────────────────────────────────
+// 꺾인 점들을 반지름 R 짜리 호로 둥글린 뒤, 촘촘히 점을 찍어 돌려준다.
+// 철로와 도시 간 도로가 같은 걸 쓴다.
+function smoothPath(pts, radius, step) {
+  step = step || 1;
+  const out = [];
+  const push = function (x, z) {
+    const n = out.length;
+    if (n && Math.abs(out[n - 1][0] - x) < 1e-6 && Math.abs(out[n - 1][1] - z) < 1e-6) return;
+    out.push([x, z]);
+  };
+  if (pts.length < 2) return pts.slice();
+
+  // 모서리마다 접선 길이를 정한다 (양 옆 구간의 절반을 넘지 않게)
+  const cut = new Array(pts.length).fill(0);
+  for (let i = 1; i + 1 < pts.length; i++) {
+    const ax = pts[i - 1][0] - pts[i][0], az = pts[i - 1][1] - pts[i][1];
+    const bx = pts[i + 1][0] - pts[i][0], bz = pts[i + 1][1] - pts[i][1];
+    const la = Math.hypot(ax, az), lb = Math.hypot(bx, bz);
+    if (la < 1e-6 || lb < 1e-6) continue;
+    const cos = (ax * bx + az * bz) / (la * lb);
+    const ang = Math.acos(Math.max(-1, Math.min(1, cos)));   // 두 변 사이 각
+    if (ang > Math.PI - 0.05) continue;                      // 거의 직선이면 그대로
+    let t = radius / Math.tan(ang / 2);
+    t = Math.min(t, la * 0.45, lb * 0.45);
+    cut[i] = t;
+  }
+
+  let cur = pts[0].slice();
+  for (let i = 1; i < pts.length; i++) {
+    const p1 = pts[i];
+    const dx = p1[0] - cur[0], dz = p1[1] - cur[1];
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) continue;
+    const ux = dx / len, uz = dz / len;
+    // 이번 모서리 앞까지 곧게
+    const stop = Math.max(0, len - cut[i]);
+    for (let d = 0; d < stop; d += step) push(cur[0] + ux * d, cur[1] + uz * d);
+    push(cur[0] + ux * stop, cur[1] + uz * stop);
+    if (cut[i] <= 0 || i + 1 >= pts.length) { cur = p1.slice(); continue; }
+
+    // 모서리를 호로 돌아 나간다
+    const p2 = pts[i + 1];
+    const bx = p2[0] - p1[0], bz = p2[1] - p1[1];
+    const lb = Math.hypot(bx, bz);
+    const vx = bx / lb, vz = bz / lb;
+    const sx = p1[0] - ux * cut[i], sz = p1[1] - uz * cut[i];   // 호 시작
+    const ex = p1[0] + vx * cut[i], ez = p1[1] + vz * cut[i];   // 호 끝
+    // 시작·끝 접선을 원호로 잇는다 (중심각만큼 나눠 찍는다)
+    let turn = Math.atan2(vx, vz) - Math.atan2(ux, uz);
+    while (turn > Math.PI) turn -= Math.PI * 2;
+    while (turn < -Math.PI) turn += Math.PI * 2;
+    const r = cut[i] / Math.tan((Math.PI - Math.abs(turn)) / 2);
+    const arcLen = Math.abs(turn) * r;
+    const n = Math.max(2, Math.ceil(arcLen / step));
+    // 원 중심 = 시작점에서 법선 방향으로 r
+    const sgn = turn > 0 ? 1 : -1;
+    const cxp = sx + uz * r * sgn, czp = sz - ux * r * sgn;
+    const a0 = Math.atan2(sz - czp, sx - cxp);
+    for (let k = 1; k <= n; k++) {
+      const a = a0 - sgn * (Math.abs(turn) * k / n);
+      push(cxp + Math.cos(a) * r, czp + Math.sin(a) * r);
+    }
+    push(ex, ez);
+    cur = [ex, ez];
+  }
+  push(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+  return out;
+}
+
+// 굽은 길을 따라 상판을 깐다. 진행 방향과 직각으로 폭만큼 찍는다.
+function paintAlong(path, half, cb) {
+  for (let i = 0; i < path.length; i++) {
+    const a = path[i];
+    const b = path[Math.min(path.length - 1, i + 1)];
+    const c = path[Math.max(0, i - 1)];
+    let dx = b[0] - c[0], dz = b[1] - c[1];
+    const l = Math.hypot(dx, dz) || 1;
+    dx /= l; dz /= l;
+    // 직각(법선)
+    const nx = dz, nz = -dx;
+    for (let d = -half; d <= half; d++) {
+      cb(Math.round(a[0] + nx * d), Math.round(a[1] + nz * d), d, i, dx, dz);
+    }
+  }
+}
+
 // ── 고가 철로 ─────────────────────────────────────────────────────────
 // 공항 터미널 옆 승강장에서 도시 중앙역까지 곧게 잇는다.
 function railRun(plan, x0, z0, x1, z1, ry, st) {
@@ -10052,6 +10141,47 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
       for (const d of [-6, 6]) {
         set(horiz ? px : px + d, ry - 1, horiz ? pz + d : pz, st.post);
       }
+    }
+  }
+}
+
+// 굽은 철로 — 코너를 호로 돌아 나간다. 상판·레일·난간·교각을 한 번에 깐다.
+function railCurve(plan, path, ry, st) {
+  const w = plan.world;
+  const seen = new Set();
+  const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
+  paintAlong(path, RAIL_HALF, function (x, z, d, i) {
+    const key = x + ',' + z;
+    const first = !seen.has(key);
+    if (first) seen.add(key);
+    const ad = Math.abs(d);
+    set(x, ry, z, ad === RAIL_HALF ? st.trim : st.walk);
+    plan.set(x, ry + 1, z, 0, 0, true, 9);
+    if (ad === RAIL_HALF) {
+      set(x, ry + 1, z, B.iron_bars);
+      set(x, ry + 2, z, B.iron_bars);
+    } else if (ad === TRACK_OFFSET - 1 || ad === TRACK_OFFSET + 1) {
+      set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);
+    } else if (d === 0) {
+      set(x, ry, z, st.dash);
+    }
+  });
+  // 교각 — 길을 따라 일정 간격으로
+  const stepPier = 9;
+  for (let i = 0; i < path.length; i += stepPier) {
+    const a = path[i];
+    const b = path[Math.min(path.length - 1, i + 1)];
+    let dx = b[0] - a[0], dz = b[1] - a[1];
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    const nx = dz, nz = -dx;
+    const g = w.heightAt(Math.round(a[0]), Math.round(a[1]));
+    for (const d of [-4, 4]) {
+      const px = Math.round(a[0] + nx * d), pz = Math.round(a[1] + nz * d);
+      const h = ry - 1 - Math.max(1, g);
+      if (h > 0) plan.set(px, Math.max(1, g), pz, st.post, 0, true, h + 1);
+    }
+    for (const d of [-6, 6]) {
+      set(Math.round(a[0] + nx * d), ry - 1, Math.round(a[1] + nz * d), st.post);
     }
   }
 }
@@ -10399,22 +10529,22 @@ function buildCityPlan(world, ap, index) {
   const cityStX = best.x - side * CITY_GRID * 2, cityStZ = best.z;
   const bendX = Math.round((apStX + cityStX) / 2);
 
-  railRun(plan, apStX + side * 15, apStZ, bendX, apStZ, railY, st);
-  if (cityStZ !== apStZ) {
-    railRun(plan, bendX, apStZ, bendX, cityStZ, railY, st);
-    railRun(plan, bendX, cityStZ, cityStX - side * 15, cityStZ, railY, st);
-  } else {
-    railRun(plan, bendX, apStZ, cityStX - side * 15, cityStZ, railY, st);
-  }
+  // 꺾이는 자리를 호로 둥글려 깐다 — 열차가 코너에서 홱 돌지 않게
+  const corners = (cityStZ === apStZ)
+    ? [[apStX + side * 15, apStZ], [cityStX - side * 15, cityStZ]]
+    : [[apStX + side * 15, apStZ], [bendX, apStZ], [bendX, cityStZ], [cityStX - side * 15, cityStZ]];
+  const railPath = smoothPath(corners, RAIL_CURVE_R, 0.8);
+  railCurve(plan, railPath, railY, st);
+
   const apGate = railStation(plan, apStX, apStZ, railY, ap.y, st, ap.code, true);
   const cityGate = railStation(plan, cityStX, cityStZ, railY, gy, st, def.name, true);
 
-  plan.rail = {
-    y: railY + 1,
-    pts: cityStZ === apStZ
-      ? [[apStX, apStZ], [cityStX, cityStZ]]
-      : [[apStX, apStZ], [bendX, apStZ], [bendX, cityStZ], [cityStX, cityStZ]]
-  };
+  // 열차가 따라갈 길 — 승강장까지 이어 붙인다.
+  // 점이 촘촘하면 노선 구간이 너무 많아지므로 몇 칸씩 건너뛴다.
+  const ridePts = [[apStX, apStZ]];
+  for (let i = 0; i < railPath.length; i += 5) ridePts.push([railPath[i][0], railPath[i][1]]);
+  ridePts.push([cityStX, cityStZ]);
+  plan.rail = { y: railY + 1, pts: ridePts };
   plan.stations = [
     { x: apStX, z: apStZ, y: railY + 1, name: ap.name + ' 역', gate: apGate },
     { x: cityStX, z: cityStZ, y: railY + 1, name: def.name + ' 역', gate: cityGate }
@@ -12834,7 +12964,14 @@ Train.prototype.update = function (dt) {
   }
   const p = r.at(this.s);
   this.y = r.y + TRAIN_RIDE;
-  this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  // 노선은 짧은 직선을 이어 붙인 것이라 구간을 넘을 때 방향이 조금씩 튄다.
+  // 목표 방향으로 부드럽게 따라가게 해서 코너가 매끄럽게 돌아가게 한다.
+  const want = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  let d = want - this.yaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  if (Math.abs(d) > 1.4) this.yaw = want;            // 종착역에서 방향을 뒤집을 때는 바로
+  else this.yaw += d * Math.min(1, dt * 3.2);
   const o = this.trackOffset(p.yaw);
   this.x = p.x + o[0]; this.z = p.z + o[1];
   this.wheelAngle += (this.speed * dt) / TRAIN_WHEEL_R;

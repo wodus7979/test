@@ -224,7 +224,14 @@ Train.prototype.update = function (dt) {
   }
   const p = r.at(this.s);
   this.y = r.y + TRAIN_RIDE;
-  this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  // 노선은 짧은 직선을 이어 붙인 것이라 구간을 넘을 때 방향이 조금씩 튄다.
+  // 목표 방향으로 부드럽게 따라가게 해서 코너가 매끄럽게 돌아가게 한다.
+  const want = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  let d = want - this.yaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  if (Math.abs(d) > 1.4) this.yaw = want;            // 종착역에서 방향을 뒤집을 때는 바로
+  else this.yaw += d * Math.min(1, dt * 3.2);
   const o = this.trackOffset(p.yaw);
   this.x = p.x + o[0]; this.z = p.z + o[1];
   this.wheelAngle += (this.speed * dt) / TRAIN_WHEEL_R;
