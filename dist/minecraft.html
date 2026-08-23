@@ -676,6 +676,22 @@ body.touch .hand { display: none !important; }
   cursor: crosshair;
 }
 
+/* 운전 계기판 — 속도와 남은 거리 */
+#drive-hud {
+  display: none;
+  position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
+  z-index: 40; pointer-events: none;
+  background: rgba(10,14,22,.72);
+  border: 1px solid rgba(150,190,240,.25);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font: 13px/1.5 ui-monospace, Menlo, monospace;
+  color: #cfe0f5; text-align: center; white-space: nowrap;
+}
+#drive-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
+#drive-hud .over { color: #ff7a6a; }
+#drive-hud .lim { color: #9fb0c8; }
+
 </style>
 </head>
 <body>
@@ -690,6 +706,7 @@ body.touch .hand { display: none !important; }
 
 <!-- 채굴 진행 -->
 <div id="crack"></div>
+<div id="drive-hud"></div>
 
 <!-- 터치 조작 -->
 <div id="touch-stick"><div id="touch-knob"></div></div>
@@ -766,9 +783,15 @@ body.touch .hand { display: none !important; }
               <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기(공중이면 낙하산)</li>
           <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li>목적지까지 <b>500블록</b>이 남으면 <b>자동 착륙 승인 창</b>이 뜬다 — <b>Y</b> 승인, <b>N</b> 취소</li>
-          <li>도시 길에는 <b>자동차 여덟 종류</b>(승용차·택시·승합차·버스·트럭·순찰차·소방차)가
+          <li>도시 길에는 <b>자동차 아홉 종류</b>(승용차·택시·승합차·버스·트럭·덤프트럭·순찰차·소방차)가
               우측통행으로 달리고, 교차로에서 방향을 튼다. 앞에 서 있으면 멈춘다.
               도시마다 <b>경찰서</b>와 <b>소방서</b>도 있다</li>
+          <li>도시와 도시는 <b>고속도로</b>로 이어져 있다. 왕복 2차선에 갓길·가드레일이 있고,
+              곧게만 가지 않고 크게 굽어 돈다. 길가 <b>안내판</b>이 남은 거리를 알려 준다</li>
+          <li>도로 한가운데 <b>호수</b>가 있고, 그 위를 <b>강철 아치교</b>가 건넌다
+              (시드니 하버브리지 꼴)</li>
+          <li>고속도로 제한 속도는 <b>120km/h</b>. 넘긴 채로 달리면 <b>순찰차</b>가 따라붙어
+              세우고, <b>2분 동안 운전할 수 없다</b>. 계기판에서 속도를 볼 수 있다</li>
           <li>지나가는 <b>자동차에 우클릭하면 직접 몰 수 있다</b> —
               <b>W/S</b> 가속·후진, <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기.
               벽에 막히면 후진으로 빠져나오면 된다</li>
@@ -3075,6 +3098,12 @@ defFurnTex('car_police', function (p, rnd) {
 defFurnTex('car_siren', function (p, rnd) {
   p.rect(0, 0, 8, 16, '#d33a30');
   p.rect(8, 0, 8, 16, '#2f6fd0');
+});
+// 덤프트럭 — 주황 차체
+defFurnTex('car_dump', function (p, rnd) {
+  p.noise(rnd, '#d98324', 5, 4);
+  p.rect(0, 0, 16, 2, '#a8601a');
+  p.rect(0, 14, 16, 2, '#a8601a');
 });
 // 소방차
 defFurnTex('car_fire', function (p, rnd) {
@@ -7062,6 +7091,9 @@ World.prototype.decorateChunk = function (c) {
   if (this.paintAirport) c.hasAirport = this.paintAirport(c);
   // 도시와 고가 철로는 공항 다음 (공항 부지 밖에 선다)
   if (this.paintCity) c.hasCity = this.paintCity(c);
+  if (this.paintHighway) c.hasHighway = this.paintHighway(c);
+  if (this.paintBridge) this.paintBridge(c);
+  if (this.paintHighwaySigns) this.paintHighwaySigns(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
   if (this.snowChunk) this.snowChunk(c);
   this.computeTopY(c);
@@ -13265,6 +13297,32 @@ function fireBody() {
   return P;
 }
 
+// 덤프트럭 — 짐칸이 위로 열려 있어 흙을 부을 수 있다
+function dumpBody() {
+  const P = [];
+  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
+  const W = 2.5;
+  // 운전실
+  box(0, 1.45, 2.9, W, 2.1, 2.4, 'car_dump');
+  box(0, 1.95, 4.06, W - 0.3, 1.0, 0.12, 'car_glass');
+  box(0, 0.62, 0, W - 0.2, 0.55, 9.0, 'car_black');
+  // 짐칸 — 바닥과 옆·앞 벽만 (위는 열린다)
+  box(0, 1.05, -1.9, W, 0.3, 5.8, 'car_cargo');
+  for (const s of [-1, 1]) box(s * (W / 2 - 0.12), 1.75, -1.9, 0.24, 1.5, 5.8, 'car_dump');
+  box(0, 1.75, 0.9, W, 1.5, 0.24, 'car_dump');
+  box(0, 1.75, -4.7, W, 1.5, 0.24, 'car_dump');
+  for (const s of [-1, 1]) {
+    box(s * (W / 2 - 0.5), 0.9, 4.16, 0.5, 0.3, 0.14, 'car_lightF');
+    box(s * (W / 2 - 0.5), 0.9, -4.9, 0.5, 0.3, 0.14, 'car_lightR');
+  }
+  for (const s of [-1, 1]) {
+    for (const z of [3.0, -1.2, -3.4]) {
+      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.52, z: z, r: 0.52, w: 0.36 });
+    }
+  }
+  return P;
+}
+
 const CAR_TYPES = [
   { key: 'sedan', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0,
     parts: carBody('car_silver', { len: 4.2, wide: 1.9 }) },
@@ -13284,11 +13342,12 @@ const CAR_TYPES = [
     parts: carBody('car_police', { len: 4.4, wide: 2.0, extra: function (P, box) {
       box(0, 1.84, -0.1, 1.1, 0.3, 0.5, 'car_siren');
     } }) },
-  { key: 'fire', kr: '소방차', len: 8.6, wide: 2.4, speed: 0.7, parts: fireBody() }
+  { key: 'fire', kr: '소방차', len: 8.6, wide: 2.4, speed: 0.7, parts: fireBody() },
+  { key: 'dump', kr: '덤프트럭', len: 9.2, wide: 2.5, speed: 0.66, parts: dumpBody() }
 ];
 
 // 도로에 실제로 보이는 비율대로 뽑는다 — 승용차가 대부분, 소방차는 아주 드물게.
-const CAR_WEIGHT = [26, 22, 16, 13, 9, 9, 4, 1];
+const CAR_WEIGHT = [24, 20, 15, 12, 8, 8, 4, 1, 8];
 const CAR_WEIGHT_SUM = CAR_WEIGHT.reduce(function (a, b) { return a + b; }, 0);
 function pickCarType() {
   let r = Math.random() * CAR_WEIGHT_SUM;
@@ -13331,8 +13390,8 @@ Car.prototype.sync = function () {
 };
 
 // ── 사람이 모는 차 ────────────────────────────────────────────────────
-const CAR_DRIVE_ACC = 7.0;      // 밟았을 때 붙는 가속
-const CAR_DRIVE_MAX = 14.0;     // 사람이 몰 때 최고 속도
+const CAR_DRIVE_ACC = 9.0;      // 밟았을 때 붙는 가속
+const CAR_DRIVE_MAX = 40.0;     // 사람이 몰 때 최고 속도 (40블록/초 = 144km/h)
 const CAR_REV_MAX = 5.0;        // 후진
 const CAR_STEER = 1.5;          // 초당 최대 조향(라디안)
 const CAR_ROLL = 1.4;           // 발을 떼면 굴러가다 서는 감속
@@ -15599,6 +15658,46 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// 쫓아오는 순찰차 — 실제 Car 가 아니라 게임이 들고 있는 간단한 표적이다
+Renderer.prototype.drawChase = function (game, world, player, opts) {
+  const ch = game.chase;
+  if (!ch) return;
+  const type = (typeof CAR_TYPES !== 'undefined')
+    ? CAR_TYPES.find(function (t) { return t.key === 'police'; }) : null;
+  if (!type) return;
+  _geom.reset();
+  const cy = Math.cos(ch.yaw), sy = Math.sin(ch.yaw);
+  // 경광등이 번갈아 번쩍인다
+  const flash = (Math.floor(ch.siren * 6) % 2) === 0;
+  const light = [1, 0.5];
+  const glow = [1, 1];
+  const parts = type.parts;
+  for (let k = 0; k < parts.length; k++) {
+    const b = parts[k];
+    if (b.wheel) {
+      const ang = ch.siren * 9;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      const wt = function (px, py, pz, out) {
+        const ry = py - b.r, rz = pz;
+        const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+        const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
+        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+      };
+      emitBox(_geom, ch.x, ch.y, ch.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
+      continue;
+    }
+    const bh = b.h;
+    const transform = function (px, py, pz, out) {
+      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+    const lit = (b.tex === 'car_siren') ? (flash ? glow : light)
+      : (CAR_GLOW[b.tex] ? glow : light);
+    emitBox(_geom, ch.x, ch.y, ch.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
+  }
+  this.flushEntityGeom(opts);
+};
+
 // ── 낙하산 ────────────────────────────────────────────────────────────
 // 1인칭이라 플레이어는 안 보이지만, 위를 보면 머리 위 캐노피가 보인다.
 const CHUTE_BOXES = [
@@ -17292,9 +17391,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.4';
+const GAME_VERSION = 'v7.5';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '자동차 운전 · 복선 철로 · 역 계단과 에스컬레이터 · 도시에서 바로 시작';
+const GAME_FEATURES = '도시 간 고속도로 · 호수와 아치교 · 과속 단속 · 전체 지도(M)';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -17534,6 +17633,30 @@ Game.prototype.updateEscalators = function () {
       return;
     }
   }
+};
+
+// 운전 중 계기판 — 속도(km/h)와 다음 도시까지 남은 거리
+Game.prototype.updateDriveHud = function () {
+  const el = document.getElementById('drive-hud');
+  if (!el) return;
+  const car = this.player.inCar;
+  if (!car && !(this.carBan > 0)) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  if (!car) {
+    el.innerHTML = '<span class="over">운전 정지</span> ' + Math.ceil(this.carBan) + '초 남음';
+    return;
+  }
+  const v = Math.round(kmh(Math.abs(car.speed)));
+  const over = this.onHighway && v > HW_LIMIT_KMH;
+  let html = '<span class="kmh' + (over ? ' over' : '') + '">' + v + '</span> km/h';
+  if (this.onHighway) {
+    html += '  <span class="lim">제한 ' + HW_LIMIT_KMH + '</span>';
+    const hw = this.world.highway ? this.world.highway() : null;
+    const info = hw ? hw.aheadInfo(Math.floor(car.x), Math.floor(car.z)) : null;
+    if (info) html += '<br>' + info.to + '까지 ' + info.toDist + 'm';
+  }
+  if (this.chase) html += '<br><span class="over">순찰차 추적 중</span>';
+  el.innerHTML = html;
 };
 
 Game.prototype.respawn = function () {
@@ -18261,6 +18384,10 @@ Game.prototype.exitTrain = function () {
 
 // ── 자동차 운전 ───────────────────────────────────────────────────────
 Game.prototype.enterCar = function (car) {
+  if (this.carBan > 0) {
+    this.ui.toast('운전 정지 중입니다 — ' + Math.ceil(this.carBan) + '초 남음');
+    return;
+  }
   if (!car.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
   this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, Shift 내리기');
   this.playSound('place');
@@ -19046,6 +19173,7 @@ Game.prototype.update = function (dt) {
   this.entities.updatePlanes(dt, p, this);
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
+  if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -19057,6 +19185,7 @@ Game.prototype.update = function (dt) {
   // 비행기는 빠르니 청크를 더 부지런히 만든다
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
+  this.updateDriveHud();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -19171,6 +19300,7 @@ Game.prototype.render = function (dt) {
   r.drawPlanes(this.entities, this.world, p, opts);
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
+  if (r.drawChase) r.drawChase(this, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
@@ -19229,6 +19359,540 @@ Game.prototype.render = function (dt) {
       '체력 ' + p.health.toFixed(1) + '  허기 ' + p.hunger + '  방어 ' + p.armorPoints()
     ]);
   }
+};
+
+</script>
+<script>
+/* ==== js/highway.js ==== */
+// highway.js - 도시와 도시를 잇는 고속도로.
+// 길이가 수천 블록이라 도면(ops)에 다 적으면 너무 무거워서, 공항·도시의 땅
+// 고르기처럼 청크를 찍을 때 그 자리에서 계산한다.
+// 굽은 길은 city.js 의 smoothPath 를 그대로 쓴다.
+'use strict';
+
+const HW_HALF = 5;            // 포장 반폭 (왕복 2차선 + 갓길 = 11칸)
+const HW_LANE = 2.2;          // 중앙선에서 차선 중심까지
+const HW_CURVE_R = 260;       // 도로 코너를 둥글리는 반지름 (철로보다 완만하게)
+const HW_STEP = 2.0;          // 길 위 점 간격
+const HW_GRID = 96;           // 빠른 조회용 격자 칸 크기
+const HW_LIMIT_KMH = 120;     // 제한 속도
+const HW_SIGN_GAP = 420;      // 안내판 간격
+
+// 블록/초 → km/h (1블록 = 1m 로 본다)
+function kmh(blocksPerSec) { return blocksPerSec * 3.6; }
+function blocksPerSecFromKmh(v) { return v / 3.6; }
+
+// ── 호수 ──────────────────────────────────────────────────────────────
+// 도시 사이 한 곳을 눌러 호수를 만든다. 도로는 그 위를 다리로 건넌다.
+const LAKE_R = 150;           // 물가 반지름
+const LAKE_MARGIN = 60;       // 원래 지형으로 이어 붙이는 띠
+const LAKE_DEPTH = 14;        // 수면 아래 깊이
+
+function lakeWeight(dx, dz) {
+  const d = Math.hypot(dx, dz);
+  if (d <= LAKE_R) return 1;
+  if (d >= LAKE_R + LAKE_MARGIN) return 0;
+  const t = (d - LAKE_R) / LAKE_MARGIN;
+  return 1 - t * t * (3 - 2 * t);
+}
+
+// ── 길 만들기 ─────────────────────────────────────────────────────────
+function Highway(world) {
+  this.world = world;
+  this.paths = [];      // {pts:[[x,z]..], h:[..], name, from, to, len}
+  this.lake = null;
+  this.bridges = [];    // {x, z, path, i0, i1, y, dirx, dirz, len}
+  this.signs = [];
+  this.grid = new Map();
+}
+
+Highway.prototype.cell = function (x, z) {
+  return Math.floor(x / HW_GRID) + ',' + Math.floor(z / HW_GRID);
+};
+
+// 격자에 길 위 점을 담아 둔다 (어느 칸이 도로인지 빨리 알려고)
+Highway.prototype.index = function (pathIndex, i, x, z) {
+  const r = Math.ceil((HW_HALF + 3) / HW_GRID) + 1;
+  const cx = Math.floor(x / HW_GRID), cz = Math.floor(z / HW_GRID);
+  for (let dz = -r; dz <= r; dz++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const k = (cx + dx) + ',' + (cz + dz);
+      let a = this.grid.get(k);
+      if (!a) { a = []; this.grid.set(k, a); }
+      a.push(pathIndex, i);
+    }
+  }
+};
+
+Highway.prototype.build = function () {
+  const w = this.world;
+  if (!w.cities) return;
+  const cities = w.cities();
+  if (cities.length < 2) return;
+
+  // 가까운 도시부터 사슬처럼 잇는다
+  const order = cities.slice().sort(function (a, b) {
+    return Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z);
+  });
+
+  // ── 호수 자리: 첫 두 도시 사이 한가운데에서 옆으로 조금 비켜난 곳 ──
+  const a0 = order[0], b0 = order[1];
+  const mx = (a0.x + b0.x) / 2, mz = (a0.z + b0.z) / 2;
+  let dx = b0.x - a0.x, dz = b0.z - a0.z;
+  const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+  this.lake = { x: Math.round(mx), z: Math.round(mz), y: SEA_LEVEL + 6 };
+
+  for (let k = 0; k + 1 < order.length; k++) {
+    const A = order[k], B = order[k + 1];
+    // 곧게만 가지 않도록 가운데를 옆으로 밀어 굽힌다.
+    // 첫 구간은 호수 한가운데를 지나가게 해서 다리를 놓는다.
+    const ux = B.x - A.x, uz = B.z - A.z;
+    const ul = Math.hypot(ux, uz) || 1;
+    const nx = uz / ul, nz = -ux / ul;              // 직각 방향
+    const pts = [[A.x, A.z]];
+    if (k === 0) {
+      pts.push([A.x + ux * 0.28 + nx * ul * 0.10, A.z + uz * 0.28 + nz * ul * 0.10]);
+      pts.push([this.lake.x, this.lake.z]);
+      pts.push([A.x + ux * 0.72 - nx * ul * 0.09, A.z + uz * 0.72 - nz * ul * 0.09]);
+    } else {
+      pts.push([A.x + ux * 0.30 - nx * ul * 0.12, A.z + uz * 0.30 - nz * ul * 0.12]);
+      pts.push([A.x + ux * 0.62 + nx * ul * 0.11, A.z + uz * 0.62 + nz * ul * 0.11]);
+    }
+    pts.push([B.x, B.z]);
+
+    const path = smoothPath(pts, HW_CURVE_R, HW_STEP);
+    const rec = { pts: path, h: new Array(path.length), name: A.name + ' ↔ ' + B.name,
+      from: A, to: B, len: 0 };
+    // 길 높이 — 원래 땅을 따라가되 앞뒤를 섞어 완만하게
+    for (let i = 0; i < path.length; i++) {
+      rec.h[i] = w.heightAt(Math.round(path[i][0]), Math.round(path[i][1]));
+    }
+    this.smoothHeights(rec);
+    // 누적 길이
+    rec.dist = new Array(path.length);
+    let acc = 0;
+    for (let i = 0; i < path.length; i++) {
+      if (i) acc += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+      rec.dist[i] = acc;
+    }
+    rec.len = acc;
+    const pi = this.paths.length;
+    this.paths.push(rec);
+    for (let i = 0; i < path.length; i++) this.index(pi, i, path[i][0], path[i][1]);
+    this.makeBridge(pi, rec);
+    this.makeSigns(pi, rec);
+  }
+};
+
+// 오르내림을 완만하게 (급경사면 차가 못 간다)
+Highway.prototype.smoothHeights = function (rec) {
+  const h = rec.h, n = h.length;
+  for (let pass = 0; pass < 24; pass++) {
+    for (let i = 1; i < n - 1; i++) h[i] = (h[i - 1] + h[i] * 2 + h[i + 1]) / 4;
+  }
+  // 물 위는 다리로 건널 것이므로 수면보다 높게 띄운다
+  for (let i = 0; i < n; i++) h[i] = Math.max(h[i], SEA_LEVEL + 2);
+};
+
+// 호수를 건너는 구간을 찾아 다리로 삼는다
+Highway.prototype.makeBridge = function (pi, rec) {
+  if (!this.lake) return;
+  let i0 = -1, i1 = -1;
+  for (let i = 0; i < rec.pts.length; i++) {
+    const d = Math.hypot(rec.pts[i][0] - this.lake.x, rec.pts[i][1] - this.lake.z);
+    if (d <= LAKE_R + 12) { if (i0 < 0) i0 = i; i1 = i; }
+  }
+  if (i0 < 0 || i1 - i0 < 10) return;
+  const y = this.lake.y + 9;             // 수면 위 다리 높이
+  for (let i = i0; i <= i1; i++) rec.h[i] = y;
+  // 다리 양 끝을 부드럽게 잇는다
+  const ramp = 60;
+  for (let k = 1; k <= ramp; k++) {
+    const t = k / (ramp + 1);
+    if (i0 - k >= 0) rec.h[i0 - k] = rec.h[i0 - k] * t + y * (1 - t);
+    if (i1 + k < rec.h.length) rec.h[i1 + k] = rec.h[i1 + k] * t + y * (1 - t);
+  }
+  this.bridges.push({ pi: pi, i0: i0, i1: i1, y: y });
+};
+
+// 남은 거리 안내판
+Highway.prototype.makeSigns = function (pi, rec) {
+  for (let d = HW_SIGN_GAP; d < rec.len - HW_SIGN_GAP; d += HW_SIGN_GAP) {
+    let i = 0;
+    while (i + 1 < rec.dist.length && rec.dist[i] < d) i++;
+    this.signs.push({ pi: pi, i: i,
+      toName: rec.to.name, toDist: Math.round(rec.len - d),
+      fromName: rec.from.name, fromDist: Math.round(d) });
+  }
+};
+
+// ── 조회 ──────────────────────────────────────────────────────────────
+// (x,z) 가 도로 위인가. 맞으면 {y, off, pi, i} 를 준다. off 는 중앙선에서의 거리.
+Highway.prototype.at = function (x, z) {
+  const a = this.grid.get(this.cell(x, z));
+  if (!a) return null;
+  let best = null, bd = 1e9;
+  for (let k = 0; k < a.length; k += 2) {
+    const rec = this.paths[a[k]];
+    const i = a[k + 1];
+    const p = rec.pts[i];
+    const dx = x - p[0], dz = z - p[1];
+    const d2 = dx * dx + dz * dz;
+    if (d2 < bd) { bd = d2; best = { rec: rec, i: i, pi: a[k] }; }
+  }
+  if (!best) return null;
+  const rec = best.rec, i = best.i;
+  const j = Math.min(rec.pts.length - 1, i + 1), q = Math.max(0, i - 1);
+  let tx = rec.pts[j][0] - rec.pts[q][0], tz = rec.pts[j][1] - rec.pts[q][1];
+  const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+  // 중앙선에서 옆으로 얼마나 떨어졌나 (직각 방향 거리)
+  const off = (x - rec.pts[i][0]) * tz - (z - rec.pts[i][1]) * tx;
+  if (Math.abs(off) > HW_HALF + 2.5) return null;
+  // 진행 방향으로도 너무 벗어났으면 아니다
+  const along = (x - rec.pts[i][0]) * tx + (z - rec.pts[i][1]) * tz;
+  if (Math.abs(along) > HW_STEP) return null;
+  return { y: Math.round(rec.h[i]), off: off, pi: best.pi, i: i, tx: tx, tz: tz, rec: rec };
+};
+
+// 도시까지 남은 거리 (지금 서 있는 도로 기준)
+Highway.prototype.aheadInfo = function (x, z) {
+  const hit = this.at(x, z);
+  if (!hit) return null;
+  const rec = hit.rec;
+  return {
+    to: rec.to.name, toDist: Math.round(rec.len - rec.dist[hit.i]),
+    from: rec.from.name, fromDist: Math.round(rec.dist[hit.i])
+  };
+};
+
+// ── 청크에 찍기 ───────────────────────────────────────────────────────
+World.prototype.highway = function () {
+  if (this._highway !== undefined) return this._highway;
+  this._highway = null;
+  try {
+    const h = new Highway(this);
+    h.build();
+    if (h.paths.length) this._highway = h;
+  } catch (e) { console.warn('고속도로 생성 실패', e); }
+  return this._highway;
+};
+
+World.prototype.paintHighway = function (c) {
+  const hw = this.highway();
+  if (!hw) return false;
+  const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
+  let touched = false;
+
+  // 1) 호수 — 도로보다 먼저 (도로가 그 위를 지난다)
+  const lk = hw.lake;
+  if (lk && Math.abs(bx + 8 - lk.x) <= LAKE_R + LAKE_MARGIN + 16 &&
+            Math.abs(bz + 8 - lk.z) <= LAKE_R + LAKE_MARGIN + 16) {
+    touched = true;
+    for (let lz = 0; lz < CHUNK_Z; lz++) {
+      for (let lx = 0; lx < CHUNK_X; lx++) {
+        const wx = bx + lx, wz = bz + lz;
+        const wgt = lakeWeight(wx - lk.x, wz - lk.z);
+        if (wgt <= 0) continue;
+        const nat = this.heightAt(wx, wz);
+        const bed = Math.round(nat + ((lk.y - LAKE_DEPTH) - nat) * wgt);
+        for (let y = bed + 1; y < CHUNK_Y; y++) {
+          const j = idx(lx, y, lz);
+          c.blocks[j] = (y <= lk.y) ? B.water : 0;
+          c.meta[j] = 0;
+        }
+        if (bed >= 1 && bed < CHUNK_Y) {
+          c.blocks[idx(lx, bed, lz)] = (wgt > 0.35) ? B.sand : B.grass_block;
+        }
+      }
+    }
+  }
+
+  // 2) 도로
+  for (let lz = 0; lz < CHUNK_Z; lz++) {
+    for (let lx = 0; lx < CHUNK_X; lx++) {
+      const wx = bx + lx, wz = bz + lz;
+      const hit = hw.at(wx, wz);
+      if (!hit) continue;
+      touched = true;
+      const y = hit.y;
+      if (y < 1 || y >= CHUNK_Y - 2) continue;
+      const ao = Math.abs(hit.off);
+
+      // 노면 위를 비운다
+      for (let yy = y + 1; yy <= y + 8 && yy < CHUNK_Y; yy++) {
+        c.blocks[idx(lx, yy, lz)] = 0; c.meta[idx(lx, yy, lz)] = 0;
+      }
+      // 노면
+      let surf = B.black_concrete;
+      if (ao > HW_HALF - 0.6) surf = B.light_gray_concrete;          // 갓길
+      else if (ao < 0.55) surf = B.yellow_concrete;                  // 중앙선
+      else if (ao > HW_HALF - 2.4 && ao < HW_HALF - 1.6) surf = B.white_concrete;  // 차선
+      c.blocks[idx(lx, y, lz)] = surf;
+      c.meta[idx(lx, y, lz)] = 0;
+      // 노반 — 아래를 받친다
+      for (let yy = Math.max(1, y - 6); yy < y; yy++) {
+        const j = idx(lx, yy, lz);
+        if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
+      }
+      // 가드레일
+      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 0.6) {
+        if (((wx * 7 + wz * 13) % 4) !== 0 && y + 1 < CHUNK_Y) {
+          c.blocks[idx(lx, y + 1, lz)] = B.iron_bars;
+        }
+      }
+    }
+  }
+  return touched;
+};
+
+// ── 다리 (시드니 하버브리지 꼴 강교) ──────────────────────────────────
+// 노면 위로 큰 포물선 아치를 걸고, 아치에서 노면으로 수직 행어를 내린다.
+// 양 끝에는 석조 교탑을 세운다.
+const BR_ARCH_RISE = 46;      // 노면에서 아치 꼭대기까지
+const BR_PYLON_H = 30;        // 교탑 높이
+const BR_HANG_GAP = 7;        // 행어 간격
+
+World.prototype.paintBridge = function (c) {
+  const hw = this.highway();
+  if (!hw || !hw.bridges.length) return false;
+  const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
+  let touched = false;
+
+  const put = function (wx, wy, wz, id) {
+    const lx = wx - bx, lz = wz - bz;
+    if (lx < 0 || lx >= CHUNK_X || lz < 0 || lz >= CHUNK_Z) return;
+    if (wy < 1 || wy >= CHUNK_Y) return;
+    c.blocks[idx(lx, wy, lz)] = id;
+    c.meta[idx(lx, wy, lz)] = 0;
+    touched = true;
+  };
+  const clear = function (wx, wy, wz) { put(wx, wy, wz, 0); };
+
+  for (let b = 0; b < hw.bridges.length; b++) {
+    const br = hw.bridges[b];
+    const rec = hw.paths[br.pi];
+    const n = br.i1 - br.i0;
+    // 이 청크가 다리 근처인가 (거칠게 걸러낸다)
+    const midp = rec.pts[Math.floor((br.i0 + br.i1) / 2)];
+    const span = Math.hypot(rec.pts[br.i1][0] - rec.pts[br.i0][0],
+                            rec.pts[br.i1][1] - rec.pts[br.i0][1]);
+    if (Math.abs(bx + 8 - midp[0]) > span / 2 + 40) continue;
+    if (Math.abs(bz + 8 - midp[1]) > span / 2 + 40) continue;
+
+    for (let i = br.i0; i <= br.i1; i++) {
+      const p = rec.pts[i];
+      if (Math.abs(p[0] - (bx + 8)) > 40 || Math.abs(p[1] - (bz + 8)) > 40) continue;
+      const j = Math.min(rec.pts.length - 1, i + 1), q = Math.max(0, i - 1);
+      let tx = rec.pts[j][0] - rec.pts[q][0], tz = rec.pts[j][1] - rec.pts[q][1];
+      const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+      const nx = tz, nz = -tx;                 // 직각
+      const t = (i - br.i0) / n;               // 0..1
+      const y = br.y;
+
+      // 아치 — 가운데가 가장 높은 포물선. 노면 양옆 두 줄.
+      // 끝쪽은 한 칸 가는 동안 높이가 여러 칸 뛰므로, 이전 높이와 사이를
+      // 채워 줘야 끊기지 않고 이어진 아치로 보인다.
+      const rise = Math.round(BR_ARCH_RISE * 4 * t * (1 - t));
+      const tPrev = (i - 1 - br.i0) / n;
+      const risePrev = (i > br.i0) ? Math.round(BR_ARCH_RISE * 4 * tPrev * (1 - tPrev)) : rise;
+      const lo = Math.min(rise, risePrev), hi2 = Math.max(rise, risePrev);
+      const pp = rec.pts[Math.max(br.i0, i - 1)];
+      for (const s of [-1, 1]) {
+        const ax = p[0] + nx * (HW_HALF + 1) * s;
+        const az = p[1] + nz * (HW_HALF + 1) * s;
+        // 앞 점과 이 점 사이를 한 칸씩 채운다. 길 위 점이 두 칸 간격이라
+        // 점마다 한 덩이만 놓으면 아치가 점선처럼 끊긴다.
+        const bx2 = pp[0] + nx * (HW_HALF + 1) * s;
+        const bz2 = pp[1] + nz * (HW_HALF + 1) * s;
+        const seg = Math.max(1, Math.ceil(Math.hypot(ax - bx2, az - bz2)));
+        for (let k = 0; k <= seg; k++) {
+          const f = k / seg;
+          const qx = Math.round(bx2 + (ax - bx2) * f);
+          const qz = Math.round(bz2 + (az - bz2) * f);
+          const qr = Math.round(risePrev + (rise - risePrev) * f);
+          put(qx, y + qr, qz, B.light_gray_concrete);
+          put(qx, y + qr + 1, qz, B.smooth_stone);
+          put(qx, y + qr + 2, qz, B.light_gray_concrete);
+          // 안쪽으로 한 칸 더 — 멀리서도 굵게 보이게
+          put(Math.round(qx - nx * s), y + qr + 1, Math.round(qz - nz * s), B.smooth_stone);
+        }
+        // 행어 — 아치에서 노면으로
+        const hx = Math.round(ax), hz = Math.round(az);
+        if (rise > 3 && (i - br.i0) % BR_HANG_GAP === 0) {
+          for (let yy = y + 2; yy < y + rise; yy++) put(hx, yy, hz, B.iron_bars);
+        }
+        // 아치 두 줄을 가로로 묶는 보강재
+        if (rise > 8 && (i - br.i0) % (BR_HANG_GAP * 2) === 0) {
+          for (let d = -(HW_HALF + 1); d <= HW_HALF + 1; d++) {
+            put(Math.round(p[0] + nx * d), y + rise + 1, Math.round(p[1] + nz * d), B.iron_bars);
+          }
+        }
+      }
+
+      // 노면을 받치는 상판 (물 위에 떠 있게)
+      for (let d = -(HW_HALF + 1); d <= HW_HALF + 1; d++) {
+        const sx = Math.round(p[0] + nx * d), sz = Math.round(p[1] + nz * d);
+        put(sx, y - 1, sz, B.smooth_stone);
+        for (let yy = y + 1; yy <= y + 6; yy++) clear(sx, yy, sz);
+      }
+
+      // 교탑 — 양 끝에 네모난 석탑
+      const atEnd = (i === br.i0 + 4) || (i === br.i1 - 4);
+      if (atEnd) {
+        for (const s of [-1, 1]) {
+          const px = Math.round(p[0] + nx * (HW_HALF + 3) * s);
+          const pz = Math.round(p[1] + nz * (HW_HALF + 3) * s);
+          for (let dy = -10; dy <= BR_PYLON_H; dy++) {
+            for (let ddx = -2; ddx <= 2; ddx++) {
+              for (let ddz = -2; ddz <= 2; ddz++) {
+                const edge = Math.abs(ddx) === 2 || Math.abs(ddz) === 2;
+                put(px + ddx, y + dy, pz + ddz,
+                  edge ? B.smooth_stone : (dy > 0 ? 0 : B.stone_bricks));
+              }
+            }
+          }
+          put(px, y + BR_PYLON_H + 1, pz, B.sea_lantern);
+        }
+      }
+    }
+  }
+  return touched;
+};
+
+// ── 안내판 ────────────────────────────────────────────────────────────
+// 도로 옆에 세워 남은 거리를 알려 준다. 글자는 공항 글꼴을 그대로 쓴다.
+World.prototype.paintHighwaySigns = function (c) {
+  const hw = this.highway();
+  if (!hw || !hw.signs.length) return false;
+  const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
+  let touched = false;
+  const put = function (wx, wy, wz, id) {
+    const lx = wx - bx, lz = wz - bz;
+    if (lx < 0 || lx >= CHUNK_X || lz < 0 || lz >= CHUNK_Z) return;
+    if (wy < 1 || wy >= CHUNK_Y) return;
+    c.blocks[idx(lx, wy, lz)] = id;
+    c.meta[idx(lx, wy, lz)] = 0;
+    touched = true;
+  };
+
+  for (let k = 0; k < hw.signs.length; k++) {
+    const sg = hw.signs[k];
+    const rec = hw.paths[sg.pi];
+    const p = rec.pts[sg.i];
+    if (Math.abs(p[0] - (bx + 8)) > 26 || Math.abs(p[1] - (bz + 8)) > 26) continue;
+    const j = Math.min(rec.pts.length - 1, sg.i + 1), q = Math.max(0, sg.i - 1);
+    let tx = rec.pts[j][0] - rec.pts[q][0], tz = rec.pts[j][1] - rec.pts[q][1];
+    const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+    const nx = tz, nz = -tx;
+    const y = Math.round(rec.h[sg.i]);
+    const ox = Math.round(p[0] + nx * (HW_HALF + 2));
+    const oz = Math.round(p[1] + nz * (HW_HALF + 2));
+
+    // 기둥 둘과 판때기
+    for (let s = -3; s <= 3; s += 6) {
+      const cx2 = Math.round(ox + tx * s), cz2 = Math.round(oz + tz * s);
+      for (let yy = y; yy <= y + 5; yy++) put(cx2, yy, cz2, B.iron_bars);
+    }
+    for (let s = -4; s <= 4; s++) {
+      for (let yy = y + 5; yy <= y + 9; yy++) {
+        put(Math.round(ox + tx * s), yy, Math.round(oz + tz * s), B.green_concrete);
+      }
+    }
+    // 거리 숫자 — 판 위에 흰 블록으로
+    const txt = String(Math.max(1, Math.round(sg.toDist / 100)));
+    hwSignDigits(txt, function (col, row) {
+      const s = -3 + col;
+      put(Math.round(ox + tx * s), y + 8 - row, Math.round(oz + tz * s), B.white_concrete);
+    });
+    put(ox, y + 10, oz, B.sea_lantern);
+  }
+  return touched;
+};
+
+// 3×5 숫자를 판에 찍는다 (AP_FONT 를 빌려 쓴다)
+function hwSignDigits(text, cb) {
+  let cur = 0;
+  for (let i = 0; i < text.length && cur < 8; i++) {
+    const rows = (typeof AP_FONT !== 'undefined') ? AP_FONT[text[i]] : null;
+    if (!rows) { cur += 4; continue; }
+    for (let r = 0; r < 5; r++) {
+      for (let cc = 0; cc < 3; cc++) {
+        if ((rows[r] >> (2 - cc)) & 1) cb(cur + cc, r);
+      }
+    }
+    cur += 4;
+  }
+}
+
+// ── 과속 단속 ─────────────────────────────────────────────────────────
+// 고속도로에서 제한 속도를 넘으면 순찰차가 따라붙어 세운다.
+// 세워지면 2분 동안 차를 몰 수 없다.
+const SPEED_GRACE = 2.2;        // 이만큼 넘겨야 단속이 붙는다 (초)
+const CHASE_CATCH = 9;          // 이만큼 가까워지면 잡힌 것
+const DRIVE_BAN_SEC = 120;      // 정지 처분 (초)
+
+Game.prototype.updateSpeedLimit = function (dt) {
+  const p = this.player;
+  if (this.carBan > 0) {
+    this.carBan -= dt;
+    if (this.carBan <= 0) {
+      this.carBan = 0;
+      this.ui.toast('운전 정지가 풀렸습니다');
+    }
+  }
+
+  const car = p.inCar;
+  if (!car) { this.speeding = 0; this.chase = null; return; }
+  const hw = this.world.highway ? this.world.highway() : null;
+  const onRoad = hw ? hw.at(Math.floor(car.x), Math.floor(car.z)) : null;
+  const v = kmh(Math.abs(car.speed));
+  this.carKmh = v;
+  this.onHighway = !!onRoad;
+
+  if (!onRoad || v <= HW_LIMIT_KMH) {
+    // 제한 안으로 돌아오면 봐준다
+    this.speeding = Math.max(0, (this.speeding || 0) - dt * 1.5);
+    if (this.speeding <= 0 && this.chase) { this.chase = null; this.ui.toast('순찰차가 돌아갔습니다'); }
+    return;
+  }
+
+  this.speeding = (this.speeding || 0) + dt;
+  if (this.speeding < SPEED_GRACE) return;
+
+  // 순찰차를 뒤에 붙인다
+  if (!this.chase) {
+    const back = 46;
+    this.chase = {
+      x: car.x - Math.sin(car.yaw) * back,
+      z: car.z - Math.cos(car.yaw) * back,
+      y: car.y, yaw: car.yaw, speed: Math.abs(car.speed) + 6, siren: 0
+    };
+    this.ui.toast('과속 ' + Math.round(v) + 'km/h — 순찰차가 따라붙습니다 (제한 ' + HW_LIMIT_KMH + ')');
+    this.playSound('hurt');
+  }
+
+  const ch = this.chase;
+  ch.siren += dt;
+  const dx = car.x - ch.x, dz = car.z - ch.z;
+  const d = Math.hypot(dx, dz) || 1;
+  ch.yaw = Math.atan2(dx, dz);
+  ch.speed = Math.min(52, Math.abs(car.speed) + 8);
+  ch.x += (dx / d) * ch.speed * dt;
+  ch.z += (dz / d) * ch.speed * dt;
+  const top = this.world.topSolidY(Math.floor(ch.x), Math.floor(ch.z));
+  ch.y = (top >= 0 ? top + 1 : car.y);
+
+  if (d < CHASE_CATCH) this.pullOver();
+};
+
+Game.prototype.pullOver = function () {
+  const car = this.player.inCar;
+  this.chase = null;
+  this.speeding = 0;
+  this.carBan = DRIVE_BAN_SEC;
+  if (car) this.exitCar();
+  this.ui.toast('정지 — 과속으로 적발되었습니다. ' + (DRIVE_BAN_SEC / 60) + '분 동안 운전할 수 없습니다');
+  this.playSound('hurt');
 };
 
 </script>

@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.4';
+const GAME_VERSION = 'v7.5';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '자동차 운전 · 복선 철로 · 역 계단과 에스컬레이터 · 도시에서 바로 시작';
+const GAME_FEATURES = '도시 간 고속도로 · 호수와 아치교 · 과속 단속 · 전체 지도(M)';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -270,6 +270,30 @@ Game.prototype.updateEscalators = function () {
       return;
     }
   }
+};
+
+// 운전 중 계기판 — 속도(km/h)와 다음 도시까지 남은 거리
+Game.prototype.updateDriveHud = function () {
+  const el = document.getElementById('drive-hud');
+  if (!el) return;
+  const car = this.player.inCar;
+  if (!car && !(this.carBan > 0)) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  if (!car) {
+    el.innerHTML = '<span class="over">운전 정지</span> ' + Math.ceil(this.carBan) + '초 남음';
+    return;
+  }
+  const v = Math.round(kmh(Math.abs(car.speed)));
+  const over = this.onHighway && v > HW_LIMIT_KMH;
+  let html = '<span class="kmh' + (over ? ' over' : '') + '">' + v + '</span> km/h';
+  if (this.onHighway) {
+    html += '  <span class="lim">제한 ' + HW_LIMIT_KMH + '</span>';
+    const hw = this.world.highway ? this.world.highway() : null;
+    const info = hw ? hw.aheadInfo(Math.floor(car.x), Math.floor(car.z)) : null;
+    if (info) html += '<br>' + info.to + '까지 ' + info.toDist + 'm';
+  }
+  if (this.chase) html += '<br><span class="over">순찰차 추적 중</span>';
+  el.innerHTML = html;
 };
 
 Game.prototype.respawn = function () {
@@ -997,6 +1021,10 @@ Game.prototype.exitTrain = function () {
 
 // ── 자동차 운전 ───────────────────────────────────────────────────────
 Game.prototype.enterCar = function (car) {
+  if (this.carBan > 0) {
+    this.ui.toast('운전 정지 중입니다 — ' + Math.ceil(this.carBan) + '초 남음');
+    return;
+  }
   if (!car.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
   this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, Shift 내리기');
   this.playSound('place');
@@ -1782,6 +1810,7 @@ Game.prototype.update = function (dt) {
   this.entities.updatePlanes(dt, p, this);
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
+  if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -1793,6 +1822,7 @@ Game.prototype.update = function (dt) {
   // 비행기는 빠르니 청크를 더 부지런히 만든다
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
+  this.updateDriveHud();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -1907,6 +1937,7 @@ Game.prototype.render = function (dt) {
   r.drawPlanes(this.entities, this.world, p, opts);
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
+  if (r.drawChase) r.drawChase(this, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);

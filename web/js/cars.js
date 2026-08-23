@@ -115,6 +115,32 @@ function fireBody() {
   return P;
 }
 
+// 덤프트럭 — 짐칸이 위로 열려 있어 흙을 부을 수 있다
+function dumpBody() {
+  const P = [];
+  const box = function (x, y, z, w, h, d, tex) { P.push({ x: x, y: y, z: z, w: w, h: h, d: d, tex: tex }); };
+  const W = 2.5;
+  // 운전실
+  box(0, 1.45, 2.9, W, 2.1, 2.4, 'car_dump');
+  box(0, 1.95, 4.06, W - 0.3, 1.0, 0.12, 'car_glass');
+  box(0, 0.62, 0, W - 0.2, 0.55, 9.0, 'car_black');
+  // 짐칸 — 바닥과 옆·앞 벽만 (위는 열린다)
+  box(0, 1.05, -1.9, W, 0.3, 5.8, 'car_cargo');
+  for (const s of [-1, 1]) box(s * (W / 2 - 0.12), 1.75, -1.9, 0.24, 1.5, 5.8, 'car_dump');
+  box(0, 1.75, 0.9, W, 1.5, 0.24, 'car_dump');
+  box(0, 1.75, -4.7, W, 1.5, 0.24, 'car_dump');
+  for (const s of [-1, 1]) {
+    box(s * (W / 2 - 0.5), 0.9, 4.16, 0.5, 0.3, 0.14, 'car_lightF');
+    box(s * (W / 2 - 0.5), 0.9, -4.9, 0.5, 0.3, 0.14, 'car_lightR');
+  }
+  for (const s of [-1, 1]) {
+    for (const z of [3.0, -1.2, -3.4]) {
+      P.push({ wheel: true, x: s * (W / 2 - 0.05), y: 0.52, z: z, r: 0.52, w: 0.36 });
+    }
+  }
+  return P;
+}
+
 const CAR_TYPES = [
   { key: 'sedan', kr: '승용차', len: 4.2, wide: 1.9, speed: 1.0,
     parts: carBody('car_silver', { len: 4.2, wide: 1.9 }) },
@@ -134,11 +160,12 @@ const CAR_TYPES = [
     parts: carBody('car_police', { len: 4.4, wide: 2.0, extra: function (P, box) {
       box(0, 1.84, -0.1, 1.1, 0.3, 0.5, 'car_siren');
     } }) },
-  { key: 'fire', kr: '소방차', len: 8.6, wide: 2.4, speed: 0.7, parts: fireBody() }
+  { key: 'fire', kr: '소방차', len: 8.6, wide: 2.4, speed: 0.7, parts: fireBody() },
+  { key: 'dump', kr: '덤프트럭', len: 9.2, wide: 2.5, speed: 0.66, parts: dumpBody() }
 ];
 
 // 도로에 실제로 보이는 비율대로 뽑는다 — 승용차가 대부분, 소방차는 아주 드물게.
-const CAR_WEIGHT = [26, 22, 16, 13, 9, 9, 4, 1];
+const CAR_WEIGHT = [24, 20, 15, 12, 8, 8, 4, 1, 8];
 const CAR_WEIGHT_SUM = CAR_WEIGHT.reduce(function (a, b) { return a + b; }, 0);
 function pickCarType() {
   let r = Math.random() * CAR_WEIGHT_SUM;
@@ -181,8 +208,8 @@ Car.prototype.sync = function () {
 };
 
 // ── 사람이 모는 차 ────────────────────────────────────────────────────
-const CAR_DRIVE_ACC = 7.0;      // 밟았을 때 붙는 가속
-const CAR_DRIVE_MAX = 14.0;     // 사람이 몰 때 최고 속도
+const CAR_DRIVE_ACC = 9.0;      // 밟았을 때 붙는 가속
+const CAR_DRIVE_MAX = 40.0;     // 사람이 몰 때 최고 속도 (40블록/초 = 144km/h)
 const CAR_REV_MAX = 5.0;        // 후진
 const CAR_STEER = 1.5;          // 초당 최대 조향(라디안)
 const CAR_ROLL = 1.4;           // 발을 떼면 굴러가다 서는 감속

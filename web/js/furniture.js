@@ -476,6 +476,12 @@ defFurnTex('car_siren', function (p, rnd) {
   p.rect(0, 0, 8, 16, '#d33a30');
   p.rect(8, 0, 8, 16, '#2f6fd0');
 });
+// 덤프트럭 — 주황 차체
+defFurnTex('car_dump', function (p, rnd) {
+  p.noise(rnd, '#d98324', 5, 4);
+  p.rect(0, 0, 16, 2, '#a8601a');
+  p.rect(0, 14, 16, 2, '#a8601a');
+});
 // 소방차
 defFurnTex('car_fire', function (p, rnd) {
   p.noise(rnd, '#c22f26', 5, 4);

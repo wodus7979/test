@@ -832,6 +832,46 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// 쫓아오는 순찰차 — 실제 Car 가 아니라 게임이 들고 있는 간단한 표적이다
+Renderer.prototype.drawChase = function (game, world, player, opts) {
+  const ch = game.chase;
+  if (!ch) return;
+  const type = (typeof CAR_TYPES !== 'undefined')
+    ? CAR_TYPES.find(function (t) { return t.key === 'police'; }) : null;
+  if (!type) return;
+  _geom.reset();
+  const cy = Math.cos(ch.yaw), sy = Math.sin(ch.yaw);
+  // 경광등이 번갈아 번쩍인다
+  const flash = (Math.floor(ch.siren * 6) % 2) === 0;
+  const light = [1, 0.5];
+  const glow = [1, 1];
+  const parts = type.parts;
+  for (let k = 0; k < parts.length; k++) {
+    const b = parts[k];
+    if (b.wheel) {
+      const ang = ch.siren * 9;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      const wt = function (px, py, pz, out) {
+        const ry = py - b.r, rz = pz;
+        const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+        const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
+        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+      };
+      emitBox(_geom, ch.x, ch.y, ch.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
+      continue;
+    }
+    const bh = b.h;
+    const transform = function (px, py, pz, out) {
+      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+    const lit = (b.tex === 'car_siren') ? (flash ? glow : light)
+      : (CAR_GLOW[b.tex] ? glow : light);
+    emitBox(_geom, ch.x, ch.y, ch.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
+  }
+  this.flushEntityGeom(opts);
+};
+
 // ── 낙하산 ────────────────────────────────────────────────────────────
 // 1인칭이라 플레이어는 안 보이지만, 위를 보면 머리 위 캐노피가 보인다.
 const CHUTE_BOXES = [

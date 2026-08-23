@@ -665,3 +665,19 @@ body.touch .hand { display: none !important; }
   background: #0a0e16;
   cursor: crosshair;
 }
+
+/* 운전 계기판 — 속도와 남은 거리 */
+#drive-hud {
+  display: none;
+  position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
+  z-index: 40; pointer-events: none;
+  background: rgba(10,14,22,.72);
+  border: 1px solid rgba(150,190,240,.25);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font: 13px/1.5 ui-monospace, Menlo, monospace;
+  color: #cfe0f5; text-align: center; white-space: nowrap;
+}
+#drive-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
+#drive-hud .over { color: #ff7a6a; }
+#drive-hud .lim { color: #9fb0c8; }

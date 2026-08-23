@@ -405,6 +405,9 @@ World.prototype.decorateChunk = function (c) {
   if (this.paintAirport) c.hasAirport = this.paintAirport(c);
   // 도시와 고가 철로는 공항 다음 (공항 부지 밖에 선다)
   if (this.paintCity) c.hasCity = this.paintCity(c);
+  if (this.paintHighway) c.hasHighway = this.paintHighway(c);
+  if (this.paintBridge) this.paintBridge(c);
+  if (this.paintHighwaySigns) this.paintHighwaySigns(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
   if (this.snowChunk) this.snowChunk(c);
   this.computeTopY(c);
