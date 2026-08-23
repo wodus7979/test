@@ -4,12 +4,14 @@
 // 검은 현무암 돌담과 귤밭이 있는 낮은 제주 시가지다.
 'use strict';
 
-const CITY_R = 86;          // 도시 반지름
+const CITY_R = 112;         // 도시 반지름
 const CITY_MARGIN = 30;     // 원래 지형으로 이어 붙이는 띠
 const CITY_CLEAR_H = 26;    // 지면 위로 이만큼 치운다
-const CITY_DIST = 340;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
+const CITY_DIST = 420;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
 const CITY_GRID = 26;       // 격자 간격
 const ROAD_HALF = 3;        // 도로 반폭
+const CITY_LINES = 4;       // 가운데 큰길 양옆으로 몇 줄씩 더 나는가
+const CITY_RING = CITY_LINES * CITY_GRID;   // 순환도로 반지름 (제일 바깥 격자선에 접한다)
 const RAIL_UP = 12;         // 고가 철로 높이
 const RAIL_HALF = 6;        // 고가 상판 반폭 (복선이라 넓다)
 const TRACK_OFFSET = 3;     // 상판 가운데에서 각 선로 중심까지 (상행 +, 하행 -)
@@ -450,7 +452,7 @@ function crossWalks(plan, lines, st) {
   for (let i = 0; i < lines.length; i++) {
     for (let j = 0; j < lines.length; j++) {
       const a = lines[i], b = lines[j];
-      if (Math.hypot(a, b) > CITY_R - 8) continue;
+      if (Math.hypot(a, b) > CITY_RING - 4) continue;
       // 교차로 네 방향에 흰 줄
       for (const s of [-1, 1]) {
         for (let k = -ROAD_HALF; k <= ROAD_HALF; k++) {
@@ -471,6 +473,7 @@ function streetTrees(plan, lines, rnd) {
   const set = function (x, y, z, id, run) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1); };
   const tree = function (x, z) {
     if (Math.hypot(x, z) > CITY_R - 4) return;
+    if (onRing(x, z)) return;
     set(x, 0, z, B.grass_block);
     set(x, 1, z, B.oak_log, 4);
     for (let dz = -1; dz <= 1; dz++) {
@@ -705,11 +708,26 @@ function cityPark(plan, cx, cz, hw, hd, st, rnd) {
 // 가운데를 지나는 큰길을 기준으로 CITY_GRID 마다 길이 난다.
 function cityGridLines() {
   const lines = [];
-  for (let k = -3; k <= 3; k++) {
+  for (let k = -CITY_LINES; k <= CITY_LINES; k++) {
     const g = k * CITY_GRID;
     if (Math.abs(g) < CITY_R - 6) lines.push(g);
   }
   return lines;
+}
+
+// 격자 도로가 포장된 채로 뻗는 한계 — 순환도로 바깥 연석까지다.
+const ROAD_EDGE = CITY_RING + ROAD_HALF + 2;
+
+// 이 격자선 위에서 차가 달릴 수 있는 반쪽 길이 (순환도로 안쪽까지)
+function laneExtent(line) {
+  const r = CITY_RING - 3, o = Math.abs(line) + ROAD_HALF + 1;
+  const v = r * r - o * o;
+  return v > 0 ? Math.sqrt(v) : 0;
+}
+
+// 순환도로 포장 위인가 (가로수·가로등이 올라타지 않게)
+function onRing(x, z) {
+  return Math.abs(Math.hypot(x, z) - CITY_RING) <= ROAD_HALF + 2;
 }
 
 function cityRoads(plan, st) {
@@ -723,7 +741,8 @@ function cityRoads(plan, st) {
       for (let w = -ROAD_HALF - 2; w <= ROAD_HALF + 2; w++) {
         const x = horiz ? a : b + w;
         const z = horiz ? b + w : a;
-        if (Math.hypot(x, z) > R - 1) continue;
+        // 격자 도로는 순환도로까지만 나간다 (예전에는 풀밭에서 뚝 끊겼다)
+        if (Math.hypot(x, z) > ROAD_EDGE) continue;
         const road = Math.abs(w) <= ROAD_HALF;
         let id = road ? st.road : st.walk;
         if (road && w === 0 && ((a + 4000) % 6) < 3) id = st.dash;   // 중앙선
@@ -738,13 +757,35 @@ function cityRoads(plan, st) {
     strip(-R, R, lines[i], true);
     strip(-R, R, lines[i], false);
   }
+
+  // ── 순환도로 ──
+  // 격자 도로가 모두 여기로 모여 끝난다. 도시를 한 바퀴 도는 왕복 2차선.
+  const RO = CITY_RING;
+  const lim = RO + ROAD_HALF + 2;
+  for (let z = -lim; z <= lim; z++) {
+    for (let x = -lim; x <= lim; x++) {
+      const w = Math.hypot(x, z) - RO;
+      const aw = Math.abs(w);
+      if (aw > ROAD_HALF + 2) continue;
+      let id;
+      if (aw <= ROAD_HALF) {
+        // 중앙선 — 둘레를 따라 점선
+        const ang = Math.atan2(z, x);
+        id = (aw < 0.5 && ((Math.round(ang * RO / 3) % 2) === 0)) ? st.dash : st.road;
+      } else if (aw <= ROAD_HALF + 1) id = st.curb;
+      else id = st.walk;
+      set(x, 0, z, id);
+      plan.set(plan.x + x, gy + 1, plan.z + z, 0, 0, true, 8);
+    }
+  }
   // 가로등 — 교차로에서 두 개가 겹치지 않게 사이를 띄운다
   const nearCross = function (a) {
     for (let k = 0; k < lines.length; k++) if (Math.abs(a - lines[k]) < 9) return true;
     return false;
   };
   const lamp = function (x, z) {
-    if (Math.hypot(x, z) > R - 3) return;
+    if (Math.hypot(x, z) > ROAD_EDGE + 4) return;
+    if (onRing(x, z)) return;
     plan.set(plan.x + x, gy + 1, plan.z + z, st.post, 0, true, 5);
     set(x, 6, z, st.lamp);
   };
@@ -759,6 +800,61 @@ function cityRoads(plan, st) {
   }
 }
 
+
+// ── 버스 노선 ─────────────────────────────────────────────────────────
+// 순환도로를 한 바퀴 도는 노선. 정거장은 큰길이 빠져나가는 축을 피해
+// 45도마다 하나씩, 바깥 인도 옆에 세운다.
+const BUS_STOP_NAMES = ['시청앞', '중앙공원', '종합운동장', '시외버스터미널',
+  '대학교앞', '전통시장', '전철역앞', '시민병원'];
+const BUS_STOP_N = 8;
+const BUS_STOP_R = CITY_RING + ROAD_HALF + 4;   // 정거장 중심 반지름
+
+function busRoute(plan, st) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1);
+  };
+  const stops = [];
+  const roof = st.roof || bid('gray_concrete');
+  for (let k = 0; k < BUS_STOP_N; k++) {
+    // 22.5도씩 비틀어 놓아 고속도로가 물리는 ±X·±Z 축을 피한다
+    const ang = (k + 0.5) * (Math.PI * 2 / BUS_STOP_N);
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const cx = Math.round(ca * BUS_STOP_R), cz = Math.round(sa * BUS_STOP_R);
+    // 도로를 바라보는 방향 (안쪽이 앞)
+    const ax = Math.abs(ca) >= Math.abs(sa) ? 1 : 0;   // 1 = 정거장이 X축 쪽
+    const hw = ax ? 2 : 4, hd = ax ? 4 : 2;            // 도로와 나란한 쪽이 길다
+    for (let dz = -hd; dz <= hd; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        set(cx + dx, 0, cz + dz, bid('smooth_quartz', 'smooth_stone'));
+        plan.set(plan.x + cx + dx, gy + 1, plan.z + cz + dz, 0, 0, true, 6);
+      }
+    }
+    // 기둥 넷과 지붕
+    for (const sx of [-hw, hw]) {
+      for (const sz of [-hd, hd]) set(cx + sx, 1, cz + sz, B.iron_bars, 3);
+    }
+    for (let dz = -hd; dz <= hd; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 4, cz + dz, roof);
+    }
+    // 등받이 없는 의자 — 도로 반대쪽 벽에 붙인다
+    const bx = ax ? Math.sign(ca) * hw : 0, bz = ax ? 0 : Math.sign(sa) * hd;
+    for (let t = -1; t <= 1; t++) {
+      const ox = ax ? bx : t, oz = ax ? t : bz;
+      set(cx + ox, 1, cz + oz, bid('spruce_planks', 'oak_planks'));
+    }
+    // 표지 기둥과 밤에도 보이는 등
+    set(cx + (ax ? -Math.sign(ca) * hw : hw), 1, cz + (ax ? hd : -Math.sign(sa) * hd), B.iron_bars, 4);
+    set(cx, 5, cz, B.sea_lantern);
+    stops.push({
+      x: plan.x + cx, y: gy + 1, z: plan.z + cz,
+      name: BUS_STOP_NAMES[k % BUS_STOP_NAMES.length],
+      // 승객이 서 있을 자리 (지붕 아래)
+      wait: { x: plan.x + cx + 0.5, y: gy + 1, z: plan.z + cz + 0.5 }
+    });
+  }
+  plan.busRoute = { name: plan.name + ' 순환', stops: stops };
+}
 
 // ── 굽은 길 만들기 ────────────────────────────────────────────────────
 // 꺾인 점들을 반지름 R 짜리 호로 둥글린 뒤, 촘촘히 점을 찍어 돌려준다.
@@ -1120,6 +1216,7 @@ function buildCityPlan(world, ap, index) {
   cityRoads(plan, st);
   crossWalks(plan, plan.roadLines, st);
   streetTrees(plan, plan.roadLines, rnd);
+  busRoute(plan, st);
 
   // ── 구획 나누기 ──
   const lines = plan.roadLines;

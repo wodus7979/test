@@ -705,6 +705,19 @@ body.touch .hand { display: none !important; }
 #dig-hud .warn { color: #ff7a6a; font-weight: 700; }
 #dig-hud .ok { color: #7cc44a; }
 
+/* 시내버스 계기판 */
+#bus-hud {
+  display: none;
+  position: fixed; right: 16px; bottom: 84px;
+  z-index: 40; pointer-events: none;
+  background: rgba(10,14,22,.72);
+  border: 1px solid rgba(150,190,240,.25);
+  border-radius: 8px; padding: 8px 14px; max-width: 260px;
+  font: 13px/1.6 ui-monospace, Menlo, monospace; color: #cfe0f5;
+}
+#bus-hud .warn { color: #ff7a6a; font-weight: 700; }
+#bus-hud .ok { color: #7cc44a; }
+
 </style>
 </head>
 <body>
@@ -721,6 +734,7 @@ body.touch .hand { display: none !important; }
 <div id="crack"></div>
 <div id="drive-hud"></div>
 <div id="dig-hud"></div>
+<div id="bus-hud"></div>
 
 <!-- 터치 조작 -->
 <div id="touch-stick"><div id="touch-knob"></div></div>
@@ -8451,6 +8465,22 @@ World.prototype.nearestVillage = function (x, z, regionRadius) {
 // weather.js - 하늘의 구름, 비와 눈, 그리고 쌓이는 눈.
 'use strict';
 
+// 포장된 길 위에는 눈이 쌓이지 않는다 (제설된 셈 친다).
+// 도로가 하얗게 덮여 버리면 도시 길이 어디로 났는지 알 수 없다.
+let SNOW_FREE = null;
+function pavedSurface(id) {
+  if (!SNOW_FREE) {
+    SNOW_FREE = {};
+    const names = ['black_concrete', 'white_concrete', 'yellow_concrete',
+      'light_gray_concrete', 'smooth_stone', 'smooth_quartz', 'polished_andesite'];
+    for (let i = 0; i < names.length; i++) {
+      const v = B[names[i]];
+      if (v !== undefined) SNOW_FREE[v] = 1;
+    }
+  }
+  return !!SNOW_FREE[id];
+}
+
 // ── 구름 ──────────────────────────────────────────────────────────────
 const CLOUD_Y = 124;       // 구름이 뜨는 높이
 const CLOUD_H = 4;         // 두께
@@ -8615,6 +8645,7 @@ Weather.prototype.accumulate = function (player, snowing) {
       const d = blockDef(here);
       if (!d.solid || d.liquid) continue;
       if (here === B.snow || here === B.snow_block || here === B.ice) continue;
+      if (pavedSurface(here)) continue;
       w.setBlock(x, y + 1, z, B.snow);
       return;
     }
@@ -8704,6 +8735,7 @@ World.prototype.snowChunk = function (c) {
       }
       if (!d.solid) continue;                                    // 풀·꽃 위에는 안 쌓인다
       if (id === B.snow || id === B.snow_block || id === B.ice) continue;
+      if (pavedSurface(id)) continue;
       c.blocks[idx(lx, y + 1, lz)] = B.snow;
     }
   }
@@ -9333,12 +9365,14 @@ World.prototype.paintAirport = function (c) {
 // 검은 현무암 돌담과 귤밭이 있는 낮은 제주 시가지다.
 'use strict';
 
-const CITY_R = 86;          // 도시 반지름
+const CITY_R = 112;         // 도시 반지름
 const CITY_MARGIN = 30;     // 원래 지형으로 이어 붙이는 띠
 const CITY_CLEAR_H = 26;    // 지면 위로 이만큼 치운다
-const CITY_DIST = 340;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
+const CITY_DIST = 420;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
 const CITY_GRID = 26;       // 격자 간격
 const ROAD_HALF = 3;        // 도로 반폭
+const CITY_LINES = 4;       // 가운데 큰길 양옆으로 몇 줄씩 더 나는가
+const CITY_RING = CITY_LINES * CITY_GRID;   // 순환도로 반지름 (제일 바깥 격자선에 접한다)
 const RAIL_UP = 12;         // 고가 철로 높이
 const RAIL_HALF = 6;        // 고가 상판 반폭 (복선이라 넓다)
 const TRACK_OFFSET = 3;     // 상판 가운데에서 각 선로 중심까지 (상행 +, 하행 -)
@@ -9779,7 +9813,7 @@ function crossWalks(plan, lines, st) {
   for (let i = 0; i < lines.length; i++) {
     for (let j = 0; j < lines.length; j++) {
       const a = lines[i], b = lines[j];
-      if (Math.hypot(a, b) > CITY_R - 8) continue;
+      if (Math.hypot(a, b) > CITY_RING - 4) continue;
       // 교차로 네 방향에 흰 줄
       for (const s of [-1, 1]) {
         for (let k = -ROAD_HALF; k <= ROAD_HALF; k++) {
@@ -9800,6 +9834,7 @@ function streetTrees(plan, lines, rnd) {
   const set = function (x, y, z, id, run) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1); };
   const tree = function (x, z) {
     if (Math.hypot(x, z) > CITY_R - 4) return;
+    if (onRing(x, z)) return;
     set(x, 0, z, B.grass_block);
     set(x, 1, z, B.oak_log, 4);
     for (let dz = -1; dz <= 1; dz++) {
@@ -10034,11 +10069,26 @@ function cityPark(plan, cx, cz, hw, hd, st, rnd) {
 // 가운데를 지나는 큰길을 기준으로 CITY_GRID 마다 길이 난다.
 function cityGridLines() {
   const lines = [];
-  for (let k = -3; k <= 3; k++) {
+  for (let k = -CITY_LINES; k <= CITY_LINES; k++) {
     const g = k * CITY_GRID;
     if (Math.abs(g) < CITY_R - 6) lines.push(g);
   }
   return lines;
+}
+
+// 격자 도로가 포장된 채로 뻗는 한계 — 순환도로 바깥 연석까지다.
+const ROAD_EDGE = CITY_RING + ROAD_HALF + 2;
+
+// 이 격자선 위에서 차가 달릴 수 있는 반쪽 길이 (순환도로 안쪽까지)
+function laneExtent(line) {
+  const r = CITY_RING - 3, o = Math.abs(line) + ROAD_HALF + 1;
+  const v = r * r - o * o;
+  return v > 0 ? Math.sqrt(v) : 0;
+}
+
+// 순환도로 포장 위인가 (가로수·가로등이 올라타지 않게)
+function onRing(x, z) {
+  return Math.abs(Math.hypot(x, z) - CITY_RING) <= ROAD_HALF + 2;
 }
 
 function cityRoads(plan, st) {
@@ -10052,7 +10102,8 @@ function cityRoads(plan, st) {
       for (let w = -ROAD_HALF - 2; w <= ROAD_HALF + 2; w++) {
         const x = horiz ? a : b + w;
         const z = horiz ? b + w : a;
-        if (Math.hypot(x, z) > R - 1) continue;
+        // 격자 도로는 순환도로까지만 나간다 (예전에는 풀밭에서 뚝 끊겼다)
+        if (Math.hypot(x, z) > ROAD_EDGE) continue;
         const road = Math.abs(w) <= ROAD_HALF;
         let id = road ? st.road : st.walk;
         if (road && w === 0 && ((a + 4000) % 6) < 3) id = st.dash;   // 중앙선
@@ -10067,13 +10118,35 @@ function cityRoads(plan, st) {
     strip(-R, R, lines[i], true);
     strip(-R, R, lines[i], false);
   }
+
+  // ── 순환도로 ──
+  // 격자 도로가 모두 여기로 모여 끝난다. 도시를 한 바퀴 도는 왕복 2차선.
+  const RO = CITY_RING;
+  const lim = RO + ROAD_HALF + 2;
+  for (let z = -lim; z <= lim; z++) {
+    for (let x = -lim; x <= lim; x++) {
+      const w = Math.hypot(x, z) - RO;
+      const aw = Math.abs(w);
+      if (aw > ROAD_HALF + 2) continue;
+      let id;
+      if (aw <= ROAD_HALF) {
+        // 중앙선 — 둘레를 따라 점선
+        const ang = Math.atan2(z, x);
+        id = (aw < 0.5 && ((Math.round(ang * RO / 3) % 2) === 0)) ? st.dash : st.road;
+      } else if (aw <= ROAD_HALF + 1) id = st.curb;
+      else id = st.walk;
+      set(x, 0, z, id);
+      plan.set(plan.x + x, gy + 1, plan.z + z, 0, 0, true, 8);
+    }
+  }
   // 가로등 — 교차로에서 두 개가 겹치지 않게 사이를 띄운다
   const nearCross = function (a) {
     for (let k = 0; k < lines.length; k++) if (Math.abs(a - lines[k]) < 9) return true;
     return false;
   };
   const lamp = function (x, z) {
-    if (Math.hypot(x, z) > R - 3) return;
+    if (Math.hypot(x, z) > ROAD_EDGE + 4) return;
+    if (onRing(x, z)) return;
     plan.set(plan.x + x, gy + 1, plan.z + z, st.post, 0, true, 5);
     set(x, 6, z, st.lamp);
   };
@@ -10088,6 +10161,61 @@ function cityRoads(plan, st) {
   }
 }
 
+
+// ── 버스 노선 ─────────────────────────────────────────────────────────
+// 순환도로를 한 바퀴 도는 노선. 정거장은 큰길이 빠져나가는 축을 피해
+// 45도마다 하나씩, 바깥 인도 옆에 세운다.
+const BUS_STOP_NAMES = ['시청앞', '중앙공원', '종합운동장', '시외버스터미널',
+  '대학교앞', '전통시장', '전철역앞', '시민병원'];
+const BUS_STOP_N = 8;
+const BUS_STOP_R = CITY_RING + ROAD_HALF + 4;   // 정거장 중심 반지름
+
+function busRoute(plan, st) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1);
+  };
+  const stops = [];
+  const roof = st.roof || bid('gray_concrete');
+  for (let k = 0; k < BUS_STOP_N; k++) {
+    // 22.5도씩 비틀어 놓아 고속도로가 물리는 ±X·±Z 축을 피한다
+    const ang = (k + 0.5) * (Math.PI * 2 / BUS_STOP_N);
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const cx = Math.round(ca * BUS_STOP_R), cz = Math.round(sa * BUS_STOP_R);
+    // 도로를 바라보는 방향 (안쪽이 앞)
+    const ax = Math.abs(ca) >= Math.abs(sa) ? 1 : 0;   // 1 = 정거장이 X축 쪽
+    const hw = ax ? 2 : 4, hd = ax ? 4 : 2;            // 도로와 나란한 쪽이 길다
+    for (let dz = -hd; dz <= hd; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        set(cx + dx, 0, cz + dz, bid('smooth_quartz', 'smooth_stone'));
+        plan.set(plan.x + cx + dx, gy + 1, plan.z + cz + dz, 0, 0, true, 6);
+      }
+    }
+    // 기둥 넷과 지붕
+    for (const sx of [-hw, hw]) {
+      for (const sz of [-hd, hd]) set(cx + sx, 1, cz + sz, B.iron_bars, 3);
+    }
+    for (let dz = -hd; dz <= hd; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 4, cz + dz, roof);
+    }
+    // 등받이 없는 의자 — 도로 반대쪽 벽에 붙인다
+    const bx = ax ? Math.sign(ca) * hw : 0, bz = ax ? 0 : Math.sign(sa) * hd;
+    for (let t = -1; t <= 1; t++) {
+      const ox = ax ? bx : t, oz = ax ? t : bz;
+      set(cx + ox, 1, cz + oz, bid('spruce_planks', 'oak_planks'));
+    }
+    // 표지 기둥과 밤에도 보이는 등
+    set(cx + (ax ? -Math.sign(ca) * hw : hw), 1, cz + (ax ? hd : -Math.sign(sa) * hd), B.iron_bars, 4);
+    set(cx, 5, cz, B.sea_lantern);
+    stops.push({
+      x: plan.x + cx, y: gy + 1, z: plan.z + cz,
+      name: BUS_STOP_NAMES[k % BUS_STOP_NAMES.length],
+      // 승객이 서 있을 자리 (지붕 아래)
+      wait: { x: plan.x + cx + 0.5, y: gy + 1, z: plan.z + cz + 0.5 }
+    });
+  }
+  plan.busRoute = { name: plan.name + ' 순환', stops: stops };
+}
 
 // ── 굽은 길 만들기 ────────────────────────────────────────────────────
 // 꺾인 점들을 반지름 R 짜리 호로 둥글린 뒤, 촘촘히 점을 찍어 돌려준다.
@@ -10449,6 +10577,7 @@ function buildCityPlan(world, ap, index) {
   cityRoads(plan, st);
   crossWalks(plan, plan.roadLines, st);
   streetTrees(plan, plan.roadLines, rnd);
+  busRoute(plan, st);
 
   // ── 구획 나누기 ──
   const lines = plan.roadLines;
@@ -13520,7 +13649,8 @@ Car.prototype.rejoinLane = function () {
   if (!best) return;
   this.axis = best.axis;
   this.line = best.line;
-  this.pos = Math.max(-(CITY_R - 8), Math.min(CITY_R - 8, best.pos));
+  const ext = Math.max(6, laneExtent(best.line) - 5);
+  this.pos = Math.max(-ext, Math.min(ext, best.pos));
   // 차선 안쪽(오른쪽)으로 붙는 방향을 고른다
   const off = best.across - best.line;
   this.dir = (best.axis === 0) ? (off >= 0 ? 1 : -1) : (off <= 0 ? 1 : -1);
@@ -13541,7 +13671,7 @@ Car.prototype.unboard = function () {
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
   this.speed = 0;
-  this.rejoinLane();
+  if (!this.parked) this.rejoinLane();   // 세워 둔 버스는 그 자리에 그대로 둔다
 };
 
 // 운전석 눈높이
@@ -13601,6 +13731,54 @@ Car.prototype.canStand = function (world, x, z, half, lead) {
   return true;
 };
 
+// ── 앞차 살피기 ───────────────────────────────────────────────────────
+// 같은 차선만 보면 교차로에서 서로 뚫고 지나가 겹쳐 버린다.
+// 실제 자리와 방향으로 "내 앞을 막고 있나"를 본다.
+// 꺾어 들어갈 자리가 비어 있나
+function turnClear(car, game, city, axis, line, pos, dir) {
+  const list = (game.entities && game.entities.cars) || [];
+  const off = dir > 0 ? CAR_LANE : -CAR_LANE;
+  const tx = axis === 0 ? city.x + pos : city.x + line - off;
+  const tz = axis === 0 ? city.z + line + off : city.z + pos;
+  for (let k = 0; k < list.length; k++) {
+    const o = list[k];
+    if (o === car || o.city !== city) continue;
+    if (Math.hypot(o.x - tx, o.z - tz) < (o.type.len + car.type.len) / 2 + 1.5) return false;
+  }
+  return true;
+}
+
+function carAhead(car, list) {
+  const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
+  const rx = Math.cos(car.yaw), rz = -Math.sin(car.yaw);   // 오른쪽
+  let slow = null;
+  for (let k = 0; k < list.length; k++) {
+    const o = list[k];
+    if (o === car || o.city !== car.city) continue;
+    const dx = o.x - car.x, dz = o.z - car.z;
+    if (Math.abs(dx) > 22 || Math.abs(dz) > 22) continue;
+    if (Math.abs(o.y - car.y) > 3) continue;
+    // 상대 차를 내 진행 방향 기준 상자로 바꾼다
+    const dy = o.yaw - car.yaw;
+    const cs = Math.abs(Math.cos(dy)), sn = Math.abs(Math.sin(dy));
+    const oLon = (o.type.len / 2) * cs + (o.type.wide / 2) * sn;
+    const oLat = (o.type.wide / 2) * cs + (o.type.len / 2) * sn;
+    const ahead = dx * fx + dz * fz;
+    const side = Math.abs(dx * rx + dz * rz);
+    if (side > car.type.wide / 2 + oLat + 0.4) continue;
+    const gap = ahead - (car.type.len / 2 + oLon);
+    if (gap < -0.5 || gap > 3.2) continue;
+    // 직각으로 만나면 오른쪽 차에게 양보한다 (둘 다 서는 걸 막는다)
+    if (cs < 0.5) {
+      const right = dx * rx + dz * rz;
+      if (right < 0) continue;
+    }
+    const v = gap < 0.8 ? 0 : Math.min(o.speed * 0.8, 2.5);
+    if (slow === null || v < slow) slow = v;
+  }
+  return slow;
+}
+
 Car.prototype.update = function (dt, game) {
   const c = this.city;
   // 앞이 막혔는지 — 플레이어와 다른 차
@@ -13610,7 +13788,7 @@ Car.prototype.update = function (dt, game) {
   const ahead = (p[ax] - (this.axis === 0 ? this.x : this.z)) * this.dir;
   const side = Math.abs(this.axis === 0 ? (p.z - this.z) : (p.x - this.x));
   if (ahead > 0 && ahead < 7 && side < 2.4 && Math.abs(p.y - this.y) < 3) want = 0;
-  if (this._blocked) want = Math.min(want, this._blocked);
+  if (this._blocked !== null && this._blocked !== undefined) want = Math.min(want, this._blocked);
 
   const target = want;
   if (target > this.speed) this.speed = Math.min(target, this.speed + CAR_ACC * dt);
@@ -13623,28 +13801,40 @@ Car.prototype.update = function (dt, game) {
 
   // 교차로에서 방향 틀기 — "가까운가"가 아니라 "이번에 지나갔는가"로 본다.
   // 프레임이 느려 한 번에 여러 칸을 가도 교차로를 놓치지 않는다.
+  const ext = laneExtent(this.line) - 5;
   if (this.turnCool <= 0) {
     const lines = c.roadLines;
     for (let i = 0; i < lines.length; i++) {
       const L = lines[i];
-      if ((was - L) * (this.pos - L) <= 0) {
-        if (Math.random() < 0.34) {
-          // 격자 값끼리 맞바꾼다. 지나친 만큼을 그대로 쓰면 line 이 격자에서
-          // 어긋나 앞차를 못 알아보게 된다.
-          this.pos = this.line;
-          this.line = L;
-          this.axis = this.axis ? 0 : 1;
-          if (Math.random() < 0.5) this.dir = -this.dir;
-          this.turnCool = 3.0;
-        } else this.turnCool = 1.2;
-        break;
-      }
+      if ((was - L) * (this.pos - L) > 0) continue;
+      // 이대로 가면 다음 교차로 전에 포장이 끝나는가
+      const must = Math.abs(this.pos + this.dir * (CITY_GRID + 5)) > ext;
+      // 저 길로 꺾으면 설 자리가 있는가
+      const canTurn = Math.abs(this.line) <= laneExtent(L) - 5;
+      if (canTurn && (must || Math.random() < 0.34)) {
+        // 격자 값끼리 맞바꾼다. 지나친 만큼을 그대로 쓰면 line 이 격자에서
+        // 어긋나 앞차를 못 알아보게 된다.
+        const npos = this.line, nline = L;
+        const naxis = this.axis ? 0 : 1;
+        const next2 = laneExtent(nline) - 5;
+        // 갈 수 있는 방향 중에서 고른다 (한쪽이 막혔으면 남은 쪽으로)
+        const okP = (next2 - npos) > CITY_GRID, okM = (npos + next2) > CITY_GRID;
+        let ndir = this.dir;
+        if (okP && okM) ndir = Math.random() < 0.5 ? 1 : -1;
+        else if (okP) ndir = 1;
+        else if (okM) ndir = -1;
+        else { this.turnCool = 1.2; break; }
+        // 꺾은 자리에 다른 차가 있으면 이번엔 그냥 지나간다
+        if (!turnClear(this, game, c, naxis, nline, npos, ndir)) { this.turnCool = 0.4; break; }
+        this.pos = npos; this.line = nline; this.axis = naxis; this.dir = ndir;
+        this.turnCool = 3.0;
+      } else this.turnCool = must ? 0.3 : 1.2;
+      break;
     }
   }
-  // 도시 밖으로 나가면 반대편에서 다시 들어온다
-  const R = CITY_R - 6;
-  if (this.pos > R) { this.pos = -R; }
-  else if (this.pos < -R) { this.pos = R; }
+  // 포장이 끝나는 곳에서는 멈춰 서서 되돌아간다 (풀밭으로 나가지 않는다)
+  if (this.pos > ext) { this.pos = ext; this.dir = -1; this.speed = 0; this.turnCool = 1.0; }
+  else if (this.pos < -ext) { this.pos = -ext; this.dir = 1; this.speed = 0; this.turnCool = 1.0; }
 
   this.y = c.y + 1;
   this.sync();
@@ -13682,15 +13872,28 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
     const c = cities[i];
     if (Math.hypot(c.x - player.x, c.z - player.z) > CAR_SPAWN_R) continue;
     let here = 0;
-    for (let k = 0; k < this.cars.length; k++) if (this.cars[k].city === c) here++;
-    while (here < CARS_PER_CITY) {
-      const lines = c.roadLines;
-      if (!lines || !lines.length) break;
+    for (let k = 0; k < this.cars.length; k++) {
+      if (this.cars[k].city === c && !this.cars[k].parked) here++;
+    }
+    const usable = (c.roadLines || []).filter(function (L) { return laneExtent(L) > 20; });
+    if (!usable.length) continue;
+    let guard = 0;
+    while (here < CARS_PER_CITY && guard++ < 200) {
       const axis = Math.random() < 0.5 ? 0 : 1;
-      const line = lines[(Math.random() * lines.length) | 0];
+      const line = usable[(Math.random() * usable.length) | 0];
       const dir = Math.random() < 0.5 ? 1 : -1;
-      const pos = (Math.random() * 2 - 1) * (CITY_R - 10);
-      this.cars.push(new Car(c, pickCarType(), axis, line, dir, pos));
+      const ext = laneExtent(line) - 6;
+      const pos = (Math.random() * 2 - 1) * ext;
+      // 이미 차가 서 있는 자리에는 겹쳐 놓지 않는다
+      const car = new Car(c, pickCarType(), axis, line, dir, pos);
+      let clash = false;
+      for (let k = 0; k < this.cars.length && !clash; k++) {
+        const o = this.cars[k];
+        if (o.city !== c) continue;
+        if (Math.hypot(o.x - car.x, o.z - car.z) < (o.type.len + car.type.len) / 2 + 2) clash = true;
+      }
+      if (clash) continue;
+      this.cars.push(car);
       here++;
     }
   }
@@ -13708,15 +13911,14 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
       car.drive(dt, game.input, this.world);
       continue;
     }
-    car._blocked = null;
-    for (let k = 0; k < this.cars.length; k++) {
-      if (k === i) continue;
-      const o = this.cars[k];
-      if (o.driver) continue;
-      if (o.city !== car.city || o.axis !== car.axis || o.line !== car.line || o.dir !== car.dir) continue;
-      const gap = (o.pos - car.pos) * car.dir;
-      if (gap > 0 && gap < car.type.len + 2.5) car._blocked = Math.min(o.speed * 0.85, 2);
+    if (car.parked) {
+      // 노선버스는 정거장에 서 있는다. 땅만 따라 앉힌다.
+      car.speed = 0;
+      const top = w.topSolidY(Math.floor(car.x), Math.floor(car.z));
+      if (top >= 0) car.y = top + 1;
+      continue;
     }
+    car._blocked = carAhead(car, this.cars);
     car.update(dt, game);
   }
 };
@@ -17612,7 +17814,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.6';
+const GAME_VERSION = 'v7.7';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
 
@@ -18129,12 +18331,14 @@ Game.prototype.bindInput = function () {
     }
     switch (e.code) {
       case 'KeyE':
+        // 포크레인에 타고 있으면 암을 편다 (같은 case 를 두 번 쓰면 뒤엣것이 죽는다)
+        if (self.player.inDigger) { self.input.stickOut = true; e.preventDefault(); break; }
         if (self.ui.open) self.ui.closeScreen();
         else { self.ui.openScreen('inventory'); self.exitPointerLock(); }
         e.preventDefault();
         break;
-      case 'KeyE':
-        if (self.player.inDigger) { self.input.stickOut = true; e.preventDefault(); break; }
+      case 'KeyH':
+        if (self.player.inCar) { self.carHorn(0.09); e.preventDefault(); }
         break;
       case 'KeyZ':
         if (self.player.inDigger) { self.input.curlIn = true; e.preventDefault(); }
@@ -18660,7 +18864,12 @@ Game.prototype.enterCar = function (car) {
     return;
   }
   if (!car.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
-  this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, Shift 내리기');
+  if (car.type.key === 'bus') {
+    this.ui.toast('시내버스 탑승 — 순환도로를 돌며 정거장마다 완전히 멈추면 ' +
+      '손님이 타고 내립니다 (한 사람 ' + BUS_FARE + '원). H 경적, Shift 내리기');
+  } else {
+    this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, H 경적, Shift 내리기');
+  }
   this.playSound('place');
 };
 
@@ -19099,6 +19308,152 @@ Game.prototype.setRainSound = function (level) {
   } catch (e) { /* 소리는 없어도 그만 */ }
 };
 
+// ── 자동차 소리 ───────────────────────────────────────────────────────
+// 소리 파일을 쓰지 않고 톱니파(엔진)와 잡음(노면)을 섞어 만든다.
+// level 0~1 = 얼마나 세게 밟았나, speed = 블록/초.
+Game.prototype.setCarSound = function (level, speed) {
+  try {
+    if (level < 0.01 && !this.carGain) return;
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (!this.carGain) {
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      g.connect(ctx.destination);
+      // 엔진 — 톱니파를 낮게 깔고 회전수에 따라 음을 올린다
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 60;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 4;
+      const og = ctx.createGain(); og.gain.value = 0.5;
+      osc.connect(lp); lp.connect(og); og.connect(g);
+      osc.start();
+      // 노면 — 잡음
+      const len = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.5;
+      const ng = ctx.createGain(); ng.gain.value = 0;
+      src.connect(bp); bp.connect(ng); ng.connect(g);
+      src.start();
+      this.carGain = g; this.carOsc = osc; this.carLp = lp; this.carNoise = ng;
+    }
+    if (ctx.state === 'suspended') { ctx.resume(); return; }
+    const t = ctx.currentTime;
+    const v = Math.max(0, Math.min(1, level));
+    const sp = Math.abs(speed || 0);
+    this.carGain.gain.setTargetAtTime(v * 0.09, t, 0.12);
+    // 회전수 — 기어가 올라가듯 속도가 붙으면 음이 오르내린다
+    const gear = Math.min(4, Math.floor(sp / 9));
+    const rpm = 52 + ((sp - gear * 9) * 7) + gear * 6;
+    this.carOsc.frequency.setTargetAtTime(rpm, t, 0.1);
+    this.carLp.frequency.setTargetAtTime(260 + sp * 22, t, 0.2);
+    this.carNoise.gain.setTargetAtTime(Math.min(0.5, sp / 34) * 0.5, t, 0.2);
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 경적 — 두 음을 겹친 짧은 소리
+Game.prototype.carHorn = function (vol) {
+  try {
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (ctx.state === 'suspended') { ctx.resume(); return; }
+    const now = ctx.currentTime, dur = 0.42;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.002, vol), now + 0.03);
+    g.gain.setValueAtTime(Math.max(0.002, vol), now + dur - 0.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    g.connect(ctx.destination);
+    for (const f of [440, 554]) {
+      const o = ctx.createOscillator();
+      o.type = 'square'; o.frequency.value = f;
+      const og = ctx.createGain(); og.gain.value = 0.5;
+      o.connect(og); og.connect(g);
+      o.start(now); o.stop(now + dur + 0.02);
+    }
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 도시의 차 소리 — 가까운 차가 많을수록 웅웅거린다
+Game.prototype.setTrafficSound = function (level) {
+  try {
+    if (level < 0.01 && !this.trafGain) return;
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (!this.trafGain) {
+      const len = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 260; lp.Q.value = 0.7;
+      const g = ctx.createGain(); g.gain.value = 0;
+      src.connect(lp); lp.connect(g); g.connect(ctx.destination);
+      src.start();
+      this.trafGain = g;
+    }
+    if (ctx.state === 'suspended') return;
+    this.trafGain.gain.setTargetAtTime(Math.min(1, level) * 0.05, ctx.currentTime, 0.9);
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 매 틱 — 운전 중이면 엔진, 도시 안이면 차 소리와 가끔 경적
+Game.prototype.updateCarAudio = function (dt) {
+  const p = this.player;
+  const car = p.inCar;
+  if (car) {
+    const frac = Math.min(1, Math.abs(car.speed) / 22);
+    this.setCarSound(0.25 + frac * 0.75, car.speed);
+  } else if (this.carGain) {
+    this.setCarSound(0, 0);
+  }
+
+  // 주변 차 세기
+  const list = (this.entities && this.entities.cars) || [];
+  let near = 0, sum = 0;
+  for (let i = 0; i < list.length; i++) {
+    const o = list[i];
+    if (o === car) continue;
+    const d = Math.hypot(o.x - p.x, o.z - p.z);
+    if (d > 70) continue;
+    near++; sum += o.speed * (1 - d / 70);
+  }
+  this.setTrafficSound(Math.min(1, sum / 26));
+
+  // 가끔 경적 — 도시 안에서만
+  this._hornWait = (this._hornWait === undefined) ? 6 + Math.random() * 10 : this._hornWait - dt;
+  if (this._hornWait <= 0) {
+    this._hornWait = 7 + Math.random() * 16;
+    if (near > 2) {
+      const o = list[(Math.random() * list.length) | 0];
+      if (o && o !== car) {
+        const d = Math.hypot(o.x - p.x, o.z - p.z);
+        if (d < 70) this.carHorn(0.055 * (1 - d / 70));
+      }
+    }
+  }
+};
+
 // ── 비행 경보 ─────────────────────────────────────────────────────────
 // 다른 비행기가 가까우면 충돌 경보, 땅이 가까우면 대지 접근 경보.
 Game.prototype.updateAlerts = function (dt) {
@@ -19484,6 +19839,9 @@ Game.prototype.update = function (dt) {
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
+  if (this.updateCarAudio) this.updateCarAudio(dt);
+  if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
+  if (this.updateBus) this.updateBus(dt);
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -19497,6 +19855,7 @@ Game.prototype.update = function (dt) {
   this.ui.updateHUD(dt);
   this.updateDriveHud();
   this.updateDigHud();
+  if (this.updateBusHud) this.updateBusHud();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -19737,16 +20096,36 @@ Highway.prototype.index = function (pathIndex, i, x, z) {
   }
 };
 
+// 사이에 낀 도시를 어느 쪽으로 비켜 갈지 (+1 / -1)
+Highway.prototype.detourSide = function (order, i, j, Astart, ux, uz, nx, nz) {
+  let sum = 0;
+  for (let m = 0; m < order.length; m++) {
+    if (m === i || m === j) continue;
+    const C = order[m];
+    const dx = C.x - Astart[0], dz = C.z - Astart[1];
+    const along = (dx * ux + dz * uz) / (ux * ux + uz * uz);
+    if (along < -0.1 || along > 1.1) continue;    // 이 구간 옆이 아니다
+    sum += (dx * nx + dz * nz);
+  }
+  return sum > 0 ? -1 : 1;    // 낀 도시 반대쪽으로 휜다
+};
+
 Highway.prototype.build = function () {
   const w = this.world;
   if (!w.cities) return;
   const cities = w.cities();
   if (cities.length < 2) return;
 
-  // 가까운 도시부터 사슬처럼 잇는다
+  // 가까운 도시부터 차례로 놓고, 모든 도시 쌍을 하나씩 잇는다.
+  // (사슬로만 이으면 양 끝 도시 사이를 가려면 중간 도시를 꼭 거쳐야 했다)
   const order = cities.slice().sort(function (a, b) {
     return Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z);
   });
+  const links = [];
+  for (let i = 0; i + 1 < order.length; i++) links.push([i, i + 1]);   // 사슬 먼저
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 2; j < order.length; j++) links.push([i, j]);      // 건너뛰는 길
+  }
 
   // ── 호수 자리: 첫 두 도시 사이 한가운데에서 옆으로 조금 비켜난 곳 ──
   const a0 = order[0], b0 = order[1];
@@ -19755,14 +20134,14 @@ Highway.prototype.build = function () {
   const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
   this.lake = { x: Math.round(mx), z: Math.round(mz), y: SEA_LEVEL + 6 };
 
-  for (let k = 0; k + 1 < order.length; k++) {
-    const A = order[k], B = order[k + 1];
+  for (let k = 0; k < links.length; k++) {
+    const A = order[links[k][0]], B = order[links[k][1]];
     // 도시 안으로는 들어가지 않는다. 도시의 가운데 큰길(격자선 0)이 바깥으로
     // 이어지는 자리에서 시작해, 상대 도시의 같은 자리에서 끝낸다.
     // (예전에는 도시 한복판에서 출발해 건물을 뚫고 나갔다)
     const exitOf = function (C, tx, tz) {
       const ex = tx - C.x, ez = tz - C.z;
-      const out = CITY_R + 5;
+      const out = CITY_RING;      // 순환도로에 그대로 물린다
       // 큰 쪽 축으로 빠져나간다 — 도시의 가운데 큰길과 그대로 이어진다
       if (Math.abs(ex) >= Math.abs(ez)) return [C.x + Math.sign(ex) * out, C.z];
       return [C.x, C.z + Math.sign(ez) * out];
@@ -19777,9 +20156,14 @@ Highway.prototype.build = function () {
       pts.push([Astart[0] + ux * 0.28 + nx * ul * 0.10, Astart[1] + uz * 0.28 + nz * ul * 0.10]);
       pts.push([this.lake.x, this.lake.z]);
       pts.push([Astart[0] + ux * 0.72 - nx * ul * 0.09, Astart[1] + uz * 0.72 - nz * ul * 0.09]);
-    } else {
+    } else if (links[k][1] === links[k][0] + 1) {
       pts.push([Astart[0] + ux * 0.30 - nx * ul * 0.12, Astart[1] + uz * 0.30 - nz * ul * 0.12]);
       pts.push([Astart[0] + ux * 0.62 + nx * ul * 0.11, Astart[1] + uz * 0.62 + nz * ul * 0.11]);
+    } else {
+      // 중간 도시를 건너뛰는 길 — 사이에 낀 도시를 크게 비켜 간다
+      const away = this.detourSide(order, links[k][0], links[k][1], Astart, ux, uz, nx, nz);
+      pts.push([Astart[0] + ux * 0.32 + nx * ul * 0.22 * away, Astart[1] + uz * 0.32 + nz * ul * 0.22 * away]);
+      pts.push([Astart[0] + ux * 0.68 + nx * ul * 0.22 * away, Astart[1] + uz * 0.68 + nz * ul * 0.22 * away]);
     }
     pts.push([Bend[0], Bend[1]]);
 
@@ -19788,7 +20172,7 @@ Highway.prototype.build = function () {
       from: A, to: B, len: 0 };
     // 길 높이 — 원래 땅을 따라가되 앞뒤를 섞어 완만하게
     for (let i = 0; i < path.length; i++) {
-      rec.h[i] = w.heightAt(Math.round(path[i][0]), Math.round(path[i][1]));
+      rec.h[i] = this.groundAt(Math.round(path[i][0]), Math.round(path[i][1]));
     }
     this.smoothHeights(rec);
     // 누적 길이
@@ -19805,6 +20189,21 @@ Highway.prototype.build = function () {
     this.makeBridge(pi, rec);
     this.makeSigns(pi, rec);
   }
+};
+
+// 실제로 만들어질 땅 높이 — 도시 근처는 도시 지면으로 눌린다.
+// (이걸 안 보면 도시 어귀에서 도로가 계단처럼 어긋난다)
+Highway.prototype.groundAt = function (x, z) {
+  const nat = this.world.heightAt(x, z);
+  const list = this._cityList || (this._cityList = (this.world.cities ? this.world.cities() : []));
+  let y = nat, best = 0;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (Math.abs(c.x - x) > CITY_R + CITY_MARGIN || Math.abs(c.z - z) > CITY_R + CITY_MARGIN) continue;
+    const w = cityFlatWeight(x - c.x, z - c.z);
+    if (w > best) { best = w; y = nat + (c.y - nat) * w; }
+  }
+  return y;
 };
 
 // 오르내림을 완만하게 (급경사면 차가 못 간다)
@@ -19877,14 +20276,29 @@ Highway.prototype.at = function (x, z) {
   return { y: Math.round(rec.h[i]), off: off, pi: best.pi, i: i, tx: tx, tz: tz, rec: rec };
 };
 
-// 도시 안(건물이 선 자리)인가 — 여기는 고속도로가 건드리지 않는다
+// 도시 안(건물이 선 자리)인가 — 여기는 고속도로가 건드리지 않는다.
+// 순환도로 안쪽까지만 막고, 순환도로 위에서는 서로 물리게 둔다.
+const HW_CITY_KEEP = CITY_RING - ROAD_HALF - 1;
+// 도시 어귀인가 — 여기서는 가드레일을 세우지 않는다.
+// (순환도로를 가로질러 난간이 서면 시내 차가 지나갈 수 없다)
+Highway.prototype.nearCity = function (x, z, r) {
+  if (!this._cityList) this._cityList = this.world.cities ? this.world.cities() : [];
+  const list = this._cityList;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (Math.abs(c.x - x) > r || Math.abs(c.z - z) > r) continue;
+    if (Math.hypot(c.x - x, c.z - z) <= r) return true;
+  }
+  return false;
+};
+
 Highway.prototype.insideCity = function (x, z) {
   if (!this._cityList) this._cityList = this.world.cities ? this.world.cities() : [];
   const list = this._cityList;
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
-    if (Math.abs(c.x - x) > CITY_R + 2 || Math.abs(c.z - z) > CITY_R + 2) continue;
-    if (Math.hypot(c.x - x, c.z - z) <= CITY_R + 2) return true;
+    if (Math.abs(c.x - x) > HW_CITY_KEEP || Math.abs(c.z - z) > HW_CITY_KEEP) continue;
+    if (Math.hypot(c.x - x, c.z - z) <= HW_CITY_KEEP) return true;
   }
   return false;
 };
@@ -19970,8 +20384,9 @@ World.prototype.paintHighway = function (c) {
         const j = idx(lx, yy, lz);
         if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
       }
-      // 가드레일
-      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 0.6) {
+      // 가드레일 — 도시 어귀는 비워 둔다 (시내 도로와 이어져야 한다)
+      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 0.6 &&
+          !hw.nearCity(wx, wz, CITY_RING + 16)) {
         if (((wx * 7 + wz * 13) % 4) !== 0 && y + 1 < CHUNK_Y) {
           c.blocks[idx(lx, y + 1, lz)] = B.iron_bars;
         }
@@ -20487,6 +20902,252 @@ Game.prototype.exitDigger = function () {
   ex.unboard();
   this.digJob = null;
   this.ui.toast('포크레인에서 내렸습니다');
+};
+
+</script>
+<script>
+/* ==== js/bus.js ==== */
+// bus.js - 시내버스 운행. 도시마다 순환 노선이 하나씩 있고,
+// 정거장에서 기다리던 주민을 태우면 한 사람에 50원을 번다.
+// 태운 손님은 저마다 내릴 정거장이 정해져 있어, 그 앞에 서면 내린다.
+'use strict';
+
+const BUS_FARE = 50;          // 한 사람 태울 때 받는 돈
+const BUS_STOP_RANGE = 8;     // 정거장으로 치는 거리
+const BUS_DWELL = 1.0;        // 문을 여는 데 걸리는 시간(초)
+const BUS_WAIT_MAX = 3;       // 정거장 하나에 서 있는 손님 수
+const BUS_LIVE_R = 240;       // 이 안에 들어오면 손님이 나타난다
+const BUS_SEATS = 12;
+
+// ── 기다리는 손님 ─────────────────────────────────────────────────────
+// 손님은 따로 세어 두지 않고 "정거장에 서 있는 주민"이 곧 손님이다.
+// (숫자를 따로 들고 있으면 주민이 안 생겨도 손님이 있는 것처럼 어긋난다)
+Game.prototype.countBusRiders = function (city, stopIndex) {
+  const em = this.entities;
+  if (!em || !em.mobs) return 0;
+  let n = 0;
+  for (let i = 0; i < em.mobs.length; i++) {
+    const m = em.mobs[i];
+    if (m.busStop && m.busStop.code === city.code && m.busStop.i === stopIndex) n++;
+  }
+  return n;
+};
+
+// 정거장마다 버스를 기다리는 주민을 세워 둔다
+Game.prototype.updateBusRiders = function (dt) {
+  const w = this.world;
+  if (!w.cities) return;
+  const p = this.player;
+  this._busTick = (this._busTick || 0) - dt;
+  if (this._busTick > 0) return;
+  this._busTick = 1.5;
+
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.busRoute) continue;
+    if (Math.hypot(c.x - p.x, c.z - p.z) > BUS_LIVE_R) continue;
+    const stops = c.busRoute.stops;
+    for (let k = 0; k < stops.length; k++) {
+      if (this.countBusRiders(c, k) >= BUS_WAIT_MAX) continue;
+      if (Math.random() > 0.35) continue;
+      this.spawnBusRider(c, k);
+    }
+  }
+};
+
+// 기다리는 손님 하나를 실제 주민으로 세운다. 세우지 못하면 아무 일도 없다.
+Game.prototype.spawnBusRider = function (city, stopIndex) {
+  const em = this.entities;
+  if (!em || !em.spawnMob) return false;
+  const stops = city.busRoute.stops;
+  const stop = stops[stopIndex];
+  const jitter = function () { return (Math.random() * 2 - 1) * 1.6; };
+  const x = stop.wait.x + jitter(), z = stop.wait.z + jitter();
+  const y = em.findStand(x, stop.wait.y, z);
+  if (y === null) return false;
+  // 내릴 곳은 다른 정거장 중에서 고른다
+  let to = (Math.random() * stops.length) | 0;
+  if (to === stopIndex) to = (to + 1) % stops.length;
+  const jobs = ['unemployed', 'farmer', 'librarian', 'cleric', 'butcher'];
+  const job = jobs[(Math.random() * jobs.length) | 0];
+  const type = (typeof MOB_TYPES !== 'undefined' && MOB_TYPES['villager_' + job])
+    ? 'villager_' + job : 'villager_unemployed';
+  const e = em.spawnMob(type, x, y, z);
+  e.home = { x: stop.wait.x, z: stop.wait.z };
+  e.homeR = 3;                                    // 정거장을 벗어나지 않는다
+  e.busStop = { code: city.code, i: stopIndex };
+  e.busTo = to;
+  return true;
+};
+
+// 정거장에서 기다리던 주민을 태운다 — 내릴 정거장 번호를 돌려준다
+Game.prototype.takeBusRiders = function (city, stopIndex, n) {
+  const em = this.entities;
+  const out = [];
+  if (!em || !em.mobs) return out;
+  for (let i = em.mobs.length - 1; i >= 0 && out.length < n; i--) {
+    const m = em.mobs[i];
+    if (!m.busStop || m.busStop.code !== city.code || m.busStop.i !== stopIndex) continue;
+    em.mobs.splice(i, 1);
+    out.push(m.busTo === undefined ? (stopIndex + 1) % city.busRoute.stops.length : m.busTo);
+  }
+  return out;
+};
+
+// 손님을 정거장에 내려 준다 (제 갈 길로 흩어진다)
+Game.prototype.dropBusRider = function (city, stopIndex) {
+  const em = this.entities;
+  if (!em || !em.spawnMob) return;
+  const stop = city.busRoute.stops[stopIndex];
+  const x = stop.wait.x + (Math.random() * 2 - 1) * 2;
+  const z = stop.wait.z + (Math.random() * 2 - 1) * 2;
+  const y = em.findStand(x, stop.wait.y, z);
+  if (y === null) return;
+  const e = em.spawnMob('villager_unemployed', x, y, z);
+  e.home = { x: x, z: z };
+  e.homeR = 16;              // 내린 사람은 동네를 돌아다닌다
+};
+
+// ── 정거장 찾기 ───────────────────────────────────────────────────────
+Game.prototype.nearestBusStop = function (x, z) {
+  const w = this.world;
+  if (!w.cities) return null;
+  const list = w.cities();
+  let best = null;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.busRoute) continue;
+    if (Math.abs(c.x - x) > CITY_R + 40 || Math.abs(c.z - z) > CITY_R + 40) continue;
+    const stops = c.busRoute.stops;
+    for (let k = 0; k < stops.length; k++) {
+      const d = Math.hypot(stops[k].x - x, stops[k].z - z);
+      if (!best || d < best.d) best = { city: c, i: k, stop: stops[k], d: d };
+    }
+  }
+  return best;
+};
+
+// ── 운행 ──────────────────────────────────────────────────────────────
+Game.prototype.updateBus = function (dt) {
+  this.updateBusRiders(dt);
+
+  const car = this.player.inCar;
+  if (!car || car.type.key !== 'bus') { this.busRun = null; this._busDwell = 0; return; }
+  if (!this.busRun) this.busRun = { riders: [], served: 0, earned: 0, last: -1 };
+  const run = this.busRun;
+
+  const near = this.nearestBusStop(car.x, car.z);
+  run.near = near;
+  if (!near || near.d > BUS_STOP_RANGE || Math.abs(car.speed) > 0.6) {
+    this._busDwell = 0;
+    if (near && near.d > BUS_STOP_RANGE + 6) run.last = -1;   // 정거장을 떠났다
+    return;
+  }
+  // 정거장 앞에 섰다 — 문이 열릴 때까지 잠깐 기다린다
+  this._busDwell = (this._busDwell || 0) + dt;
+  if (this._busDwell < BUS_DWELL) return;
+  if (run.last === near.i) return;                            // 이미 이 정거장은 처리했다
+  run.last = near.i;
+  this._busDwell = 0;
+  this.serveBusStop(near.city, near.i);
+};
+
+Game.prototype.serveBusStop = function (city, stopIndex) {
+  const run = this.busRun;
+  const stop = city.busRoute.stops[stopIndex];
+  let off = 0;
+  for (let i = run.riders.length - 1; i >= 0; i--) {
+    if (run.riders[i].to !== stopIndex || run.riders[i].code !== city.code) continue;
+    run.riders.splice(i, 1);
+    this.dropBusRider(city, stopIndex);
+    off++;
+  }
+  // 태우기 — 자리가 남는 만큼
+  const room = Math.max(0, BUS_SEATS - run.riders.length);
+  const got = this.takeBusRiders(city, stopIndex, room);
+  for (let i = 0; i < got.length; i++) run.riders.push({ to: got[i], code: city.code });
+  const took = got.length;
+  if (took) {
+    const pay = took * BUS_FARE;
+    this.addMoney(pay);
+    run.earned += pay;
+    run.served += took;
+  }
+  let msg = stop.name;
+  if (off) msg += ' — ' + off + '명 하차';
+  if (took) msg += (off ? ',' : ' —') + ' ' + took + '명 승차 (+' + (took * BUS_FARE) + '원)';
+  if (!off && !took) msg += ' — 손님 없음';
+  this.ui.toast(msg);
+  this.playSound(took || off ? 'place' : 'break');
+};
+
+// ── 계기판 ────────────────────────────────────────────────────────────
+Game.prototype.updateBusHud = function () {
+  const el = document.getElementById('bus-hud');
+  if (!el) return;
+  const run = this.busRun;
+  if (!run) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const near = run.near;
+  const car = this.player.inCar;
+  let html = '';
+  if (near) {
+    const route = near.city.busRoute;
+    const nxt = route.stops[(near.i + 1) % route.stops.length];
+    html += '<b>' + route.name + '</b><br>';
+    const wait = this.countBusRiders(near.city, near.i);
+    if (near.d <= BUS_STOP_RANGE) {
+      html += '<span class="ok">' + near.stop.name + ' 정차 중</span><br>';
+    } else {
+      html += '가까운 정거장 ' + near.stop.name + ' ' + Math.round(near.d) + 'm<br>';
+    }
+    html += '기다리는 손님 ' + wait + '명  ·  다음 ' + nxt.name + '<br>';
+  }
+  html += '손님 ' + run.riders.length + ' / ' + BUS_SEATS +
+    '  ·  태운 사람 ' + run.served + '명<br>';
+  html += '이번 운행 ' + run.earned + '원  ·  모은 돈 ' + (this.money || 0) + '원';
+  if (car && Math.abs(car.speed) > 0.6 && near && near.d <= BUS_STOP_RANGE) {
+    html += '<br><span class="warn">정거장에서는 완전히 멈춰야 문이 열립니다</span>';
+  }
+  el.innerHTML = html;
+};
+
+// ── 노선 버스 세워 두기 ───────────────────────────────────────────────
+// 도시마다 첫 정거장 옆에 버스 한 대를 세워 둔다. 우클릭으로 탄다.
+Game.prototype.ensureBuses = function () {
+  const w = this.world;
+  if (!w.cities || !this.entities) return;
+  const em = this.entities;
+  if (!em.cars) em.cars = [];
+  const p = this.player;
+  const list = w.cities();
+  const type = CAR_TYPES.find(function (t) { return t.key === 'bus'; });
+  if (!type) return;
+
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.busRoute) continue;
+    if (Math.hypot(c.x - p.x, c.z - p.z) > BUS_LIVE_R) continue;
+    let has = false;
+    for (let k = 0; k < em.cars.length; k++) {
+      if (em.cars[k].routeBus && em.cars[k].city === c) { has = true; break; }
+    }
+    if (has) continue;
+    // 첫 정거장 앞 차로에 세운다
+    const ang = 0.5 * (Math.PI * 2 / BUS_STOP_N);
+    const rx = c.x + Math.cos(ang) * CITY_RING;
+    const rz = c.z + Math.sin(ang) * CITY_RING;
+    const bus = new Car(c, type, 0, 0, 1, 0);
+    bus.routeBus = true;
+    bus.parked = true;
+    bus.x = rx; bus.z = rz;
+    bus.yaw = -ang;                     // 순환도로에 나란히
+    bus.speed = 0;
+    const top = w.topSolidY(Math.floor(rx), Math.floor(rz));
+    bus.y = (top >= 0 ? top + 1 : c.y + 1);
+    em.cars.push(bus);
+  }
 };
 
 </script>

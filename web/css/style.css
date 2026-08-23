@@ -694,3 +694,16 @@ body.touch .hand { display: none !important; }
 }
 #dig-hud .warn { color: #ff7a6a; font-weight: 700; }
 #dig-hud .ok { color: #7cc44a; }
+
+/* 시내버스 계기판 */
+#bus-hud {
+  display: none;
+  position: fixed; right: 16px; bottom: 84px;
+  z-index: 40; pointer-events: none;
+  background: rgba(10,14,22,.72);
+  border: 1px solid rgba(150,190,240,.25);
+  border-radius: 8px; padding: 8px 14px; max-width: 260px;
+  font: 13px/1.6 ui-monospace, Menlo, monospace; color: #cfe0f5;
+}
+#bus-hud .warn { color: #ff7a6a; font-weight: 700; }
+#bus-hud .ok { color: #7cc44a; }

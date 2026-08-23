@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.6';
+const GAME_VERSION = 'v7.7';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
 
@@ -545,12 +545,14 @@ Game.prototype.bindInput = function () {
     }
     switch (e.code) {
       case 'KeyE':
+        // 포크레인에 타고 있으면 암을 편다 (같은 case 를 두 번 쓰면 뒤엣것이 죽는다)
+        if (self.player.inDigger) { self.input.stickOut = true; e.preventDefault(); break; }
         if (self.ui.open) self.ui.closeScreen();
         else { self.ui.openScreen('inventory'); self.exitPointerLock(); }
         e.preventDefault();
         break;
-      case 'KeyE':
-        if (self.player.inDigger) { self.input.stickOut = true; e.preventDefault(); break; }
+      case 'KeyH':
+        if (self.player.inCar) { self.carHorn(0.09); e.preventDefault(); }
         break;
       case 'KeyZ':
         if (self.player.inDigger) { self.input.curlIn = true; e.preventDefault(); }
@@ -1076,7 +1078,12 @@ Game.prototype.enterCar = function (car) {
     return;
   }
   if (!car.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
-  this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, Shift 내리기');
+  if (car.type.key === 'bus') {
+    this.ui.toast('시내버스 탑승 — 순환도로를 돌며 정거장마다 완전히 멈추면 ' +
+      '손님이 타고 내립니다 (한 사람 ' + BUS_FARE + '원). H 경적, Shift 내리기');
+  } else {
+    this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, H 경적, Shift 내리기');
+  }
   this.playSound('place');
 };
 
@@ -1515,6 +1522,152 @@ Game.prototype.setRainSound = function (level) {
   } catch (e) { /* 소리는 없어도 그만 */ }
 };
 
+// ── 자동차 소리 ───────────────────────────────────────────────────────
+// 소리 파일을 쓰지 않고 톱니파(엔진)와 잡음(노면)을 섞어 만든다.
+// level 0~1 = 얼마나 세게 밟았나, speed = 블록/초.
+Game.prototype.setCarSound = function (level, speed) {
+  try {
+    if (level < 0.01 && !this.carGain) return;
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (!this.carGain) {
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      g.connect(ctx.destination);
+      // 엔진 — 톱니파를 낮게 깔고 회전수에 따라 음을 올린다
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 60;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 4;
+      const og = ctx.createGain(); og.gain.value = 0.5;
+      osc.connect(lp); lp.connect(og); og.connect(g);
+      osc.start();
+      // 노면 — 잡음
+      const len = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.5;
+      const ng = ctx.createGain(); ng.gain.value = 0;
+      src.connect(bp); bp.connect(ng); ng.connect(g);
+      src.start();
+      this.carGain = g; this.carOsc = osc; this.carLp = lp; this.carNoise = ng;
+    }
+    if (ctx.state === 'suspended') { ctx.resume(); return; }
+    const t = ctx.currentTime;
+    const v = Math.max(0, Math.min(1, level));
+    const sp = Math.abs(speed || 0);
+    this.carGain.gain.setTargetAtTime(v * 0.09, t, 0.12);
+    // 회전수 — 기어가 올라가듯 속도가 붙으면 음이 오르내린다
+    const gear = Math.min(4, Math.floor(sp / 9));
+    const rpm = 52 + ((sp - gear * 9) * 7) + gear * 6;
+    this.carOsc.frequency.setTargetAtTime(rpm, t, 0.1);
+    this.carLp.frequency.setTargetAtTime(260 + sp * 22, t, 0.2);
+    this.carNoise.gain.setTargetAtTime(Math.min(0.5, sp / 34) * 0.5, t, 0.2);
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 경적 — 두 음을 겹친 짧은 소리
+Game.prototype.carHorn = function (vol) {
+  try {
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (ctx.state === 'suspended') { ctx.resume(); return; }
+    const now = ctx.currentTime, dur = 0.42;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.002, vol), now + 0.03);
+    g.gain.setValueAtTime(Math.max(0.002, vol), now + dur - 0.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    g.connect(ctx.destination);
+    for (const f of [440, 554]) {
+      const o = ctx.createOscillator();
+      o.type = 'square'; o.frequency.value = f;
+      const og = ctx.createGain(); og.gain.value = 0.5;
+      o.connect(og); og.connect(g);
+      o.start(now); o.stop(now + dur + 0.02);
+    }
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 도시의 차 소리 — 가까운 차가 많을수록 웅웅거린다
+Game.prototype.setTrafficSound = function (level) {
+  try {
+    if (level < 0.01 && !this.trafGain) return;
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (!this.trafGain) {
+      const len = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 260; lp.Q.value = 0.7;
+      const g = ctx.createGain(); g.gain.value = 0;
+      src.connect(lp); lp.connect(g); g.connect(ctx.destination);
+      src.start();
+      this.trafGain = g;
+    }
+    if (ctx.state === 'suspended') return;
+    this.trafGain.gain.setTargetAtTime(Math.min(1, level) * 0.05, ctx.currentTime, 0.9);
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 매 틱 — 운전 중이면 엔진, 도시 안이면 차 소리와 가끔 경적
+Game.prototype.updateCarAudio = function (dt) {
+  const p = this.player;
+  const car = p.inCar;
+  if (car) {
+    const frac = Math.min(1, Math.abs(car.speed) / 22);
+    this.setCarSound(0.25 + frac * 0.75, car.speed);
+  } else if (this.carGain) {
+    this.setCarSound(0, 0);
+  }
+
+  // 주변 차 세기
+  const list = (this.entities && this.entities.cars) || [];
+  let near = 0, sum = 0;
+  for (let i = 0; i < list.length; i++) {
+    const o = list[i];
+    if (o === car) continue;
+    const d = Math.hypot(o.x - p.x, o.z - p.z);
+    if (d > 70) continue;
+    near++; sum += o.speed * (1 - d / 70);
+  }
+  this.setTrafficSound(Math.min(1, sum / 26));
+
+  // 가끔 경적 — 도시 안에서만
+  this._hornWait = (this._hornWait === undefined) ? 6 + Math.random() * 10 : this._hornWait - dt;
+  if (this._hornWait <= 0) {
+    this._hornWait = 7 + Math.random() * 16;
+    if (near > 2) {
+      const o = list[(Math.random() * list.length) | 0];
+      if (o && o !== car) {
+        const d = Math.hypot(o.x - p.x, o.z - p.z);
+        if (d < 70) this.carHorn(0.055 * (1 - d / 70));
+      }
+    }
+  }
+};
+
 // ── 비행 경보 ─────────────────────────────────────────────────────────
 // 다른 비행기가 가까우면 충돌 경보, 땅이 가까우면 대지 접근 경보.
 Game.prototype.updateAlerts = function (dt) {
@@ -1900,6 +2053,9 @@ Game.prototype.update = function (dt) {
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
+  if (this.updateCarAudio) this.updateCarAudio(dt);
+  if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
+  if (this.updateBus) this.updateBus(dt);
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -1913,6 +2069,7 @@ Game.prototype.update = function (dt) {
   this.ui.updateHUD(dt);
   this.updateDriveHud();
   this.updateDigHud();
+  if (this.updateBusHud) this.updateBusHud();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {

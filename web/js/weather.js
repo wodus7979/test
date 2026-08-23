@@ -1,6 +1,22 @@
 // weather.js - 하늘의 구름, 비와 눈, 그리고 쌓이는 눈.
 'use strict';
 
+// 포장된 길 위에는 눈이 쌓이지 않는다 (제설된 셈 친다).
+// 도로가 하얗게 덮여 버리면 도시 길이 어디로 났는지 알 수 없다.
+let SNOW_FREE = null;
+function pavedSurface(id) {
+  if (!SNOW_FREE) {
+    SNOW_FREE = {};
+    const names = ['black_concrete', 'white_concrete', 'yellow_concrete',
+      'light_gray_concrete', 'smooth_stone', 'smooth_quartz', 'polished_andesite'];
+    for (let i = 0; i < names.length; i++) {
+      const v = B[names[i]];
+      if (v !== undefined) SNOW_FREE[v] = 1;
+    }
+  }
+  return !!SNOW_FREE[id];
+}
+
 // ── 구름 ──────────────────────────────────────────────────────────────
 const CLOUD_Y = 124;       // 구름이 뜨는 높이
 const CLOUD_H = 4;         // 두께
@@ -165,6 +181,7 @@ Weather.prototype.accumulate = function (player, snowing) {
       const d = blockDef(here);
       if (!d.solid || d.liquid) continue;
       if (here === B.snow || here === B.snow_block || here === B.ice) continue;
+      if (pavedSurface(here)) continue;
       w.setBlock(x, y + 1, z, B.snow);
       return;
     }
@@ -254,6 +271,7 @@ World.prototype.snowChunk = function (c) {
       }
       if (!d.solid) continue;                                    // 풀·꽃 위에는 안 쌓인다
       if (id === B.snow || id === B.snow_block || id === B.ice) continue;
+      if (pavedSurface(id)) continue;
       c.blocks[idx(lx, y + 1, lz)] = B.snow;
     }
   }

@@ -241,7 +241,8 @@ Car.prototype.rejoinLane = function () {
   if (!best) return;
   this.axis = best.axis;
   this.line = best.line;
-  this.pos = Math.max(-(CITY_R - 8), Math.min(CITY_R - 8, best.pos));
+  const ext = Math.max(6, laneExtent(best.line) - 5);
+  this.pos = Math.max(-ext, Math.min(ext, best.pos));
   // 차선 안쪽(오른쪽)으로 붙는 방향을 고른다
   const off = best.across - best.line;
   this.dir = (best.axis === 0) ? (off >= 0 ? 1 : -1) : (off <= 0 ? 1 : -1);
@@ -262,7 +263,7 @@ Car.prototype.unboard = function () {
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
   this.speed = 0;
-  this.rejoinLane();
+  if (!this.parked) this.rejoinLane();   // 세워 둔 버스는 그 자리에 그대로 둔다
 };
 
 // 운전석 눈높이
@@ -322,6 +323,54 @@ Car.prototype.canStand = function (world, x, z, half, lead) {
   return true;
 };
 
+// ── 앞차 살피기 ───────────────────────────────────────────────────────
+// 같은 차선만 보면 교차로에서 서로 뚫고 지나가 겹쳐 버린다.
+// 실제 자리와 방향으로 "내 앞을 막고 있나"를 본다.
+// 꺾어 들어갈 자리가 비어 있나
+function turnClear(car, game, city, axis, line, pos, dir) {
+  const list = (game.entities && game.entities.cars) || [];
+  const off = dir > 0 ? CAR_LANE : -CAR_LANE;
+  const tx = axis === 0 ? city.x + pos : city.x + line - off;
+  const tz = axis === 0 ? city.z + line + off : city.z + pos;
+  for (let k = 0; k < list.length; k++) {
+    const o = list[k];
+    if (o === car || o.city !== city) continue;
+    if (Math.hypot(o.x - tx, o.z - tz) < (o.type.len + car.type.len) / 2 + 1.5) return false;
+  }
+  return true;
+}
+
+function carAhead(car, list) {
+  const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
+  const rx = Math.cos(car.yaw), rz = -Math.sin(car.yaw);   // 오른쪽
+  let slow = null;
+  for (let k = 0; k < list.length; k++) {
+    const o = list[k];
+    if (o === car || o.city !== car.city) continue;
+    const dx = o.x - car.x, dz = o.z - car.z;
+    if (Math.abs(dx) > 22 || Math.abs(dz) > 22) continue;
+    if (Math.abs(o.y - car.y) > 3) continue;
+    // 상대 차를 내 진행 방향 기준 상자로 바꾼다
+    const dy = o.yaw - car.yaw;
+    const cs = Math.abs(Math.cos(dy)), sn = Math.abs(Math.sin(dy));
+    const oLon = (o.type.len / 2) * cs + (o.type.wide / 2) * sn;
+    const oLat = (o.type.wide / 2) * cs + (o.type.len / 2) * sn;
+    const ahead = dx * fx + dz * fz;
+    const side = Math.abs(dx * rx + dz * rz);
+    if (side > car.type.wide / 2 + oLat + 0.4) continue;
+    const gap = ahead - (car.type.len / 2 + oLon);
+    if (gap < -0.5 || gap > 3.2) continue;
+    // 직각으로 만나면 오른쪽 차에게 양보한다 (둘 다 서는 걸 막는다)
+    if (cs < 0.5) {
+      const right = dx * rx + dz * rz;
+      if (right < 0) continue;
+    }
+    const v = gap < 0.8 ? 0 : Math.min(o.speed * 0.8, 2.5);
+    if (slow === null || v < slow) slow = v;
+  }
+  return slow;
+}
+
 Car.prototype.update = function (dt, game) {
   const c = this.city;
   // 앞이 막혔는지 — 플레이어와 다른 차
@@ -331,7 +380,7 @@ Car.prototype.update = function (dt, game) {
   const ahead = (p[ax] - (this.axis === 0 ? this.x : this.z)) * this.dir;
   const side = Math.abs(this.axis === 0 ? (p.z - this.z) : (p.x - this.x));
   if (ahead > 0 && ahead < 7 && side < 2.4 && Math.abs(p.y - this.y) < 3) want = 0;
-  if (this._blocked) want = Math.min(want, this._blocked);
+  if (this._blocked !== null && this._blocked !== undefined) want = Math.min(want, this._blocked);
 
   const target = want;
   if (target > this.speed) this.speed = Math.min(target, this.speed + CAR_ACC * dt);
@@ -344,28 +393,40 @@ Car.prototype.update = function (dt, game) {
 
   // 교차로에서 방향 틀기 — "가까운가"가 아니라 "이번에 지나갔는가"로 본다.
   // 프레임이 느려 한 번에 여러 칸을 가도 교차로를 놓치지 않는다.
+  const ext = laneExtent(this.line) - 5;
   if (this.turnCool <= 0) {
     const lines = c.roadLines;
     for (let i = 0; i < lines.length; i++) {
       const L = lines[i];
-      if ((was - L) * (this.pos - L) <= 0) {
-        if (Math.random() < 0.34) {
-          // 격자 값끼리 맞바꾼다. 지나친 만큼을 그대로 쓰면 line 이 격자에서
-          // 어긋나 앞차를 못 알아보게 된다.
-          this.pos = this.line;
-          this.line = L;
-          this.axis = this.axis ? 0 : 1;
-          if (Math.random() < 0.5) this.dir = -this.dir;
-          this.turnCool = 3.0;
-        } else this.turnCool = 1.2;
-        break;
-      }
+      if ((was - L) * (this.pos - L) > 0) continue;
+      // 이대로 가면 다음 교차로 전에 포장이 끝나는가
+      const must = Math.abs(this.pos + this.dir * (CITY_GRID + 5)) > ext;
+      // 저 길로 꺾으면 설 자리가 있는가
+      const canTurn = Math.abs(this.line) <= laneExtent(L) - 5;
+      if (canTurn && (must || Math.random() < 0.34)) {
+        // 격자 값끼리 맞바꾼다. 지나친 만큼을 그대로 쓰면 line 이 격자에서
+        // 어긋나 앞차를 못 알아보게 된다.
+        const npos = this.line, nline = L;
+        const naxis = this.axis ? 0 : 1;
+        const next2 = laneExtent(nline) - 5;
+        // 갈 수 있는 방향 중에서 고른다 (한쪽이 막혔으면 남은 쪽으로)
+        const okP = (next2 - npos) > CITY_GRID, okM = (npos + next2) > CITY_GRID;
+        let ndir = this.dir;
+        if (okP && okM) ndir = Math.random() < 0.5 ? 1 : -1;
+        else if (okP) ndir = 1;
+        else if (okM) ndir = -1;
+        else { this.turnCool = 1.2; break; }
+        // 꺾은 자리에 다른 차가 있으면 이번엔 그냥 지나간다
+        if (!turnClear(this, game, c, naxis, nline, npos, ndir)) { this.turnCool = 0.4; break; }
+        this.pos = npos; this.line = nline; this.axis = naxis; this.dir = ndir;
+        this.turnCool = 3.0;
+      } else this.turnCool = must ? 0.3 : 1.2;
+      break;
     }
   }
-  // 도시 밖으로 나가면 반대편에서 다시 들어온다
-  const R = CITY_R - 6;
-  if (this.pos > R) { this.pos = -R; }
-  else if (this.pos < -R) { this.pos = R; }
+  // 포장이 끝나는 곳에서는 멈춰 서서 되돌아간다 (풀밭으로 나가지 않는다)
+  if (this.pos > ext) { this.pos = ext; this.dir = -1; this.speed = 0; this.turnCool = 1.0; }
+  else if (this.pos < -ext) { this.pos = -ext; this.dir = 1; this.speed = 0; this.turnCool = 1.0; }
 
   this.y = c.y + 1;
   this.sync();
@@ -403,15 +464,28 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
     const c = cities[i];
     if (Math.hypot(c.x - player.x, c.z - player.z) > CAR_SPAWN_R) continue;
     let here = 0;
-    for (let k = 0; k < this.cars.length; k++) if (this.cars[k].city === c) here++;
-    while (here < CARS_PER_CITY) {
-      const lines = c.roadLines;
-      if (!lines || !lines.length) break;
+    for (let k = 0; k < this.cars.length; k++) {
+      if (this.cars[k].city === c && !this.cars[k].parked) here++;
+    }
+    const usable = (c.roadLines || []).filter(function (L) { return laneExtent(L) > 20; });
+    if (!usable.length) continue;
+    let guard = 0;
+    while (here < CARS_PER_CITY && guard++ < 200) {
       const axis = Math.random() < 0.5 ? 0 : 1;
-      const line = lines[(Math.random() * lines.length) | 0];
+      const line = usable[(Math.random() * usable.length) | 0];
       const dir = Math.random() < 0.5 ? 1 : -1;
-      const pos = (Math.random() * 2 - 1) * (CITY_R - 10);
-      this.cars.push(new Car(c, pickCarType(), axis, line, dir, pos));
+      const ext = laneExtent(line) - 6;
+      const pos = (Math.random() * 2 - 1) * ext;
+      // 이미 차가 서 있는 자리에는 겹쳐 놓지 않는다
+      const car = new Car(c, pickCarType(), axis, line, dir, pos);
+      let clash = false;
+      for (let k = 0; k < this.cars.length && !clash; k++) {
+        const o = this.cars[k];
+        if (o.city !== c) continue;
+        if (Math.hypot(o.x - car.x, o.z - car.z) < (o.type.len + car.type.len) / 2 + 2) clash = true;
+      }
+      if (clash) continue;
+      this.cars.push(car);
       here++;
     }
   }
@@ -429,15 +503,14 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
       car.drive(dt, game.input, this.world);
       continue;
     }
-    car._blocked = null;
-    for (let k = 0; k < this.cars.length; k++) {
-      if (k === i) continue;
-      const o = this.cars[k];
-      if (o.driver) continue;
-      if (o.city !== car.city || o.axis !== car.axis || o.line !== car.line || o.dir !== car.dir) continue;
-      const gap = (o.pos - car.pos) * car.dir;
-      if (gap > 0 && gap < car.type.len + 2.5) car._blocked = Math.min(o.speed * 0.85, 2);
+    if (car.parked) {
+      // 노선버스는 정거장에 서 있는다. 땅만 따라 앉힌다.
+      car.speed = 0;
+      const top = w.topSolidY(Math.floor(car.x), Math.floor(car.z));
+      if (top >= 0) car.y = top + 1;
+      continue;
     }
+    car._blocked = carAhead(car, this.cars);
     car.update(dt, game);
   }
 };

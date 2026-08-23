@@ -58,16 +58,36 @@ Highway.prototype.index = function (pathIndex, i, x, z) {
   }
 };
 
+// 사이에 낀 도시를 어느 쪽으로 비켜 갈지 (+1 / -1)
+Highway.prototype.detourSide = function (order, i, j, Astart, ux, uz, nx, nz) {
+  let sum = 0;
+  for (let m = 0; m < order.length; m++) {
+    if (m === i || m === j) continue;
+    const C = order[m];
+    const dx = C.x - Astart[0], dz = C.z - Astart[1];
+    const along = (dx * ux + dz * uz) / (ux * ux + uz * uz);
+    if (along < -0.1 || along > 1.1) continue;    // 이 구간 옆이 아니다
+    sum += (dx * nx + dz * nz);
+  }
+  return sum > 0 ? -1 : 1;    // 낀 도시 반대쪽으로 휜다
+};
+
 Highway.prototype.build = function () {
   const w = this.world;
   if (!w.cities) return;
   const cities = w.cities();
   if (cities.length < 2) return;
 
-  // 가까운 도시부터 사슬처럼 잇는다
+  // 가까운 도시부터 차례로 놓고, 모든 도시 쌍을 하나씩 잇는다.
+  // (사슬로만 이으면 양 끝 도시 사이를 가려면 중간 도시를 꼭 거쳐야 했다)
   const order = cities.slice().sort(function (a, b) {
     return Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z);
   });
+  const links = [];
+  for (let i = 0; i + 1 < order.length; i++) links.push([i, i + 1]);   // 사슬 먼저
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 2; j < order.length; j++) links.push([i, j]);      // 건너뛰는 길
+  }
 
   // ── 호수 자리: 첫 두 도시 사이 한가운데에서 옆으로 조금 비켜난 곳 ──
   const a0 = order[0], b0 = order[1];
@@ -76,14 +96,14 @@ Highway.prototype.build = function () {
   const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
   this.lake = { x: Math.round(mx), z: Math.round(mz), y: SEA_LEVEL + 6 };
 
-  for (let k = 0; k + 1 < order.length; k++) {
-    const A = order[k], B = order[k + 1];
+  for (let k = 0; k < links.length; k++) {
+    const A = order[links[k][0]], B = order[links[k][1]];
     // 도시 안으로는 들어가지 않는다. 도시의 가운데 큰길(격자선 0)이 바깥으로
     // 이어지는 자리에서 시작해, 상대 도시의 같은 자리에서 끝낸다.
     // (예전에는 도시 한복판에서 출발해 건물을 뚫고 나갔다)
     const exitOf = function (C, tx, tz) {
       const ex = tx - C.x, ez = tz - C.z;
-      const out = CITY_R + 5;
+      const out = CITY_RING;      // 순환도로에 그대로 물린다
       // 큰 쪽 축으로 빠져나간다 — 도시의 가운데 큰길과 그대로 이어진다
       if (Math.abs(ex) >= Math.abs(ez)) return [C.x + Math.sign(ex) * out, C.z];
       return [C.x, C.z + Math.sign(ez) * out];
@@ -98,9 +118,14 @@ Highway.prototype.build = function () {
       pts.push([Astart[0] + ux * 0.28 + nx * ul * 0.10, Astart[1] + uz * 0.28 + nz * ul * 0.10]);
       pts.push([this.lake.x, this.lake.z]);
       pts.push([Astart[0] + ux * 0.72 - nx * ul * 0.09, Astart[1] + uz * 0.72 - nz * ul * 0.09]);
-    } else {
+    } else if (links[k][1] === links[k][0] + 1) {
       pts.push([Astart[0] + ux * 0.30 - nx * ul * 0.12, Astart[1] + uz * 0.30 - nz * ul * 0.12]);
       pts.push([Astart[0] + ux * 0.62 + nx * ul * 0.11, Astart[1] + uz * 0.62 + nz * ul * 0.11]);
+    } else {
+      // 중간 도시를 건너뛰는 길 — 사이에 낀 도시를 크게 비켜 간다
+      const away = this.detourSide(order, links[k][0], links[k][1], Astart, ux, uz, nx, nz);
+      pts.push([Astart[0] + ux * 0.32 + nx * ul * 0.22 * away, Astart[1] + uz * 0.32 + nz * ul * 0.22 * away]);
+      pts.push([Astart[0] + ux * 0.68 + nx * ul * 0.22 * away, Astart[1] + uz * 0.68 + nz * ul * 0.22 * away]);
     }
     pts.push([Bend[0], Bend[1]]);
 
@@ -109,7 +134,7 @@ Highway.prototype.build = function () {
       from: A, to: B, len: 0 };
     // 길 높이 — 원래 땅을 따라가되 앞뒤를 섞어 완만하게
     for (let i = 0; i < path.length; i++) {
-      rec.h[i] = w.heightAt(Math.round(path[i][0]), Math.round(path[i][1]));
+      rec.h[i] = this.groundAt(Math.round(path[i][0]), Math.round(path[i][1]));
     }
     this.smoothHeights(rec);
     // 누적 길이
@@ -126,6 +151,21 @@ Highway.prototype.build = function () {
     this.makeBridge(pi, rec);
     this.makeSigns(pi, rec);
   }
+};
+
+// 실제로 만들어질 땅 높이 — 도시 근처는 도시 지면으로 눌린다.
+// (이걸 안 보면 도시 어귀에서 도로가 계단처럼 어긋난다)
+Highway.prototype.groundAt = function (x, z) {
+  const nat = this.world.heightAt(x, z);
+  const list = this._cityList || (this._cityList = (this.world.cities ? this.world.cities() : []));
+  let y = nat, best = 0;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (Math.abs(c.x - x) > CITY_R + CITY_MARGIN || Math.abs(c.z - z) > CITY_R + CITY_MARGIN) continue;
+    const w = cityFlatWeight(x - c.x, z - c.z);
+    if (w > best) { best = w; y = nat + (c.y - nat) * w; }
+  }
+  return y;
 };
 
 // 오르내림을 완만하게 (급경사면 차가 못 간다)
@@ -198,14 +238,29 @@ Highway.prototype.at = function (x, z) {
   return { y: Math.round(rec.h[i]), off: off, pi: best.pi, i: i, tx: tx, tz: tz, rec: rec };
 };
 
-// 도시 안(건물이 선 자리)인가 — 여기는 고속도로가 건드리지 않는다
+// 도시 안(건물이 선 자리)인가 — 여기는 고속도로가 건드리지 않는다.
+// 순환도로 안쪽까지만 막고, 순환도로 위에서는 서로 물리게 둔다.
+const HW_CITY_KEEP = CITY_RING - ROAD_HALF - 1;
+// 도시 어귀인가 — 여기서는 가드레일을 세우지 않는다.
+// (순환도로를 가로질러 난간이 서면 시내 차가 지나갈 수 없다)
+Highway.prototype.nearCity = function (x, z, r) {
+  if (!this._cityList) this._cityList = this.world.cities ? this.world.cities() : [];
+  const list = this._cityList;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (Math.abs(c.x - x) > r || Math.abs(c.z - z) > r) continue;
+    if (Math.hypot(c.x - x, c.z - z) <= r) return true;
+  }
+  return false;
+};
+
 Highway.prototype.insideCity = function (x, z) {
   if (!this._cityList) this._cityList = this.world.cities ? this.world.cities() : [];
   const list = this._cityList;
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
-    if (Math.abs(c.x - x) > CITY_R + 2 || Math.abs(c.z - z) > CITY_R + 2) continue;
-    if (Math.hypot(c.x - x, c.z - z) <= CITY_R + 2) return true;
+    if (Math.abs(c.x - x) > HW_CITY_KEEP || Math.abs(c.z - z) > HW_CITY_KEEP) continue;
+    if (Math.hypot(c.x - x, c.z - z) <= HW_CITY_KEEP) return true;
   }
   return false;
 };
@@ -291,8 +346,9 @@ World.prototype.paintHighway = function (c) {
         const j = idx(lx, yy, lz);
         if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
       }
-      // 가드레일
-      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 0.6) {
+      // 가드레일 — 도시 어귀는 비워 둔다 (시내 도로와 이어져야 한다)
+      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 0.6 &&
+          !hw.nearCity(wx, wz, CITY_RING + 16)) {
         if (((wx * 7 + wz * 13) % 4) !== 0 && y + 1 < CHUNK_Y) {
           c.blocks[idx(lx, y + 1, lz)] = B.iron_bars;
         }
