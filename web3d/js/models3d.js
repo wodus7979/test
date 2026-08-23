@@ -32,19 +32,78 @@ function fuselageGeometry(sections, radial) {
   return g;
 }
 
-// 평면도(planform)를 주면 얇게 눌러 날개를 만든다.
-// pts: [[x, z], ...] — x 는 날개 뿌리에서 끝쪽, z 는 앞뒤
-function wingGeometry(pts, thick) {
-  const shape = new THREE.Shape();
-  shape.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
-  shape.closePath();
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth: thick, bevelEnabled: true, bevelThickness: thick * 0.45,
-    bevelSize: thick * 0.5, bevelSegments: 2
-  });
-  g.translate(0, 0, -thick / 2);
-  g.rotateX(Math.PI / 2);      // XY 평면 -> XZ 평면 (두께가 Y 가 된다)
+// ── 날개 ──────────────────────────────────────────────────────────────
+// 평면도를 얇게 눌러 만들면 뿌리 쪽에 꺾인 자국이 남는다.
+// 그래서 진짜 날개처럼 "에어포일 단면"을 스팬 방향으로 이어 붙인다(loft).
+
+// NACA 대칭 익형의 두께 분포. t 는 앞전(0)에서 뒷전(1), T 는 최대두께비.
+function airfoilY(t, T) {
+  return 5 * T * (0.2969 * Math.sqrt(t) - 0.1260 * t - 0.3516 * t * t +
+    0.2843 * t * t * t - 0.1015 * t * t * t * t);
+}
+
+// 익형 둘레를 한 바퀴 도는 점들 (윗면 앞->뒤, 아랫면 뒤->앞)
+function airfoilLoop(T, camber, n) {
+  n = n || 12;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const c = (camber || 0) * Math.sin(Math.PI * Math.pow(t, 0.7));
+    pts.push([t, airfoilY(t, T) + c]);
+  }
+  for (let i = n - 1; i >= 1; i--) {
+    const t = i / n;
+    const c = (camber || 0) * Math.sin(Math.PI * Math.pow(t, 0.7));
+    pts.push([t, -airfoilY(t, T) + c]);
+  }
+  return pts;
+}
+
+// 단면을 이어 붙여 날개 한 장을 만든다.
+// sections: [{ x, y, zLE, chord, T, camber }]
+//   x     스팬 방향 위치 (뿌리 -> 끝)
+//   y     그 자리의 높이 — 바깥으로 갈수록 올리면 상반각(dihedral)
+//   zLE   앞전의 앞뒤 위치 — 뒤로 밀면 뒤젖힘(sweep)
+//   chord 시위 길이 · T 두께비 · camber 캠버
+// mirror 가 -1 이면 반대쪽 날개 (좌표를 뒤집고 삼각형 감기도 뒤집는다)
+function loftWing(sections, mirror) {
+  mirror = mirror || 1;
+  const loops = sections.map(function (s) { return airfoilLoop(s.T, s.camber, 12); });
+  const ring = loops[0].length;
+  const pos = [], uv = [], idx = [];
+
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i], lp = loops[i];
+    for (let k = 0; k < ring; k++) {
+      pos.push(s.x * mirror, s.y + lp[k][1] * s.chord, s.zLE - lp[k][0] * s.chord);
+      uv.push(i / (sections.length - 1), k / ring);
+    }
+  }
+  for (let i = 0; i < sections.length - 1; i++) {
+    for (let k = 0; k < ring; k++) {
+      const k2 = (k + 1) % ring;
+      const a = i * ring + k, b = i * ring + k2;
+      const c = (i + 1) * ring + k, d = (i + 1) * ring + k2;
+      if (mirror > 0) idx.push(a, c, b, b, c, d);
+      else idx.push(a, b, c, b, d, c);
+    }
+  }
+  // 날개 끝 막음
+  const last = (sections.length - 1) * ring;
+  const tip = sections[sections.length - 1];
+  const center = pos.length / 3;
+  pos.push(tip.x * mirror, tip.y, tip.zLE - tip.chord * 0.5);
+  uv.push(1, 0.5);
+  for (let k = 0; k < ring; k++) {
+    const k2 = (k + 1) % ring;
+    if (mirror > 0) idx.push(center, last + k, last + k2);
+    else idx.push(center, last + k2, last + k);
+  }
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
@@ -108,35 +167,51 @@ function buildAirliner() {
   cockpit.rotation.x = Math.PI * 0.52;
   g.add(cockpit);
 
-  // 주날개 (뒤로 젖힘)
-  const wingPts = [[2.6, 4.5], [4.0, 5.4], [30.0, -12.0], [32.0, -13.0], [31.0, -16.5], [3.2, -6.0], [2.6, -5.5]];
+  // 주날개 — 뿌리에서 끝까지 매끄럽게 이어진다.
+  // zLE 를 뒤로 밀어 뒤젖힘을, y 를 올려 상반각을 만든다.
+  const WING = [
+    { x: 2.2, y: -1.15, zLE: 5.2, chord: 12.0, T: 0.135, camber: 0.012 },
+    { x: 6.0, y: -1.00, zLE: 3.6, chord: 10.6, T: 0.128, camber: 0.013 },
+    { x: 11.0, y: -0.72, zLE: 1.4, chord: 9.0, T: 0.120, camber: 0.014 },
+    { x: 16.0, y: -0.38, zLE: -1.0, chord: 7.4, T: 0.112, camber: 0.014 },
+    { x: 21.0, y: 0.02, zLE: -3.6, chord: 6.0, T: 0.104, camber: 0.014 },
+    { x: 26.0, y: 0.48, zLE: -6.2, chord: 4.6, T: 0.098, camber: 0.013 },
+    { x: 30.0, y: 0.90, zLE: -8.4, chord: 3.4, T: 0.094, camber: 0.012 },
+    { x: 33.4, y: 1.42, zLE: -10.2, chord: 2.3, T: 0.088, camber: 0.010 }
+  ];
   for (const s of [1, -1]) {
-    const wg = wingGeometry(wingPts, 1.15);
-    const wing = new THREE.Mesh(wg, paintMat);
-    wing.scale.x = s;
-    wing.position.set(0, -0.9, -1.0);
-    wing.rotation.z = -s * 0.055;      // 상반각
+    const wing = new THREE.Mesh(loftWing(WING, s), paintMat);
+    wing.position.z = -1.0;
     wing.castShadow = true; wing.receiveShadow = true;
     g.add(wing);
   }
 
   // 수평 꼬리날개
-  const htPts = [[1.4, 1.6], [12.5, -4.6], [13.2, -6.2], [1.6, -3.0]];
+  const HT = [
+    { x: 1.2, y: 0, zLE: 1.8, chord: 5.4, T: 0.11 },
+    { x: 5.0, y: 0.18, zLE: 0.2, chord: 4.4, T: 0.10 },
+    { x: 9.5, y: 0.42, zLE: -1.8, chord: 3.2, T: 0.10 },
+    { x: 12.8, y: 0.62, zLE: -3.4, chord: 2.2, T: 0.09 }
+  ];
   for (const s of [1, -1]) {
-    const ht = new THREE.Mesh(wingGeometry(htPts, 0.7), paintMat);
-    ht.scale.x = s;
-    ht.position.set(0, 1.4, -27.5);
-    ht.rotation.z = -s * 0.06;
+    const ht = new THREE.Mesh(loftWing(HT, s), paintMat);
+    ht.position.set(0, 1.4, -27.0);
     ht.castShadow = true;
     g.add(ht);
   }
 
-  // 수직 꼬리날개
-  const vtPts = [[0, 2.2], [10.5, -6.5], [11.6, -9.4], [0.2, -5.4]];
-  const vt = new THREE.Mesh(wingGeometry(vtPts, 0.85), tailMat);
-  vt.rotation.x = Math.PI / 2;
-  vt.rotation.y = Math.PI / 2;
-  vt.position.set(0, 2.6, -25.0);
+  // 수직 꼬리날개 — 같은 방식으로 만들고 세운다
+  const VT = [
+    { x: 0.0, y: 0, zLE: 2.4, chord: 9.6, T: 0.13 },
+    { x: 3.5, y: 0, zLE: 0.4, chord: 8.0, T: 0.12 },
+    { x: 7.0, y: 0, zLE: -1.8, chord: 6.4, T: 0.11 },
+    { x: 10.0, y: 0, zLE: -3.8, chord: 4.8, T: 0.10 },
+    { x: 12.2, y: 0, zLE: -5.4, chord: 3.4, T: 0.10 }
+  ];
+  const vtGeo = loftWing(VT, 1);
+  vtGeo.rotateZ(Math.PI / 2);     // 스팬을 +X 에서 +Y 로 세운다
+  const vt = new THREE.Mesh(vtGeo, tailMat);
+  vt.position.set(0, 2.4, -24.6);
   vt.castShadow = true;
   g.add(vt);
 
@@ -171,8 +246,8 @@ function buildAirliner() {
     return e;
   }
   for (const s of [1, -1]) {
-    g.add(engine(s * 11.5, 1.2, -3.2, 1.0));
-    g.add(engine(s * 21.0, -3.6, -4.6, 0.9));
+    g.add(engine(s * 11.5, 1.6, -3.0, 1.0));
+    g.add(engine(s * 21.0, -2.2, -2.3, 0.88));
   }
 
   // 착륙장치 (접었다 폈다)

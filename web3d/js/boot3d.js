@@ -62,6 +62,7 @@
         }
         setProgress(1, '');
         loadEl.style.display = 'none';
+        if (game.audio) game.audio.init();
         game.start();
         game.toast('클릭하면 마우스가 잠깁니다 · F 로 타고 내립니다');
       }

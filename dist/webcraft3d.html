@@ -132,7 +132,7 @@ details.help b { color: #dce8f4; }
   <div id="crosshair"></div>
   <div id="toast"></div>
   <div id="ask"></div>
-  <div id="hint">클릭해서 마우스 잠그기 · <b>F</b> 탑승/자유비행 · <b>V</b> 시점 · <b>N</b> 목적지 · <b>M</b> 지도 · <b>R</b> 날씨 · <b>T</b> 시간</div>
+  <div id="hint">클릭해서 마우스 잠그기 · <b>F</b> 탑승/자유비행 · <b>V</b> 시점 · <b>N</b> 목적지 · <b>M</b> 지도 · <b>R</b> 날씨 · <b>T</b> 시간 · <b>K</b> 소리</div>
 </div>
 
 <div id="loading">
@@ -171,10 +171,12 @@ details.help b { color: #dce8f4; }
         <li><b>F</b> — 가까이 있는 비행기·열차에 타기. 아무것도 없으면 자유 비행 켜기/끄기</li>
         <li>비행 중 <b>W/S</b> 추력 · <b>마우스</b> 조종 · <b>A/D</b> 방향 · <b>Space</b> 제동 · <b>Shift</b> 내리기(공중이면 낙하산)</li>
         <li><b>N</b> 목적지 공항 바꾸기 · 500m 남으면 <b>자동 착륙</b> 승인 창 (<b>Y</b> 승인 · <b>N</b> 거절)</li>
-        <li><b>V</b> 1인칭/3인칭 · <b>M</b> 지도 배율 · <b>R</b> 날씨 · <b>T</b> 시간 6시간 넘기기 · <b>P</b> 화면 효과</li>
+        <li><b>V</b> 1인칭/3인칭 · <b>M</b> 지도 배율 · <b>R</b> 날씨 · <b>T</b> 시간 6시간 넘기기 · <b>P</b> 화면 효과 · <b>K</b> 소리 켜기/끄기</li>
         <li>공항 세 곳(ICN·GMP·CJU), 공항마다 딸린 도시(롯데타워가 선 김포, 주황 기와의 제주시),
             둘을 잇는 고가 <b>공항철도</b>가 그대로 들어 있습니다</li>
         <li>대기 산란 하늘 · 그림자 · 물결치는 바다 · 흐르는 구름 · 비와 눈 · 밤에 켜지는 창문</li>
+        <li><b>엔진 소리</b>는 음원 파일 없이 실시간 합성 — 코어 럼블 · 팬 휘슬 · 배기 제트 ·
+            바람 · 활주 진동이 추력과 속도에 따라 섞입니다</li>
       </ul>
     </details>
   </div>
@@ -9299,19 +9301,78 @@ function fuselageGeometry(sections, radial) {
   return g;
 }
 
-// 평면도(planform)를 주면 얇게 눌러 날개를 만든다.
-// pts: [[x, z], ...] — x 는 날개 뿌리에서 끝쪽, z 는 앞뒤
-function wingGeometry(pts, thick) {
-  const shape = new THREE.Shape();
-  shape.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
-  shape.closePath();
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth: thick, bevelEnabled: true, bevelThickness: thick * 0.45,
-    bevelSize: thick * 0.5, bevelSegments: 2
-  });
-  g.translate(0, 0, -thick / 2);
-  g.rotateX(Math.PI / 2);      // XY 평면 -> XZ 평면 (두께가 Y 가 된다)
+// ── 날개 ──────────────────────────────────────────────────────────────
+// 평면도를 얇게 눌러 만들면 뿌리 쪽에 꺾인 자국이 남는다.
+// 그래서 진짜 날개처럼 "에어포일 단면"을 스팬 방향으로 이어 붙인다(loft).
+
+// NACA 대칭 익형의 두께 분포. t 는 앞전(0)에서 뒷전(1), T 는 최대두께비.
+function airfoilY(t, T) {
+  return 5 * T * (0.2969 * Math.sqrt(t) - 0.1260 * t - 0.3516 * t * t +
+    0.2843 * t * t * t - 0.1015 * t * t * t * t);
+}
+
+// 익형 둘레를 한 바퀴 도는 점들 (윗면 앞->뒤, 아랫면 뒤->앞)
+function airfoilLoop(T, camber, n) {
+  n = n || 12;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const c = (camber || 0) * Math.sin(Math.PI * Math.pow(t, 0.7));
+    pts.push([t, airfoilY(t, T) + c]);
+  }
+  for (let i = n - 1; i >= 1; i--) {
+    const t = i / n;
+    const c = (camber || 0) * Math.sin(Math.PI * Math.pow(t, 0.7));
+    pts.push([t, -airfoilY(t, T) + c]);
+  }
+  return pts;
+}
+
+// 단면을 이어 붙여 날개 한 장을 만든다.
+// sections: [{ x, y, zLE, chord, T, camber }]
+//   x     스팬 방향 위치 (뿌리 -> 끝)
+//   y     그 자리의 높이 — 바깥으로 갈수록 올리면 상반각(dihedral)
+//   zLE   앞전의 앞뒤 위치 — 뒤로 밀면 뒤젖힘(sweep)
+//   chord 시위 길이 · T 두께비 · camber 캠버
+// mirror 가 -1 이면 반대쪽 날개 (좌표를 뒤집고 삼각형 감기도 뒤집는다)
+function loftWing(sections, mirror) {
+  mirror = mirror || 1;
+  const loops = sections.map(function (s) { return airfoilLoop(s.T, s.camber, 12); });
+  const ring = loops[0].length;
+  const pos = [], uv = [], idx = [];
+
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i], lp = loops[i];
+    for (let k = 0; k < ring; k++) {
+      pos.push(s.x * mirror, s.y + lp[k][1] * s.chord, s.zLE - lp[k][0] * s.chord);
+      uv.push(i / (sections.length - 1), k / ring);
+    }
+  }
+  for (let i = 0; i < sections.length - 1; i++) {
+    for (let k = 0; k < ring; k++) {
+      const k2 = (k + 1) % ring;
+      const a = i * ring + k, b = i * ring + k2;
+      const c = (i + 1) * ring + k, d = (i + 1) * ring + k2;
+      if (mirror > 0) idx.push(a, c, b, b, c, d);
+      else idx.push(a, b, c, b, d, c);
+    }
+  }
+  // 날개 끝 막음
+  const last = (sections.length - 1) * ring;
+  const tip = sections[sections.length - 1];
+  const center = pos.length / 3;
+  pos.push(tip.x * mirror, tip.y, tip.zLE - tip.chord * 0.5);
+  uv.push(1, 0.5);
+  for (let k = 0; k < ring; k++) {
+    const k2 = (k + 1) % ring;
+    if (mirror > 0) idx.push(center, last + k, last + k2);
+    else idx.push(center, last + k2, last + k);
+  }
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
@@ -9375,35 +9436,51 @@ function buildAirliner() {
   cockpit.rotation.x = Math.PI * 0.52;
   g.add(cockpit);
 
-  // 주날개 (뒤로 젖힘)
-  const wingPts = [[2.6, 4.5], [4.0, 5.4], [30.0, -12.0], [32.0, -13.0], [31.0, -16.5], [3.2, -6.0], [2.6, -5.5]];
+  // 주날개 — 뿌리에서 끝까지 매끄럽게 이어진다.
+  // zLE 를 뒤로 밀어 뒤젖힘을, y 를 올려 상반각을 만든다.
+  const WING = [
+    { x: 2.2, y: -1.15, zLE: 5.2, chord: 12.0, T: 0.135, camber: 0.012 },
+    { x: 6.0, y: -1.00, zLE: 3.6, chord: 10.6, T: 0.128, camber: 0.013 },
+    { x: 11.0, y: -0.72, zLE: 1.4, chord: 9.0, T: 0.120, camber: 0.014 },
+    { x: 16.0, y: -0.38, zLE: -1.0, chord: 7.4, T: 0.112, camber: 0.014 },
+    { x: 21.0, y: 0.02, zLE: -3.6, chord: 6.0, T: 0.104, camber: 0.014 },
+    { x: 26.0, y: 0.48, zLE: -6.2, chord: 4.6, T: 0.098, camber: 0.013 },
+    { x: 30.0, y: 0.90, zLE: -8.4, chord: 3.4, T: 0.094, camber: 0.012 },
+    { x: 33.4, y: 1.42, zLE: -10.2, chord: 2.3, T: 0.088, camber: 0.010 }
+  ];
   for (const s of [1, -1]) {
-    const wg = wingGeometry(wingPts, 1.15);
-    const wing = new THREE.Mesh(wg, paintMat);
-    wing.scale.x = s;
-    wing.position.set(0, -0.9, -1.0);
-    wing.rotation.z = -s * 0.055;      // 상반각
+    const wing = new THREE.Mesh(loftWing(WING, s), paintMat);
+    wing.position.z = -1.0;
     wing.castShadow = true; wing.receiveShadow = true;
     g.add(wing);
   }
 
   // 수평 꼬리날개
-  const htPts = [[1.4, 1.6], [12.5, -4.6], [13.2, -6.2], [1.6, -3.0]];
+  const HT = [
+    { x: 1.2, y: 0, zLE: 1.8, chord: 5.4, T: 0.11 },
+    { x: 5.0, y: 0.18, zLE: 0.2, chord: 4.4, T: 0.10 },
+    { x: 9.5, y: 0.42, zLE: -1.8, chord: 3.2, T: 0.10 },
+    { x: 12.8, y: 0.62, zLE: -3.4, chord: 2.2, T: 0.09 }
+  ];
   for (const s of [1, -1]) {
-    const ht = new THREE.Mesh(wingGeometry(htPts, 0.7), paintMat);
-    ht.scale.x = s;
-    ht.position.set(0, 1.4, -27.5);
-    ht.rotation.z = -s * 0.06;
+    const ht = new THREE.Mesh(loftWing(HT, s), paintMat);
+    ht.position.set(0, 1.4, -27.0);
     ht.castShadow = true;
     g.add(ht);
   }
 
-  // 수직 꼬리날개
-  const vtPts = [[0, 2.2], [10.5, -6.5], [11.6, -9.4], [0.2, -5.4]];
-  const vt = new THREE.Mesh(wingGeometry(vtPts, 0.85), tailMat);
-  vt.rotation.x = Math.PI / 2;
-  vt.rotation.y = Math.PI / 2;
-  vt.position.set(0, 2.6, -25.0);
+  // 수직 꼬리날개 — 같은 방식으로 만들고 세운다
+  const VT = [
+    { x: 0.0, y: 0, zLE: 2.4, chord: 9.6, T: 0.13 },
+    { x: 3.5, y: 0, zLE: 0.4, chord: 8.0, T: 0.12 },
+    { x: 7.0, y: 0, zLE: -1.8, chord: 6.4, T: 0.11 },
+    { x: 10.0, y: 0, zLE: -3.8, chord: 4.8, T: 0.10 },
+    { x: 12.2, y: 0, zLE: -5.4, chord: 3.4, T: 0.10 }
+  ];
+  const vtGeo = loftWing(VT, 1);
+  vtGeo.rotateZ(Math.PI / 2);     // 스팬을 +X 에서 +Y 로 세운다
+  const vt = new THREE.Mesh(vtGeo, tailMat);
+  vt.position.set(0, 2.4, -24.6);
   vt.castShadow = true;
   g.add(vt);
 
@@ -9438,8 +9515,8 @@ function buildAirliner() {
     return e;
   }
   for (const s of [1, -1]) {
-    g.add(engine(s * 11.5, 1.2, -3.2, 1.0));
-    g.add(engine(s * 21.0, -3.6, -4.6, 0.9));
+    g.add(engine(s * 11.5, 1.6, -3.0, 1.0));
+    g.add(engine(s * 21.0, -2.2, -2.3, 0.88));
   }
 
   // 착륙장치 (접었다 폈다)
@@ -10821,6 +10898,219 @@ SkyRig.prototype.update = function (dt, cam, camPos) {
 
 </script>
 <script>
+/* ==== js/audio3d.js ==== */
+// audio3d.js - 제트 엔진 소리를 코드로 합성한다 (음원 파일 없음).
+// 실제 터보팬은 세 가지가 겹쳐 들린다:
+//   1) 저역 코어 럼블 — 연소실·저압터빈이 내는 묵직한 웅웅거림
+//   2) 팬 휘슬 — 앞쪽 팬이 내는 높은 쇳소리. 추력에 따라 음이 확 올라간다
+//   3) 배기 제트 소음 — 넓은 대역의 쉭 소리
+// 여기에 기체 표면을 스치는 바람 소리와 지상 활주 진동을 더한다.
+'use strict';
+
+function Audio3D() {
+  this.ctx = null;
+  this.ready = false;
+  this.enabled = true;
+  this.nodes = null;
+}
+
+// 브라우저는 사용자가 무언가 누른 뒤에만 소리를 허용한다.
+Audio3D.prototype.init = function () {
+  if (this.ctx) { this.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  let ctx;
+  try { ctx = new AC(); } catch (e) { return; }
+  this.ctx = ctx;
+
+  const master = ctx.createGain();
+  master.gain.value = 0.0;
+  // 조종석 안에서는 소리가 둔탁해진다
+  const cabin = ctx.createBiquadFilter();
+  cabin.type = 'lowpass';
+  cabin.frequency.value = 20000;
+  cabin.Q.value = 0.4;
+  master.connect(cabin);
+  cabin.connect(ctx.destination);
+
+  // ── 잡음원 (2초짜리 갈색 잡음을 반복 재생) ──
+  const len = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  let lastOut = 0;
+  for (let i = 0; i < len; i++) {
+    const white = Math.random() * 2 - 1;
+    lastOut = (lastOut + 0.021 * white) / 1.021;   // 갈색 잡음
+    d[i] = lastOut * 3.2 + white * 0.16;
+  }
+  function noiseSource() {
+    const n = ctx.createBufferSource();
+    n.buffer = buf; n.loop = true; n.start();
+    return n;
+  }
+
+  function chain(src, type, freq, q, gain) {
+    const f = ctx.createBiquadFilter();
+    f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(f); f.connect(g); g.connect(master);
+    return { filter: f, gain: g };
+  }
+
+  const nz1 = noiseSource(), nz2 = noiseSource(), nz3 = noiseSource(), nz4 = noiseSource();
+  const rumble = chain(nz1, 'lowpass', 140, 1.1, 0);      // 코어 럼블
+  const jet = chain(nz2, 'bandpass', 900, 0.7, 0);        // 배기 제트
+  const wind = chain(nz3, 'bandpass', 1100, 0.5, 0);      // 바람
+  const tire = chain(nz4, 'lowpass', 90, 1.4, 0);         // 지상 활주 진동
+
+  function tone(type, freq, gain) {
+    const o = ctx.createOscillator();
+    o.type = type; o.frequency.value = freq;
+    const g = ctx.createGain(); g.gain.value = 0;
+    o.connect(g); g.connect(master);
+    o.start();
+    return { osc: o, gain: g };
+  }
+  // 코어 회전음(N2)과 팬 휘슬(N1) — 배음을 몇 개 겹쳐 쇳소리를 낸다
+  const core = tone('sawtooth', 60, 0);
+  const coreLP = ctx.createBiquadFilter();
+  coreLP.type = 'lowpass'; coreLP.frequency.value = 260; coreLP.Q.value = 0.8;
+  core.gain.disconnect(); core.gain.connect(coreLP); coreLP.connect(master);
+
+  const whine1 = tone('sine', 700, 0);
+  const whine2 = tone('sine', 1040, 0);
+  const whine3 = tone('triangle', 1580, 0);
+  const buzz = tone('sawtooth', 320, 0);
+  const buzzBP = ctx.createBiquadFilter();
+  buzzBP.type = 'bandpass'; buzzBP.frequency.value = 1900; buzzBP.Q.value = 3.0;
+  buzz.gain.disconnect(); buzz.gain.connect(buzzBP); buzzBP.connect(master);
+
+  this.nodes = {
+    master: master, cabin: cabin,
+    rumble: rumble, jet: jet, wind: wind, tire: tire,
+    core: core, whine1: whine1, whine2: whine2, whine3: whine3, buzz: buzz
+  };
+  this.ready = true;
+  this.resume();
+};
+
+Audio3D.prototype.resume = function () {
+  if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+};
+
+Audio3D.prototype.setEnabled = function (on) {
+  this.enabled = on;
+  if (!this.ready) return;
+  this.nodes.master.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.05);
+};
+
+function _ramp(param, v, ctx, tau) {
+  param.setTargetAtTime(v, ctx.currentTime, tau || 0.12);
+}
+
+// s: { throttle, speed, onGround, dist, inside, wind }
+Audio3D.prototype.engine = function (dt, s) {
+  if (!this.ready || !this.enabled) return;
+  const ctx = this.ctx, n = this.nodes;
+  const th = Math.max(0, Math.min(1, s.throttle || 0));
+  const spd = Math.max(0, s.speed || 0);
+  // 거리 감쇠 — 400m 밖이면 거의 안 들린다
+  const dist = s.dist || 0;
+  const att = dist <= 0 ? 1 : Math.max(0, 1 - dist / 420) * Math.max(0, 1 - dist / 420);
+
+  // 전체 크기
+  _ramp(n.master.gain, (this.enabled ? 1 : 0) * (0.16 + th * 0.62) * att, ctx, 0.15);
+  // 객실 안에서는 고역이 깎인다
+  _ramp(n.cabin.frequency, s.inside ? 1600 : (dist > 40 ? 5200 : 15000), ctx, 0.25);
+
+  // 코어 럼블 — 추력이 낮아도 항상 조금은 돈다
+  _ramp(n.rumble.filter.frequency, 110 + th * 260, ctx, 0.2);
+  _ramp(n.rumble.gain.gain, 0.55 + th * 0.85, ctx, 0.2);
+  _ramp(n.core.osc.frequency, 42 + th * 74, ctx, 0.3);
+  _ramp(n.core.gain.gain, 0.16 + th * 0.30, ctx, 0.25);
+
+  // 배기 제트 — 추력에 비례해 넓은 대역이 커진다
+  _ramp(n.jet.filter.frequency, 620 + th * 1300, ctx, 0.2);
+  _ramp(n.jet.gain.gain, th * th * 0.80, ctx, 0.2);
+
+  // 팬 휘슬 — 추력을 올리면 음이 확 올라간다 (이 소리가 "제트기 같음"을 만든다)
+  const n1 = 480 + th * 1750;
+  _ramp(n.whine1.osc.frequency, n1, ctx, 0.28);
+  _ramp(n.whine2.osc.frequency, n1 * 1.49, ctx, 0.28);
+  _ramp(n.whine3.osc.frequency, n1 * 2.21, ctx, 0.28);
+  const wg = (0.028 + th * 0.10) * (s.inside ? 0.45 : 1);
+  _ramp(n.whine1.gain.gain, wg, ctx, 0.25);
+  _ramp(n.whine2.gain.gain, wg * 0.55, ctx, 0.25);
+  _ramp(n.whine3.gain.gain, wg * 0.30, ctx, 0.25);
+
+  // 버즈소 — 이륙 추력에서만 나는 톱니 같은 울림
+  _ramp(n.buzz.osc.frequency, 230 + th * 420, ctx, 0.3);
+  _ramp(n.buzz.gain.gain, Math.max(0, th - 0.62) * 0.42, ctx, 0.25);
+
+  // 바람 — 빠를수록 커진다
+  const v = Math.min(1, spd / 60);
+  _ramp(n.wind.filter.frequency, 700 + v * 1500, ctx, 0.3);
+  _ramp(n.wind.gain.gain, v * v * (s.inside ? 0.30 : 0.55), ctx, 0.25);
+
+  // 지상 활주 — 바퀴가 굴러가는 진동
+  _ramp(n.tire.gain.gain, (s.onGround ? Math.min(1, spd / 26) * 0.75 : 0), ctx, 0.15);
+};
+
+// 접지·충격음
+Audio3D.prototype.thump = function (strength) {
+  if (!this.ready || !this.enabled) return;
+  const ctx = this.ctx, t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(120, t);
+  o.frequency.exponentialRampToValueAtTime(38, t + 0.32);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(Math.min(0.85, 0.25 + strength * 0.5), t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+  o.connect(g); g.connect(this.nodes.cabin);
+  o.start(t); o.stop(t + 0.5);
+
+  // 타이어가 짧게 끽 하고 긁힌다
+  const len = Math.floor(ctx.sampleRate * 0.25);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 1.2;
+  const g2 = ctx.createGain(); g2.gain.value = Math.min(0.5, 0.12 + strength * 0.4);
+  src.connect(bp); bp.connect(g2); g2.connect(this.nodes.cabin);
+  src.start(t);
+};
+
+// 열차 — 바퀴 소리와 모터 웅웅거림
+Audio3D.prototype.train = function (speed) {
+  if (!this.ready || !this.enabled) return;
+  const ctx = this.ctx, n = this.nodes;
+  const v = Math.min(1, speed / 24);
+  _ramp(n.master.gain, 0.34 * (0.25 + v), ctx, 0.2);
+  _ramp(n.cabin.frequency, 2600, ctx, 0.3);
+  _ramp(n.rumble.filter.frequency, 150 + v * 220, ctx, 0.2);
+  _ramp(n.rumble.gain.gain, 0.5 + v * 0.7, ctx, 0.2);
+  _ramp(n.core.osc.frequency, 70 + v * 150, ctx, 0.3);
+  _ramp(n.core.gain.gain, 0.12 + v * 0.22, ctx, 0.25);
+  _ramp(n.jet.gain.gain, 0, ctx, 0.2);
+  _ramp(n.buzz.gain.gain, 0, ctx, 0.2);
+  _ramp(n.whine1.osc.frequency, 300 + v * 900, ctx, 0.3);
+  _ramp(n.whine1.gain.gain, v * 0.035, ctx, 0.25);
+  _ramp(n.whine2.gain.gain, 0, ctx, 0.25);
+  _ramp(n.whine3.gain.gain, 0, ctx, 0.25);
+  _ramp(n.wind.gain.gain, v * v * 0.22, ctx, 0.25);
+  _ramp(n.tire.gain.gain, 0.25 + v * 0.5, ctx, 0.15);
+};
+
+// 아무것도 안 탔을 때
+Audio3D.prototype.quiet = function () {
+  if (!this.ready) return;
+  _ramp(this.nodes.master.gain, 0, this.ctx, 0.3);
+};
+
+</script>
+<script>
 /* ==== js/flight3d.js ==== */
 // flight3d.js - 비행기와 열차의 움직임.
 // 블록판의 아케이드 비행 모델을 그대로 옮기되, 3D 모델에 맞게 자세(피치·롤)를
@@ -10859,7 +11149,9 @@ Airliner.prototype.sync = function () {
   this.obj.position.set(this.x, this.y, this.z);
   // 모델의 앞은 +Z. yaw 0 이면 +Z 를 본다.
   this.obj.rotation.set(0, this.yaw, 0, 'YXZ');
-  this.obj.rotateX(this.pitch);
+  // 모델의 기수는 +Z. Three 에서 +X 축으로 양의 각을 돌리면 +Z 가 아래로 내려가므로
+  // 물리(피치 + = 상승)와 맞추려면 부호를 뒤집어야 한다.
+  this.obj.rotateX(-this.pitch);
   this.obj.rotateZ(this.roll);
   const gear = this.obj.userData.gear;
   if (gear) {
@@ -10879,7 +11171,7 @@ Airliner.prototype.groundY = function (x, z) {
 
 Airliner.prototype.seatPos = function () {
   const v = new THREE.Vector3(0, 2.6, 26).multiplyScalar(PLANE_SCALE);
-  v.applyEuler(new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ'));
+  v.applyEuler(new THREE.Euler(-this.pitch, this.yaw, this.roll, 'YXZ'));
   return [this.x + v.x, this.y + v.y, this.z + v.z];
 };
 
@@ -11172,6 +11464,7 @@ function Game3D(seed, opts) {
   this.running = false;
   this.toastTimer = 0;
 
+  this.audio = new Audio3D();
   this.initRenderer();
   this.initScene();
   this.initWorld();
@@ -11352,6 +11645,7 @@ Game3D.prototype.initInput = function () {
     if (map[e.code]) self.input[map[e.code]] = false;
   });
   cv.addEventListener('click', function () {
+    if (self.audio) self.audio.init();
     if (document.pointerLockElement !== cv) cv.requestPointerLock();
   });
   document.addEventListener('mousemove', function (e) {
@@ -11365,6 +11659,7 @@ Game3D.prototype.initInput = function () {
   // 모바일 — 왼쪽 끌기 이동, 오른쪽 끌기 시점
   let look = null, move = null;
   cv.addEventListener('touchstart', function (e) {
+    if (self.audio) self.audio.init();
     for (const t of e.changedTouches) {
       if (t.clientX < window.innerWidth * 0.45) move = { id: t.identifier, x: t.clientX, y: t.clientY };
       else look = { id: t.identifier, x: t.clientX, y: t.clientY };
@@ -11418,6 +11713,12 @@ Game3D.prototype.onKey = function (code) {
   } else if (code === 'KeyT') {
     this.sky.time += DAY_LENGTH * 0.25;
     this.toast('시간을 6시간 넘겼습니다');
+  } else if (code === 'KeyK') {
+    if (this.audio) {
+      this.audio.init();
+      this.audio.setEnabled(!this.audio.enabled);
+      this.toast('소리 ' + (this.audio.enabled ? '켜짐' : '꺼짐'));
+    }
   } else if (code === 'KeyM') {
     this.mapZoom = ((this.mapZoom || 0) + 1) % 4;
     this.toast('지도 배율 1:' + [2, 6, 18, 60][this.mapZoom]);
@@ -11529,7 +11830,62 @@ Game3D.prototype.refuseAutoland = function () {
   this.toast('자동 착륙을 거절했습니다');
 };
 Game3D.prototype.onAutolandDone = function () { this.toast('착륙 완료 — 조종을 돌려받았습니다'); };
-Game3D.prototype.onHardLanding = function () { this.toast('거친 착륙!'); };
+Game3D.prototype.onHardLanding = function (sink) {
+  this.toast('거친 착륙!');
+  if (this.audio) this.audio.thump(Math.min(1, (sink - 12) / 18));
+};
+
+// ── 소리 ──────────────────────────────────────────────────────────────
+// 타고 있으면 그 기체 소리를, 걷고 있으면 가장 가까운 기체 소리를 거리에 맞춰 들려준다.
+Game3D.prototype.updateSound = function (dt) {
+  const a = this.audio;
+  if (!a || !a.ready) return;
+  const p = this.player;
+
+  if (p.riding) {
+    const pl = p.riding;
+    // 접지하는 순간 쿵 소리
+    if (this._wasAir && pl.onGround) a.thump(Math.min(1, Math.abs(this._lastVy || 0) / 16));
+    this._wasAir = !pl.onGround;
+    this._lastVy = pl.vy;
+    a.engine(dt, {
+      throttle: pl.throttle, speed: pl.speed, onGround: pl.onGround,
+      dist: 0, inside: this.camMode === 0
+    });
+    return;
+  }
+  this._wasAir = false;
+
+  if (p.onTrain) { a.train(p.onTrain.speed); return; }
+
+  // 가장 가까운(그리고 가장 시끄러운) 기체
+  let best = null, bestScore = -1;
+  for (let i = 0; i < this.planes.length; i++) {
+    const pl = this.planes[i];
+    const d = Math.hypot(pl.x - p.x, pl.z - p.z) + Math.abs(pl.y - p.y) * 0.7;
+    if (d > 420) continue;
+    const score = (0.2 + pl.throttle) * (1 - d / 420);
+    if (score > bestScore) { bestScore = score; best = { pl: pl, d: d }; }
+  }
+  // 가까운 열차도 들린다
+  let train = null, td = 300;
+  for (let i = 0; i < this.trains.length; i++) {
+    const t = this.trains[i];
+    const d = Math.hypot(t.x - p.x, t.z - p.z) + Math.abs(t.y - p.y) * 0.7;
+    if (d < td) { td = d; train = t; }
+  }
+
+  if (best) {
+    a.engine(dt, {
+      throttle: best.pl.throttle, speed: best.pl.speed, onGround: best.pl.onGround,
+      dist: best.d, inside: false
+    });
+  } else if (train && train.speed > 1) {
+    a.train(train.speed * Math.max(0, 1 - td / 300));
+  } else {
+    a.quiet();
+  }
+};
 
 // ── 카메라 ────────────────────────────────────────────────────────────
 Game3D.prototype.updateCamera = function (dt) {
@@ -11811,6 +12167,7 @@ Game3D.prototype.update = function (dt) {
     if (t.obj.visible || t.rider) t.update(dt);
   }
   this.updateAutoland(dt);
+  this.updateSound(dt);
   this.updateCamera(dt);
 
   const cp = this.camera.position;
@@ -11897,6 +12254,7 @@ Game3D.prototype.render = function () {
         }
         setProgress(1, '');
         loadEl.style.display = 'none';
+        if (game.audio) game.audio.init();
         game.start();
         game.toast('클릭하면 마우스가 잠깁니다 · F 로 타고 내립니다');
       }

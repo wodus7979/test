@@ -35,7 +35,9 @@ Airliner.prototype.sync = function () {
   this.obj.position.set(this.x, this.y, this.z);
   // 모델의 앞은 +Z. yaw 0 이면 +Z 를 본다.
   this.obj.rotation.set(0, this.yaw, 0, 'YXZ');
-  this.obj.rotateX(this.pitch);
+  // 모델의 기수는 +Z. Three 에서 +X 축으로 양의 각을 돌리면 +Z 가 아래로 내려가므로
+  // 물리(피치 + = 상승)와 맞추려면 부호를 뒤집어야 한다.
+  this.obj.rotateX(-this.pitch);
   this.obj.rotateZ(this.roll);
   const gear = this.obj.userData.gear;
   if (gear) {
@@ -55,7 +57,7 @@ Airliner.prototype.groundY = function (x, z) {
 
 Airliner.prototype.seatPos = function () {
   const v = new THREE.Vector3(0, 2.6, 26).multiplyScalar(PLANE_SCALE);
-  v.applyEuler(new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ'));
+  v.applyEuler(new THREE.Euler(-this.pitch, this.yaw, this.roll, 'YXZ'));
   return [this.x + v.x, this.y + v.y, this.z + v.z];
 };
 

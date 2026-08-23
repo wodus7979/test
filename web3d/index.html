@@ -16,7 +16,7 @@
   <div id="crosshair"></div>
   <div id="toast"></div>
   <div id="ask"></div>
-  <div id="hint">클릭해서 마우스 잠그기 · <b>F</b> 탑승/자유비행 · <b>V</b> 시점 · <b>N</b> 목적지 · <b>M</b> 지도 · <b>R</b> 날씨 · <b>T</b> 시간</div>
+  <div id="hint">클릭해서 마우스 잠그기 · <b>F</b> 탑승/자유비행 · <b>V</b> 시점 · <b>N</b> 목적지 · <b>M</b> 지도 · <b>R</b> 날씨 · <b>T</b> 시간 · <b>K</b> 소리</div>
 </div>
 
 <div id="loading">
@@ -55,10 +55,12 @@
         <li><b>F</b> — 가까이 있는 비행기·열차에 타기. 아무것도 없으면 자유 비행 켜기/끄기</li>
         <li>비행 중 <b>W/S</b> 추력 · <b>마우스</b> 조종 · <b>A/D</b> 방향 · <b>Space</b> 제동 · <b>Shift</b> 내리기(공중이면 낙하산)</li>
         <li><b>N</b> 목적지 공항 바꾸기 · 500m 남으면 <b>자동 착륙</b> 승인 창 (<b>Y</b> 승인 · <b>N</b> 거절)</li>
-        <li><b>V</b> 1인칭/3인칭 · <b>M</b> 지도 배율 · <b>R</b> 날씨 · <b>T</b> 시간 6시간 넘기기 · <b>P</b> 화면 효과</li>
+        <li><b>V</b> 1인칭/3인칭 · <b>M</b> 지도 배율 · <b>R</b> 날씨 · <b>T</b> 시간 6시간 넘기기 · <b>P</b> 화면 효과 · <b>K</b> 소리 켜기/끄기</li>
         <li>공항 세 곳(ICN·GMP·CJU), 공항마다 딸린 도시(롯데타워가 선 김포, 주황 기와의 제주시),
             둘을 잇는 고가 <b>공항철도</b>가 그대로 들어 있습니다</li>
         <li>대기 산란 하늘 · 그림자 · 물결치는 바다 · 흐르는 구름 · 비와 눈 · 밤에 켜지는 창문</li>
+        <li><b>엔진 소리</b>는 음원 파일 없이 실시간 합성 — 코어 럼블 · 팬 휘슬 · 배기 제트 ·
+            바람 · 활주 진동이 추력과 속도에 따라 섞입니다</li>
       </ul>
     </details>
   </div>
@@ -73,6 +75,7 @@
 <script src="js/terrain3d.js"></script>
 <script src="js/structures3d.js"></script>
 <script src="js/sky3d.js"></script>
+<script src="js/audio3d.js"></script>
 <script src="js/flight3d.js"></script>
 <script src="js/game3d.js"></script>
 <script src="js/boot3d.js"></script>

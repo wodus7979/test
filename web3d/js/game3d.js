@@ -17,6 +17,7 @@ function Game3D(seed, opts) {
   this.running = false;
   this.toastTimer = 0;
 
+  this.audio = new Audio3D();
   this.initRenderer();
   this.initScene();
   this.initWorld();
@@ -197,6 +198,7 @@ Game3D.prototype.initInput = function () {
     if (map[e.code]) self.input[map[e.code]] = false;
   });
   cv.addEventListener('click', function () {
+    if (self.audio) self.audio.init();
     if (document.pointerLockElement !== cv) cv.requestPointerLock();
   });
   document.addEventListener('mousemove', function (e) {
@@ -210,6 +212,7 @@ Game3D.prototype.initInput = function () {
   // 모바일 — 왼쪽 끌기 이동, 오른쪽 끌기 시점
   let look = null, move = null;
   cv.addEventListener('touchstart', function (e) {
+    if (self.audio) self.audio.init();
     for (const t of e.changedTouches) {
       if (t.clientX < window.innerWidth * 0.45) move = { id: t.identifier, x: t.clientX, y: t.clientY };
       else look = { id: t.identifier, x: t.clientX, y: t.clientY };
@@ -263,6 +266,12 @@ Game3D.prototype.onKey = function (code) {
   } else if (code === 'KeyT') {
     this.sky.time += DAY_LENGTH * 0.25;
     this.toast('시간을 6시간 넘겼습니다');
+  } else if (code === 'KeyK') {
+    if (this.audio) {
+      this.audio.init();
+      this.audio.setEnabled(!this.audio.enabled);
+      this.toast('소리 ' + (this.audio.enabled ? '켜짐' : '꺼짐'));
+    }
   } else if (code === 'KeyM') {
     this.mapZoom = ((this.mapZoom || 0) + 1) % 4;
     this.toast('지도 배율 1:' + [2, 6, 18, 60][this.mapZoom]);
@@ -374,7 +383,62 @@ Game3D.prototype.refuseAutoland = function () {
   this.toast('자동 착륙을 거절했습니다');
 };
 Game3D.prototype.onAutolandDone = function () { this.toast('착륙 완료 — 조종을 돌려받았습니다'); };
-Game3D.prototype.onHardLanding = function () { this.toast('거친 착륙!'); };
+Game3D.prototype.onHardLanding = function (sink) {
+  this.toast('거친 착륙!');
+  if (this.audio) this.audio.thump(Math.min(1, (sink - 12) / 18));
+};
+
+// ── 소리 ──────────────────────────────────────────────────────────────
+// 타고 있으면 그 기체 소리를, 걷고 있으면 가장 가까운 기체 소리를 거리에 맞춰 들려준다.
+Game3D.prototype.updateSound = function (dt) {
+  const a = this.audio;
+  if (!a || !a.ready) return;
+  const p = this.player;
+
+  if (p.riding) {
+    const pl = p.riding;
+    // 접지하는 순간 쿵 소리
+    if (this._wasAir && pl.onGround) a.thump(Math.min(1, Math.abs(this._lastVy || 0) / 16));
+    this._wasAir = !pl.onGround;
+    this._lastVy = pl.vy;
+    a.engine(dt, {
+      throttle: pl.throttle, speed: pl.speed, onGround: pl.onGround,
+      dist: 0, inside: this.camMode === 0
+    });
+    return;
+  }
+  this._wasAir = false;
+
+  if (p.onTrain) { a.train(p.onTrain.speed); return; }
+
+  // 가장 가까운(그리고 가장 시끄러운) 기체
+  let best = null, bestScore = -1;
+  for (let i = 0; i < this.planes.length; i++) {
+    const pl = this.planes[i];
+    const d = Math.hypot(pl.x - p.x, pl.z - p.z) + Math.abs(pl.y - p.y) * 0.7;
+    if (d > 420) continue;
+    const score = (0.2 + pl.throttle) * (1 - d / 420);
+    if (score > bestScore) { bestScore = score; best = { pl: pl, d: d }; }
+  }
+  // 가까운 열차도 들린다
+  let train = null, td = 300;
+  for (let i = 0; i < this.trains.length; i++) {
+    const t = this.trains[i];
+    const d = Math.hypot(t.x - p.x, t.z - p.z) + Math.abs(t.y - p.y) * 0.7;
+    if (d < td) { td = d; train = t; }
+  }
+
+  if (best) {
+    a.engine(dt, {
+      throttle: best.pl.throttle, speed: best.pl.speed, onGround: best.pl.onGround,
+      dist: best.d, inside: false
+    });
+  } else if (train && train.speed > 1) {
+    a.train(train.speed * Math.max(0, 1 - td / 300));
+  } else {
+    a.quiet();
+  }
+};
 
 // ── 카메라 ────────────────────────────────────────────────────────────
 Game3D.prototype.updateCamera = function (dt) {
@@ -656,6 +720,7 @@ Game3D.prototype.update = function (dt) {
     if (t.obj.visible || t.rider) t.update(dt);
   }
   this.updateAutoland(dt);
+  this.updateSound(dt);
   this.updateCamera(dt);
 
   const cp = this.camera.position;
