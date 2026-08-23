@@ -392,6 +392,33 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
 // 상태: taxi_out → takeoff → climb → cruise → descend → final → rollout →
 //       taxi_in → park → (다시 taxi_out)
 const AI_CRUISE_ALT = 190;     // 순항 고도 (구름 위)
+const AI_CITY_MARGIN = 220;    // 도시에 닿기 전에 미리 올라가기 시작할 거리
+const AI_CITY_CLEAR = 30;      // 제일 높은 건물 위로 이만큼 띄운다
+
+// 공항마다 이·착륙 방향. 딸린 도시 쪽(+1 이면 +X)으로 뜨고 내린다.
+// 그러면 내려앉는 진입로가 늘 도시 반대편이라 빌딩 위로 낮게 지나갈 일이 없고,
+// 이륙은 도시 위를 힘껏 올라가며 넘어간다.
+function aiRunwayDir(ap) {
+  return (ap && ap.city && ap.city.side < 0) ? -1 : 1;
+}
+
+// 지금 자리에서 지켜야 할 최저 고도 (도시 위가 아니면 0)
+Plane.prototype.cityFloor = function (x, z) {
+  const w = this.world;
+  if (!w.cities) return 0;
+  if (!this._cityList) this._cityList = w.cities();
+  const list = this._cityList;
+  let floor = 0;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    const r = CITY_R + AI_CITY_MARGIN;
+    if (Math.abs(c.x - x) > r || Math.abs(c.z - z) > r) continue;
+    if (Math.hypot(c.x - x, c.z - z) > r) continue;
+    const h = (c.topY || (c.y + 110)) + AI_CITY_CLEAR;
+    if (h > floor) floor = h;
+  }
+  return floor;
+};
 const AI_STATE_LIMIT = {       // 상태마다 최대 시간 (막히면 다음으로 넘긴다)
   taxi_out: 90, takeoff: 60, climb: 60, cruise: 400,
   descend: 200, final: 90, rollout: 40, taxi_in: 90, park: 25
@@ -402,14 +429,17 @@ function aiHeadingTo(x, z, tx, tz) { return Math.atan2(tx - x, tz - z); }
 Plane.prototype.startFlight = function (fromAp, toAp) {
   this.ai = {
     state: 'taxi_out', t: 0, from: fromAp, to: toAp,
-    rw: fromAp.runways[0], wp: [], wpi: 0
+    rw: fromAp.runways[0], wp: [], wpi: 0,
+    dep: aiRunwayDir(fromAp), dir: aiRunwayDir(toAp)
   };
-  // 주기장 → 유도로 → 활주로 시작점
+  // 주기장 → 유도로 → 활주로 시작점 (뜨는 방향의 끝에서 시작한다)
   const rw = this.ai.rw;
+  const d = this.ai.dep;
+  const startX = d > 0 ? rw.x0 + 24 : rw.x1 - 24;
   this.ai.wp = [
     [this.x, fromAp.z - TAXI_Z],
-    [rw.x0 + 24, fromAp.z - TAXI_Z],
-    [rw.x0 + 18, rw.z]
+    [startX, fromAp.z - TAXI_Z],
+    [startX - d * 6, rw.z]
   ];
   this.ai.wpi = 0;
 };
@@ -453,10 +483,12 @@ Plane.prototype.aiControl = function (dt, game) {
         if (Math.hypot(wp[0] - this.x, wp[1] - this.z) < 10) a.wpi++;
       }
       if (!wp || a.wpi >= a.wp.length || stuck) {
-        // 활주로에 정렬
-        this.x = a.rw.x0 + 16; this.z = a.rw.z;
+        // 활주로에 정렬 (뜨는 방향의 끝에서)
+        this.x = a.dep > 0 ? a.rw.x0 + 16 : a.rw.x1 - 16;
+        this.z = a.rw.z;
         this.y = a.rw.y + PLANE_REST;
-        this.yaw = Math.PI / 2; this.onGround = true;
+        this.yaw = a.dep > 0 ? Math.PI / 2 : -Math.PI / 2;
+        this.onGround = true;
         a.state = 'takeoff'; a.t = 0;
       }
       break;
@@ -464,7 +496,7 @@ Plane.prototype.aiControl = function (dt, game) {
 
     case 'takeoff':
       out.throttle = 1;
-      out.yaw = Math.PI / 2;                 // +X 방향
+      out.yaw = a.dep > 0 ? Math.PI / 2 : -Math.PI / 2;
       out.rotate = this.speed >= PLANE_TAKEOFF + 2;
       if (!this.onGround) { a.state = 'climb'; a.t = 0; }
       else if (stuck) { this.onGround = false; this.y += 6; a.state = 'climb'; a.t = 0; }
@@ -490,13 +522,14 @@ Plane.prototype.aiControl = function (dt, game) {
     }
 
     case 'descend': {
-      // 활주로 연장선 위 진입점으로 간다
+      // 활주로 연장선 위 진입점으로 간다 (내려앉는 방향의 반대쪽)
       const rw = a.rwTo;
-      const fixX = rw.x0 - 300, fixZ = rw.z;
-      if (a.auto && this.x > fixX + 40) {
+      const ld = a.dir || 1;
+      const fixX = ld > 0 ? rw.x0 - 300 : rw.x1 + 300, fixZ = rw.z;
+      if (a.auto && (this.x - fixX) * ld > 40) {
         // 이미 지나쳤으면 크게 돌아 진입선 밖으로 나간다
         out.throttle = 0.7;
-        out.yaw = aiHeadingTo(this.x, this.z, fixX - 160, rw.z + (this.z > rw.z ? 200 : -200));
+        out.yaw = aiHeadingTo(this.x, this.z, fixX - ld * 160, rw.z + (this.z > rw.z ? 200 : -200));
         out.pitch = Math.max(-0.14, Math.min(0.12, (rw.y + 46 - this.y) * 0.02));
         break;
       }
@@ -510,16 +543,17 @@ Plane.prototype.aiControl = function (dt, game) {
 
     case 'final': {
       const rw = a.rwTo;
-      const touch = rw.x0 + 40;
+      const ld = a.dir || 1;
+      const touch = ld > 0 ? rw.x0 + 40 : rw.x1 - 40;
       out.throttle = 0.48;
       // 늘 150블록 앞의 중심선을 겨눠 활주로에 붙는다
-      out.yaw = aiHeadingTo(this.x, this.z, this.x + 150, rw.z);
+      out.yaw = aiHeadingTo(this.x, this.z, this.x + ld * 150, rw.z);
       // 3도쯤 되는 활공각. 접지점을 지나면 목표를 노면 아래로 낮춰 확실히 내려앉힌다.
-      const ahead = Math.max(-8, touch - this.x);
+      const ahead = Math.max(-8, (touch - this.x) * ld);
       const wantY = rw.y + PLANE_REST + ahead * 0.09;
       out.pitch = Math.max(-0.22, Math.min(0.10, (wantY - this.y) * 0.05));
       if (this.onGround) { a.state = 'rollout'; a.t = 0; }
-      else if (this.x > rw.x1 + 40) {
+      else if ((this.x - (ld > 0 ? rw.x1 + 40 : rw.x0 - 40)) * ld > 0) {
         // 활주로를 지나쳤다 — 다시 돌아 진입한다 (복행)
         a.state = 'descend'; a.t = 0;
       } else if (stuck) {
@@ -532,7 +566,7 @@ Plane.prototype.aiControl = function (dt, game) {
 
     case 'rollout':
       out.throttle = 0;
-      out.yaw = Math.PI / 2;
+      out.yaw = (a.dir || 1) > 0 ? Math.PI / 2 : -Math.PI / 2;
       if (!this.onGround && a.t > 1.5) { a.state = 'final'; a.t = 0; break; }
       if (a.auto) {
         // 자동 착륙은 여기까지. 멈추면 조종을 사람에게 넘긴다.
@@ -565,6 +599,18 @@ Plane.prototype.aiControl = function (dt, game) {
         a.state = 'park'; a.t = 0;
       }
       break;
+    }
+  }
+
+  // 도시 위를 낮게 지나가지 않는다 — 빌딩에 부딪힌다.
+  // 땅 위 상태(활주·이륙 활주)와 착륙 접지 직전은 건드리지 않는다.
+  if (!this.onGround && a.state !== 'taxi_out' && a.state !== 'taxi_in' &&
+      a.state !== 'rollout' && a.state !== 'park') {
+    const floor = this.cityFloor(this.x, this.z);
+    if (floor > 0 && this.y < floor) {
+      out.throttle = Math.max(out.throttle, 0.98);
+      out.pitch = Math.max(out.pitch, Math.min(0.28, (floor + 8 - this.y) * 0.03));
+      out.rotate = true;
     }
   }
   return out;

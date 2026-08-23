@@ -568,6 +568,9 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
     set(cx, top + 2 + opts.spire + 1, cz, B.sea_lantern);
     set(cx, top + 2 + opts.spire + 2, cz, B.glowstone);
   }
+  // 이 도시에서 제일 높은 곳 — 비행기가 얼마나 높이 넘어가야 하는지 정한다
+  const tipY = gy + top + 2 + (opts.spire ? opts.spire + 2 : 0);
+  if (!plan.topY || tipY > plan.topY) plan.topY = tipY;
   // 1층 로비 — 길 쪽으로 유리문을 낸다
   for (let dx = -2; dx <= 2; dx++) {
     for (let y = 1; y <= 3; y++) {
@@ -1211,6 +1214,7 @@ function buildCityPlan(world, ap, index) {
   plan.isCity = true;
   plan.code = ap.code;
   plan.side = best.side;      // 고가철로가 빠져나가는 쪽(-side) 을 알려 준다
+  plan.topY = best.y + 24;    // 제일 높은 건물 꼭대기 (cityTower 가 올려 잡는다)
   plan.name = def.name;
   plan.styleName = def.style;
   plan.index = index;
