@@ -32,7 +32,7 @@ const GAME_VERSION = 'v7.4';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '자동차 운전 · 복선 철로 · 역 계단과 에스컬레이터 · 도시에서 바로 시작';
 
-const RENDER_DISTANCE_DEFAULT = 7;
+const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
 const SAVE_KEY = 'webcraft.save.v2';
 
@@ -117,6 +117,7 @@ Game.prototype.setupCallbacks = function () {
   if (this.world.cities) this.world.cities();   // 공항마다 딸린 도시와 철로
   this.weather = new Weather(this.world);
   if (!this.minimap) this.minimap = new Minimap(this);
+  if (!this.worldMap && typeof WorldMap !== 'undefined') this.worldMap = new WorldMap(this);
   this.minimap.game = this;
   this.weather.onBolt = function () {
     // 번쩍인 뒤 조금 있다가 우르릉
@@ -383,10 +384,14 @@ Game.prototype.dayPhase = function () {
   return (this.time % DAY_LENGTH) / DAY_LENGTH;
 };
 
+// 한밤에도 이만큼은 남겨 둔다 (달빛). 0 이면 아무것도 안 보인다.
+const NIGHT_FLOOR = 0.30;
+
 Game.prototype.dayFactor = function () {
-  // 0 = 한밤, 1 = 한낮
+  // NIGHT_FLOOR = 한밤, 1 = 한낮
   const a = Math.sin(this.dayPhase() * Math.PI * 2);
-  return Math.max(0, Math.min(1, a * 2.2 + 0.5));
+  const d = Math.max(0, Math.min(1, a * 2.2 + 0.5));
+  return NIGHT_FLOOR + (1 - NIGHT_FLOOR) * d;
 };
 
 // 해가 하늘 어디에 있는지. y>0 이면 낮.
@@ -492,7 +497,8 @@ Game.prototype.bindInput = function () {
         e.preventDefault();
         break;
       case 'Escape':
-        if (self.ui.open) self.ui.closeScreen();
+        if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
+        else if (self.ui.open) self.ui.closeScreen();
         else self.exitPointerLock();
         break;
       case 'KeyQ':
@@ -531,7 +537,33 @@ Game.prototype.bindInput = function () {
         if (self.autolandAsk) { self.acceptAutoland(); e.preventDefault(); }
         break;
       case 'KeyM':
-        if (self.minimap) self.minimap.cycleZoom(); break;
+        if (self.worldMap) { self.worldMap.toggle(); e.preventDefault(); }
+        break;
+      // 전체 지도를 보는 동안의 조작
+      case 'Equal': case 'NumpadAdd':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.zoomBy(-1); e.preventDefault(); }
+        break;
+      case 'Minus': case 'NumpadSubtract':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.zoomBy(1); e.preventDefault(); }
+        break;
+      case 'ArrowUp':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(0, -1); e.preventDefault(); }
+        break;
+      case 'ArrowDown':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(0, 1); e.preventDefault(); }
+        break;
+      case 'ArrowLeft':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(-1, 0); e.preventDefault(); }
+        break;
+      case 'ArrowRight':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(1, 0); e.preventDefault(); }
+        break;
+      case 'Digit0':
+        if (self.worldMap && self.worldMap.open) {
+          self.worldMap.cx = self.player.x; self.worldMap.cz = self.player.z;
+          e.preventDefault();
+        }
+        break;
       case 'KeyR': {
         // 날씨 고정 돌려 가며 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개)
         const order = [null, 'clear', 'rain', 'snow', 'thunder'];
@@ -722,6 +754,12 @@ Game.prototype.bindTouch = function () {
   }
   btn('btn-jump', function () { self.input.jump = true; }, function () { self.input.jump = false; });
   btn('btn-sneak', function () { self.input.sneak = !self.input.sneak; });
+  // 빨리 뛰기 — 한 번 누르면 켜지고 다시 누르면 꺼진다 (버튼을 붙들고 있지 않아도 되게)
+  btn('btn-sprint', function () {
+    self.input.sprint = !self.input.sprint;
+    const el = document.getElementById('btn-sprint');
+    if (el) el.classList.toggle('on', self.input.sprint);
+  });
   btn('btn-inv', function () {
     if (self.ui.open) self.ui.closeScreen();
     else self.ui.openScreen('inventory');
@@ -1220,7 +1258,7 @@ Game.prototype.interactBlock = function (hit) {
       return true;
 
     case 'sleep': {
-      if (this.dayFactor() > 0.35) { this.ui.toast('낮에는 잠들 수 없습니다'); return true; }
+      if (this.dayFactor() > NIGHT_FLOOR + 0.25) { this.ui.toast('낮에는 잠들 수 없습니다'); return true; }
       // 다음 아침으로 시간을 넘긴다
       this.time = (Math.floor(this.time / DAY_LENGTH) + 1) * DAY_LENGTH + DAY_LENGTH * 0.06;
       this.player.spawnX = hit.x; this.player.spawnY = hit.y + 1; this.player.spawnZ = hit.z;
@@ -1761,6 +1799,9 @@ Game.prototype.update = function (dt) {
     this._mapTimer = 0.16;
     try { this.minimap.draw(); } catch (e) { /* 지도가 없어도 게임은 돈다 */ }
   }
+  if (this.worldMap && this.worldMap.open) {
+    try { this.worldMap.draw(); } catch (e) { /* 지도가 없어도 게임은 돈다 */ }
+  }
 };
 
 function mix3(a, b, t) {
@@ -1794,7 +1835,7 @@ Game.prototype.render = function (dt) {
   const R = this.settings.renderDistance;
   const far = R * CHUNK_X;
   let fogColor = skyBottom.slice();
-  let fogStart = far * 0.55, fogEnd = far * 0.95;
+  let fogStart = far * 0.78, fogEnd = far * 1.02;   // 멀리까지 또렷하게
   if (wet > 0.01) { fogStart *= 1 - 0.35 * wet; fogEnd *= 1 - 0.30 * wet; }
 
   if (p.headInWater) {
@@ -1822,8 +1863,10 @@ Game.prototype.render = function (dt) {
   opts.cloudAlpha = p.headInWater ? 0 : (0.82 + wet * 0.14) * this.settings.clouds;
   opts.cloudDrift = (this.time * CLOUD_SPEED) % (CLOUD_TILES * CLOUD_CELL);
 
-  // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다
-  const skyOpen = Math.max(0, Math.min(1, (wv.sky - 1) / 5));
+  // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다.
+  // 열차·자동차·조종석은 블록이 아니라 하늘이 뚫린 것으로 나오므로 따로 막는다.
+  const inside = !!(p.onTrain || p.inCar || p.riding);
+  const skyOpen = inside ? 0 : Math.max(0, Math.min(1, (wv.sky - 1) / 5));
   opts.weather = (wet > 0.02 && skyOpen > 0.01 && !p.headInWater) ? {
     count: RAIN_PARTICLES,
     snow: wv.snow,

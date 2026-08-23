@@ -627,7 +627,7 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
   for (let i = 0; i < mgr.mobs.length; i++) {
     const m = mgr.mobs[i];
     const dx = m.x - player.x, dz = m.z - player.z;
-    if (dx * dx + dz * dz > 80 * 80) continue;
+    if (dx * dx + dz * dz > 140 * 140) continue;
     const hw = m.def.width / 2 + 0.3;
     if (!this.boxInFrustum(m.x - hw, m.y, m.z - hw, m.x + hw, m.y + m.def.height + 0.2, m.z + hw)) continue;
 
@@ -678,7 +678,7 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
     const dx = p.x - player.x, dz = p.z - player.z;
-    if (dx * dx + dz * dz > 720 * 720) continue;
+    if (dx * dx + dz * dz > 1400 * 1400) continue;
     const PS = PLANE_SCALE;
     if (!this.boxInFrustum(p.x - 13 * PS, p.y - 5 * PS, p.z - 14 * PS,
       p.x + 13 * PS, p.y + 8 * PS, p.z + 14 * PS)) continue;
@@ -725,7 +725,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     const dx = t.x - player.x, dz = t.z - player.z;
-    if (dx * dx + dz * dz > 520 * 520) continue;
+    if (dx * dx + dz * dz > 900 * 900) continue;
     if (!this.boxInFrustum(t.x - 34, t.y - 5, t.z - 34, t.x + 34, t.y + 6, t.z + 34)) continue;
 
     const bx = Math.floor(t.x), by = Math.floor(t.y), bz = Math.floor(t.z);
@@ -737,7 +737,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     // 거리에 따라 부품을 줄인다 — 멀리 있는 열차는 겉모습만 그린다
     const near = Math.sqrt(dx * dx + dz * dz);
     const showInner = (t.rider === player) || near < 90;
-    const showWheels = near < 190;
+    const showWheels = near < 300;
     for (let k = 0; k < TRAIN_PARTS.length; k++) {
       const b = TRAIN_PARTS[k];
       if (b.inner && !showInner) continue;
@@ -786,7 +786,7 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
     const c = list[i];
     const dx = c.x - player.x, dz = c.z - player.z;
     const d2 = dx * dx + dz * dz;
-    if (d2 > 220 * 220) continue;
+    if (d2 > 380 * 380) continue;
     const L = c.type.len;
     if (!this.boxInFrustum(c.x - L, c.y - 1, c.z - L, c.x + L, c.y + 4, c.z + L)) continue;
 
@@ -915,7 +915,7 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
     const it = mgr.items[i];
     const dx = it.x - player.x, dz = it.z - player.z;
     const d2 = dx * dx + dz * dz;
-    if (d2 > 64 * 64) continue;
+    if (d2 > 110 * 110) continue;
     if (!this.boxInFrustum(it.x - 0.5, it.y - 0.2, it.z - 0.5,
                            it.x + 0.5, it.y + 0.8, it.z + 0.5)) continue;
 
@@ -1079,7 +1079,7 @@ Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
   for (let n = 0; n < list.length; n++) {
     const e = list[n];
     const dx = e.x - player.x, dz = e.z - player.z;
-    if (dx * dx + dz * dz > 90 * 90) continue;
+    if (dx * dx + dz * dz > 150 * 150) continue;
     if (!this.boxInFrustum(e.x - 0.6, e.y - 0.1, e.z - 0.6, e.x + 0.6, e.y + 1.1, e.z + 0.6)) continue;
 
     const bx = Math.floor(e.x), by = Math.floor(e.y + 0.5), bz = Math.floor(e.z);

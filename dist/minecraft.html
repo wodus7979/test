@@ -347,6 +347,7 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   cursor: pointer;
 }
 body.touch #touch-buttons { display: flex; }
+#touch-buttons button.on { background: #4b7d29; border-color: #7cc44a; }
 body.touch .hand { display: none !important; }
 
 /* ── 시작 화면 ──────────────────────────────────────────────────── */
@@ -665,6 +666,16 @@ body.touch .hand { display: none !important; }
 #al-no:hover { background: #4a5768; }
 .fl-state.auto { color: #8fd0ff; font-weight: 700; }
 
+/* 전체 지도 (M) — 화면을 덮는다 */
+#worldmap {
+  display: none;
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  z-index: 60;
+  background: #0a0e16;
+  cursor: crosshair;
+}
+
 </style>
 </head>
 <body>
@@ -675,6 +686,7 @@ body.touch .hand { display: none !important; }
 
 <!-- 오른쪽 위 지도 -->
 <canvas id="minimap" width="188" height="188"></canvas>
+<canvas id="worldmap"></canvas>
 
 <!-- 채굴 진행 -->
 <div id="crack"></div>
@@ -685,6 +697,7 @@ body.touch .hand { display: none !important; }
   <button id="btn-inv" type="button">가방</button>
   <button id="btn-fly" type="button">비행</button>
   <button id="btn-sneak" type="button">웅크리기</button>
+  <button id="btn-sprint" type="button">빨리 뛰기</button>
   <button id="btn-jump" type="button">점프</button>
 </div>
 
@@ -723,7 +736,7 @@ body.touch .hand { display: none !important; }
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
       <label><input type="checkbox" id="chk-village"> 마을에서 시작</label>
       <label><input type="checkbox" id="chk-airport"> 공항에서 시작</label>
-      <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
+      <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="20" value="11"><span id="dist-val">11</span></label>
       <label><input type="checkbox" id="chk-clouds" checked> 구름 보이기</label>
       <label>화면 셰이더
         <select id="sel-shader">
@@ -11939,7 +11952,9 @@ const PLANE_SINK = 15;         // 실속했을 때 가라앉는 속도
 // 모델 상자는 그대로 두고 그릴 때·좌표를 옮길 때만 곱한다.
 const PLANE_SCALE = 0.6;
 const PLANE_REST = 3.4 * PLANE_SCALE;   // 바퀴가 땅에 닿을 때 동체 중심 높이
-const PLANE_CEIL = 154;        // 이 위로는 못 올라간다 (세계 높이 한계)
+// 비행기는 블록이 아니라 엔티티라 세계 높이(CHUNK_Y) 위로도 올라갈 수 있다.
+// 전동차(고가 55~60)와 확실히 차이가 나도록 훨씬 높이 잡았다.
+const PLANE_CEIL = 320;
 const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
 
 function Plane(world, x, y, z, yaw) {
@@ -12299,7 +12314,7 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
 // ── 자동 운항 (공항 사이를 오가는 정기편) ─────────────────────────────
 // 상태: taxi_out → takeoff → climb → cruise → descend → final → rollout →
 //       taxi_in → park → (다시 taxi_out)
-const AI_CRUISE_ALT = 112;     // 순항 고도 (구름 아래)
+const AI_CRUISE_ALT = 190;     // 순항 고도 (구름 위)
 const AI_STATE_LIMIT = {       // 상태마다 최대 시간 (막히면 다음으로 넘긴다)
   taxi_out: 90, takeoff: 60, climb: 60, cruise: 400,
   descend: 200, final: 90, rollout: 40, taxi_in: 90, park: 25
@@ -15242,7 +15257,7 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
   for (let i = 0; i < mgr.mobs.length; i++) {
     const m = mgr.mobs[i];
     const dx = m.x - player.x, dz = m.z - player.z;
-    if (dx * dx + dz * dz > 80 * 80) continue;
+    if (dx * dx + dz * dz > 140 * 140) continue;
     const hw = m.def.width / 2 + 0.3;
     if (!this.boxInFrustum(m.x - hw, m.y, m.z - hw, m.x + hw, m.y + m.def.height + 0.2, m.z + hw)) continue;
 
@@ -15293,7 +15308,7 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
     const dx = p.x - player.x, dz = p.z - player.z;
-    if (dx * dx + dz * dz > 720 * 720) continue;
+    if (dx * dx + dz * dz > 1400 * 1400) continue;
     const PS = PLANE_SCALE;
     if (!this.boxInFrustum(p.x - 13 * PS, p.y - 5 * PS, p.z - 14 * PS,
       p.x + 13 * PS, p.y + 8 * PS, p.z + 14 * PS)) continue;
@@ -15340,7 +15355,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     const dx = t.x - player.x, dz = t.z - player.z;
-    if (dx * dx + dz * dz > 520 * 520) continue;
+    if (dx * dx + dz * dz > 900 * 900) continue;
     if (!this.boxInFrustum(t.x - 34, t.y - 5, t.z - 34, t.x + 34, t.y + 6, t.z + 34)) continue;
 
     const bx = Math.floor(t.x), by = Math.floor(t.y), bz = Math.floor(t.z);
@@ -15352,7 +15367,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     // 거리에 따라 부품을 줄인다 — 멀리 있는 열차는 겉모습만 그린다
     const near = Math.sqrt(dx * dx + dz * dz);
     const showInner = (t.rider === player) || near < 90;
-    const showWheels = near < 190;
+    const showWheels = near < 300;
     for (let k = 0; k < TRAIN_PARTS.length; k++) {
       const b = TRAIN_PARTS[k];
       if (b.inner && !showInner) continue;
@@ -15401,7 +15416,7 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
     const c = list[i];
     const dx = c.x - player.x, dz = c.z - player.z;
     const d2 = dx * dx + dz * dz;
-    if (d2 > 220 * 220) continue;
+    if (d2 > 380 * 380) continue;
     const L = c.type.len;
     if (!this.boxInFrustum(c.x - L, c.y - 1, c.z - L, c.x + L, c.y + 4, c.z + L)) continue;
 
@@ -15530,7 +15545,7 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
     const it = mgr.items[i];
     const dx = it.x - player.x, dz = it.z - player.z;
     const d2 = dx * dx + dz * dz;
-    if (d2 > 64 * 64) continue;
+    if (d2 > 110 * 110) continue;
     if (!this.boxInFrustum(it.x - 0.5, it.y - 0.2, it.z - 0.5,
                            it.x + 0.5, it.y + 0.8, it.z + 0.5)) continue;
 
@@ -15694,7 +15709,7 @@ Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
   for (let n = 0; n < list.length; n++) {
     const e = list[n];
     const dx = e.x - player.x, dz = e.z - player.z;
-    if (dx * dx + dz * dz > 90 * 90) continue;
+    if (dx * dx + dz * dz > 150 * 150) continue;
     if (!this.boxInFrustum(e.x - 0.6, e.y - 0.1, e.z - 0.6, e.x + 0.6, e.y + 1.1, e.z + 0.6)) continue;
 
     const bx = Math.floor(e.x), by = Math.floor(e.y + 0.5), bz = Math.floor(e.z);
@@ -15929,7 +15944,7 @@ Minimap.prototype.draw = function () {
     if (m[0] < 3 || m[0] > S - 3 || m[1] < 3 || m[1] > S - 3) continue;
     ctx.save();
     ctx.translate(m[0], m[1]);
-    ctx.rotate(-t.yaw);
+    ctx.rotate(Math.PI - t.yaw);
     ctx.fillStyle = t.rider ? '#ff9f5f' : '#8fd8ff';
     ctx.fillRect(-1.6, -5, 3.2, 10);
     ctx.restore();
@@ -15944,7 +15959,7 @@ Minimap.prototype.draw = function () {
     if (m[0] < 4 || m[0] > S - 4 || m[1] < 4 || m[1] > S - 4) continue;
     ctx.save();
     ctx.translate(m[0], m[1]);
-    ctx.rotate(-pl.yaw);
+    ctx.rotate(Math.PI - pl.yaw);
     ctx.fillStyle = pl.ai ? '#ffd76a' : 'rgba(230,238,248,.75)';
     ctx.beginPath();
     ctx.moveTo(0, -4); ctx.lineTo(3, 3); ctx.lineTo(0, 1.6); ctx.lineTo(-3, 3);
@@ -15955,7 +15970,12 @@ Minimap.prototype.draw = function () {
   // ── 나 ──
   ctx.save();
   ctx.translate(half, half);
-  ctx.rotate(-(p.riding ? p.riding.yaw : p.yaw) + Math.PI);
+  // 탈것과 사람은 yaw 규약이 반대다.
+  //   사람   앞 = (-sin yaw, -cos yaw)  → 화면 회전각 -yaw
+  //   탈것   앞 = (+sin yaw, +cos yaw)  → 화면 회전각 PI - yaw
+  // 예전엔 둘 다 PI - yaw 를 써서, 걸어갈 때 화살표가 정반대를 가리켰다.
+  const veh = p.riding || p.inCar;
+  ctx.rotate(veh ? (Math.PI - veh.yaw) : -p.yaw);
   ctx.fillStyle = '#ff5f5f';
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
   ctx.beginPath();
@@ -15974,6 +15994,233 @@ Minimap.prototype.draw = function () {
   ctx.font = '9px ui-monospace, Menlo, monospace';
   ctx.fillStyle = 'rgba(190,215,240,.65)';
   ctx.fillText('1:' + bpp + '  ' + Math.round(cx) + ', ' + Math.round(cz), half, S - 5);
+};
+
+// ── 전체 지도 (M 키) ──────────────────────────────────────────────────
+// 청크를 띄우지 않고도 지형 함수를 그대로 물어보면 세계 어디든 그릴 수 있다.
+// 한 번 그려서 담아 두고, 표식(나·탈것)만 프레임마다 다시 얹는다.
+const WORLD_MAP_NAME = '다도월드';
+const WORLD_MAP_ZOOMS = [4, 8, 16, 32, 64];   // 1px = 몇 블록
+
+// 지형 색을 경계 없이 이어서 낸다.
+// 생물군계(평원/사막/…)로 딱 잘라 칠하면, 넓게 볼 때 경계 근처에서 칸마다
+// 색이 튀어 모래알처럼 보인다. 높이·기온·습도를 그대로 섞어 쓴다.
+function wmapLerp(a, b, t) {
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function wmapColor(h, t, hum) {
+  const deep = [26, 52, 96], shallow = [58, 104, 156], sand = [216, 202, 156];
+  if (h <= SEA_LEVEL + 1) {
+    if (h <= SEA_LEVEL - 2) {
+      return wmapLerp(deep, shallow, (h - (SEA_LEVEL - 22)) / 20);
+    }
+    return wmapLerp(shallow, sand, (h - (SEA_LEVEL - 2)) / 3);
+  }
+  const dry = [214, 198, 140], grass = [112, 158, 78], wood = [58, 108, 58];
+  // 습할수록 짙은 숲, 마를수록 모래빛
+  let g = wmapLerp(dry, grass, (hum + 0.10) / 0.30);
+  g = wmapLerp(g, wood, (hum - 0.06) / 0.26);
+  // 해변에서 뭍으로 부드럽게
+  let col = wmapLerp(sand, g, (h - (SEA_LEVEL + 1)) / 4);
+  // 높아질수록 바위, 더 높으면 눈
+  col = wmapLerp(col, [128, 126, 122], (h - (SEA_LEVEL + 20)) / 18);
+  col = wmapLerp(col, [236, 240, 246], (h - (SEA_LEVEL + 40)) / 16);
+  // 추운 땅은 하얗게
+  col = wmapLerp(col, [226, 234, 240], (-0.16 - t) / 0.22);
+  return col;
+}
+
+function WorldMap(game) {
+  this.game = game;
+  this.open = false;
+  this.zoom = 2;
+  this.cx = 0; this.cz = 0;       // 지도 한가운데가 보는 세계 좌표
+  this.canvas = document.getElementById('worldmap');
+  this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+  this.terrain = document.createElement('canvas');
+  this.tctx = this.terrain.getContext('2d');
+  this.key = '';                  // 담아 둔 지형이 어떤 조건으로 그려졌나
+}
+
+WorldMap.prototype.bpp = function () { return WORLD_MAP_ZOOMS[this.zoom]; };
+
+WorldMap.prototype.toggle = function () {
+  this.open = !this.open;
+  if (this.open) {
+    const p = this.game.player;
+    this.cx = p.x; this.cz = p.z;
+  }
+  if (this.canvas) this.canvas.style.display = this.open ? 'block' : 'none';
+};
+
+WorldMap.prototype.zoomBy = function (d) {
+  this.zoom = Math.max(0, Math.min(WORLD_MAP_ZOOMS.length - 1, this.zoom + d));
+};
+
+WorldMap.prototype.pan = function (dx, dz) {
+  const b = this.bpp();
+  this.cx += dx * b * 40;
+  this.cz += dz * b * 40;
+};
+
+// 지형을 한 장 그려 담아 둔다 (비싸므로 조건이 바뀔 때만).
+// 화면 크기 그대로 한 점씩 찍으면, 넓게 볼수록 지형의 잔무늬(주기 48블록쯤)가
+// 픽셀 사이로 튀어 모래알처럼 보인다. 그래서
+//   1) 속지도는 늘 작게(≈340폭) 그려 확대해 올리고
+//   2) 한 칸마다 여러 점을 뽑아 평균 낸다
+// 두 가지로 무늬를 눌러 준다.
+const WMAP_GRID = 340;
+
+WorldMap.prototype.buildTerrain = function (w, h) {
+  const b = this.bpp();
+  const key = w + 'x' + h + '@' + b + ':' + Math.round(this.cx) + ',' + Math.round(this.cz);
+  if (this.key === key) return;
+  this.key = key;
+
+  const gw = Math.min(w, WMAP_GRID);
+  const gh = Math.max(1, Math.round(gw * h / w));
+  const cell = (w / gw) * b;                 // 속지도 한 칸이 덮는 블록 수
+  // 잔무늬 주기(≈48)보다 촘촘히 뽑되 너무 많이는 뽑지 않는다
+  const ss = Math.max(1, Math.min(4, Math.round(cell / 24)));
+
+  this.terrain.width = gw; this.terrain.height = gh;
+  const world = this.game.world;
+  const img = this.tctx.createImageData(gw, gh);
+  const d = img.data;
+  const x0 = this.cx - (gw / 2) * cell, z0 = this.cz - (gh / 2) * cell;
+  const step = cell / ss;
+  for (let py = 0; py < gh; py++) {
+    for (let px = 0; px < gw; px++) {
+      let sum = 0, st = 0, sh2 = 0, n = 0;
+      for (let sy = 0; sy < ss; sy++) {
+        for (let sx = 0; sx < ss; sx++) {
+          const wx = x0 + px * cell + sx * step, wz = z0 + py * cell + sy * step;
+          sum += world.heightAt(wx, wz);
+          st += world.pTemp.fbm2(wx / 520, wz / 520, 3, 2, 0.5);
+          sh2 += world.pHum.fbm2(wx / 460, wz / 460, 3, 2, 0.5);
+          n++;
+        }
+      }
+      const hh = sum / n;
+      const col = wmapColor(hh, st / n, sh2 / n);
+      const sh = 0.82 + Math.max(-0.18, Math.min(0.20, (hh - SEA_LEVEL) / 60));
+      const o = (py * gw + px) * 4;
+      d[o] = Math.min(255, col[0] * sh);
+      d[o + 1] = Math.min(255, col[1] * sh);
+      d[o + 2] = Math.min(255, col[2] * sh);
+      d[o + 3] = 255;
+    }
+  }
+  this.tctx.putImageData(img, 0, 0);
+};
+
+WorldMap.prototype.draw = function () {
+  if (!this.open || !this.ctx) return;
+  const cv = this.canvas, ctx = this.ctx;
+  const w = Math.floor(cv.clientWidth), h = Math.floor(cv.clientHeight);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; this.key = ''; }
+  const g = this.game, p = g.player, b = this.bpp();
+
+  this.buildTerrain(w, h);
+  ctx.imageSmoothingEnabled = true;     // 속지도를 부드럽게 늘린다
+  ctx.drawImage(this.terrain, 0, 0, w, h);
+  ctx.imageSmoothingEnabled = false;
+
+  const self = this;
+  const toMap = function (x, z) {
+    return [w / 2 + (x - self.cx) / b, h / 2 + (z - self.cz) / b];
+  };
+
+  // ── 공항과 도시 ──
+  const marks = [];
+  if (g.world.airports) {
+    g.world.airports().forEach(function (a) {
+      marks.push({ x: a.x, z: a.z, kr: a.code, c: '#7fd0ff', r: 6, sq: true });
+    });
+  }
+  if (g.world.cities) {
+    g.world.cities().forEach(function (c) {
+      marks.push({ x: c.x, z: c.z, kr: c.name, c: '#ffd76a', r: 7, sq: true });
+      if (c.stations) c.stations.forEach(function (st) {
+        marks.push({ x: st.x, z: st.z, kr: '', c: '#c8a2ff', r: 3, sq: true });
+      });
+    });
+  }
+  // 철로
+  if (g.world.cities) {
+    ctx.strokeStyle = 'rgba(200,160,255,.75)';
+    ctx.lineWidth = 2;
+    g.world.cities().forEach(function (c) {
+      if (!c.rail || !c.rail.pts) return;
+      ctx.beginPath();
+      c.rail.pts.forEach(function (pt, i) {
+        const m = toMap(pt[0], pt[1]);
+        if (i === 0) ctx.moveTo(m[0], m[1]); else ctx.lineTo(m[0], m[1]);
+      });
+      ctx.stroke();
+    });
+  }
+
+  ctx.font = 'bold 11px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'center';
+  marks.forEach(function (mk) {
+    const m = toMap(mk.x, mk.z);
+    if (m[0] < -40 || m[0] > w + 40 || m[1] < -40 || m[1] > h + 40) return;
+    ctx.fillStyle = mk.c;
+    ctx.fillRect(m[0] - mk.r / 2, m[1] - mk.r / 2, mk.r, mk.r);
+    if (mk.kr) {
+      ctx.fillStyle = 'rgba(10,14,22,.72)';
+      const tw = ctx.measureText(mk.kr).width + 8;
+      ctx.fillRect(m[0] - tw / 2, m[1] - mk.r - 15, tw, 13);
+      ctx.fillStyle = '#e8f0ff';
+      ctx.fillText(mk.kr, m[0], m[1] - mk.r - 5);
+    }
+  });
+
+  // ── 탈것 ──
+  (g.entities.planes || []).forEach(function (pl) {
+    const m = toMap(pl.x, pl.z);
+    if (m[0] < 0 || m[0] > w || m[1] < 0 || m[1] > h) return;
+    ctx.fillStyle = pl.ai ? '#ffd76a' : '#ffffff';
+    ctx.beginPath(); ctx.arc(m[0], m[1], 3, 0, Math.PI * 2); ctx.fill();
+  });
+  (g.entities.trains || []).forEach(function (t) {
+    const m = toMap(t.x, t.z);
+    if (m[0] < 0 || m[0] > w || m[1] < 0 || m[1] > h) return;
+    ctx.fillStyle = '#8fd8ff';
+    ctx.fillRect(m[0] - 2, m[1] - 2, 4, 4);
+  });
+
+  // ── 나 ──
+  const me = toMap(p.x, p.z);
+  ctx.save();
+  ctx.translate(me[0], me[1]);
+  const veh = p.riding || p.inCar;
+  ctx.rotate(veh ? (Math.PI - veh.yaw) : -p.yaw);
+  ctx.fillStyle = '#ff5f5f'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -9); ctx.lineTo(6, 7); ctx.lineTo(0, 3.5); ctx.lineTo(-6, 7);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // ── 제목과 안내 ──
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(10,14,22,.78)';
+  ctx.fillRect(12, 12, 250, 54);
+  ctx.fillStyle = '#e8f0ff';
+  ctx.font = 'bold 18px ui-monospace, Menlo, monospace';
+  ctx.fillText(WORLD_MAP_NAME, 22, 34);
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = '#9fb0c8';
+  ctx.fillText('1px = ' + b + '블록  ·  나 ' + Math.round(p.x) + ', ' + Math.round(p.z), 22, 52);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(10,14,22,.78)';
+  ctx.fillRect(w - 262, 12, 250, 38);
+  ctx.fillStyle = '#9fb0c8';
+  ctx.fillText('M 닫기 · +/− 배율 · 방향키 이동 · 0 내 자리로', w - 22, 36);
 };
 
 </script>
@@ -16912,7 +17159,7 @@ const GAME_VERSION = 'v7.4';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '자동차 운전 · 복선 철로 · 역 계단과 에스컬레이터 · 도시에서 바로 시작';
 
-const RENDER_DISTANCE_DEFAULT = 7;
+const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
 const SAVE_KEY = 'webcraft.save.v2';
 
@@ -16997,6 +17244,7 @@ Game.prototype.setupCallbacks = function () {
   if (this.world.cities) this.world.cities();   // 공항마다 딸린 도시와 철로
   this.weather = new Weather(this.world);
   if (!this.minimap) this.minimap = new Minimap(this);
+  if (!this.worldMap && typeof WorldMap !== 'undefined') this.worldMap = new WorldMap(this);
   this.minimap.game = this;
   this.weather.onBolt = function () {
     // 번쩍인 뒤 조금 있다가 우르릉
@@ -17263,10 +17511,14 @@ Game.prototype.dayPhase = function () {
   return (this.time % DAY_LENGTH) / DAY_LENGTH;
 };
 
+// 한밤에도 이만큼은 남겨 둔다 (달빛). 0 이면 아무것도 안 보인다.
+const NIGHT_FLOOR = 0.30;
+
 Game.prototype.dayFactor = function () {
-  // 0 = 한밤, 1 = 한낮
+  // NIGHT_FLOOR = 한밤, 1 = 한낮
   const a = Math.sin(this.dayPhase() * Math.PI * 2);
-  return Math.max(0, Math.min(1, a * 2.2 + 0.5));
+  const d = Math.max(0, Math.min(1, a * 2.2 + 0.5));
+  return NIGHT_FLOOR + (1 - NIGHT_FLOOR) * d;
 };
 
 // 해가 하늘 어디에 있는지. y>0 이면 낮.
@@ -17372,7 +17624,8 @@ Game.prototype.bindInput = function () {
         e.preventDefault();
         break;
       case 'Escape':
-        if (self.ui.open) self.ui.closeScreen();
+        if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
+        else if (self.ui.open) self.ui.closeScreen();
         else self.exitPointerLock();
         break;
       case 'KeyQ':
@@ -17411,7 +17664,33 @@ Game.prototype.bindInput = function () {
         if (self.autolandAsk) { self.acceptAutoland(); e.preventDefault(); }
         break;
       case 'KeyM':
-        if (self.minimap) self.minimap.cycleZoom(); break;
+        if (self.worldMap) { self.worldMap.toggle(); e.preventDefault(); }
+        break;
+      // 전체 지도를 보는 동안의 조작
+      case 'Equal': case 'NumpadAdd':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.zoomBy(-1); e.preventDefault(); }
+        break;
+      case 'Minus': case 'NumpadSubtract':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.zoomBy(1); e.preventDefault(); }
+        break;
+      case 'ArrowUp':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(0, -1); e.preventDefault(); }
+        break;
+      case 'ArrowDown':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(0, 1); e.preventDefault(); }
+        break;
+      case 'ArrowLeft':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(-1, 0); e.preventDefault(); }
+        break;
+      case 'ArrowRight':
+        if (self.worldMap && self.worldMap.open) { self.worldMap.pan(1, 0); e.preventDefault(); }
+        break;
+      case 'Digit0':
+        if (self.worldMap && self.worldMap.open) {
+          self.worldMap.cx = self.player.x; self.worldMap.cz = self.player.z;
+          e.preventDefault();
+        }
+        break;
       case 'KeyR': {
         // 날씨 고정 돌려 가며 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개)
         const order = [null, 'clear', 'rain', 'snow', 'thunder'];
@@ -17602,6 +17881,12 @@ Game.prototype.bindTouch = function () {
   }
   btn('btn-jump', function () { self.input.jump = true; }, function () { self.input.jump = false; });
   btn('btn-sneak', function () { self.input.sneak = !self.input.sneak; });
+  // 빨리 뛰기 — 한 번 누르면 켜지고 다시 누르면 꺼진다 (버튼을 붙들고 있지 않아도 되게)
+  btn('btn-sprint', function () {
+    self.input.sprint = !self.input.sprint;
+    const el = document.getElementById('btn-sprint');
+    if (el) el.classList.toggle('on', self.input.sprint);
+  });
   btn('btn-inv', function () {
     if (self.ui.open) self.ui.closeScreen();
     else self.ui.openScreen('inventory');
@@ -18100,7 +18385,7 @@ Game.prototype.interactBlock = function (hit) {
       return true;
 
     case 'sleep': {
-      if (this.dayFactor() > 0.35) { this.ui.toast('낮에는 잠들 수 없습니다'); return true; }
+      if (this.dayFactor() > NIGHT_FLOOR + 0.25) { this.ui.toast('낮에는 잠들 수 없습니다'); return true; }
       // 다음 아침으로 시간을 넘긴다
       this.time = (Math.floor(this.time / DAY_LENGTH) + 1) * DAY_LENGTH + DAY_LENGTH * 0.06;
       this.player.spawnX = hit.x; this.player.spawnY = hit.y + 1; this.player.spawnZ = hit.z;
@@ -18641,6 +18926,9 @@ Game.prototype.update = function (dt) {
     this._mapTimer = 0.16;
     try { this.minimap.draw(); } catch (e) { /* 지도가 없어도 게임은 돈다 */ }
   }
+  if (this.worldMap && this.worldMap.open) {
+    try { this.worldMap.draw(); } catch (e) { /* 지도가 없어도 게임은 돈다 */ }
+  }
 };
 
 function mix3(a, b, t) {
@@ -18674,7 +18962,7 @@ Game.prototype.render = function (dt) {
   const R = this.settings.renderDistance;
   const far = R * CHUNK_X;
   let fogColor = skyBottom.slice();
-  let fogStart = far * 0.55, fogEnd = far * 0.95;
+  let fogStart = far * 0.78, fogEnd = far * 1.02;   // 멀리까지 또렷하게
   if (wet > 0.01) { fogStart *= 1 - 0.35 * wet; fogEnd *= 1 - 0.30 * wet; }
 
   if (p.headInWater) {
@@ -18702,8 +18990,10 @@ Game.prototype.render = function (dt) {
   opts.cloudAlpha = p.headInWater ? 0 : (0.82 + wet * 0.14) * this.settings.clouds;
   opts.cloudDrift = (this.time * CLOUD_SPEED) % (CLOUD_TILES * CLOUD_CELL);
 
-  // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다
-  const skyOpen = Math.max(0, Math.min(1, (wv.sky - 1) / 5));
+  // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다.
+  // 열차·자동차·조종석은 블록이 아니라 하늘이 뚫린 것으로 나오므로 따로 막는다.
+  const inside = !!(p.onTrain || p.inCar || p.riding);
+  const skyOpen = inside ? 0 : Math.max(0, Math.min(1, (wv.sky - 1) / 5));
   opts.weather = (wet > 0.02 && skyOpen > 0.01 && !p.headInWater) ? {
     count: RAIN_PARTICLES,
     snow: wv.snow,

@@ -337,6 +337,7 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   cursor: pointer;
 }
 body.touch #touch-buttons { display: flex; }
+#touch-buttons button.on { background: #4b7d29; border-color: #7cc44a; }
 body.touch .hand { display: none !important; }
 
 /* ── 시작 화면 ──────────────────────────────────────────────────── */
@@ -654,3 +655,13 @@ body.touch .hand { display: none !important; }
 #al-no { background: #3a4655; color: #d7e2ee; }
 #al-no:hover { background: #4a5768; }
 .fl-state.auto { color: #8fd0ff; font-weight: 700; }
+
+/* 전체 지도 (M) — 화면을 덮는다 */
+#worldmap {
+  display: none;
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  z-index: 60;
+  background: #0a0e16;
+  cursor: crosshair;
+}

@@ -17,6 +17,7 @@
 
 <!-- 오른쪽 위 지도 -->
 <canvas id="minimap" width="188" height="188"></canvas>
+<canvas id="worldmap"></canvas>
 
 <!-- 채굴 진행 -->
 <div id="crack"></div>
@@ -27,6 +28,7 @@
   <button id="btn-inv" type="button">가방</button>
   <button id="btn-fly" type="button">비행</button>
   <button id="btn-sneak" type="button">웅크리기</button>
+  <button id="btn-sprint" type="button">빨리 뛰기</button>
   <button id="btn-jump" type="button">점프</button>
 </div>
 
@@ -65,7 +67,7 @@
       <label><input type="checkbox" id="chk-creative"> 창작 모드로 시작</label>
       <label><input type="checkbox" id="chk-village"> 마을에서 시작</label>
       <label><input type="checkbox" id="chk-airport"> 공항에서 시작</label>
-      <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="12" value="7"><span id="dist-val">7</span></label>
+      <label>렌더 거리 <input type="range" id="rng-dist" min="3" max="20" value="11"><span id="dist-val">11</span></label>
       <label><input type="checkbox" id="chk-clouds" checked> 구름 보이기</label>
       <label>화면 셰이더
         <select id="sel-shader">

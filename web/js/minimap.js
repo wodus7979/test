@@ -189,7 +189,7 @@ Minimap.prototype.draw = function () {
     if (m[0] < 3 || m[0] > S - 3 || m[1] < 3 || m[1] > S - 3) continue;
     ctx.save();
     ctx.translate(m[0], m[1]);
-    ctx.rotate(-t.yaw);
+    ctx.rotate(Math.PI - t.yaw);
     ctx.fillStyle = t.rider ? '#ff9f5f' : '#8fd8ff';
     ctx.fillRect(-1.6, -5, 3.2, 10);
     ctx.restore();
@@ -204,7 +204,7 @@ Minimap.prototype.draw = function () {
     if (m[0] < 4 || m[0] > S - 4 || m[1] < 4 || m[1] > S - 4) continue;
     ctx.save();
     ctx.translate(m[0], m[1]);
-    ctx.rotate(-pl.yaw);
+    ctx.rotate(Math.PI - pl.yaw);
     ctx.fillStyle = pl.ai ? '#ffd76a' : 'rgba(230,238,248,.75)';
     ctx.beginPath();
     ctx.moveTo(0, -4); ctx.lineTo(3, 3); ctx.lineTo(0, 1.6); ctx.lineTo(-3, 3);
@@ -215,7 +215,12 @@ Minimap.prototype.draw = function () {
   // ── 나 ──
   ctx.save();
   ctx.translate(half, half);
-  ctx.rotate(-(p.riding ? p.riding.yaw : p.yaw) + Math.PI);
+  // 탈것과 사람은 yaw 규약이 반대다.
+  //   사람   앞 = (-sin yaw, -cos yaw)  → 화면 회전각 -yaw
+  //   탈것   앞 = (+sin yaw, +cos yaw)  → 화면 회전각 PI - yaw
+  // 예전엔 둘 다 PI - yaw 를 써서, 걸어갈 때 화살표가 정반대를 가리켰다.
+  const veh = p.riding || p.inCar;
+  ctx.rotate(veh ? (Math.PI - veh.yaw) : -p.yaw);
   ctx.fillStyle = '#ff5f5f';
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
   ctx.beginPath();
@@ -234,4 +239,231 @@ Minimap.prototype.draw = function () {
   ctx.font = '9px ui-monospace, Menlo, monospace';
   ctx.fillStyle = 'rgba(190,215,240,.65)';
   ctx.fillText('1:' + bpp + '  ' + Math.round(cx) + ', ' + Math.round(cz), half, S - 5);
+};
+
+// ── 전체 지도 (M 키) ──────────────────────────────────────────────────
+// 청크를 띄우지 않고도 지형 함수를 그대로 물어보면 세계 어디든 그릴 수 있다.
+// 한 번 그려서 담아 두고, 표식(나·탈것)만 프레임마다 다시 얹는다.
+const WORLD_MAP_NAME = '다도월드';
+const WORLD_MAP_ZOOMS = [4, 8, 16, 32, 64];   // 1px = 몇 블록
+
+// 지형 색을 경계 없이 이어서 낸다.
+// 생물군계(평원/사막/…)로 딱 잘라 칠하면, 넓게 볼 때 경계 근처에서 칸마다
+// 색이 튀어 모래알처럼 보인다. 높이·기온·습도를 그대로 섞어 쓴다.
+function wmapLerp(a, b, t) {
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function wmapColor(h, t, hum) {
+  const deep = [26, 52, 96], shallow = [58, 104, 156], sand = [216, 202, 156];
+  if (h <= SEA_LEVEL + 1) {
+    if (h <= SEA_LEVEL - 2) {
+      return wmapLerp(deep, shallow, (h - (SEA_LEVEL - 22)) / 20);
+    }
+    return wmapLerp(shallow, sand, (h - (SEA_LEVEL - 2)) / 3);
+  }
+  const dry = [214, 198, 140], grass = [112, 158, 78], wood = [58, 108, 58];
+  // 습할수록 짙은 숲, 마를수록 모래빛
+  let g = wmapLerp(dry, grass, (hum + 0.10) / 0.30);
+  g = wmapLerp(g, wood, (hum - 0.06) / 0.26);
+  // 해변에서 뭍으로 부드럽게
+  let col = wmapLerp(sand, g, (h - (SEA_LEVEL + 1)) / 4);
+  // 높아질수록 바위, 더 높으면 눈
+  col = wmapLerp(col, [128, 126, 122], (h - (SEA_LEVEL + 20)) / 18);
+  col = wmapLerp(col, [236, 240, 246], (h - (SEA_LEVEL + 40)) / 16);
+  // 추운 땅은 하얗게
+  col = wmapLerp(col, [226, 234, 240], (-0.16 - t) / 0.22);
+  return col;
+}
+
+function WorldMap(game) {
+  this.game = game;
+  this.open = false;
+  this.zoom = 2;
+  this.cx = 0; this.cz = 0;       // 지도 한가운데가 보는 세계 좌표
+  this.canvas = document.getElementById('worldmap');
+  this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+  this.terrain = document.createElement('canvas');
+  this.tctx = this.terrain.getContext('2d');
+  this.key = '';                  // 담아 둔 지형이 어떤 조건으로 그려졌나
+}
+
+WorldMap.prototype.bpp = function () { return WORLD_MAP_ZOOMS[this.zoom]; };
+
+WorldMap.prototype.toggle = function () {
+  this.open = !this.open;
+  if (this.open) {
+    const p = this.game.player;
+    this.cx = p.x; this.cz = p.z;
+  }
+  if (this.canvas) this.canvas.style.display = this.open ? 'block' : 'none';
+};
+
+WorldMap.prototype.zoomBy = function (d) {
+  this.zoom = Math.max(0, Math.min(WORLD_MAP_ZOOMS.length - 1, this.zoom + d));
+};
+
+WorldMap.prototype.pan = function (dx, dz) {
+  const b = this.bpp();
+  this.cx += dx * b * 40;
+  this.cz += dz * b * 40;
+};
+
+// 지형을 한 장 그려 담아 둔다 (비싸므로 조건이 바뀔 때만).
+// 화면 크기 그대로 한 점씩 찍으면, 넓게 볼수록 지형의 잔무늬(주기 48블록쯤)가
+// 픽셀 사이로 튀어 모래알처럼 보인다. 그래서
+//   1) 속지도는 늘 작게(≈340폭) 그려 확대해 올리고
+//   2) 한 칸마다 여러 점을 뽑아 평균 낸다
+// 두 가지로 무늬를 눌러 준다.
+const WMAP_GRID = 340;
+
+WorldMap.prototype.buildTerrain = function (w, h) {
+  const b = this.bpp();
+  const key = w + 'x' + h + '@' + b + ':' + Math.round(this.cx) + ',' + Math.round(this.cz);
+  if (this.key === key) return;
+  this.key = key;
+
+  const gw = Math.min(w, WMAP_GRID);
+  const gh = Math.max(1, Math.round(gw * h / w));
+  const cell = (w / gw) * b;                 // 속지도 한 칸이 덮는 블록 수
+  // 잔무늬 주기(≈48)보다 촘촘히 뽑되 너무 많이는 뽑지 않는다
+  const ss = Math.max(1, Math.min(4, Math.round(cell / 24)));
+
+  this.terrain.width = gw; this.terrain.height = gh;
+  const world = this.game.world;
+  const img = this.tctx.createImageData(gw, gh);
+  const d = img.data;
+  const x0 = this.cx - (gw / 2) * cell, z0 = this.cz - (gh / 2) * cell;
+  const step = cell / ss;
+  for (let py = 0; py < gh; py++) {
+    for (let px = 0; px < gw; px++) {
+      let sum = 0, st = 0, sh2 = 0, n = 0;
+      for (let sy = 0; sy < ss; sy++) {
+        for (let sx = 0; sx < ss; sx++) {
+          const wx = x0 + px * cell + sx * step, wz = z0 + py * cell + sy * step;
+          sum += world.heightAt(wx, wz);
+          st += world.pTemp.fbm2(wx / 520, wz / 520, 3, 2, 0.5);
+          sh2 += world.pHum.fbm2(wx / 460, wz / 460, 3, 2, 0.5);
+          n++;
+        }
+      }
+      const hh = sum / n;
+      const col = wmapColor(hh, st / n, sh2 / n);
+      const sh = 0.82 + Math.max(-0.18, Math.min(0.20, (hh - SEA_LEVEL) / 60));
+      const o = (py * gw + px) * 4;
+      d[o] = Math.min(255, col[0] * sh);
+      d[o + 1] = Math.min(255, col[1] * sh);
+      d[o + 2] = Math.min(255, col[2] * sh);
+      d[o + 3] = 255;
+    }
+  }
+  this.tctx.putImageData(img, 0, 0);
+};
+
+WorldMap.prototype.draw = function () {
+  if (!this.open || !this.ctx) return;
+  const cv = this.canvas, ctx = this.ctx;
+  const w = Math.floor(cv.clientWidth), h = Math.floor(cv.clientHeight);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; this.key = ''; }
+  const g = this.game, p = g.player, b = this.bpp();
+
+  this.buildTerrain(w, h);
+  ctx.imageSmoothingEnabled = true;     // 속지도를 부드럽게 늘린다
+  ctx.drawImage(this.terrain, 0, 0, w, h);
+  ctx.imageSmoothingEnabled = false;
+
+  const self = this;
+  const toMap = function (x, z) {
+    return [w / 2 + (x - self.cx) / b, h / 2 + (z - self.cz) / b];
+  };
+
+  // ── 공항과 도시 ──
+  const marks = [];
+  if (g.world.airports) {
+    g.world.airports().forEach(function (a) {
+      marks.push({ x: a.x, z: a.z, kr: a.code, c: '#7fd0ff', r: 6, sq: true });
+    });
+  }
+  if (g.world.cities) {
+    g.world.cities().forEach(function (c) {
+      marks.push({ x: c.x, z: c.z, kr: c.name, c: '#ffd76a', r: 7, sq: true });
+      if (c.stations) c.stations.forEach(function (st) {
+        marks.push({ x: st.x, z: st.z, kr: '', c: '#c8a2ff', r: 3, sq: true });
+      });
+    });
+  }
+  // 철로
+  if (g.world.cities) {
+    ctx.strokeStyle = 'rgba(200,160,255,.75)';
+    ctx.lineWidth = 2;
+    g.world.cities().forEach(function (c) {
+      if (!c.rail || !c.rail.pts) return;
+      ctx.beginPath();
+      c.rail.pts.forEach(function (pt, i) {
+        const m = toMap(pt[0], pt[1]);
+        if (i === 0) ctx.moveTo(m[0], m[1]); else ctx.lineTo(m[0], m[1]);
+      });
+      ctx.stroke();
+    });
+  }
+
+  ctx.font = 'bold 11px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'center';
+  marks.forEach(function (mk) {
+    const m = toMap(mk.x, mk.z);
+    if (m[0] < -40 || m[0] > w + 40 || m[1] < -40 || m[1] > h + 40) return;
+    ctx.fillStyle = mk.c;
+    ctx.fillRect(m[0] - mk.r / 2, m[1] - mk.r / 2, mk.r, mk.r);
+    if (mk.kr) {
+      ctx.fillStyle = 'rgba(10,14,22,.72)';
+      const tw = ctx.measureText(mk.kr).width + 8;
+      ctx.fillRect(m[0] - tw / 2, m[1] - mk.r - 15, tw, 13);
+      ctx.fillStyle = '#e8f0ff';
+      ctx.fillText(mk.kr, m[0], m[1] - mk.r - 5);
+    }
+  });
+
+  // ── 탈것 ──
+  (g.entities.planes || []).forEach(function (pl) {
+    const m = toMap(pl.x, pl.z);
+    if (m[0] < 0 || m[0] > w || m[1] < 0 || m[1] > h) return;
+    ctx.fillStyle = pl.ai ? '#ffd76a' : '#ffffff';
+    ctx.beginPath(); ctx.arc(m[0], m[1], 3, 0, Math.PI * 2); ctx.fill();
+  });
+  (g.entities.trains || []).forEach(function (t) {
+    const m = toMap(t.x, t.z);
+    if (m[0] < 0 || m[0] > w || m[1] < 0 || m[1] > h) return;
+    ctx.fillStyle = '#8fd8ff';
+    ctx.fillRect(m[0] - 2, m[1] - 2, 4, 4);
+  });
+
+  // ── 나 ──
+  const me = toMap(p.x, p.z);
+  ctx.save();
+  ctx.translate(me[0], me[1]);
+  const veh = p.riding || p.inCar;
+  ctx.rotate(veh ? (Math.PI - veh.yaw) : -p.yaw);
+  ctx.fillStyle = '#ff5f5f'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -9); ctx.lineTo(6, 7); ctx.lineTo(0, 3.5); ctx.lineTo(-6, 7);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // ── 제목과 안내 ──
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(10,14,22,.78)';
+  ctx.fillRect(12, 12, 250, 54);
+  ctx.fillStyle = '#e8f0ff';
+  ctx.font = 'bold 18px ui-monospace, Menlo, monospace';
+  ctx.fillText(WORLD_MAP_NAME, 22, 34);
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  ctx.fillStyle = '#9fb0c8';
+  ctx.fillText('1px = ' + b + '블록  ·  나 ' + Math.round(p.x) + ', ' + Math.round(p.z), 22, 52);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(10,14,22,.78)';
+  ctx.fillRect(w - 262, 12, 250, 38);
+  ctx.fillStyle = '#9fb0c8';
+  ctx.fillText('M 닫기 · +/− 배율 · 방향키 이동 · 0 내 자리로', w - 22, 36);
 };
