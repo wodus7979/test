@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.0';
-const GAME_BUILD = '2026-08-24';
-const GAME_FEATURES = '가구 · 도시 3곳 · 롯데타워 · 공항 철도 · 두 배 높아진 하늘';
+const GAME_VERSION = 'v7.1';
+const GAME_BUILD = '2026-08-25';
+const GAME_FEATURES = '3량 전동차(객실 탑승) · 저마다 다른 도시 3곳 · 가구 · 롯데타워';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -872,7 +872,7 @@ Game.prototype.exitPlane = function () {
 Game.prototype.enterTrain = function (train) {
   if (!train.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
   const next = train.nextStation();
-  this.ui.toast('열차 탑승 — ' + (next ? next.name + ' 방면' : '') + ' · Shift 내리기');
+  this.ui.toast('열차 탑승 — ' + (next ? next.name + ' 방면' : '') + ' · 객실 안을 걸어 다닐 수 있습니다 (Shift 내리기)');
   this.playSound('place');
   this._trainMsg = 0;
   this._trainLast = null;

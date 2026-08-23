@@ -640,7 +640,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     const t = list[i];
     const dx = t.x - player.x, dz = t.z - player.z;
     if (dx * dx + dz * dz > 520 * 520) continue;
-    if (!this.boxInFrustum(t.x - 16, t.y - 4, t.z - 16, t.x + 16, t.y + 4, t.z + 16)) continue;
+    if (!this.boxInFrustum(t.x - 34, t.y - 5, t.z - 34, t.x + 34, t.y + 6, t.z + 34)) continue;
 
     const bx = Math.floor(t.x), by = Math.floor(t.y), bz = Math.floor(t.z);
     const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 3), bz) / 15;
@@ -648,8 +648,25 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     const light = [Math.max(sky, 0.55), Math.max(blk, 0.35)];
 
     const cy = Math.cos(t.yaw), sy = Math.sin(t.yaw);
-    for (let k = 0; k < TRAIN_BOXES.length; k++) {
-      const b = TRAIN_BOXES[k];
+    for (let k = 0; k < TRAIN_PARTS.length; k++) {
+      const b = TRAIN_PARTS[k];
+      if (b.wheel) {
+        // 바퀴 — 얇은 판 세 장을 60°씩 어긋나게 겹쳐 둥글게 보이게 하고,
+        // 달린 거리만큼 굴린다.
+        for (let sp = 0; sp < 3; sp++) {
+          const ang = t.wheelAngle + sp * (Math.PI / 3);
+          const ca = Math.cos(ang), sa = Math.sin(ang);
+          const wt = function (px, py, pz) {
+            // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전
+            const ry = py - b.r, rz = pz;
+            const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+          };
+          emitBox(_ev, _ei, t.x, t.y, t.z, b.w, b.r * 2, b.r * 0.62, 'tr_wheel', null, wt, light);
+        }
+        continue;
+      }
       const bh = b.h;
       const transform = function (px, py, pz) {
         const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;

@@ -72,6 +72,251 @@ function cityFlatWeight(dx, dz) {
   return 1 - t * t * (3 - 2 * t);
 }
 
+
+// 블록 이름이 없으면 대체품을 쓴다 (자재 이름이 바뀌어도 도시가 무너지지 않게)
+function bid() {
+  for (let i = 0; i < arguments.length; i++) {
+    const v = B[arguments[i]];
+    if (v !== undefined) return v;
+  }
+  return B.stone;
+}
+
+// ── 건물 팔레트 ───────────────────────────────────────────────────────
+// 사진 속 도심처럼 벽돌·회벽·유리가 섞이도록 여러 벌을 준비한다.
+let CPAL = null;
+function initCityPalettes() {
+  if (CPAL) return CPAL;
+  CPAL = {
+    // 좁은 상가 주택 (벽돌·회벽)
+    row: [
+      { wall: bid('bricks'), band: bid('smooth_quartz', 'quartz_block'), roof: bid('brick_stairs', 'bricks'),
+        gable: bid('bricks'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks', 'spruce_planks'), awn: bid('red_concrete') },
+      { wall: bid('white_terracotta'), band: bid('bricks'), roof: bid('brick_stairs', 'bricks'),
+        gable: bid('white_terracotta'), sill: bid('smooth_quartz'), shop: bid('spruce_planks'), awn: bid('green_concrete', 'lime_concrete') },
+      { wall: bid('brown_terracotta'), band: bid('smooth_quartz'), roof: bid('deepslate_tile_stairs', 'cobblestone_stairs'),
+        gable: bid('brown_terracotta'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks'), awn: bid('orange_concrete') },
+      { wall: bid('mud_bricks'), band: bid('smooth_quartz'), roof: bid('brick_stairs'),
+        gable: bid('mud_bricks'), sill: bid('smooth_quartz'), shop: bid('oak_planks'), awn: bid('cyan_concrete') },
+      { wall: bid('light_gray_terracotta'), band: bid('polished_andesite', 'smooth_stone'), roof: bid('deepslate_tile_stairs', 'cobblestone_stairs'),
+        gable: bid('light_gray_terracotta'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks'), awn: bid('blue_concrete') },
+      { wall: bid('red_terracotta'), band: bid('smooth_quartz'), roof: bid('brick_stairs'),
+        gable: bid('red_terracotta'), sill: bid('smooth_quartz'), shop: bid('spruce_planks'), awn: bid('yellow_concrete') }
+    ],
+    // 제주 시가지 — 흰 벽 · 현무암 기단 · 주황 기와
+    rowJeju: [
+      { wall: bid('white_concrete'), band: bid('blackstone', 'basalt'), roof: bid('brick_stairs'),
+        gable: bid('orange_terracotta'), sill: bid('smooth_quartz'), shop: bid('spruce_planks'), awn: bid('orange_concrete') },
+      { wall: bid('smooth_quartz', 'quartz_block'), band: bid('basalt', 'blackstone'), roof: bid('brick_stairs'),
+        gable: bid('orange_terracotta'), sill: bid('white_concrete'), shop: bid('oak_planks'), awn: bid('lime_concrete') },
+      { wall: bid('white_terracotta'), band: bid('blackstone'), roof: bid('brick_stairs'),
+        gable: bid('red_terracotta'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks'), awn: bid('cyan_concrete') }
+    ],
+    // 발코니가 있는 중층 건물
+    balcony: [
+      { wall: bid('white_concrete'), trim: bid('light_gray_concrete'), rail: bid('oak_fence'), plant: bid('oak_leaves') },
+      { wall: bid('bricks'), trim: bid('smooth_quartz'), rail: bid('spruce_fence', 'oak_fence'), plant: bid('oak_leaves') },
+      { wall: bid('light_gray_terracotta'), trim: bid('white_concrete'), rail: bid('oak_fence'), plant: bid('birch_leaves', 'oak_leaves') }
+    ],
+    // 유리 커튼월
+    glass: [
+      { wall: bid('light_gray_concrete'), glass: bid('light_blue_stained_glass'), trim: bid('smooth_quartz') },
+      { wall: bid('gray_concrete'), glass: bid('cyan_stained_glass', 'light_blue_stained_glass'), trim: bid('white_concrete') },
+      { wall: bid('white_concrete'), glass: bid('light_blue_stained_glass'), trim: bid('polished_andesite', 'smooth_stone') }
+    ]
+  };
+  return CPAL;
+}
+
+// ── 좁은 상가 주택 한 채 ───────────────────────────────────────────────
+// 정면(간판·차양·상점 유리)이 fs 쪽 길을 본다. 지붕은 계단식 박공.
+function rowHouse(plan, x0, x1, zFront, depth, h, pal, fs, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  const zBack = zFront - fs * (depth - 1);
+  const zlo = Math.min(zFront, zBack), zhi = Math.max(zFront, zBack);
+  const w = x1 - x0 + 1;
+
+  // 바닥과 천장
+  for (let z = zlo; z <= zhi; z++) {
+    for (let x = x0; x <= x1; x++) set(x, 0, z, pal.band);
+  }
+  // 벽 — 층마다 띠 한 줄 + 창 두 줄
+  const floors = Math.max(2, Math.floor(h / 3));
+  for (let f = 0; f < floors; f++) {
+    const y0 = 1 + f * 3;
+    const ground = (f === 0);
+    for (let z = zlo; z <= zhi; z++) {
+      for (let x = x0; x <= x1; x++) {
+        const onX = (x === x0 || x === x1);
+        const onZ = (z === zlo || z === zhi);
+        if (!onX && !onZ) continue;
+        const corner = onX && onZ;
+        set(x, y0, z, pal.band);
+        if (corner) { set(x, y0 + 1, z, pal.wall, 0, 2); continue; }
+        // 창 자리 고르기
+        const along = onZ ? (x - x0) : (z - zlo);
+        const win = (along % 2 === 1) && (along > 0) && (onZ ? true : (along % 4 !== 3));
+        if (ground && z === zFront && !onX) {
+          // 1층 상점 — 큰 유리와 차양
+          set(x, y0 + 1, z, B.glass, 0, 2);
+        } else if (win) {
+          set(x, y0 + 1, z, pal.sill);
+          set(x, y0 + 2, z, B.glass_pane);
+        } else {
+          set(x, y0 + 1, z, pal.wall, 0, 2);
+        }
+      }
+    }
+  }
+  const top = 1 + floors * 3;
+  // 1층 상점 차양
+  const zAwn = zFront + fs;
+  for (let x = x0; x <= x1; x++) set(x, 4, zAwn, pal.awn);
+  for (let x = x0; x <= x1; x++) set(x, 3, zAwn, B.oak_trapdoor, fs > 0 ? 0 : 2);
+  // 간판
+  set(Math.floor((x0 + x1) / 2), 5, zFront + (fs > 0 ? 1 : -1), B.airport_sign, fs > 0 ? 0 : 2);
+
+  // 계단식 박공 지붕 (정면 쪽이 높다)
+  for (let z = zlo; z <= zhi; z++) {
+    for (let x = x0; x <= x1; x++) set(x, top, z, pal.band);
+  }
+  const steps = Math.min(3, Math.floor(w / 2));
+  for (let k = 0; k <= steps; k++) {
+    const yy = top + 1 + k;
+    const a = x0 + k, b = x1 - k;
+    if (a > b) break;
+    for (let x = a; x <= b; x++) {
+      set(x, yy, zFront, pal.gable);
+      set(x, yy, zBack, pal.gable);
+    }
+    // 옆면 지붕 경사
+    for (let z = zlo; z <= zhi; z++) {
+      set(a, yy, z, pal.roof, fs > 0 ? 3 : 1);
+      set(b, yy, z, pal.roof, fs > 0 ? 1 : 3);
+    }
+  }
+  // 굴뚝
+  if (rnd() < 0.45) {
+    const cx2 = x0 + 1 + ((rnd() * Math.max(1, w - 2)) | 0);
+    set(cx2, top + 1, zBack + fs * 2, pal.wall, 0, 3);
+  }
+}
+
+// ── 상가 주택 줄 (구획 하나를 좁은 집 여러 채로 채운다) ────────────────
+function cityRowBlock(plan, cx, cz, half, rnd, palKey) {
+  const pals = initCityPalettes()[palKey || 'row'];
+  const depth = Math.max(5, half - 2);
+  for (const side of [-1, 1]) {
+    let x = -half;
+    while (x <= half - 3) {
+      const w = 3 + ((rnd() * 3) | 0);
+      if (x + w - 1 > half) break;
+      const pal = pals[(rnd() * pals.length) | 0];
+      const h = 10 + ((rnd() * 10) | 0);
+      rowHouse(plan, cx + x, cx + x + w - 1, cz + side * half, depth, h, pal, side, rnd);
+      x += w;
+    }
+  }
+}
+
+// ── 발코니가 있는 중층 건물 ────────────────────────────────────────────
+function balconyBlock(plan, cx, cz, hw, hd, h, pal, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 0, cz + dz, pal.trim);
+  }
+  const floors = Math.max(3, Math.floor(h / 3));
+  for (let f = 0; f < floors; f++) {
+    const y0 = 1 + f * 3;
+    for (let dz = -hd; dz <= hd; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        if (Math.abs(dx) !== hw && Math.abs(dz) !== hd) continue;
+        set(cx + dx, y0, cz + dz, pal.trim);
+        set(cx + dx, y0 + 1, cz + dz, pal.wall, 0, 2);
+      }
+    }
+    // 길 쪽 발코니 — 난간과 화분
+    for (const side of [-1, 1]) {
+      const z = cz + side * hd;
+      for (let dx = -hw + 1; dx <= hw - 1; dx++) {
+        set(cx + dx, y0 + 1, z, B.glass_pane);
+        set(cx + dx, y0 + 2, z, pal.wall);
+        set(cx + dx, y0, z + side, pal.trim);
+        set(cx + dx, y0 + 1, z + side, pal.rail);
+      }
+      if (f % 2 === 0) {
+        for (let dx = -hw + 2; dx <= hw - 2; dx += 3) set(cx + dx, y0 + 2, z + side, pal.plant);
+      }
+    }
+  }
+  const top = 1 + floors * 3;
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, top, cz + dz, pal.trim);
+  }
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      if (Math.abs(dx) !== hw && Math.abs(dz) !== hd) continue;
+      set(cx + dx, top + 1, cz + dz, B.oak_fence);
+    }
+  }
+  set(cx, top + 1, cz, B.red_concrete);
+  set(cx, top + 2, cz, B.glowstone);
+}
+
+// ── 횡단보도 ──────────────────────────────────────────────────────────
+function crossWalks(plan, lines, st) {
+  const gy = plan.y;
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = 0; j < lines.length; j++) {
+      const a = lines[i], b = lines[j];
+      if (Math.hypot(a, b) > CITY_R - 8) continue;
+      // 교차로 네 방향에 흰 줄
+      for (const s of [-1, 1]) {
+        for (let k = -ROAD_HALF; k <= ROAD_HALF; k++) {
+          if (((k + 8) % 2) !== 0) continue;
+          for (let d = 0; d <= 1; d++) {
+            plan.set(plan.x + a + k, gy, plan.z + b + s * (ROAD_HALF + 1 + d), st.dash, 0, true);
+            plan.set(plan.x + a + s * (ROAD_HALF + 1 + d), gy, plan.z + b + k, st.dash, 0, true);
+          }
+        }
+      }
+    }
+  }
+}
+
+// ── 가로수 ────────────────────────────────────────────────────────────
+function streetTrees(plan, lines, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, run) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1); };
+  const tree = function (x, z) {
+    if (Math.hypot(x, z) > CITY_R - 4) return;
+    set(x, 0, z, B.grass_block);
+    set(x, 1, z, B.oak_log, 4);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) set(x + dx, 5, z + dz, B.oak_leaves);
+    }
+    for (const d of [[-1, 0], [1, 0], [0, -1], [0, 1], [0, 0]]) set(x + d[0], 6, z + d[1], B.oak_leaves);
+  };
+  for (let i = 0; i < lines.length; i++) {
+    for (let a = -CITY_R + 10; a < CITY_R - 10; a += 7) {
+      let near = false;
+      for (let k = 0; k < lines.length; k++) if (Math.abs(a - lines[k]) < 7) near = true;
+      if (near) continue;
+      for (const s of [-1, 1]) {
+        if (rnd() < 0.35) continue;
+        tree(a, lines[i] + s * (ROAD_HALF + 3));
+        tree(lines[i] + s * (ROAD_HALF + 3), a);
+      }
+    }
+  }
+}
+
 // ── 건물 ──────────────────────────────────────────────────────────────
 // 속이 빈 껍데기만 세운다. 층마다 띠 한 줄 + 유리 세 줄로 세로 run 을 묶어
 // 도면 용량을 아낀다.
@@ -378,7 +623,7 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
 function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
-  const L = 14;   // 승강장 길이 (철로 방향)
+  const L = 34;   // 승강장 길이 (철로 방향) — 3량 편성이 다 선다
   for (let a = -L; a <= L; a++) {
     for (let d = -6; d <= 6; d++) {
       const x = faceX ? cx + a : cx + d;
@@ -494,6 +739,8 @@ function buildCityPlan(world, ap, index) {
   };
 
   cityRoads(plan, st);
+  crossWalks(plan, plan.roadLines, st);
+  streetTrees(plan, plan.roadLines, rnd);
 
   // ── 구획 나누기 ──
   const lines = plan.roadLines;
@@ -517,12 +764,21 @@ function buildCityPlan(world, ap, index) {
     }
   }
 
+  // 도시마다 건물 종류를 다르게 섞는다
+  const CITY_ARCH = {
+    skyline: ['glass', 'row', 'glass', 'balcony', 'row', 'glass', 'row', 'balcony', 'glass', 'row'],
+    modern: ['glass', 'balcony', 'glass', 'glass', 'row', 'balcony', 'glass'],
+    jeju: ['jeju', 'row', 'jeju', 'jeju', 'balcony', 'row', 'jeju']
+  };
+  const archList = CITY_ARCH[def.style] || CITY_ARCH.modern;
+  const rowPal = (def.style === 'jeju') ? 'rowJeju' : 'row';
+  const balPals = initCityPalettes().balcony;
+
   let tallLeft = st.tall;
   const parks = [];
   for (let i = 0; i < lots.length; i++) {
     const lot = lots[i];
-    const isPark = (i % 7 === 3);
-    if (isPark) { parks.push(lot); continue; }
+    if (i % 7 === 3) { parks.push(lot); continue; }
     // 구획 바닥을 포장한다 (건물이 잔디 위에 뜬 것처럼 보이지 않게)
     for (let dz = -half - 2; dz <= half + 2; dz++) {
       for (let dx = -half - 2; dx <= half + 2; dx++) {
@@ -532,18 +788,36 @@ function buildCityPlan(world, ap, index) {
     }
     const hw = half - 1 - ((rnd() * 2) | 0);
     const hd = half - 1 - ((rnd() * 2) | 0);
+    let kind = archList[i % archList.length];
     let h;
-    if (tallLeft > 0) { h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0])); tallLeft--; }
-    else h = st.heights[0] + Math.round(rnd() * (st.heights[1] - st.heights[0]));
+    if (kind === 'glass' && tallLeft > 0) {
+      h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
+      tallLeft--;
+    } else {
+      h = st.heights[0] + Math.round(rnd() * (st.heights[1] - st.heights[0]));
+    }
 
-    if (def.style === 'jeju' && h <= 22) {
-      jejuHouse(plan, lot.x, lot.z, hw, hd, h, st, rnd);
+    if (kind === 'row') {
+      cityRowBlock(plan, lot.x, lot.z, half, rnd, rowPal);
+    } else if (kind === 'balcony') {
+      balconyBlock(plan, lot.x, lot.z, hw, hd, h, balPals[(rnd() * balPals.length) | 0], rnd);
+    } else if (kind === 'jeju') {
+      jejuHouse(plan, lot.x, lot.z, hw, hd, Math.min(h, 20), st, rnd);
     } else {
       cityTower(plan, lot.x, lot.z, hw, hd, h, st, {});
     }
     // 길가 사람들
     if (rnd() < 0.8) put(lot.x + hw + 3, lot.z, null);
     if (rnd() < 0.5) put(lot.x, lot.z + hd + 3, null);
+  }
+  // 남은 고층은 큰길가에 몰아 세운다 (스카이라인이 생기게)
+  for (let i = 0; i < lots.length && tallLeft > 0; i++) {
+    const lot = lots[i];
+    if (i % 7 === 3) continue;
+    if (archList[i % archList.length] === 'glass') continue;
+    const h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
+    cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, {});
+    tallLeft--;
   }
 
   // ── 랜드마크 ──

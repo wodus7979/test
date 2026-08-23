@@ -365,24 +365,59 @@ defFurn('potted_fern', '작은 화분', [
   box(3, 6, 3, 13, 13, 13, 'f_leaf')
 ], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.5 });
 
-// ── 열차 표면 (train.js 가 쓰는 엔티티 텍스처) ────────────────────────
+// ── 전동차 표면 (train.js 가 쓰는 엔티티 텍스처) ──────────────────────
+// 코레일 전동차처럼 은백색 차체에 파랑·청록 띠를 두른다.
 defFurnTex('tr_body', function (p, rnd) {
-  p.noise(rnd, '#e8ebef', 4, 4);
-  p.rect(0, 0, 16, 1, '#c9ced6');
+  p.noise(rnd, '#e2e6ea', 4, 4);
+  p.rect(0, 0, 16, 1, '#c2c8d0');
+  p.rect(0, 15, 16, 1, '#f2f5f8');
 });
 defFurnTex('tr_win', function (p, rnd) {
-  p.noise(rnd, '#e8ebef', 4, 4);
-  p.rect(0, 4, 16, 8, '#1d2a3a');
-  for (let x = 1; x < 16; x += 5) p.rect(x, 4, 1, 8, '#e8ebef');
-  p.rect(0, 4, 16, 1, '#39536e');
+  p.rect(0, 0, 16, 3, '#e2e6ea');
+  p.rect(0, 3, 16, 10, '#101b26');       // 짙게 코팅된 창
+  p.rect(0, 3, 16, 1, '#4d6b86');
+  p.rect(0, 12, 16, 1, '#2f4358');
+  p.rect(0, 13, 16, 3, '#e2e6ea');
 });
-defFurnTex('tr_roof', function (p, rnd) { p.noise(rnd, '#9aa1ab', 5, 3); });
-defFurnTex('tr_skirt', function (p, rnd) { p.noise(rnd, '#343a43', 5, 3); });
-defFurnTex('tr_stripe', function (p, rnd) { p.noise(rnd, '#2f6fc4', 5, 4); });
+defFurnTex('tr_roof', function (p, rnd) { p.noise(rnd, '#9aa2ab', 5, 3); });
+defFurnTex('tr_skirt', function (p, rnd) { p.noise(rnd, '#3a4048', 5, 3); });
+defFurnTex('tr_stripe', function (p, rnd) {
+  p.noise(rnd, '#1f4f9c', 5, 4);
+  p.rect(0, 12, 16, 4, '#12a3a3');       // 아래쪽 청록 띠
+});
+defFurnTex('tr_teal', function (p, rnd) { p.noise(rnd, '#12a3a3', 5, 4); });
 defFurnTex('tr_face', function (p, rnd) {
-  p.noise(rnd, '#e8ebef', 4, 4);
-  p.rect(2, 3, 12, 6, '#1d2a3a');       // 앞 유리
-  p.rect(1, 11, 4, 3, '#fff3c0');       // 전조등
-  p.rect(11, 11, 4, 3, '#fff3c0');
-  p.rect(0, 14, 16, 2, '#2f6fc4');
+  p.noise(rnd, '#e2e6ea', 4, 4);
+  p.rect(1, 2, 14, 7, '#0e1720');        // 앞유리
+  p.rect(1, 2, 14, 1, '#39536e');
+  p.rect(0, 10, 16, 2, '#1f4f9c');
+  p.rect(1, 12, 4, 3, '#fff3c0');        // 전조등
+  p.rect(11, 12, 4, 3, '#fff3c0');
+});
+defFurnTex('tr_door', function (p, rnd) {
+  p.noise(rnd, '#cfd6dd', 4, 4);
+  p.rect(7, 0, 2, 16, '#8c959e');        // 가운데 여닫이 이음매
+  p.rect(1, 3, 5, 8, '#101b26');         // 문 창
+  p.rect(10, 3, 5, 8, '#101b26');
+});
+defFurnTex('tr_floor', function (p, rnd) {
+  p.noise(rnd, '#4a5058', 6, 2);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#3c424a');
+});
+defFurnTex('tr_wall', function (p, rnd) {
+  p.noise(rnd, '#dfe4e9', 4, 5);
+  p.rect(0, 14, 16, 2, '#c6ccd3');
+});
+defFurnTex('tr_seat', function (p, rnd) {
+  p.noise(rnd, '#2f5f9e', 6, 3);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#27508a');
+});
+defFurnTex('tr_light', function (p, rnd) { p.noise(rnd, '#fdf7e2', 4, 6); });
+defFurnTex('tr_wheel', function (p, rnd) {
+  p.noise(rnd, '#22262b', 5, 3);
+  p.rect(0, 7, 16, 2, '#4a5058');
+});
+defFurnTex('tr_bogie', function (p, rnd) {
+  p.noise(rnd, '#2e343b', 6, 3);
+  p.rect(0, 4, 16, 2, '#454c55');
 });

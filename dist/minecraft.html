@@ -737,10 +737,13 @@ body.touch .hand { display: none !important; }
               <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기(공중이면 낙하산)</li>
           <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li>목적지까지 <b>500블록</b>이 남으면 <b>자동 착륙 승인 창</b>이 뜬다 — <b>Y</b> 승인, <b>N</b> 취소</li>
-          <li>공항마다 <b>도시</b>가 하나씩 딸려 있다 — 인천 송도, <b>롯데타워</b>가 선 김포 도심,
-              돌담과 귤밭이 있는 <b>제주시</b>. 지도에 네모로 표시된다</li>
-          <li>터미널 옆 <b>공항철도역</b>에서 <b>고가 열차</b>가 도시까지 오간다.
-              열차에 <b>우클릭</b>하면 타고, <b>Shift</b>로 내린다</li>
+          <li>공항마다 <b>도시</b>가 하나씩 딸려 있고 <b>생김새가 저마다 다르다</b> —
+              유리 신도시 <b>인천 송도</b>, <b>롯데타워</b>와 벽돌 상가 거리가 섞인 <b>김포 도심</b>,
+              현무암 기단에 주황 기와를 얹은 <b>제주시</b>. 횡단보도와 가로수도 있다.
+              지도에 네모로 표시된다</li>
+          <li>터미널 옆 <b>공항철도역</b>에서 <b>3량짜리 전동차</b>가 도시까지 오간다.
+              바퀴가 실제로 구르고, <b>객실 안을 걸어 다닐 수 있다</b> —
+              열차에 <b>우클릭</b>하면 타고, 안에서 <b>WASD</b>로 움직이고, <b>Shift</b>로 내린다</li>
           <li>공항 안은 의자·소파·카운터·진열장 같은 <b>진짜 가구</b>로 꾸며져 있다 (창작 모드 <b>가구</b> 탭)</li>
           <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다.
               하늘이 두 배로 높아져 <b>고도 150</b>까지 올라갈 수 있다</li>
@@ -2928,26 +2931,61 @@ defFurn('potted_fern', '작은 화분', [
   box(3, 6, 3, 13, 13, 13, 'f_leaf')
 ], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.5 });
 
-// ── 열차 표면 (train.js 가 쓰는 엔티티 텍스처) ────────────────────────
+// ── 전동차 표면 (train.js 가 쓰는 엔티티 텍스처) ──────────────────────
+// 코레일 전동차처럼 은백색 차체에 파랑·청록 띠를 두른다.
 defFurnTex('tr_body', function (p, rnd) {
-  p.noise(rnd, '#e8ebef', 4, 4);
-  p.rect(0, 0, 16, 1, '#c9ced6');
+  p.noise(rnd, '#e2e6ea', 4, 4);
+  p.rect(0, 0, 16, 1, '#c2c8d0');
+  p.rect(0, 15, 16, 1, '#f2f5f8');
 });
 defFurnTex('tr_win', function (p, rnd) {
-  p.noise(rnd, '#e8ebef', 4, 4);
-  p.rect(0, 4, 16, 8, '#1d2a3a');
-  for (let x = 1; x < 16; x += 5) p.rect(x, 4, 1, 8, '#e8ebef');
-  p.rect(0, 4, 16, 1, '#39536e');
+  p.rect(0, 0, 16, 3, '#e2e6ea');
+  p.rect(0, 3, 16, 10, '#101b26');       // 짙게 코팅된 창
+  p.rect(0, 3, 16, 1, '#4d6b86');
+  p.rect(0, 12, 16, 1, '#2f4358');
+  p.rect(0, 13, 16, 3, '#e2e6ea');
 });
-defFurnTex('tr_roof', function (p, rnd) { p.noise(rnd, '#9aa1ab', 5, 3); });
-defFurnTex('tr_skirt', function (p, rnd) { p.noise(rnd, '#343a43', 5, 3); });
-defFurnTex('tr_stripe', function (p, rnd) { p.noise(rnd, '#2f6fc4', 5, 4); });
+defFurnTex('tr_roof', function (p, rnd) { p.noise(rnd, '#9aa2ab', 5, 3); });
+defFurnTex('tr_skirt', function (p, rnd) { p.noise(rnd, '#3a4048', 5, 3); });
+defFurnTex('tr_stripe', function (p, rnd) {
+  p.noise(rnd, '#1f4f9c', 5, 4);
+  p.rect(0, 12, 16, 4, '#12a3a3');       // 아래쪽 청록 띠
+});
+defFurnTex('tr_teal', function (p, rnd) { p.noise(rnd, '#12a3a3', 5, 4); });
 defFurnTex('tr_face', function (p, rnd) {
-  p.noise(rnd, '#e8ebef', 4, 4);
-  p.rect(2, 3, 12, 6, '#1d2a3a');       // 앞 유리
-  p.rect(1, 11, 4, 3, '#fff3c0');       // 전조등
-  p.rect(11, 11, 4, 3, '#fff3c0');
-  p.rect(0, 14, 16, 2, '#2f6fc4');
+  p.noise(rnd, '#e2e6ea', 4, 4);
+  p.rect(1, 2, 14, 7, '#0e1720');        // 앞유리
+  p.rect(1, 2, 14, 1, '#39536e');
+  p.rect(0, 10, 16, 2, '#1f4f9c');
+  p.rect(1, 12, 4, 3, '#fff3c0');        // 전조등
+  p.rect(11, 12, 4, 3, '#fff3c0');
+});
+defFurnTex('tr_door', function (p, rnd) {
+  p.noise(rnd, '#cfd6dd', 4, 4);
+  p.rect(7, 0, 2, 16, '#8c959e');        // 가운데 여닫이 이음매
+  p.rect(1, 3, 5, 8, '#101b26');         // 문 창
+  p.rect(10, 3, 5, 8, '#101b26');
+});
+defFurnTex('tr_floor', function (p, rnd) {
+  p.noise(rnd, '#4a5058', 6, 2);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#3c424a');
+});
+defFurnTex('tr_wall', function (p, rnd) {
+  p.noise(rnd, '#dfe4e9', 4, 5);
+  p.rect(0, 14, 16, 2, '#c6ccd3');
+});
+defFurnTex('tr_seat', function (p, rnd) {
+  p.noise(rnd, '#2f5f9e', 6, 3);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#27508a');
+});
+defFurnTex('tr_light', function (p, rnd) { p.noise(rnd, '#fdf7e2', 4, 6); });
+defFurnTex('tr_wheel', function (p, rnd) {
+  p.noise(rnd, '#22262b', 5, 3);
+  p.rect(0, 7, 16, 2, '#4a5058');
+});
+defFurnTex('tr_bogie', function (p, rnd) {
+  p.noise(rnd, '#2e343b', 6, 3);
+  p.rect(0, 4, 16, 2, '#454c55');
 });
 
 </script>
@@ -9180,6 +9218,251 @@ function cityFlatWeight(dx, dz) {
   return 1 - t * t * (3 - 2 * t);
 }
 
+
+// 블록 이름이 없으면 대체품을 쓴다 (자재 이름이 바뀌어도 도시가 무너지지 않게)
+function bid() {
+  for (let i = 0; i < arguments.length; i++) {
+    const v = B[arguments[i]];
+    if (v !== undefined) return v;
+  }
+  return B.stone;
+}
+
+// ── 건물 팔레트 ───────────────────────────────────────────────────────
+// 사진 속 도심처럼 벽돌·회벽·유리가 섞이도록 여러 벌을 준비한다.
+let CPAL = null;
+function initCityPalettes() {
+  if (CPAL) return CPAL;
+  CPAL = {
+    // 좁은 상가 주택 (벽돌·회벽)
+    row: [
+      { wall: bid('bricks'), band: bid('smooth_quartz', 'quartz_block'), roof: bid('brick_stairs', 'bricks'),
+        gable: bid('bricks'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks', 'spruce_planks'), awn: bid('red_concrete') },
+      { wall: bid('white_terracotta'), band: bid('bricks'), roof: bid('brick_stairs', 'bricks'),
+        gable: bid('white_terracotta'), sill: bid('smooth_quartz'), shop: bid('spruce_planks'), awn: bid('green_concrete', 'lime_concrete') },
+      { wall: bid('brown_terracotta'), band: bid('smooth_quartz'), roof: bid('deepslate_tile_stairs', 'cobblestone_stairs'),
+        gable: bid('brown_terracotta'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks'), awn: bid('orange_concrete') },
+      { wall: bid('mud_bricks'), band: bid('smooth_quartz'), roof: bid('brick_stairs'),
+        gable: bid('mud_bricks'), sill: bid('smooth_quartz'), shop: bid('oak_planks'), awn: bid('cyan_concrete') },
+      { wall: bid('light_gray_terracotta'), band: bid('polished_andesite', 'smooth_stone'), roof: bid('deepslate_tile_stairs', 'cobblestone_stairs'),
+        gable: bid('light_gray_terracotta'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks'), awn: bid('blue_concrete') },
+      { wall: bid('red_terracotta'), band: bid('smooth_quartz'), roof: bid('brick_stairs'),
+        gable: bid('red_terracotta'), sill: bid('smooth_quartz'), shop: bid('spruce_planks'), awn: bid('yellow_concrete') }
+    ],
+    // 제주 시가지 — 흰 벽 · 현무암 기단 · 주황 기와
+    rowJeju: [
+      { wall: bid('white_concrete'), band: bid('blackstone', 'basalt'), roof: bid('brick_stairs'),
+        gable: bid('orange_terracotta'), sill: bid('smooth_quartz'), shop: bid('spruce_planks'), awn: bid('orange_concrete') },
+      { wall: bid('smooth_quartz', 'quartz_block'), band: bid('basalt', 'blackstone'), roof: bid('brick_stairs'),
+        gable: bid('orange_terracotta'), sill: bid('white_concrete'), shop: bid('oak_planks'), awn: bid('lime_concrete') },
+      { wall: bid('white_terracotta'), band: bid('blackstone'), roof: bid('brick_stairs'),
+        gable: bid('red_terracotta'), sill: bid('smooth_quartz'), shop: bid('dark_oak_planks'), awn: bid('cyan_concrete') }
+    ],
+    // 발코니가 있는 중층 건물
+    balcony: [
+      { wall: bid('white_concrete'), trim: bid('light_gray_concrete'), rail: bid('oak_fence'), plant: bid('oak_leaves') },
+      { wall: bid('bricks'), trim: bid('smooth_quartz'), rail: bid('spruce_fence', 'oak_fence'), plant: bid('oak_leaves') },
+      { wall: bid('light_gray_terracotta'), trim: bid('white_concrete'), rail: bid('oak_fence'), plant: bid('birch_leaves', 'oak_leaves') }
+    ],
+    // 유리 커튼월
+    glass: [
+      { wall: bid('light_gray_concrete'), glass: bid('light_blue_stained_glass'), trim: bid('smooth_quartz') },
+      { wall: bid('gray_concrete'), glass: bid('cyan_stained_glass', 'light_blue_stained_glass'), trim: bid('white_concrete') },
+      { wall: bid('white_concrete'), glass: bid('light_blue_stained_glass'), trim: bid('polished_andesite', 'smooth_stone') }
+    ]
+  };
+  return CPAL;
+}
+
+// ── 좁은 상가 주택 한 채 ───────────────────────────────────────────────
+// 정면(간판·차양·상점 유리)이 fs 쪽 길을 본다. 지붕은 계단식 박공.
+function rowHouse(plan, x0, x1, zFront, depth, h, pal, fs, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  const zBack = zFront - fs * (depth - 1);
+  const zlo = Math.min(zFront, zBack), zhi = Math.max(zFront, zBack);
+  const w = x1 - x0 + 1;
+
+  // 바닥과 천장
+  for (let z = zlo; z <= zhi; z++) {
+    for (let x = x0; x <= x1; x++) set(x, 0, z, pal.band);
+  }
+  // 벽 — 층마다 띠 한 줄 + 창 두 줄
+  const floors = Math.max(2, Math.floor(h / 3));
+  for (let f = 0; f < floors; f++) {
+    const y0 = 1 + f * 3;
+    const ground = (f === 0);
+    for (let z = zlo; z <= zhi; z++) {
+      for (let x = x0; x <= x1; x++) {
+        const onX = (x === x0 || x === x1);
+        const onZ = (z === zlo || z === zhi);
+        if (!onX && !onZ) continue;
+        const corner = onX && onZ;
+        set(x, y0, z, pal.band);
+        if (corner) { set(x, y0 + 1, z, pal.wall, 0, 2); continue; }
+        // 창 자리 고르기
+        const along = onZ ? (x - x0) : (z - zlo);
+        const win = (along % 2 === 1) && (along > 0) && (onZ ? true : (along % 4 !== 3));
+        if (ground && z === zFront && !onX) {
+          // 1층 상점 — 큰 유리와 차양
+          set(x, y0 + 1, z, B.glass, 0, 2);
+        } else if (win) {
+          set(x, y0 + 1, z, pal.sill);
+          set(x, y0 + 2, z, B.glass_pane);
+        } else {
+          set(x, y0 + 1, z, pal.wall, 0, 2);
+        }
+      }
+    }
+  }
+  const top = 1 + floors * 3;
+  // 1층 상점 차양
+  const zAwn = zFront + fs;
+  for (let x = x0; x <= x1; x++) set(x, 4, zAwn, pal.awn);
+  for (let x = x0; x <= x1; x++) set(x, 3, zAwn, B.oak_trapdoor, fs > 0 ? 0 : 2);
+  // 간판
+  set(Math.floor((x0 + x1) / 2), 5, zFront + (fs > 0 ? 1 : -1), B.airport_sign, fs > 0 ? 0 : 2);
+
+  // 계단식 박공 지붕 (정면 쪽이 높다)
+  for (let z = zlo; z <= zhi; z++) {
+    for (let x = x0; x <= x1; x++) set(x, top, z, pal.band);
+  }
+  const steps = Math.min(3, Math.floor(w / 2));
+  for (let k = 0; k <= steps; k++) {
+    const yy = top + 1 + k;
+    const a = x0 + k, b = x1 - k;
+    if (a > b) break;
+    for (let x = a; x <= b; x++) {
+      set(x, yy, zFront, pal.gable);
+      set(x, yy, zBack, pal.gable);
+    }
+    // 옆면 지붕 경사
+    for (let z = zlo; z <= zhi; z++) {
+      set(a, yy, z, pal.roof, fs > 0 ? 3 : 1);
+      set(b, yy, z, pal.roof, fs > 0 ? 1 : 3);
+    }
+  }
+  // 굴뚝
+  if (rnd() < 0.45) {
+    const cx2 = x0 + 1 + ((rnd() * Math.max(1, w - 2)) | 0);
+    set(cx2, top + 1, zBack + fs * 2, pal.wall, 0, 3);
+  }
+}
+
+// ── 상가 주택 줄 (구획 하나를 좁은 집 여러 채로 채운다) ────────────────
+function cityRowBlock(plan, cx, cz, half, rnd, palKey) {
+  const pals = initCityPalettes()[palKey || 'row'];
+  const depth = Math.max(5, half - 2);
+  for (const side of [-1, 1]) {
+    let x = -half;
+    while (x <= half - 3) {
+      const w = 3 + ((rnd() * 3) | 0);
+      if (x + w - 1 > half) break;
+      const pal = pals[(rnd() * pals.length) | 0];
+      const h = 10 + ((rnd() * 10) | 0);
+      rowHouse(plan, cx + x, cx + x + w - 1, cz + side * half, depth, h, pal, side, rnd);
+      x += w;
+    }
+  }
+}
+
+// ── 발코니가 있는 중층 건물 ────────────────────────────────────────────
+function balconyBlock(plan, cx, cz, hw, hd, h, pal, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, 0, cz + dz, pal.trim);
+  }
+  const floors = Math.max(3, Math.floor(h / 3));
+  for (let f = 0; f < floors; f++) {
+    const y0 = 1 + f * 3;
+    for (let dz = -hd; dz <= hd; dz++) {
+      for (let dx = -hw; dx <= hw; dx++) {
+        if (Math.abs(dx) !== hw && Math.abs(dz) !== hd) continue;
+        set(cx + dx, y0, cz + dz, pal.trim);
+        set(cx + dx, y0 + 1, cz + dz, pal.wall, 0, 2);
+      }
+    }
+    // 길 쪽 발코니 — 난간과 화분
+    for (const side of [-1, 1]) {
+      const z = cz + side * hd;
+      for (let dx = -hw + 1; dx <= hw - 1; dx++) {
+        set(cx + dx, y0 + 1, z, B.glass_pane);
+        set(cx + dx, y0 + 2, z, pal.wall);
+        set(cx + dx, y0, z + side, pal.trim);
+        set(cx + dx, y0 + 1, z + side, pal.rail);
+      }
+      if (f % 2 === 0) {
+        for (let dx = -hw + 2; dx <= hw - 2; dx += 3) set(cx + dx, y0 + 2, z + side, pal.plant);
+      }
+    }
+  }
+  const top = 1 + floors * 3;
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) set(cx + dx, top, cz + dz, pal.trim);
+  }
+  for (let dz = -hd; dz <= hd; dz++) {
+    for (let dx = -hw; dx <= hw; dx++) {
+      if (Math.abs(dx) !== hw && Math.abs(dz) !== hd) continue;
+      set(cx + dx, top + 1, cz + dz, B.oak_fence);
+    }
+  }
+  set(cx, top + 1, cz, B.red_concrete);
+  set(cx, top + 2, cz, B.glowstone);
+}
+
+// ── 횡단보도 ──────────────────────────────────────────────────────────
+function crossWalks(plan, lines, st) {
+  const gy = plan.y;
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = 0; j < lines.length; j++) {
+      const a = lines[i], b = lines[j];
+      if (Math.hypot(a, b) > CITY_R - 8) continue;
+      // 교차로 네 방향에 흰 줄
+      for (const s of [-1, 1]) {
+        for (let k = -ROAD_HALF; k <= ROAD_HALF; k++) {
+          if (((k + 8) % 2) !== 0) continue;
+          for (let d = 0; d <= 1; d++) {
+            plan.set(plan.x + a + k, gy, plan.z + b + s * (ROAD_HALF + 1 + d), st.dash, 0, true);
+            plan.set(plan.x + a + s * (ROAD_HALF + 1 + d), gy, plan.z + b + k, st.dash, 0, true);
+          }
+        }
+      }
+    }
+  }
+}
+
+// ── 가로수 ────────────────────────────────────────────────────────────
+function streetTrees(plan, lines, rnd) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, run) { plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1); };
+  const tree = function (x, z) {
+    if (Math.hypot(x, z) > CITY_R - 4) return;
+    set(x, 0, z, B.grass_block);
+    set(x, 1, z, B.oak_log, 4);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) set(x + dx, 5, z + dz, B.oak_leaves);
+    }
+    for (const d of [[-1, 0], [1, 0], [0, -1], [0, 1], [0, 0]]) set(x + d[0], 6, z + d[1], B.oak_leaves);
+  };
+  for (let i = 0; i < lines.length; i++) {
+    for (let a = -CITY_R + 10; a < CITY_R - 10; a += 7) {
+      let near = false;
+      for (let k = 0; k < lines.length; k++) if (Math.abs(a - lines[k]) < 7) near = true;
+      if (near) continue;
+      for (const s of [-1, 1]) {
+        if (rnd() < 0.35) continue;
+        tree(a, lines[i] + s * (ROAD_HALF + 3));
+        tree(lines[i] + s * (ROAD_HALF + 3), a);
+      }
+    }
+  }
+}
+
 // ── 건물 ──────────────────────────────────────────────────────────────
 // 속이 빈 껍데기만 세운다. 층마다 띠 한 줄 + 유리 세 줄로 세로 run 을 묶어
 // 도면 용량을 아낀다.
@@ -9486,7 +9769,7 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
 function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
-  const L = 14;   // 승강장 길이 (철로 방향)
+  const L = 34;   // 승강장 길이 (철로 방향) — 3량 편성이 다 선다
   for (let a = -L; a <= L; a++) {
     for (let d = -6; d <= 6; d++) {
       const x = faceX ? cx + a : cx + d;
@@ -9602,6 +9885,8 @@ function buildCityPlan(world, ap, index) {
   };
 
   cityRoads(plan, st);
+  crossWalks(plan, plan.roadLines, st);
+  streetTrees(plan, plan.roadLines, rnd);
 
   // ── 구획 나누기 ──
   const lines = plan.roadLines;
@@ -9625,12 +9910,21 @@ function buildCityPlan(world, ap, index) {
     }
   }
 
+  // 도시마다 건물 종류를 다르게 섞는다
+  const CITY_ARCH = {
+    skyline: ['glass', 'row', 'glass', 'balcony', 'row', 'glass', 'row', 'balcony', 'glass', 'row'],
+    modern: ['glass', 'balcony', 'glass', 'glass', 'row', 'balcony', 'glass'],
+    jeju: ['jeju', 'row', 'jeju', 'jeju', 'balcony', 'row', 'jeju']
+  };
+  const archList = CITY_ARCH[def.style] || CITY_ARCH.modern;
+  const rowPal = (def.style === 'jeju') ? 'rowJeju' : 'row';
+  const balPals = initCityPalettes().balcony;
+
   let tallLeft = st.tall;
   const parks = [];
   for (let i = 0; i < lots.length; i++) {
     const lot = lots[i];
-    const isPark = (i % 7 === 3);
-    if (isPark) { parks.push(lot); continue; }
+    if (i % 7 === 3) { parks.push(lot); continue; }
     // 구획 바닥을 포장한다 (건물이 잔디 위에 뜬 것처럼 보이지 않게)
     for (let dz = -half - 2; dz <= half + 2; dz++) {
       for (let dx = -half - 2; dx <= half + 2; dx++) {
@@ -9640,18 +9934,36 @@ function buildCityPlan(world, ap, index) {
     }
     const hw = half - 1 - ((rnd() * 2) | 0);
     const hd = half - 1 - ((rnd() * 2) | 0);
+    let kind = archList[i % archList.length];
     let h;
-    if (tallLeft > 0) { h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0])); tallLeft--; }
-    else h = st.heights[0] + Math.round(rnd() * (st.heights[1] - st.heights[0]));
+    if (kind === 'glass' && tallLeft > 0) {
+      h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
+      tallLeft--;
+    } else {
+      h = st.heights[0] + Math.round(rnd() * (st.heights[1] - st.heights[0]));
+    }
 
-    if (def.style === 'jeju' && h <= 22) {
-      jejuHouse(plan, lot.x, lot.z, hw, hd, h, st, rnd);
+    if (kind === 'row') {
+      cityRowBlock(plan, lot.x, lot.z, half, rnd, rowPal);
+    } else if (kind === 'balcony') {
+      balconyBlock(plan, lot.x, lot.z, hw, hd, h, balPals[(rnd() * balPals.length) | 0], rnd);
+    } else if (kind === 'jeju') {
+      jejuHouse(plan, lot.x, lot.z, hw, hd, Math.min(h, 20), st, rnd);
     } else {
       cityTower(plan, lot.x, lot.z, hw, hd, h, st, {});
     }
     // 길가 사람들
     if (rnd() < 0.8) put(lot.x + hw + 3, lot.z, null);
     if (rnd() < 0.5) put(lot.x, lot.z + hd + 3, null);
+  }
+  // 남은 고층은 큰길가에 몰아 세운다 (스카이라인이 생기게)
+  for (let i = 0; i < lots.length && tallLeft > 0; i++) {
+    const lot = lots[i];
+    if (i % 7 === 3) continue;
+    if (archList[i % archList.length] === 'glass') continue;
+    const h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
+    cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, {});
+    tallLeft--;
   }
 
   // ── 랜드마크 ──
@@ -11936,27 +12248,135 @@ const TRAIN_MAX = 17;        // 최고 속도 (블록/초)
 const TRAIN_ACC = 3.2;
 const TRAIN_BRAKE = 2.6;
 const TRAIN_DWELL = 9;       // 역에서 서 있는 시간(초)
-const TRAIN_RIDE = 1.6;      // 선로 위 동체 중심 높이
-const TRAIN_CAR = 13;        // 한 량 길이
-const TRAIN_SEAT_Y = -0.4;
+const TRAIN_RIDE = 2.75;     // 선로 위 동체 중심 높이 (바퀴가 레일에 닿게)
 
-// 생김새 — 상자마다 {x,y,z} 는 가운데. 앞은 +Z.
-const TRAIN_BOXES = (function () {
-  const out = [];
-  for (const zc of [-6.8, 6.8]) {
-    out.push({ x: 0, y: -0.2, z: zc, w: 3.2, h: 2.6, d: 12.2, tex: 'tr_body' });
-    out.push({ x: 0, y: 0.55, z: zc, w: 3.32, h: 1.1, d: 11.0, tex: 'tr_win' });
-    out.push({ x: 0, y: 1.25, z: zc, w: 3.0, h: 0.6, d: 11.8, tex: 'tr_roof' });
-    out.push({ x: 0, y: -1.7, z: zc, w: 2.8, h: 0.7, d: 11.4, tex: 'tr_skirt' });
-    out.push({ x: 0, y: -0.95, z: zc, w: 3.36, h: 0.36, d: 11.4, tex: 'tr_stripe' });
-    out.push({ x: 0, y: -2.2, z: zc - 3.8, w: 2.4, h: 0.9, d: 2.4, tex: 'tr_skirt' });
-    out.push({ x: 0, y: -2.2, z: zc + 3.8, w: 2.4, h: 0.9, d: 2.4, tex: 'tr_skirt' });
-    out.push({ x: 0, y: 1.75, z: zc, w: 1.8, h: 0.2, d: 0.5, tex: 'tr_skirt' });   // 팬터그래프
+// ── 생김새 ────────────────────────────────────────────────────────────
+// 코레일 전동차를 본떠 3량 편성으로 만든다. 상자마다 {x,y,z} 는 가운데, 앞은 +Z.
+// 겉껍데기는 "얇은 판"으로 세워서 안쪽 면도 보이게 한다 — 그래야 객실 안이 보인다.
+const TRAIN_CARS = 3;
+const TRAIN_CAR_LEN = 18;      // 한 량 길이
+const TRAIN_GAP = 1.3;         // 량 사이 간격
+const TRAIN_HW = 1.75;         // 반폭
+const TRAIN_FLOOR = -1.55;     // 바닥판 가운데 높이 (동체 중심 기준)
+const TRAIN_FLOOR_TOP = -1.42; // 발이 닿는 높이
+const TRAIN_CEIL = 1.68;       // 천장
+const TRAIN_WHEEL_R = 0.62;
+const TRAIN_PITCH = TRAIN_CAR_LEN + TRAIN_GAP;
+const TRAIN_HALF = (TRAIN_CARS - 1) / 2 * TRAIN_PITCH + TRAIN_CAR_LEN / 2;
+
+function trainCarParts(P, zc, isFront, isBack) {
+  const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
+  const box = function (x, y, z, w, h, d, tex, front) {
+    P.push({ x: x, y: y, z: zc + z, w: w, h: h, d: d, tex: tex, front: front });
+  };
+
+  // ── 바닥과 천장 ──
+  box(0, TRAIN_FLOOR, 0, HW * 2, 0.26, L, 'tr_floor');
+  box(0, TRAIN_CEIL, 0, HW * 2 - 0.2, 0.22, L, 'tr_wall');
+  // 지붕 (바깥) — 어깨를 깎아 둥글게
+  box(0, TRAIN_CEIL + 0.28, 0, HW * 2 - 0.5, 0.34, L, 'tr_roof');
+  for (const s of [-1, 1]) box(s * (HW - 0.32), TRAIN_CEIL + 0.14, 0, 0.7, 0.34, L, 'tr_roof');
+
+  // ── 옆면 ── (창은 비워 두고 기둥과 띠만 세운다)
+  for (const s of [-1, 1]) {
+    const X = s * HW;
+    box(X, -0.95, 0, 0.2, 1.02, L, 'tr_body');       // 창 아래 외판
+    box(X, -0.38, 0, 0.22, 0.24, L, 'tr_stripe');    // 파랑·청록 띠
+    box(X, 1.02, 0, 0.22, 0.2, L, 'tr_body');        // 창 위 띠
+    box(X, 1.36, 0, 0.2, 0.5, L, 'tr_body');         // 어깨까지 외판
+    // 창 기둥
+    for (let k = -3; k <= 3; k++) {
+      box(X, 0.34, k * 2.6, 0.24, 1.6, 0.5, 'tr_body');
+    }
+    box(X, 0.34, -L / 2 + 0.3, 0.24, 1.6, 0.6, 'tr_body');
+    box(X, 0.34, L / 2 - 0.3, 0.24, 1.6, 0.6, 'tr_body');
+    // 출입문 두 짝 (닫혀 있다)
+    for (const dz of [-5.2, 5.2]) {
+      box(X + s * 0.03, -0.05, dz, 0.16, 2.7, 2.4, 'tr_door');
+    }
+    // 치마 (대차를 가린다)
+    box(s * (HW - 0.06), -2.02, 0, 0.2, 0.72, L - 0.6, 'tr_skirt');
   }
-  // 앞뒤 운전실
-  out.push({ x: 0, y: -0.1, z: 13.4, w: 2.9, h: 2.2, d: 1.6, tex: 'tr_body', front: 'tr_face' });
-  out.push({ x: 0, y: -0.1, z: -13.4, w: 2.9, h: 2.2, d: 1.6, tex: 'tr_body', front: 'tr_face' });
-  return out;
+
+  // ── 앞뒤 벽 ── (량 사이는 통로가 뚫려 있다)
+  for (const e of [-1, 1]) {
+    const zEnd = e * (L / 2 - 0.12);
+    const capped = (e > 0 && isFront) || (e < 0 && isBack);
+    if (capped) continue;   // 운전실 쪽은 아래 운전실 파트가 막는다
+    for (const s of [-1, 1]) {
+      box(s * 1.12, 0.1, zEnd, 1.3, 3.0, 0.2, 'tr_wall');
+    }
+    box(0, TRAIN_CEIL - 0.4, zEnd, 1.0, 0.5, 0.2, 'tr_wall');
+  }
+
+  // ── 객실 ──
+  for (const s of [-1, 1]) {
+    // 긴 의자
+    box(s * 1.18, -1.02, 0, 1.02, 0.55, L - 6.5, 'tr_seat');
+    box(s * 1.6, -0.42, 0, 0.22, 0.9, L - 6.5, 'tr_seat');
+    // 의자 다리 가리개
+    box(s * 1.18, -1.36, 0, 1.0, 0.22, L - 6.5, 'tr_wall');
+    // 손잡이 기둥
+    for (let k = -2; k <= 2; k++) {
+      box(s * 0.66, 0.1, k * 3.4, 0.13, 3.0, 0.13, 'f_metal');
+    }
+    // 천장 손잡이 봉
+    box(s * 0.86, 1.3, 0, 0.11, 0.11, L - 3.5, 'f_metal');
+    // 천장 조명 띠
+    box(s * 0.58, 1.54, 0, 0.5, 0.11, L - 3.5, 'tr_light');
+  }
+
+  // ── 대차와 바퀴 ──
+  for (const bz of [-L / 2 + 4.2, L / 2 - 4.2]) {
+    P.push({ x: 0, y: -2.42, z: zc + bz, w: 2.4, h: 0.55, d: 4.0, tex: 'tr_bogie' });
+    P.push({ x: 0, y: -2.05, z: zc + bz, w: 1.6, h: 0.4, d: 3.0, tex: 'tr_bogie' });
+    for (const wx of [-1.28, 1.28]) {
+      for (const wz of [bz - 1.35, bz + 1.35]) {
+        P.push({ wheel: true, x: wx, y: -2.62, z: zc + wz, r: TRAIN_WHEEL_R, w: 0.34 });
+      }
+    }
+  }
+
+  // ── 지붕 위 장비 ──
+  box(0, TRAIN_CEIL + 0.62, -L / 4, 1.7, 0.36, 3.2, 'tr_roof');   // 냉방 장치
+  box(0, TRAIN_CEIL + 0.62, L / 4, 1.7, 0.36, 3.2, 'tr_roof');
+  if (!isFront && !isBack) {
+    // 가운데 량에 팬터그래프
+    box(0, TRAIN_CEIL + 0.62, 0, 2.2, 0.24, 1.6, 'tr_bogie');
+    box(0, TRAIN_CEIL + 1.25, 0.7, 0.16, 1.3, 0.16, 'tr_bogie');
+    box(0, TRAIN_CEIL + 1.25, -0.7, 0.16, 1.3, 0.16, 'tr_bogie');
+    box(0, TRAIN_CEIL + 1.95, 0, 1.9, 0.14, 0.4, 'tr_bogie');
+  }
+
+  // ── 운전실 (앞·뒤 끝) ──
+  const cab = function (e) {
+    const z0 = e * (L / 2);
+    // 코가 앞으로 갈수록 좁아지고 낮아진다
+    box(0, -0.12, z0 + e * 0.45, HW * 2 - 0.06, 3.15, 0.9, 'tr_body');
+    box(0, -0.06, z0 + e * 1.15, HW * 2 - 0.55, 2.85, 0.7, 'tr_body');
+    box(0, 0.02, z0 + e * 1.7, HW * 2 - 1.15, 2.35, 0.55, 'tr_body',
+      e > 0 ? 'tr_face' : undefined);
+    // 앞유리
+    box(0, 0.62, z0 + e * 1.98, HW * 2 - 1.35, 1.15, 0.14, 'tr_face');
+    // 전조등
+    for (const s of [-1, 1]) {
+      box(s * 0.82, -0.62, z0 + e * 1.95, 0.42, 0.3, 0.14, 'tr_light');
+    }
+    // 스커트와 연결기
+    box(0, -1.95, z0 + e * 1.0, HW * 2 - 0.5, 0.85, 1.6, 'tr_skirt');
+    box(0, -1.85, z0 + e * 2.0, 0.5, 0.4, 0.6, 'tr_bogie');
+  };
+  if (isFront) cab(1);
+  if (isBack) cab(-1);
+}
+
+const TRAIN_PARTS = (function () {
+  const P = [];
+  for (let c = 0; c < TRAIN_CARS; c++) {
+    const zc = (c - (TRAIN_CARS - 1) / 2) * TRAIN_PITCH;
+    trainCarParts(P, zc, c === TRAIN_CARS - 1, c === 0);
+  }
+  return P;
 })();
 
 // ── 노선 ──────────────────────────────────────────────────────────────
@@ -12002,6 +12422,7 @@ function Train(world, route, s, dir) {
   this.dwell = 2 + Math.random() * 4;
   this.rider = null;
   this.yaw = 0;
+  this.wheelAngle = 0;
   const p = route.at(s);
   this.x = p.x; this.y = route.y + TRAIN_RIDE; this.z = p.z;
 }
@@ -12030,10 +12451,17 @@ Train.prototype.update = function (dt) {
   this.x = p.x; this.z = p.z;
   this.y = r.y + TRAIN_RIDE;
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  this.wheelAngle += (this.speed * dt) / TRAIN_WHEEL_R;
+};
+
+// 객실 안 로컬 좌표 -> 월드
+Train.prototype.toWorld = function (lx, ly, lz) {
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  return [this.x + lx * c + lz * s, this.y + ly, this.z - lx * s + lz * c];
 };
 
 Train.prototype.seatPos = function () {
-  return [this.x, this.y + TRAIN_SEAT_Y, this.z];
+  return this.toWorld(0, TRAIN_FLOOR_TOP + 1.62, 0);
 };
 
 // 지금 어느 역에 서 있나
@@ -12055,6 +12483,8 @@ Train.prototype.board = function (player) {
   if (this.rider) return false;
   this.rider = player;
   player.onTrain = this;
+  player.trainX = 0;
+  player.trainZ = 0;
   player.vx = player.vy = player.vz = 0;
   return true;
 };
@@ -12064,23 +12494,71 @@ Train.prototype.unboard = function () {
   if (!p) return;
   this.rider = null;
   p.onTrain = null;
-  // 승강장 쪽으로 내려 준다
-  const side = [Math.cos(this.yaw), 0, -Math.sin(this.yaw)];
-  p.x = this.x + side[0] * 4.5;
-  p.z = this.z + side[2] * 4.5;
+  // 승강장 쪽으로 내려 준다 (지금 서 있던 량 옆으로)
+  const w = this.toWorld(5.0, TRAIN_FLOOR_TOP - 1.3, p.trainZ || 0);
+  p.x = w[0]; p.z = w[2];
   p.y = this.route.y;
+  p.trainX = p.trainZ = 0;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
 };
 
-// 타고 있는 동안 몸을 좌석에 붙여 둔다
-Train.prototype.seatPlayer = function (p) {
-  const s = this.seatPos();
-  p.x = s[0]; p.y = s[1]; p.z = s[2];
+// 타고 있는 동안 — 객실 안을 걸어 다닐 수 있다.
+// 열차가 도는 만큼 시선도 같이 돌려 준다.
+const TRAIN_AISLE_X = 0.60;    // 통로 반폭
+const TRAIN_SEAT_X = 1.62;     // 의자 끝
+const TRAIN_SEAT_TOP = 0.55;   // 의자에 올라섰을 때 높이
+
+Train.prototype.ridePlayer = function (p, dt, game) {
+  if (p.trainX === undefined) { p.trainX = 0; p.trainZ = 0; }
+
+  // 열차가 돈 만큼 시선을 같이 돌린다
+  if (this._prevYaw !== undefined) {
+    let d = this.yaw - this._prevYaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    p.yaw += d;
+  }
+  this._prevYaw = this.yaw;
+
+  const inp = game && game.input ? game.input : null;
+  if (inp && !(game.ui && game.ui.open) && !p.dead) {
+    let fx = 0, fz = 0;
+    if (inp.forward) fz += 1;
+    if (inp.back) fz -= 1;
+    if (inp.left) fx -= 1;
+    if (inp.right) fx += 1;
+    const len = Math.hypot(fx, fz);
+    if (len > 0) {
+      fx /= len; fz /= len;
+      // 플레이어가 보는 쪽(월드)을 열차 로컬 방향으로 옮긴다
+      const rel = p.yaw - this.yaw;
+      const sr = Math.sin(rel), cr = Math.cos(rel);
+      const dz = fz * -cr + fx * -sr;
+      const dx = fz * -sr + fx * cr;
+      const spd = (inp.sprint ? 4.6 : 2.9) * dt;
+      p.trainX += dx * spd;
+      p.trainZ += dz * spd;
+    }
+  }
+  // 객실 밖으로는 못 나간다
+  const limX = TRAIN_SEAT_X - 0.12;
+  const limZ = TRAIN_HALF - 1.1;
+  p.trainX = Math.max(-limX, Math.min(limX, p.trainX));
+  p.trainZ = Math.max(-limZ, Math.min(limZ, p.trainZ));
+
+  // 의자 위에 올라서면 그만큼 높아진다
+  const onSeat = Math.abs(p.trainX) > TRAIN_AISLE_X + 0.06;
+  const feet = TRAIN_FLOOR_TOP + (onSeat ? TRAIN_SEAT_TOP : 0);
+  const w = this.toWorld(p.trainX, feet, p.trainZ);
+  p.x = w[0]; p.y = w[1]; p.z = w[2];
   p.vx = p.vy = p.vz = 0;
   p.onGround = true;
   p.fallStart = p.y;
 };
+
+// 옛 이름 (한 자리에 앉혀 두기)
+Train.prototype.seatPlayer = function (p) { this.ridePlayer(p, 0, null); };
 
 // ── 엔티티 관리 ───────────────────────────────────────────────────────
 EntityManager.prototype.trainRoutes = function () {
@@ -12117,7 +12595,7 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
   for (let i = this.trains.length - 1; i >= 0; i--) {
     const t = this.trains[i];
     t.update(dt);
-    if (t.rider) t.seatPlayer(t.rider);
+    if (t.rider) t.ridePlayer(t.rider, dt, game);
     // 아주 멀어지면 치운다 (다시 오면 새로 만든다)
     if (!t.rider && Math.hypot(t.x - player.x, t.z - player.z) > 900) this.trains.splice(i, 1);
   }
@@ -14001,7 +14479,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     const t = list[i];
     const dx = t.x - player.x, dz = t.z - player.z;
     if (dx * dx + dz * dz > 520 * 520) continue;
-    if (!this.boxInFrustum(t.x - 16, t.y - 4, t.z - 16, t.x + 16, t.y + 4, t.z + 16)) continue;
+    if (!this.boxInFrustum(t.x - 34, t.y - 5, t.z - 34, t.x + 34, t.y + 6, t.z + 34)) continue;
 
     const bx = Math.floor(t.x), by = Math.floor(t.y), bz = Math.floor(t.z);
     const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 3), bz) / 15;
@@ -14009,8 +14487,25 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     const light = [Math.max(sky, 0.55), Math.max(blk, 0.35)];
 
     const cy = Math.cos(t.yaw), sy = Math.sin(t.yaw);
-    for (let k = 0; k < TRAIN_BOXES.length; k++) {
-      const b = TRAIN_BOXES[k];
+    for (let k = 0; k < TRAIN_PARTS.length; k++) {
+      const b = TRAIN_PARTS[k];
+      if (b.wheel) {
+        // 바퀴 — 얇은 판 세 장을 60°씩 어긋나게 겹쳐 둥글게 보이게 하고,
+        // 달린 거리만큼 굴린다.
+        for (let sp = 0; sp < 3; sp++) {
+          const ang = t.wheelAngle + sp * (Math.PI / 3);
+          const ca = Math.cos(ang), sa = Math.sin(ang);
+          const wt = function (px, py, pz) {
+            // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전
+            const ry = py - b.r, rz = pz;
+            const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            return [lx * cy + lz * sy, ly, -lx * sy + lz * cy];
+          };
+          emitBox(_ev, _ei, t.x, t.y, t.z, b.w, b.r * 2, b.r * 0.62, 'tr_wheel', null, wt, light);
+        }
+        continue;
+      }
       const bh = b.h;
       const transform = function (px, py, pz) {
         const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
@@ -15537,9 +16032,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.0';
-const GAME_BUILD = '2026-08-24';
-const GAME_FEATURES = '가구 · 도시 3곳 · 롯데타워 · 공항 철도 · 두 배 높아진 하늘';
+const GAME_VERSION = 'v7.1';
+const GAME_BUILD = '2026-08-25';
+const GAME_FEATURES = '3량 전동차(객실 탑승) · 저마다 다른 도시 3곳 · 가구 · 롯데타워';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -16381,7 +16876,7 @@ Game.prototype.exitPlane = function () {
 Game.prototype.enterTrain = function (train) {
   if (!train.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
   const next = train.nextStation();
-  this.ui.toast('열차 탑승 — ' + (next ? next.name + ' 방면' : '') + ' · Shift 내리기');
+  this.ui.toast('열차 탑승 — ' + (next ? next.name + ' 방면' : '') + ' · 객실 안을 걸어 다닐 수 있습니다 (Shift 내리기)');
   this.playSound('place');
   this._trainMsg = 0;
   this._trainLast = null;

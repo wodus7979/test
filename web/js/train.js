@@ -7,27 +7,135 @@ const TRAIN_MAX = 17;        // 최고 속도 (블록/초)
 const TRAIN_ACC = 3.2;
 const TRAIN_BRAKE = 2.6;
 const TRAIN_DWELL = 9;       // 역에서 서 있는 시간(초)
-const TRAIN_RIDE = 1.6;      // 선로 위 동체 중심 높이
-const TRAIN_CAR = 13;        // 한 량 길이
-const TRAIN_SEAT_Y = -0.4;
+const TRAIN_RIDE = 2.75;     // 선로 위 동체 중심 높이 (바퀴가 레일에 닿게)
 
-// 생김새 — 상자마다 {x,y,z} 는 가운데. 앞은 +Z.
-const TRAIN_BOXES = (function () {
-  const out = [];
-  for (const zc of [-6.8, 6.8]) {
-    out.push({ x: 0, y: -0.2, z: zc, w: 3.2, h: 2.6, d: 12.2, tex: 'tr_body' });
-    out.push({ x: 0, y: 0.55, z: zc, w: 3.32, h: 1.1, d: 11.0, tex: 'tr_win' });
-    out.push({ x: 0, y: 1.25, z: zc, w: 3.0, h: 0.6, d: 11.8, tex: 'tr_roof' });
-    out.push({ x: 0, y: -1.7, z: zc, w: 2.8, h: 0.7, d: 11.4, tex: 'tr_skirt' });
-    out.push({ x: 0, y: -0.95, z: zc, w: 3.36, h: 0.36, d: 11.4, tex: 'tr_stripe' });
-    out.push({ x: 0, y: -2.2, z: zc - 3.8, w: 2.4, h: 0.9, d: 2.4, tex: 'tr_skirt' });
-    out.push({ x: 0, y: -2.2, z: zc + 3.8, w: 2.4, h: 0.9, d: 2.4, tex: 'tr_skirt' });
-    out.push({ x: 0, y: 1.75, z: zc, w: 1.8, h: 0.2, d: 0.5, tex: 'tr_skirt' });   // 팬터그래프
+// ── 생김새 ────────────────────────────────────────────────────────────
+// 코레일 전동차를 본떠 3량 편성으로 만든다. 상자마다 {x,y,z} 는 가운데, 앞은 +Z.
+// 겉껍데기는 "얇은 판"으로 세워서 안쪽 면도 보이게 한다 — 그래야 객실 안이 보인다.
+const TRAIN_CARS = 3;
+const TRAIN_CAR_LEN = 18;      // 한 량 길이
+const TRAIN_GAP = 1.3;         // 량 사이 간격
+const TRAIN_HW = 1.75;         // 반폭
+const TRAIN_FLOOR = -1.55;     // 바닥판 가운데 높이 (동체 중심 기준)
+const TRAIN_FLOOR_TOP = -1.42; // 발이 닿는 높이
+const TRAIN_CEIL = 1.68;       // 천장
+const TRAIN_WHEEL_R = 0.62;
+const TRAIN_PITCH = TRAIN_CAR_LEN + TRAIN_GAP;
+const TRAIN_HALF = (TRAIN_CARS - 1) / 2 * TRAIN_PITCH + TRAIN_CAR_LEN / 2;
+
+function trainCarParts(P, zc, isFront, isBack) {
+  const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
+  const box = function (x, y, z, w, h, d, tex, front) {
+    P.push({ x: x, y: y, z: zc + z, w: w, h: h, d: d, tex: tex, front: front });
+  };
+
+  // ── 바닥과 천장 ──
+  box(0, TRAIN_FLOOR, 0, HW * 2, 0.26, L, 'tr_floor');
+  box(0, TRAIN_CEIL, 0, HW * 2 - 0.2, 0.22, L, 'tr_wall');
+  // 지붕 (바깥) — 어깨를 깎아 둥글게
+  box(0, TRAIN_CEIL + 0.28, 0, HW * 2 - 0.5, 0.34, L, 'tr_roof');
+  for (const s of [-1, 1]) box(s * (HW - 0.32), TRAIN_CEIL + 0.14, 0, 0.7, 0.34, L, 'tr_roof');
+
+  // ── 옆면 ── (창은 비워 두고 기둥과 띠만 세운다)
+  for (const s of [-1, 1]) {
+    const X = s * HW;
+    box(X, -0.95, 0, 0.2, 1.02, L, 'tr_body');       // 창 아래 외판
+    box(X, -0.38, 0, 0.22, 0.24, L, 'tr_stripe');    // 파랑·청록 띠
+    box(X, 1.02, 0, 0.22, 0.2, L, 'tr_body');        // 창 위 띠
+    box(X, 1.36, 0, 0.2, 0.5, L, 'tr_body');         // 어깨까지 외판
+    // 창 기둥
+    for (let k = -3; k <= 3; k++) {
+      box(X, 0.34, k * 2.6, 0.24, 1.6, 0.5, 'tr_body');
+    }
+    box(X, 0.34, -L / 2 + 0.3, 0.24, 1.6, 0.6, 'tr_body');
+    box(X, 0.34, L / 2 - 0.3, 0.24, 1.6, 0.6, 'tr_body');
+    // 출입문 두 짝 (닫혀 있다)
+    for (const dz of [-5.2, 5.2]) {
+      box(X + s * 0.03, -0.05, dz, 0.16, 2.7, 2.4, 'tr_door');
+    }
+    // 치마 (대차를 가린다)
+    box(s * (HW - 0.06), -2.02, 0, 0.2, 0.72, L - 0.6, 'tr_skirt');
   }
-  // 앞뒤 운전실
-  out.push({ x: 0, y: -0.1, z: 13.4, w: 2.9, h: 2.2, d: 1.6, tex: 'tr_body', front: 'tr_face' });
-  out.push({ x: 0, y: -0.1, z: -13.4, w: 2.9, h: 2.2, d: 1.6, tex: 'tr_body', front: 'tr_face' });
-  return out;
+
+  // ── 앞뒤 벽 ── (량 사이는 통로가 뚫려 있다)
+  for (const e of [-1, 1]) {
+    const zEnd = e * (L / 2 - 0.12);
+    const capped = (e > 0 && isFront) || (e < 0 && isBack);
+    if (capped) continue;   // 운전실 쪽은 아래 운전실 파트가 막는다
+    for (const s of [-1, 1]) {
+      box(s * 1.12, 0.1, zEnd, 1.3, 3.0, 0.2, 'tr_wall');
+    }
+    box(0, TRAIN_CEIL - 0.4, zEnd, 1.0, 0.5, 0.2, 'tr_wall');
+  }
+
+  // ── 객실 ──
+  for (const s of [-1, 1]) {
+    // 긴 의자
+    box(s * 1.18, -1.02, 0, 1.02, 0.55, L - 6.5, 'tr_seat');
+    box(s * 1.6, -0.42, 0, 0.22, 0.9, L - 6.5, 'tr_seat');
+    // 의자 다리 가리개
+    box(s * 1.18, -1.36, 0, 1.0, 0.22, L - 6.5, 'tr_wall');
+    // 손잡이 기둥
+    for (let k = -2; k <= 2; k++) {
+      box(s * 0.66, 0.1, k * 3.4, 0.13, 3.0, 0.13, 'f_metal');
+    }
+    // 천장 손잡이 봉
+    box(s * 0.86, 1.3, 0, 0.11, 0.11, L - 3.5, 'f_metal');
+    // 천장 조명 띠
+    box(s * 0.58, 1.54, 0, 0.5, 0.11, L - 3.5, 'tr_light');
+  }
+
+  // ── 대차와 바퀴 ──
+  for (const bz of [-L / 2 + 4.2, L / 2 - 4.2]) {
+    P.push({ x: 0, y: -2.42, z: zc + bz, w: 2.4, h: 0.55, d: 4.0, tex: 'tr_bogie' });
+    P.push({ x: 0, y: -2.05, z: zc + bz, w: 1.6, h: 0.4, d: 3.0, tex: 'tr_bogie' });
+    for (const wx of [-1.28, 1.28]) {
+      for (const wz of [bz - 1.35, bz + 1.35]) {
+        P.push({ wheel: true, x: wx, y: -2.62, z: zc + wz, r: TRAIN_WHEEL_R, w: 0.34 });
+      }
+    }
+  }
+
+  // ── 지붕 위 장비 ──
+  box(0, TRAIN_CEIL + 0.62, -L / 4, 1.7, 0.36, 3.2, 'tr_roof');   // 냉방 장치
+  box(0, TRAIN_CEIL + 0.62, L / 4, 1.7, 0.36, 3.2, 'tr_roof');
+  if (!isFront && !isBack) {
+    // 가운데 량에 팬터그래프
+    box(0, TRAIN_CEIL + 0.62, 0, 2.2, 0.24, 1.6, 'tr_bogie');
+    box(0, TRAIN_CEIL + 1.25, 0.7, 0.16, 1.3, 0.16, 'tr_bogie');
+    box(0, TRAIN_CEIL + 1.25, -0.7, 0.16, 1.3, 0.16, 'tr_bogie');
+    box(0, TRAIN_CEIL + 1.95, 0, 1.9, 0.14, 0.4, 'tr_bogie');
+  }
+
+  // ── 운전실 (앞·뒤 끝) ──
+  const cab = function (e) {
+    const z0 = e * (L / 2);
+    // 코가 앞으로 갈수록 좁아지고 낮아진다
+    box(0, -0.12, z0 + e * 0.45, HW * 2 - 0.06, 3.15, 0.9, 'tr_body');
+    box(0, -0.06, z0 + e * 1.15, HW * 2 - 0.55, 2.85, 0.7, 'tr_body');
+    box(0, 0.02, z0 + e * 1.7, HW * 2 - 1.15, 2.35, 0.55, 'tr_body',
+      e > 0 ? 'tr_face' : undefined);
+    // 앞유리
+    box(0, 0.62, z0 + e * 1.98, HW * 2 - 1.35, 1.15, 0.14, 'tr_face');
+    // 전조등
+    for (const s of [-1, 1]) {
+      box(s * 0.82, -0.62, z0 + e * 1.95, 0.42, 0.3, 0.14, 'tr_light');
+    }
+    // 스커트와 연결기
+    box(0, -1.95, z0 + e * 1.0, HW * 2 - 0.5, 0.85, 1.6, 'tr_skirt');
+    box(0, -1.85, z0 + e * 2.0, 0.5, 0.4, 0.6, 'tr_bogie');
+  };
+  if (isFront) cab(1);
+  if (isBack) cab(-1);
+}
+
+const TRAIN_PARTS = (function () {
+  const P = [];
+  for (let c = 0; c < TRAIN_CARS; c++) {
+    const zc = (c - (TRAIN_CARS - 1) / 2) * TRAIN_PITCH;
+    trainCarParts(P, zc, c === TRAIN_CARS - 1, c === 0);
+  }
+  return P;
 })();
 
 // ── 노선 ──────────────────────────────────────────────────────────────
@@ -73,6 +181,7 @@ function Train(world, route, s, dir) {
   this.dwell = 2 + Math.random() * 4;
   this.rider = null;
   this.yaw = 0;
+  this.wheelAngle = 0;
   const p = route.at(s);
   this.x = p.x; this.y = route.y + TRAIN_RIDE; this.z = p.z;
 }
@@ -101,10 +210,17 @@ Train.prototype.update = function (dt) {
   this.x = p.x; this.z = p.z;
   this.y = r.y + TRAIN_RIDE;
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  this.wheelAngle += (this.speed * dt) / TRAIN_WHEEL_R;
+};
+
+// 객실 안 로컬 좌표 -> 월드
+Train.prototype.toWorld = function (lx, ly, lz) {
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  return [this.x + lx * c + lz * s, this.y + ly, this.z - lx * s + lz * c];
 };
 
 Train.prototype.seatPos = function () {
-  return [this.x, this.y + TRAIN_SEAT_Y, this.z];
+  return this.toWorld(0, TRAIN_FLOOR_TOP + 1.62, 0);
 };
 
 // 지금 어느 역에 서 있나
@@ -126,6 +242,8 @@ Train.prototype.board = function (player) {
   if (this.rider) return false;
   this.rider = player;
   player.onTrain = this;
+  player.trainX = 0;
+  player.trainZ = 0;
   player.vx = player.vy = player.vz = 0;
   return true;
 };
@@ -135,23 +253,71 @@ Train.prototype.unboard = function () {
   if (!p) return;
   this.rider = null;
   p.onTrain = null;
-  // 승강장 쪽으로 내려 준다
-  const side = [Math.cos(this.yaw), 0, -Math.sin(this.yaw)];
-  p.x = this.x + side[0] * 4.5;
-  p.z = this.z + side[2] * 4.5;
+  // 승강장 쪽으로 내려 준다 (지금 서 있던 량 옆으로)
+  const w = this.toWorld(5.0, TRAIN_FLOOR_TOP - 1.3, p.trainZ || 0);
+  p.x = w[0]; p.z = w[2];
   p.y = this.route.y;
+  p.trainX = p.trainZ = 0;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
 };
 
-// 타고 있는 동안 몸을 좌석에 붙여 둔다
-Train.prototype.seatPlayer = function (p) {
-  const s = this.seatPos();
-  p.x = s[0]; p.y = s[1]; p.z = s[2];
+// 타고 있는 동안 — 객실 안을 걸어 다닐 수 있다.
+// 열차가 도는 만큼 시선도 같이 돌려 준다.
+const TRAIN_AISLE_X = 0.60;    // 통로 반폭
+const TRAIN_SEAT_X = 1.62;     // 의자 끝
+const TRAIN_SEAT_TOP = 0.55;   // 의자에 올라섰을 때 높이
+
+Train.prototype.ridePlayer = function (p, dt, game) {
+  if (p.trainX === undefined) { p.trainX = 0; p.trainZ = 0; }
+
+  // 열차가 돈 만큼 시선을 같이 돌린다
+  if (this._prevYaw !== undefined) {
+    let d = this.yaw - this._prevYaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    p.yaw += d;
+  }
+  this._prevYaw = this.yaw;
+
+  const inp = game && game.input ? game.input : null;
+  if (inp && !(game.ui && game.ui.open) && !p.dead) {
+    let fx = 0, fz = 0;
+    if (inp.forward) fz += 1;
+    if (inp.back) fz -= 1;
+    if (inp.left) fx -= 1;
+    if (inp.right) fx += 1;
+    const len = Math.hypot(fx, fz);
+    if (len > 0) {
+      fx /= len; fz /= len;
+      // 플레이어가 보는 쪽(월드)을 열차 로컬 방향으로 옮긴다
+      const rel = p.yaw - this.yaw;
+      const sr = Math.sin(rel), cr = Math.cos(rel);
+      const dz = fz * -cr + fx * -sr;
+      const dx = fz * -sr + fx * cr;
+      const spd = (inp.sprint ? 4.6 : 2.9) * dt;
+      p.trainX += dx * spd;
+      p.trainZ += dz * spd;
+    }
+  }
+  // 객실 밖으로는 못 나간다
+  const limX = TRAIN_SEAT_X - 0.12;
+  const limZ = TRAIN_HALF - 1.1;
+  p.trainX = Math.max(-limX, Math.min(limX, p.trainX));
+  p.trainZ = Math.max(-limZ, Math.min(limZ, p.trainZ));
+
+  // 의자 위에 올라서면 그만큼 높아진다
+  const onSeat = Math.abs(p.trainX) > TRAIN_AISLE_X + 0.06;
+  const feet = TRAIN_FLOOR_TOP + (onSeat ? TRAIN_SEAT_TOP : 0);
+  const w = this.toWorld(p.trainX, feet, p.trainZ);
+  p.x = w[0]; p.y = w[1]; p.z = w[2];
   p.vx = p.vy = p.vz = 0;
   p.onGround = true;
   p.fallStart = p.y;
 };
+
+// 옛 이름 (한 자리에 앉혀 두기)
+Train.prototype.seatPlayer = function (p) { this.ridePlayer(p, 0, null); };
 
 // ── 엔티티 관리 ───────────────────────────────────────────────────────
 EntityManager.prototype.trainRoutes = function () {
@@ -188,7 +354,7 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
   for (let i = this.trains.length - 1; i >= 0; i--) {
     const t = this.trains[i];
     t.update(dt);
-    if (t.rider) t.seatPlayer(t.rider);
+    if (t.rider) t.ridePlayer(t.rider, dt, game);
     // 아주 멀어지면 치운다 (다시 오면 새로 만든다)
     if (!t.rider && Math.hypot(t.x - player.x, t.z - player.z) > 900) this.trains.splice(i, 1);
   }
