@@ -648,12 +648,19 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     const light = [Math.max(sky, 0.55), Math.max(blk, 0.35)];
 
     const cy = Math.cos(t.yaw), sy = Math.sin(t.yaw);
+    // 거리에 따라 부품을 줄인다 — 멀리 있는 열차는 겉모습만 그린다
+    const near = Math.sqrt(dx * dx + dz * dz);
+    const showInner = (t.rider === player) || near < 90;
+    const showWheels = near < 190;
     for (let k = 0; k < TRAIN_PARTS.length; k++) {
       const b = TRAIN_PARTS[k];
+      if (b.inner && !showInner) continue;
       if (b.wheel) {
+        if (!showWheels) continue;
         // 바퀴 — 얇은 판 세 장을 60°씩 어긋나게 겹쳐 둥글게 보이게 하고,
         // 달린 거리만큼 굴린다.
-        for (let sp = 0; sp < 3; sp++) {
+        const spokes = near < 70 ? 3 : 1;
+        for (let sp = 0; sp < spokes; sp++) {
           const ang = t.wheelAngle + sp * (Math.PI / 3);
           const ca = Math.cos(ang), sa = Math.sin(ang);
           const wt = function (px, py, pz) {

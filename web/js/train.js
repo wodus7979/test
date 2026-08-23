@@ -31,7 +31,7 @@ function trainCarParts(P, zc, isFront, isBack) {
 
   // ── 바닥과 천장 ──
   box(0, TRAIN_FLOOR, 0, HW * 2, 0.26, L, 'tr_floor');
-  box(0, TRAIN_CEIL, 0, HW * 2 - 0.2, 0.22, L, 'tr_wall');
+  P.push({ x: 0, y: TRAIN_CEIL, z: zc, w: HW * 2 - 0.2, h: 0.22, d: L, tex: 'tr_wall', inner: true });
   // 지붕 (바깥) — 어깨를 깎아 둥글게
   box(0, TRAIN_CEIL + 0.28, 0, HW * 2 - 0.5, 0.34, L, 'tr_roof');
   for (const s of [-1, 1]) box(s * (HW - 0.32), TRAIN_CEIL + 0.14, 0, 0.7, 0.34, L, 'tr_roof');
@@ -68,21 +68,24 @@ function trainCarParts(P, zc, isFront, isBack) {
     box(0, TRAIN_CEIL - 0.4, zEnd, 1.0, 0.5, 0.2, 'tr_wall');
   }
 
-  // ── 객실 ──
+  // ── 객실 ── (inner=true 인 부품은 멀리서 안 그린다)
+  const inner = function (x, y, z, w, h, d, tex) {
+    P.push({ x: x, y: y, z: zc + z, w: w, h: h, d: d, tex: tex, inner: true });
+  };
   for (const s of [-1, 1]) {
     // 긴 의자
-    box(s * 1.18, -1.02, 0, 1.02, 0.55, L - 6.5, 'tr_seat');
-    box(s * 1.6, -0.42, 0, 0.22, 0.9, L - 6.5, 'tr_seat');
+    inner(s * 1.18, -1.02, 0, 1.02, 0.55, L - 6.5, 'tr_seat');
+    inner(s * 1.6, -0.42, 0, 0.22, 0.9, L - 6.5, 'tr_seat');
     // 의자 다리 가리개
-    box(s * 1.18, -1.36, 0, 1.0, 0.22, L - 6.5, 'tr_wall');
+    inner(s * 1.18, -1.36, 0, 1.0, 0.22, L - 6.5, 'tr_wall');
     // 손잡이 기둥
     for (let k = -2; k <= 2; k++) {
-      box(s * 0.66, 0.1, k * 3.4, 0.13, 3.0, 0.13, 'f_metal');
+      inner(s * 0.66, 0.1, k * 3.4, 0.13, 3.0, 0.13, 'f_metal');
     }
     // 천장 손잡이 봉
-    box(s * 0.86, 1.3, 0, 0.11, 0.11, L - 3.5, 'f_metal');
+    inner(s * 0.86, 1.3, 0, 0.11, 0.11, L - 3.5, 'f_metal');
     // 천장 조명 띠
-    box(s * 0.58, 1.54, 0, 0.5, 0.11, L - 3.5, 'tr_light');
+    inner(s * 0.58, 1.54, 0, 0.5, 0.11, L - 3.5, 'tr_light');
   }
 
   // ── 대차와 바퀴 ──
