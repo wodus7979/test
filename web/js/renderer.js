@@ -1004,6 +1004,12 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
   if (!map || !map.size) return;
   _geom.reset();
   const self = this;
+  // 회전만 먹인 변환 — 법선 계산에 쓴다 (자리 옮김이 섞이면 법선이 망가진다)
+  const spin = function (c, s) {
+    return function (lx, ly, lz, out) {
+      out[0] = lx * c + lz * s; out[1] = ly; out[2] = -lx * s + lz * c;
+    };
+  };
   map.forEach(function (ex) {
     const dx = ex.x - player.x, dz = ex.z - player.z;
     if (dx * dx + dz * dz > 200 * 200) return;
@@ -1013,60 +1019,59 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
     const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
     const light = [Math.max(sky, 0.32), Math.max(blk, 0.25)];
 
-    // 하부 궤도 — 몸통 방향
+    // ── 하부 궤도 — 몸통 방향 ──
     const cy0 = Math.cos(ex.yaw), sy0 = Math.sin(ex.yaw);
-    const flat = function (ox, oy, oz) {
-      return function (px, py, pz, out) {
-        const lx = px + ox, ly = py + oy, lz = pz + oz;
-        out[0] = lx * cy0 + lz * sy0; out[1] = ly; out[2] = -lx * sy0 + lz * cy0;
+    const nUnder = spin(cy0, sy0);
+    const under = function (ox, oy, oz) {
+      return function (lx, ly, lz, out) {
+        const px = lx + ox, py = ly + oy, pz = lz + oz;
+        out[0] = px * cy0 + pz * sy0; out[1] = py; out[2] = -px * sy0 + pz * cy0;
       };
     };
+    const trackMesh = exMesh('track');
     for (const s of [-1, 1]) {
-      emitBox(_geom, ex.x, ex.y, ex.z, 0.9, EX_TRACK_H, EX_TRACK_L,
-        'ex_track', null, flat(s * (EX_TRACK_W / 2 - 0.45), 0, 0), light);
+      self.emitMesh(trackMesh, ex.x, ex.y, ex.z, under(s * (EX_TRACK_W / 2 - 0.45), 0, 0),
+        1, light, { nxf: nUnder });
     }
-    emitBox(_geom, ex.x, ex.y, ex.z, EX_TRACK_W - 0.6, 0.35, EX_TRACK_L - 1.2,
-      'ex_track', null, flat(0, EX_TRACK_H - 0.2, 0), light);
+    // 두 궤도를 잇는 대차
+    emitBox(_geom, ex.x, ex.y, ex.z, EX_TRACK_W - 0.7, 0.36, EX_TRACK_L - 1.6,
+      'ex_track', null, under(0, EX_TRACK_H - 0.24, 0), light);
 
-    // 상부 — 회전한다
+    // ── 상부 — 몸통 위에서 돌아간다 ──
     const a = ex.yaw + ex.swing;
     const cy = Math.cos(a), sy = Math.sin(a);
-    const up = function (of, ou, oside) {
-      return function (px, py, pz, out) {
-        // px 는 좌우, py 는 위아래, pz 는 앞뒤
-        const lx = px + (oside || 0), ly = py + ou, lz = pz + of;
-        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-      };
+    const nUp = spin(cy, sy);
+    const up = function (lx, ly, lz, out) {
+      const py = ly + EX_TRACK_H;
+      out[0] = lx * cy + lz * sy; out[1] = py; out[2] = -lx * sy + lz * cy;
     };
-    const base = EX_TRACK_H;
-    emitBox(_geom, ex.x, ex.y, ex.z, 2.6, 0.4, 3.4, 'ex_body', null, up(-0.2, base, 0), light);
-    emitBox(_geom, ex.x, ex.y, ex.z, 1.7, EX_CAB_H, 1.9, 'ex_body', 'ex_glass',
-      up(0.5, base + 0.4, -0.55), light);
-    emitBox(_geom, ex.x, ex.y, ex.z, 1.5, 1.2, 1.5, 'ex_body', null,
-      up(-1.5, base + 0.4, 0.3), light);   // 뒤 균형추
+    self.emitMesh(exMesh('house'), ex.x, ex.y, ex.z, up, 1, light, { nxf: nUp });
 
-    // 팔 — 각 마디를 통째 상자 하나로 그린다
-    const jt = ex.joints();
-    const arms = jt.arms;
-    const texes = ['ex_boom', 'ex_boom', 'ex_bucket'];
-    const thick = [0.55, 0.45, 0.9];
+    // ── 팔 — 붐·암·버킷이 관절마다 꺾인다 ──
+    const arms = ex.joints().arms;
+    const parts = [exMesh('boom'), exMesh('stick'), exMesh('bucket')];
+    let tipTf = null;
     for (let k = 0; k < arms.length; k++) {
       const seg = arms[k];
-      const ca2 = Math.cos(seg.ang), sa2 = Math.sin(seg.ang);
-      const tf = function (px, py, pz, out) {
-        // pz 를 마디 길이 방향으로 쓴다
-        const lf = seg.f + (pz + seg.len / 2) * ca2 - py * sa2;
-        const lu = seg.u + (pz + seg.len / 2) * sa2 + py * ca2;
-        const lx = px;
+      const ca = Math.cos(seg.ang), sa = Math.sin(seg.ang);
+      // 마디를 제 각도로 세운 뒤 상부 회전을 먹인다
+      const tf = function (lx, ly, lz, out) {
+        const lf = seg.f + lz * ca - ly * sa;
+        const lu = seg.u + lz * sa + ly * ca;
         out[0] = lx * cy + lf * sy; out[1] = lu; out[2] = -lx * sy + lf * cy;
       };
-      emitBox(_geom, ex.x, ex.y, ex.z, thick[k], thick[k], seg.len, texes[k], null, tf, light);
+      const nf = function (lx, ly, lz, out) {
+        const lf = lz * ca - ly * sa;
+        const lu = lz * sa + ly * ca;
+        out[0] = lx * cy + lf * sy; out[1] = lu; out[2] = -lx * sy + lf * cy;
+      };
+      self.emitMesh(parts[k], ex.x, ex.y, ex.z, tf, 1, light, { nxf: nf });
+      if (k === arms.length - 1) tipTf = tf;
     }
-    // 버킷에 담긴 흙
-    if (ex.loaded) {
-      const t = ex.tipPos();
-      emitBox(_geom, t[0], t[1] - 0.1, t[2], 0.9, 0.5, 0.9, 'ex_dirt', null,
-        function (px, py, pz, out) { out[0] = px; out[1] = py - 0.25; out[2] = pz; }, light);
+    // 버킷에 담긴 흙 — 바가지 안에 담긴다
+    if (ex.loaded && tipTf) {
+      emitBox(_geom, ex.x, ex.y, ex.z, 0.94, 0.34, 0.9, 'ex_dirt', null,
+        function (px, py, pz, out) { tipTf(px, py + 0.04, pz + 0.78, out); }, light);
     }
 
     // 바로 옆에 세워 둔 덤프트럭 — 짐칸에 흙이 쌓인다
@@ -1077,18 +1082,22 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
 
 // 공사장 덤프트럭 하나를 _geom 에 얹는다 (drawDiggers 가 한꺼번에 flush 한다)
 Renderer.prototype.emitSiteTruck = function (tr, light) {
-  if (!tr) return;
-  this.emitVehicle('dump', tr.x, tr.y, tr.z, tr.yaw, 0, light, true);
+  if (!tr || tr.state === 'away') return;      // 다른 도시로 떠나 있는 동안은 없다
+  this.emitVehicle('dump', tr.x, tr.y, tr.z, tr.yaw, tr.wheel || 0, light, true);
   // 짐칸에 실린 흙 — 부을 때마다 높아진다
   const fill = Math.min(EX_LOADS_TO_FILL, tr.fill || 0);
   if (fill > 0) {
-    const h = 0.18 + (fill / EX_LOADS_TO_FILL) * 1.25;
+    const h = 0.2 + (fill / EX_LOADS_TO_FILL) * 1.35;
     const cy = Math.cos(tr.yaw), sy = Math.sin(tr.yaw);
-    const dt2 = function (px, py, pz, out) {
-      const lx = px, ly = py + 1.2 + h / 2, lz = pz - 1.9;
+    // 짐칸 안에 맞춰 늘린 뒤 차 방향으로 돌린다
+    const heap = function (lx, ly, lz, out) {
+      const px = lx * 1.08, py = ly * h + 1.2, pz = lz * 2.75 - 1.9;
+      out[0] = px * cy + pz * sy; out[1] = py; out[2] = -px * sy + pz * cy;
+    };
+    const nheap = function (lx, ly, lz, out) {
       out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
     };
-    emitBox(_geom, tr.x, tr.y, tr.z, 2.2, h, 5.5, 'ex_dirt', null, dt2, light);
+    this.emitMesh(dirtHeapMesh(), tr.x, tr.y, tr.z, heap, 1, light, { nxf: nheap });
   }
 };
 

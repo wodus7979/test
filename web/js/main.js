@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v8.5';
+const GAME_VERSION = 'v8.6';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -2227,6 +2227,7 @@ Game.prototype.update = function (dt) {
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   if (this.updateSignals) this.updateSignals(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
+  if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateCarAudio) this.updateCarAudio(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);

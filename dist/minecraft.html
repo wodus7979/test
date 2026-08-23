@@ -976,8 +976,14 @@ button.tiny {
           <li>도시 외곽에 <b>공사장</b>이 있다. <b>포크레인</b>에 다가가 <b>우클릭</b>하면 탄다 —
               <b>A/D</b> 몸통 회전, <b>W/S</b> 붐, <b>Q/E</b> 암, <b>Z/X</b> 버킷,
               <b>Space</b> 퍼기·붓기, <b>Shift</b> 내리기</li>
+          <li>포크레인과 덤프트럭도 <b>곡면 모형</b>이다 — 말려 올라간 궤도와 발판,
+              돌아가는 둥근 상부와 유리 운전실, 굽은 붐과 <b>이빨 달린 바가지</b>까지
+              단면을 이어 붙여 만들었다</li>
           <li>흙더미를 퍼서 <b>덤프트럭</b>에 부으면 된다. <b>1분 안에 8삽</b>을 채우면
               <b>100원</b>을 번다. 모은 돈은 저장된다</li>
+          <li>짐칸이 다 차면 트럭은 정문으로 나가 <b>다른 도시로 떠난다</b>.
+              <b>10초</b> 뒤에 빈 트럭이 같은 길로 들어와 제자리에 선다 —
+              그동안은 퍼도 부을 데가 없다</li>
           <li>공항마다 <b>도시</b>가 하나씩 딸려 있고 <b>생김새가 저마다 다르다</b> —
               유리 신도시 <b>인천 송도</b>, <b>롯데타워</b>와 벽돌 상가 거리가 섞인 <b>김포 도심</b>,
               현무암 기단에 주황 기와를 얹은 <b>제주시</b>. 횡단보도와 가로수도 있다.
@@ -16758,6 +16764,12 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
   if (!map || !map.size) return;
   _geom.reset();
   const self = this;
+  // 회전만 먹인 변환 — 법선 계산에 쓴다 (자리 옮김이 섞이면 법선이 망가진다)
+  const spin = function (c, s) {
+    return function (lx, ly, lz, out) {
+      out[0] = lx * c + lz * s; out[1] = ly; out[2] = -lx * s + lz * c;
+    };
+  };
   map.forEach(function (ex) {
     const dx = ex.x - player.x, dz = ex.z - player.z;
     if (dx * dx + dz * dz > 200 * 200) return;
@@ -16767,60 +16779,59 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
     const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
     const light = [Math.max(sky, 0.32), Math.max(blk, 0.25)];
 
-    // 하부 궤도 — 몸통 방향
+    // ── 하부 궤도 — 몸통 방향 ──
     const cy0 = Math.cos(ex.yaw), sy0 = Math.sin(ex.yaw);
-    const flat = function (ox, oy, oz) {
-      return function (px, py, pz, out) {
-        const lx = px + ox, ly = py + oy, lz = pz + oz;
-        out[0] = lx * cy0 + lz * sy0; out[1] = ly; out[2] = -lx * sy0 + lz * cy0;
+    const nUnder = spin(cy0, sy0);
+    const under = function (ox, oy, oz) {
+      return function (lx, ly, lz, out) {
+        const px = lx + ox, py = ly + oy, pz = lz + oz;
+        out[0] = px * cy0 + pz * sy0; out[1] = py; out[2] = -px * sy0 + pz * cy0;
       };
     };
+    const trackMesh = exMesh('track');
     for (const s of [-1, 1]) {
-      emitBox(_geom, ex.x, ex.y, ex.z, 0.9, EX_TRACK_H, EX_TRACK_L,
-        'ex_track', null, flat(s * (EX_TRACK_W / 2 - 0.45), 0, 0), light);
+      self.emitMesh(trackMesh, ex.x, ex.y, ex.z, under(s * (EX_TRACK_W / 2 - 0.45), 0, 0),
+        1, light, { nxf: nUnder });
     }
-    emitBox(_geom, ex.x, ex.y, ex.z, EX_TRACK_W - 0.6, 0.35, EX_TRACK_L - 1.2,
-      'ex_track', null, flat(0, EX_TRACK_H - 0.2, 0), light);
+    // 두 궤도를 잇는 대차
+    emitBox(_geom, ex.x, ex.y, ex.z, EX_TRACK_W - 0.7, 0.36, EX_TRACK_L - 1.6,
+      'ex_track', null, under(0, EX_TRACK_H - 0.24, 0), light);
 
-    // 상부 — 회전한다
+    // ── 상부 — 몸통 위에서 돌아간다 ──
     const a = ex.yaw + ex.swing;
     const cy = Math.cos(a), sy = Math.sin(a);
-    const up = function (of, ou, oside) {
-      return function (px, py, pz, out) {
-        // px 는 좌우, py 는 위아래, pz 는 앞뒤
-        const lx = px + (oside || 0), ly = py + ou, lz = pz + of;
-        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
-      };
+    const nUp = spin(cy, sy);
+    const up = function (lx, ly, lz, out) {
+      const py = ly + EX_TRACK_H;
+      out[0] = lx * cy + lz * sy; out[1] = py; out[2] = -lx * sy + lz * cy;
     };
-    const base = EX_TRACK_H;
-    emitBox(_geom, ex.x, ex.y, ex.z, 2.6, 0.4, 3.4, 'ex_body', null, up(-0.2, base, 0), light);
-    emitBox(_geom, ex.x, ex.y, ex.z, 1.7, EX_CAB_H, 1.9, 'ex_body', 'ex_glass',
-      up(0.5, base + 0.4, -0.55), light);
-    emitBox(_geom, ex.x, ex.y, ex.z, 1.5, 1.2, 1.5, 'ex_body', null,
-      up(-1.5, base + 0.4, 0.3), light);   // 뒤 균형추
+    self.emitMesh(exMesh('house'), ex.x, ex.y, ex.z, up, 1, light, { nxf: nUp });
 
-    // 팔 — 각 마디를 통째 상자 하나로 그린다
-    const jt = ex.joints();
-    const arms = jt.arms;
-    const texes = ['ex_boom', 'ex_boom', 'ex_bucket'];
-    const thick = [0.55, 0.45, 0.9];
+    // ── 팔 — 붐·암·버킷이 관절마다 꺾인다 ──
+    const arms = ex.joints().arms;
+    const parts = [exMesh('boom'), exMesh('stick'), exMesh('bucket')];
+    let tipTf = null;
     for (let k = 0; k < arms.length; k++) {
       const seg = arms[k];
-      const ca2 = Math.cos(seg.ang), sa2 = Math.sin(seg.ang);
-      const tf = function (px, py, pz, out) {
-        // pz 를 마디 길이 방향으로 쓴다
-        const lf = seg.f + (pz + seg.len / 2) * ca2 - py * sa2;
-        const lu = seg.u + (pz + seg.len / 2) * sa2 + py * ca2;
-        const lx = px;
+      const ca = Math.cos(seg.ang), sa = Math.sin(seg.ang);
+      // 마디를 제 각도로 세운 뒤 상부 회전을 먹인다
+      const tf = function (lx, ly, lz, out) {
+        const lf = seg.f + lz * ca - ly * sa;
+        const lu = seg.u + lz * sa + ly * ca;
         out[0] = lx * cy + lf * sy; out[1] = lu; out[2] = -lx * sy + lf * cy;
       };
-      emitBox(_geom, ex.x, ex.y, ex.z, thick[k], thick[k], seg.len, texes[k], null, tf, light);
+      const nf = function (lx, ly, lz, out) {
+        const lf = lz * ca - ly * sa;
+        const lu = lz * sa + ly * ca;
+        out[0] = lx * cy + lf * sy; out[1] = lu; out[2] = -lx * sy + lf * cy;
+      };
+      self.emitMesh(parts[k], ex.x, ex.y, ex.z, tf, 1, light, { nxf: nf });
+      if (k === arms.length - 1) tipTf = tf;
     }
-    // 버킷에 담긴 흙
-    if (ex.loaded) {
-      const t = ex.tipPos();
-      emitBox(_geom, t[0], t[1] - 0.1, t[2], 0.9, 0.5, 0.9, 'ex_dirt', null,
-        function (px, py, pz, out) { out[0] = px; out[1] = py - 0.25; out[2] = pz; }, light);
+    // 버킷에 담긴 흙 — 바가지 안에 담긴다
+    if (ex.loaded && tipTf) {
+      emitBox(_geom, ex.x, ex.y, ex.z, 0.94, 0.34, 0.9, 'ex_dirt', null,
+        function (px, py, pz, out) { tipTf(px, py + 0.04, pz + 0.78, out); }, light);
     }
 
     // 바로 옆에 세워 둔 덤프트럭 — 짐칸에 흙이 쌓인다
@@ -16831,18 +16842,22 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
 
 // 공사장 덤프트럭 하나를 _geom 에 얹는다 (drawDiggers 가 한꺼번에 flush 한다)
 Renderer.prototype.emitSiteTruck = function (tr, light) {
-  if (!tr) return;
-  this.emitVehicle('dump', tr.x, tr.y, tr.z, tr.yaw, 0, light, true);
+  if (!tr || tr.state === 'away') return;      // 다른 도시로 떠나 있는 동안은 없다
+  this.emitVehicle('dump', tr.x, tr.y, tr.z, tr.yaw, tr.wheel || 0, light, true);
   // 짐칸에 실린 흙 — 부을 때마다 높아진다
   const fill = Math.min(EX_LOADS_TO_FILL, tr.fill || 0);
   if (fill > 0) {
-    const h = 0.18 + (fill / EX_LOADS_TO_FILL) * 1.25;
+    const h = 0.2 + (fill / EX_LOADS_TO_FILL) * 1.35;
     const cy = Math.cos(tr.yaw), sy = Math.sin(tr.yaw);
-    const dt2 = function (px, py, pz, out) {
-      const lx = px, ly = py + 1.2 + h / 2, lz = pz - 1.9;
+    // 짐칸 안에 맞춰 늘린 뒤 차 방향으로 돌린다
+    const heap = function (lx, ly, lz, out) {
+      const px = lx * 1.08, py = ly * h + 1.2, pz = lz * 2.75 - 1.9;
+      out[0] = px * cy + pz * sy; out[1] = py; out[2] = -px * sy + pz * cy;
+    };
+    const nheap = function (lx, ly, lz, out) {
       out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
     };
-    emitBox(_geom, tr.x, tr.y, tr.z, 2.2, h, 5.5, 'ex_dirt', null, dt2, light);
+    this.emitMesh(dirtHeapMesh(), tr.x, tr.y, tr.z, heap, 1, light, { nxf: nheap });
   }
 };
 
@@ -17261,12 +17276,32 @@ function loft(m, r0, r1, texFn, two, closed) {
 
 // 고리를 한 점으로 모아 끝을 막는다.
 // 네 번째 점을 세 번째와 같게 두면 삼각형이 된다 (법선은 제대로 나온다).
+// 무늬가 부챗살처럼 갈라져 보이지 않도록, 단면을 눕혀 평면 그림처럼 uv 를 준다.
 function capRing(m, ring, tip, tex, flip) {
   const n = ring.length;
+  const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 3; k++) {
+      if (ring[i][k] < lo[k]) lo[k] = ring[i][k];
+      if (ring[i][k] > hi[k]) hi[k] = ring[i][k];
+    }
+  }
+  // 가장 납작한 축이 단면의 법선 — 나머지 두 축을 그림의 가로·세로로 쓴다
+  const sp = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+  let flatAx = 0;
+  if (sp[1] < sp[flatAx]) flatAx = 1;
+  if (sp[2] < sp[flatAx]) flatAx = 2;
+  const ax = (flatAx + 1) % 3, ay = (flatAx + 2) % 3;
+  const du = sp[ax] || 1, dv = sp[ay] || 1;
+  const uvOf = function (p) {
+    return [(p[ax] - lo[ax]) / du, (p[ay] - lo[ay]) / dv];
+  };
+  const tuv = uvOf(tip);
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    if (flip) m.quad(tip, ring[j], ring[i], ring[i], tex, false);
-    else m.quad(tip, ring[i], ring[j], ring[j], tex, false);
+    const ua = uvOf(ring[i]), ub = uvOf(ring[j]);
+    if (flip) m.quad(tip, ring[j], ring[i], ring[i], tex, false, [tuv, ub, ua, ua]);
+    else m.quad(tip, ring[i], ring[j], ring[j], tex, false, [tuv, ua, ub, ub]);
   }
 }
 
@@ -17805,6 +17840,175 @@ function trainCarMesh(k) {
     }
   }
   return TRAIN_MESHES[k];
+}
+
+// ── 포크레인 ──────────────────────────────────────────────────────────
+// 궤도·상부·붐·암·버킷을 따로 만들어 둔다. 관절마다 따로 움직여야 하므로
+// 한 덩어리로 합치지 않고 부품별 모형을 그릴 때 이어 붙인다.
+// 모든 부품은 +Z 가 앞, +Y 가 위다.
+
+// 이미 만든 사각형들을 통째로 옮긴다 (운전실을 왼쪽으로 밀 때 쓴다)
+Mesh3D.prototype.moveFrom = function (q0, dx, dy, dz) {
+  for (let i = q0 * 12; i < this.p.length; i += 3) {
+    this.p[i] += dx; this.p[i + 1] += dy; this.p[i + 2] += dz;
+  }
+  return this;
+};
+
+// 옆에서 본 모양(프로필)을 폭만큼 뽑아 껍데기를 만든다.
+// prof 는 [[y, z], ...] 차례. 버킷처럼 안쪽도 보여야 하는 부품에 쓴다.
+function shellStrip(m, prof, hw, tex) {
+  const n = prof.length;
+  for (let i = 0; i < n - 1; i++) {
+    const a = prof[i], b = prof[i + 1];
+    m.quad([-hw, a[0], a[1]], [hw, a[0], a[1]], [hw, b[0], b[1]], [-hw, b[0], b[1]], tex, true);
+  }
+  // 양 옆판 — 첫 점에서 부채꼴로 채운다
+  for (const s of [-1, 1]) {
+    for (let i = 1; i < n - 1; i++) {
+      const a = prof[0], b = prof[i], c = prof[i + 1];
+      m.quad([s * hw, a[0], a[1]], [s * hw, b[0], b[1]],
+        [s * hw, c[0], c[1]], [s * hw, c[0], c[1]], tex, true);
+    }
+  }
+}
+
+// 궤도 한 짝 — 앞뒤 끝이 위로 말려 올라간다
+function buildExTrackMesh() {
+  const m = new Mesh3D();
+  const HL = EX_TRACK_L / 2, H = EX_TRACK_H;
+  const sec = [
+    [-HL, 0.34, H * 0.38, H * 0.88],
+    [-HL + 0.4, 0.44, H * 0.12, H * 0.98],
+    [-HL + 1.1, 0.45, H * 0.03, H],
+    [HL - 1.1, 0.45, H * 0.03, H],
+    [HL - 0.4, 0.44, H * 0.12, H * 0.98],
+    [HL, 0.34, H * 0.38, H * 0.88]
+  ];
+  carLoft(m, sec, 3.2, function () { return 'ex_track'; }, 'ex_track', 10);
+  // 바닥 슈(발판) — 이가 난 것처럼 보이게 한다
+  for (let z = -HL + 0.5; z <= HL - 0.5; z += 0.52) {
+    m.box(0, 0.05, z, 0.96, 0.1, 0.16, 'ex_bucket');
+  }
+  return m.build();
+}
+
+// 상부 — 운전실·기관실·균형추가 한 덩어리로 돌아간다
+function buildExHouseMesh() {
+  const m = new Mesh3D();
+  const body = [
+    [-2.10, 1.02, 0.30, 1.40],
+    [-1.85, 1.28, 0.14, 1.56],
+    [-0.70, 1.34, 0.10, 1.34],
+    [0.55, 1.34, 0.10, 1.18],
+    [1.35, 1.16, 0.14, 1.02],
+    [1.60, 0.90, 0.28, 0.88]
+  ];
+  carLoft(m, body, 3.2, function (my) {
+    return my < 0.30 ? 'ex_track' : 'ex_body';     // 아래쪽은 그늘진 하부
+  }, 'ex_body');
+  m.box(0, 0.10, 0, 2.0, 0.26, 2.0, 'ex_track');   // 선회 베어링
+  m.box(-0.95, 1.58, -1.25, 0.16, 0.6, 0.16, 'ex_bucket');   // 배기관
+  // 운전실 — 왼쪽에 붙는다
+  const q0 = m.t.length;
+  const cab = [
+    [-0.50, 0.58, 1.15, 3.05],
+    [-0.24, 0.64, 1.10, 3.22],
+    [0.86, 0.64, 1.10, 3.22],
+    [1.22, 0.60, 1.14, 3.02],
+    [1.38, 0.48, 1.24, 2.74]
+  ];
+  carLoft(m, cab, 3.0, function (my) {
+    if (my > 3.02) return 'ex_body';               // 지붕
+    return my > 1.55 ? 'ex_glass' : 'ex_body';
+  }, 'ex_body');
+  m.moveFrom(q0, -0.66, 0, 0);
+  return m.build();
+}
+
+// 붐 — 가운데가 위로 굽은 1단 팔. 뿌리(z=0)에서 끝(z=len)까지 뻗는다
+function buildExBoomMesh() {
+  const L = EX_BOOM_LEN;
+  const m = new Mesh3D();
+  const sec = [
+    [0, 0.30, -0.44, 0.44],
+    [L * 0.11, 0.32, -0.36, 0.60],
+    [L * 0.35, 0.30, -0.14, 0.86],
+    [L * 0.60, 0.28, -0.02, 0.84],
+    [L * 0.83, 0.26, -0.24, 0.50],
+    [L, 0.22, -0.32, 0.30]
+  ];
+  carLoft(m, sec, 3.0, function () { return 'ex_boom'; }, 'ex_boom', 10);
+  m.box(0, -0.40, L * 0.30, 0.24, 0.24, L * 0.42, 'ex_bucket');   // 유압 실린더
+  m.box(0, 0.10, L * 0.72, 0.20, 0.20, L * 0.34, 'ex_bucket');
+  return m.build();
+}
+
+// 암 — 곧게 가늘어지는 2단 팔
+function buildExStickMesh() {
+  const L = EX_STICK_LEN;
+  const m = new Mesh3D();
+  const sec = [
+    [0, 0.26, -0.42, 0.46],
+    [L * 0.12, 0.28, -0.36, 0.42],
+    [L * 0.58, 0.24, -0.26, 0.28],
+    [L * 0.88, 0.20, -0.22, 0.22],
+    [L, 0.17, -0.20, 0.18]
+  ];
+  carLoft(m, sec, 3.0, function () { return 'ex_boom'; }, 'ex_boom', 10);
+  m.box(0, 0.34, L * 0.30, 0.20, 0.20, L * 0.5, 'ex_bucket');
+  return m.build();
+}
+
+// 버킷 — 속이 파인 바가지. 끝에 이빨이 다섯 개 달렸다
+function buildExBucketMesh() {
+  const m = new Mesh3D();
+  const hw = 0.58;
+  const prof = [
+    [0.48, -0.12], [0.52, 0.42], [0.36, 0.92], [0.06, 1.28], [-0.18, 1.48]
+  ];
+  shellStrip(m, prof, hw, 'ex_bucket');
+  // 이빨 — 날 끝에서 앞으로 조금 튀어나온다
+  const p3 = prof[3], p4 = prof[4];
+  let dy = p4[0] - p3[0], dz = p4[1] - p3[1];
+  const l = Math.hypot(dy, dz) || 1;
+  dy /= l; dz /= l;
+  for (let i = -2; i <= 2; i++) {
+    m.box(i * 0.24, p4[0] + dy * 0.13, p4[1] + dz * 0.13, 0.16, 0.16, 0.3, 'car_silver');
+  }
+  return m.build();
+}
+
+let EX_MESHES = null;
+function exMesh(part) {
+  if (!EX_MESHES) {
+    EX_MESHES = {
+      track: buildExTrackMesh(), house: buildExHouseMesh(),
+      boom: buildExBoomMesh(), stick: buildExStickMesh(), bucket: buildExBucketMesh()
+    };
+  }
+  return EX_MESHES[part];
+}
+
+// 덤프트럭 짐칸에 실린 흙더미 — 가운데가 봉긋하다.
+// 크기 1 로 만들어 두고 그릴 때 늘려 쓴다.
+function buildDirtHeapMesh() {
+  const m = new Mesh3D();
+  const sec = [
+    [-1, 0.52, 0, 0.30],
+    [-0.68, 0.86, 0, 0.74],
+    [-0.18, 1.00, 0, 1.00],
+    [0.34, 0.98, 0, 0.96],
+    [0.78, 0.82, 0, 0.62],
+    [1, 0.50, 0, 0.26]
+  ];
+  carLoft(m, sec, 2.6, function () { return 'ex_dirt'; }, 'ex_dirt', 10);
+  return m.build();
+}
+let DIRT_HEAP_MESH = null;
+function dirtHeapMesh() {
+  if (!DIRT_HEAP_MESH) DIRT_HEAP_MESH = buildDirtHeapMesh();
+  return DIRT_HEAP_MESH;
 }
 
 </script>
@@ -19245,7 +19449,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v8.5';
+const GAME_VERSION = 'v8.6';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -21444,6 +21648,7 @@ Game.prototype.update = function (dt) {
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   if (this.updateSignals) this.updateSignals(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
+  if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateCarAudio) this.updateCarAudio(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);
@@ -22376,11 +22581,17 @@ const EX_BUCKET_MIN = -1.7, EX_BUCKET_MAX = 0.5;
 const EX_SWING_RATE = 0.85, EX_JOINT_RATE = 0.9;
 
 const EX_LOADS_TO_FILL = 8;   // 트럭을 채우는 데 필요한 삽질 횟수
+const TRUCK_SPEED = 7.5;      // 덤프트럭 주행 속도 (블록/초)
+const TRUCK_TURN = 1.6;       // 초당 최대 조향(라디안)
+const TRUCK_WHEEL_R = 0.52;   // 바퀴 반지름 (구르는 각도 계산용)
+const TRUCK_GAP = 10;         // 떠난 뒤 다음 트럭이 올 때까지(초)
+const TRUCK_TRIP = 120;       // 이만큼 멀어지면 길 너머로 사라진다
 const EX_TIME_LIMIT = 60;     // 제한 시간(초)
 const EX_REWARD = 100;        // 성공 보수(원)
 
-function Excavator(site) {
+function Excavator(site, city) {
   this.site = site;
+  this.city = city || null;
   this.x = site.digger.x + 0.5;
   this.y = site.digger.y + 1;
   this.z = site.digger.z + 0.5;
@@ -22392,12 +22603,17 @@ function Excavator(site) {
   this.loaded = 0;            // 버킷에 담긴 흙 (0 또는 1)
   this.driver = null;
   // 덤프트럭은 굴착기와 한 짝이다 — 공사장이 생길 때 옆에 같이 세워 둔다
-  this.truck = {
+  this.home = {
     x: site.truck.x + 0.5,
     y: site.truck.y + 1,
     z: site.truck.z + 0.5,
-    yaw: (site.truck.yaw === undefined) ? Math.PI / 2 : site.truck.yaw,
-    fill: 0
+    yaw: (site.truck.yaw === undefined) ? Math.PI / 2 : site.truck.yaw
+  };
+  this.truck = {
+    x: this.home.x, y: this.home.y, z: this.home.z, yaw: this.home.yaw,
+    fill: 0,
+    state: 'idle',    // idle 대기 · out 떠나는 중 · away 다른 도시 · in 오는 중 · park 자리잡기
+    wheel: 0, ri: 0, wait: 0
   };
 }
 
@@ -22500,10 +22716,158 @@ Excavator.prototype.overPile = function (world) {
 // 버킷 끝이 트럭 짐칸 입구 안에 있나.
 // 짐칸은 트럭 기준 lz -4.7 ~ 0.9, 폭 2.5, 바닥 1.2 위가 열려 있다.
 Excavator.prototype.overTruck = function () {
+  if (this.truck.state !== 'idle') return false;     // 달리는 트럭에는 못 붓는다
   const l = this.truckLocal.apply(this, this.tipPos());
   if (Math.abs(l[0]) > 1.4) return false;
   if (l[2] < -4.9 || l[2] > 1.1) return false;
   return l[1] > 0.9 && l[1] < 5.5;
+};
+
+// 받침에 따라 '로/으로' 를 골라 붙인다 (김포 도심으로, 제주시로)
+function euroJosa(word) {
+  const c = String(word || '').charCodeAt(String(word).length - 1) - 0xAC00;
+  if (c < 0 || c > 11171) return '로';
+  const jong = c % 28;
+  return (jong === 0 || jong === 8) ? '로' : '으로';   // 받침 없음·ㄹ 받침은 '로'
+}
+
+// ── 덤프트럭 오가기 ───────────────────────────────────────────────────
+// 짐칸이 다 차면 트럭은 공사장 정문으로 나가 다른 도시 쪽으로 떠난다.
+// 10초 뒤에 빈 트럭이 같은 길로 들어와 제자리에 선다.
+
+// 떠날 길 — 정문 밖으로 곧게 나간 뒤 목적지 도시 쪽으로 튼다
+Excavator.prototype.truckRoute = function (game) {
+  const s = this.site;
+  const gate = [this.home.x, s.z + s.half + 10];      // 정문 바로 바깥
+  // 목적지 — 여기서 가장 가까운 다른 도시
+  let dest = null, bd = 1e9;
+  const list = (game.world.cities ? game.world.cities() : []) || [];
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (this.city && c.code === this.city.code) continue;
+    const d = Math.hypot(c.x - s.x, c.z - s.z);
+    if (d < bd) { bd = d; dest = c; }
+  }
+  let dx = 0, dz = 1;
+  if (dest) {
+    const l = Math.hypot(dest.x - gate[0], dest.z - gate[1]) || 1;
+    dx = (dest.x - gate[0]) / l;
+    // 공사장으로 되돌아 들어오지 않도록 언제나 정문 바깥쪽으로 나간다
+    dz = Math.max(0.45, (dest.z - gate[1]) / l);
+    const l2 = Math.hypot(dx, dz) || 1;
+    dx /= l2; dz /= l2;
+  }
+  this.truckDest = dest;
+  return [gate, [gate[0] + dx * TRUCK_TRIP, gate[1] + dz * TRUCK_TRIP]];
+};
+
+// 짐이 다 찼다 — 트럭을 내보낸다
+Excavator.prototype.sendTruck = function (game) {
+  const tr = this.truck;
+  if (tr.state !== 'idle') return;
+  tr.route = this.truckRoute(game);
+  tr.ri = 0;
+  tr.state = 'out';
+  const to = this.truckDest ? (this.truckDest.name || this.truckDest.code) : '다른 도시';
+  game.ui.toast('짐을 다 실었습니다 — 덤프트럭이 ' + to + euroJosa(to) + ' 떠납니다');
+};
+
+// 트럭을 한 걸음 옮긴다. 다 왔으면 true
+Excavator.prototype.driveTruck = function (dt, game, route) {
+  const tr = this.truck;
+  const wp = route[Math.min(tr.ri, route.length - 1)];
+  const tx = wp[0] - tr.x, tz = wp[1] - tr.z;
+  const d = Math.hypot(tx, tz);
+  if (d < 2.2) {
+    tr.ri++;
+    return tr.ri >= route.length;
+  }
+  // 차 방향 규약 — 앞은 (sin yaw, cos yaw)
+  const want = Math.atan2(tx, tz);
+  let dy = want - tr.yaw;
+  while (dy > Math.PI) dy -= Math.PI * 2;
+  while (dy < -Math.PI) dy += Math.PI * 2;
+  tr.yaw += Math.max(-TRUCK_TURN * dt, Math.min(TRUCK_TURN * dt, dy));
+  // 많이 꺾을 때는 천천히 (제자리에서 홱 돌지 않게)
+  const step = TRUCK_SPEED * (Math.abs(dy) > 0.7 ? 0.4 : 1) * dt;
+  tr.x += Math.sin(tr.yaw) * step;
+  tr.z += Math.cos(tr.yaw) * step;
+  tr.wheel += step / TRUCK_WHEEL_R;
+  // 땅 높이를 따라간다 — 오르막은 바로 올라타고(파묻히지 않게), 내리막은 부드럽게.
+  // 물 위를 지날 때 가라앉지 않도록 바다 높이 아래로는 내려가지 않는다.
+  const gy = game.world.topSolidY(Math.floor(tr.x), Math.floor(tr.z));
+  if (gy > 0) {
+    const ty = Math.max(gy + 1, SEA_LEVEL + 1);
+    if (ty > tr.y) tr.y = ty;
+    else tr.y += (ty - tr.y) * Math.min(1, dt * 6);
+  }
+  return false;
+};
+
+Excavator.prototype.updateTruck = function (dt, game) {
+  const tr = this.truck;
+  if (tr.state === 'idle') return;
+
+  if (tr.state === 'away') {
+    tr.wait -= dt;
+    if (tr.wait > 0) return;
+    // 빈 트럭이 떠난 길을 거꾸로 들어온다
+    const far = tr.route[tr.route.length - 1];
+    tr.x = far[0]; tr.z = far[1];
+    const gy = game.world.topSolidY(Math.floor(tr.x), Math.floor(tr.z));
+    tr.y = (gy > 0 ? gy : this.home.y - 1) + 1;
+    tr.fill = 0;
+    tr.ri = 0;
+    tr.inRoute = [tr.route[0], [this.home.x, this.home.z]];
+    tr.yaw = Math.atan2(tr.inRoute[0][0] - tr.x, tr.inRoute[0][1] - tr.z);
+    tr.state = 'in';
+    if (this.nearPlayer(game, 190)) {
+      game.ui.toast('빈 덤프트럭이 들어옵니다');
+      game.playSound('place');
+    }
+    return;
+  }
+
+  if (tr.state === 'park') {
+    // 짐칸이 흙더미 쪽을 보도록 제자리에서 돌려 세운다
+    let dy = this.home.yaw - tr.yaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    const turn = TRUCK_TURN * 0.8 * dt;
+    if (Math.abs(dy) <= turn) {
+      tr.yaw = this.home.yaw;
+      tr.x = this.home.x; tr.y = this.home.y; tr.z = this.home.z;
+      tr.state = 'idle';
+      if (this.nearPlayer(game, 190)) game.ui.toast('덤프트럭 준비 완료 — 다시 실을 수 있습니다');
+    } else {
+      tr.yaw += Math.sign(dy) * turn;
+      tr.wheel += turn * 2;
+    }
+    return;
+  }
+
+  const done = this.driveTruck(dt, game, tr.state === 'out' ? tr.route : tr.inRoute);
+  if (!done) return;
+  if (tr.state === 'out') {
+    tr.state = 'away';
+    tr.wait = TRUCK_GAP;
+  } else {
+    tr.x = this.home.x; tr.z = this.home.z; tr.y = this.home.y;
+    tr.state = 'park';
+  }
+};
+
+Excavator.prototype.nearPlayer = function (game, r) {
+  const p = game.player;
+  return Math.hypot(p.x - this.x, p.z - this.z) < r;
+};
+
+// 공사장 트럭들을 매 틱 굴린다 (굴착기에 타고 있지 않아도 오간다)
+Game.prototype.updateSiteTrucks = function (dt) {
+  const map = this.diggers;
+  if (!map || !map.size) return;
+  const self = this;
+  map.forEach(function (ex) { ex.updateTruck(dt, self); });
 };
 
 // ── 미니게임 ──────────────────────────────────────────────────────────
@@ -22528,6 +22892,14 @@ Game.prototype.updateDigJob = function (dt) {
 Game.prototype.digScoop = function () {
   const ex = this.player.inDigger;
   if (!ex) return;
+  const tr = ex.truck;
+  if (tr.state !== 'idle') {
+    // 트럭이 없는 동안은 퍼도 부을 데가 없다
+    const wait = (tr.state === 'away') ? Math.ceil(tr.wait) : 0;
+    this.ui.toast(wait > 0 ? ('덤프트럭이 오는 중입니다 — ' + wait + '초')
+      : '덤프트럭이 오는 중입니다');
+    return;
+  }
   if (ex.loaded) {
     // 담고 있으면 붓는다
     if (ex.overTruck()) {
@@ -22539,10 +22911,10 @@ Game.prototype.digScoop = function () {
       job.loads++;
       if (job.loads >= job.need) {
         this.digJob = null;
-        ex.truck.fill = 0;
         this.addMoney(EX_REWARD);
         this.ui.toast('트럭을 다 채웠습니다 — ' + EX_REWARD + '원 (모두 ' + this.money + '원)');
         this.playSound('levelup');
+        ex.sendTruck(this);          // 짐을 싣고 다른 도시로 떠난다
       } else {
         this.ui.toast('실었습니다 ' + job.loads + '/' + job.need);
       }
@@ -22577,7 +22949,7 @@ Game.prototype.ensureDiggers = function () {
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
     if (!c.site || this.diggers.has(c.code)) continue;
-    this.diggers.set(c.code, new Excavator(c.site));
+    this.diggers.set(c.code, new Excavator(c.site, c));
   }
   return this.diggers;
 };

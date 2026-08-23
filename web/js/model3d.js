@@ -108,12 +108,32 @@ function loft(m, r0, r1, texFn, two, closed) {
 
 // 고리를 한 점으로 모아 끝을 막는다.
 // 네 번째 점을 세 번째와 같게 두면 삼각형이 된다 (법선은 제대로 나온다).
+// 무늬가 부챗살처럼 갈라져 보이지 않도록, 단면을 눕혀 평면 그림처럼 uv 를 준다.
 function capRing(m, ring, tip, tex, flip) {
   const n = ring.length;
+  const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 3; k++) {
+      if (ring[i][k] < lo[k]) lo[k] = ring[i][k];
+      if (ring[i][k] > hi[k]) hi[k] = ring[i][k];
+    }
+  }
+  // 가장 납작한 축이 단면의 법선 — 나머지 두 축을 그림의 가로·세로로 쓴다
+  const sp = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+  let flatAx = 0;
+  if (sp[1] < sp[flatAx]) flatAx = 1;
+  if (sp[2] < sp[flatAx]) flatAx = 2;
+  const ax = (flatAx + 1) % 3, ay = (flatAx + 2) % 3;
+  const du = sp[ax] || 1, dv = sp[ay] || 1;
+  const uvOf = function (p) {
+    return [(p[ax] - lo[ax]) / du, (p[ay] - lo[ay]) / dv];
+  };
+  const tuv = uvOf(tip);
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    if (flip) m.quad(tip, ring[j], ring[i], ring[i], tex, false);
-    else m.quad(tip, ring[i], ring[j], ring[j], tex, false);
+    const ua = uvOf(ring[i]), ub = uvOf(ring[j]);
+    if (flip) m.quad(tip, ring[j], ring[i], ring[i], tex, false, [tuv, ub, ua, ua]);
+    else m.quad(tip, ring[i], ring[j], ring[j], tex, false, [tuv, ua, ub, ub]);
   }
 }
 
@@ -652,4 +672,173 @@ function trainCarMesh(k) {
     }
   }
   return TRAIN_MESHES[k];
+}
+
+// ── 포크레인 ──────────────────────────────────────────────────────────
+// 궤도·상부·붐·암·버킷을 따로 만들어 둔다. 관절마다 따로 움직여야 하므로
+// 한 덩어리로 합치지 않고 부품별 모형을 그릴 때 이어 붙인다.
+// 모든 부품은 +Z 가 앞, +Y 가 위다.
+
+// 이미 만든 사각형들을 통째로 옮긴다 (운전실을 왼쪽으로 밀 때 쓴다)
+Mesh3D.prototype.moveFrom = function (q0, dx, dy, dz) {
+  for (let i = q0 * 12; i < this.p.length; i += 3) {
+    this.p[i] += dx; this.p[i + 1] += dy; this.p[i + 2] += dz;
+  }
+  return this;
+};
+
+// 옆에서 본 모양(프로필)을 폭만큼 뽑아 껍데기를 만든다.
+// prof 는 [[y, z], ...] 차례. 버킷처럼 안쪽도 보여야 하는 부품에 쓴다.
+function shellStrip(m, prof, hw, tex) {
+  const n = prof.length;
+  for (let i = 0; i < n - 1; i++) {
+    const a = prof[i], b = prof[i + 1];
+    m.quad([-hw, a[0], a[1]], [hw, a[0], a[1]], [hw, b[0], b[1]], [-hw, b[0], b[1]], tex, true);
+  }
+  // 양 옆판 — 첫 점에서 부채꼴로 채운다
+  for (const s of [-1, 1]) {
+    for (let i = 1; i < n - 1; i++) {
+      const a = prof[0], b = prof[i], c = prof[i + 1];
+      m.quad([s * hw, a[0], a[1]], [s * hw, b[0], b[1]],
+        [s * hw, c[0], c[1]], [s * hw, c[0], c[1]], tex, true);
+    }
+  }
+}
+
+// 궤도 한 짝 — 앞뒤 끝이 위로 말려 올라간다
+function buildExTrackMesh() {
+  const m = new Mesh3D();
+  const HL = EX_TRACK_L / 2, H = EX_TRACK_H;
+  const sec = [
+    [-HL, 0.34, H * 0.38, H * 0.88],
+    [-HL + 0.4, 0.44, H * 0.12, H * 0.98],
+    [-HL + 1.1, 0.45, H * 0.03, H],
+    [HL - 1.1, 0.45, H * 0.03, H],
+    [HL - 0.4, 0.44, H * 0.12, H * 0.98],
+    [HL, 0.34, H * 0.38, H * 0.88]
+  ];
+  carLoft(m, sec, 3.2, function () { return 'ex_track'; }, 'ex_track', 10);
+  // 바닥 슈(발판) — 이가 난 것처럼 보이게 한다
+  for (let z = -HL + 0.5; z <= HL - 0.5; z += 0.52) {
+    m.box(0, 0.05, z, 0.96, 0.1, 0.16, 'ex_bucket');
+  }
+  return m.build();
+}
+
+// 상부 — 운전실·기관실·균형추가 한 덩어리로 돌아간다
+function buildExHouseMesh() {
+  const m = new Mesh3D();
+  const body = [
+    [-2.10, 1.02, 0.30, 1.40],
+    [-1.85, 1.28, 0.14, 1.56],
+    [-0.70, 1.34, 0.10, 1.34],
+    [0.55, 1.34, 0.10, 1.18],
+    [1.35, 1.16, 0.14, 1.02],
+    [1.60, 0.90, 0.28, 0.88]
+  ];
+  carLoft(m, body, 3.2, function (my) {
+    return my < 0.30 ? 'ex_track' : 'ex_body';     // 아래쪽은 그늘진 하부
+  }, 'ex_body');
+  m.box(0, 0.10, 0, 2.0, 0.26, 2.0, 'ex_track');   // 선회 베어링
+  m.box(-0.95, 1.58, -1.25, 0.16, 0.6, 0.16, 'ex_bucket');   // 배기관
+  // 운전실 — 왼쪽에 붙는다
+  const q0 = m.t.length;
+  const cab = [
+    [-0.50, 0.58, 1.15, 3.05],
+    [-0.24, 0.64, 1.10, 3.22],
+    [0.86, 0.64, 1.10, 3.22],
+    [1.22, 0.60, 1.14, 3.02],
+    [1.38, 0.48, 1.24, 2.74]
+  ];
+  carLoft(m, cab, 3.0, function (my) {
+    if (my > 3.02) return 'ex_body';               // 지붕
+    return my > 1.55 ? 'ex_glass' : 'ex_body';
+  }, 'ex_body');
+  m.moveFrom(q0, -0.66, 0, 0);
+  return m.build();
+}
+
+// 붐 — 가운데가 위로 굽은 1단 팔. 뿌리(z=0)에서 끝(z=len)까지 뻗는다
+function buildExBoomMesh() {
+  const L = EX_BOOM_LEN;
+  const m = new Mesh3D();
+  const sec = [
+    [0, 0.30, -0.44, 0.44],
+    [L * 0.11, 0.32, -0.36, 0.60],
+    [L * 0.35, 0.30, -0.14, 0.86],
+    [L * 0.60, 0.28, -0.02, 0.84],
+    [L * 0.83, 0.26, -0.24, 0.50],
+    [L, 0.22, -0.32, 0.30]
+  ];
+  carLoft(m, sec, 3.0, function () { return 'ex_boom'; }, 'ex_boom', 10);
+  m.box(0, -0.40, L * 0.30, 0.24, 0.24, L * 0.42, 'ex_bucket');   // 유압 실린더
+  m.box(0, 0.10, L * 0.72, 0.20, 0.20, L * 0.34, 'ex_bucket');
+  return m.build();
+}
+
+// 암 — 곧게 가늘어지는 2단 팔
+function buildExStickMesh() {
+  const L = EX_STICK_LEN;
+  const m = new Mesh3D();
+  const sec = [
+    [0, 0.26, -0.42, 0.46],
+    [L * 0.12, 0.28, -0.36, 0.42],
+    [L * 0.58, 0.24, -0.26, 0.28],
+    [L * 0.88, 0.20, -0.22, 0.22],
+    [L, 0.17, -0.20, 0.18]
+  ];
+  carLoft(m, sec, 3.0, function () { return 'ex_boom'; }, 'ex_boom', 10);
+  m.box(0, 0.34, L * 0.30, 0.20, 0.20, L * 0.5, 'ex_bucket');
+  return m.build();
+}
+
+// 버킷 — 속이 파인 바가지. 끝에 이빨이 다섯 개 달렸다
+function buildExBucketMesh() {
+  const m = new Mesh3D();
+  const hw = 0.58;
+  const prof = [
+    [0.48, -0.12], [0.52, 0.42], [0.36, 0.92], [0.06, 1.28], [-0.18, 1.48]
+  ];
+  shellStrip(m, prof, hw, 'ex_bucket');
+  // 이빨 — 날 끝에서 앞으로 조금 튀어나온다
+  const p3 = prof[3], p4 = prof[4];
+  let dy = p4[0] - p3[0], dz = p4[1] - p3[1];
+  const l = Math.hypot(dy, dz) || 1;
+  dy /= l; dz /= l;
+  for (let i = -2; i <= 2; i++) {
+    m.box(i * 0.24, p4[0] + dy * 0.13, p4[1] + dz * 0.13, 0.16, 0.16, 0.3, 'car_silver');
+  }
+  return m.build();
+}
+
+let EX_MESHES = null;
+function exMesh(part) {
+  if (!EX_MESHES) {
+    EX_MESHES = {
+      track: buildExTrackMesh(), house: buildExHouseMesh(),
+      boom: buildExBoomMesh(), stick: buildExStickMesh(), bucket: buildExBucketMesh()
+    };
+  }
+  return EX_MESHES[part];
+}
+
+// 덤프트럭 짐칸에 실린 흙더미 — 가운데가 봉긋하다.
+// 크기 1 로 만들어 두고 그릴 때 늘려 쓴다.
+function buildDirtHeapMesh() {
+  const m = new Mesh3D();
+  const sec = [
+    [-1, 0.52, 0, 0.30],
+    [-0.68, 0.86, 0, 0.74],
+    [-0.18, 1.00, 0, 1.00],
+    [0.34, 0.98, 0, 0.96],
+    [0.78, 0.82, 0, 0.62],
+    [1, 0.50, 0, 0.26]
+  ];
+  carLoft(m, sec, 2.6, function () { return 'ex_dirt'; }, 'ex_dirt', 10);
+  return m.build();
+}
+let DIRT_HEAP_MESH = null;
+function dirtHeapMesh() {
+  if (!DIRT_HEAP_MESH) DIRT_HEAP_MESH = buildDirtHeapMesh();
+  return DIRT_HEAP_MESH;
 }

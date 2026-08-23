@@ -17,11 +17,17 @@ const EX_BUCKET_MIN = -1.7, EX_BUCKET_MAX = 0.5;
 const EX_SWING_RATE = 0.85, EX_JOINT_RATE = 0.9;
 
 const EX_LOADS_TO_FILL = 8;   // 트럭을 채우는 데 필요한 삽질 횟수
+const TRUCK_SPEED = 7.5;      // 덤프트럭 주행 속도 (블록/초)
+const TRUCK_TURN = 1.6;       // 초당 최대 조향(라디안)
+const TRUCK_WHEEL_R = 0.52;   // 바퀴 반지름 (구르는 각도 계산용)
+const TRUCK_GAP = 10;         // 떠난 뒤 다음 트럭이 올 때까지(초)
+const TRUCK_TRIP = 120;       // 이만큼 멀어지면 길 너머로 사라진다
 const EX_TIME_LIMIT = 60;     // 제한 시간(초)
 const EX_REWARD = 100;        // 성공 보수(원)
 
-function Excavator(site) {
+function Excavator(site, city) {
   this.site = site;
+  this.city = city || null;
   this.x = site.digger.x + 0.5;
   this.y = site.digger.y + 1;
   this.z = site.digger.z + 0.5;
@@ -33,12 +39,17 @@ function Excavator(site) {
   this.loaded = 0;            // 버킷에 담긴 흙 (0 또는 1)
   this.driver = null;
   // 덤프트럭은 굴착기와 한 짝이다 — 공사장이 생길 때 옆에 같이 세워 둔다
-  this.truck = {
+  this.home = {
     x: site.truck.x + 0.5,
     y: site.truck.y + 1,
     z: site.truck.z + 0.5,
-    yaw: (site.truck.yaw === undefined) ? Math.PI / 2 : site.truck.yaw,
-    fill: 0
+    yaw: (site.truck.yaw === undefined) ? Math.PI / 2 : site.truck.yaw
+  };
+  this.truck = {
+    x: this.home.x, y: this.home.y, z: this.home.z, yaw: this.home.yaw,
+    fill: 0,
+    state: 'idle',    // idle 대기 · out 떠나는 중 · away 다른 도시 · in 오는 중 · park 자리잡기
+    wheel: 0, ri: 0, wait: 0
   };
 }
 
@@ -141,10 +152,158 @@ Excavator.prototype.overPile = function (world) {
 // 버킷 끝이 트럭 짐칸 입구 안에 있나.
 // 짐칸은 트럭 기준 lz -4.7 ~ 0.9, 폭 2.5, 바닥 1.2 위가 열려 있다.
 Excavator.prototype.overTruck = function () {
+  if (this.truck.state !== 'idle') return false;     // 달리는 트럭에는 못 붓는다
   const l = this.truckLocal.apply(this, this.tipPos());
   if (Math.abs(l[0]) > 1.4) return false;
   if (l[2] < -4.9 || l[2] > 1.1) return false;
   return l[1] > 0.9 && l[1] < 5.5;
+};
+
+// 받침에 따라 '로/으로' 를 골라 붙인다 (김포 도심으로, 제주시로)
+function euroJosa(word) {
+  const c = String(word || '').charCodeAt(String(word).length - 1) - 0xAC00;
+  if (c < 0 || c > 11171) return '로';
+  const jong = c % 28;
+  return (jong === 0 || jong === 8) ? '로' : '으로';   // 받침 없음·ㄹ 받침은 '로'
+}
+
+// ── 덤프트럭 오가기 ───────────────────────────────────────────────────
+// 짐칸이 다 차면 트럭은 공사장 정문으로 나가 다른 도시 쪽으로 떠난다.
+// 10초 뒤에 빈 트럭이 같은 길로 들어와 제자리에 선다.
+
+// 떠날 길 — 정문 밖으로 곧게 나간 뒤 목적지 도시 쪽으로 튼다
+Excavator.prototype.truckRoute = function (game) {
+  const s = this.site;
+  const gate = [this.home.x, s.z + s.half + 10];      // 정문 바로 바깥
+  // 목적지 — 여기서 가장 가까운 다른 도시
+  let dest = null, bd = 1e9;
+  const list = (game.world.cities ? game.world.cities() : []) || [];
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (this.city && c.code === this.city.code) continue;
+    const d = Math.hypot(c.x - s.x, c.z - s.z);
+    if (d < bd) { bd = d; dest = c; }
+  }
+  let dx = 0, dz = 1;
+  if (dest) {
+    const l = Math.hypot(dest.x - gate[0], dest.z - gate[1]) || 1;
+    dx = (dest.x - gate[0]) / l;
+    // 공사장으로 되돌아 들어오지 않도록 언제나 정문 바깥쪽으로 나간다
+    dz = Math.max(0.45, (dest.z - gate[1]) / l);
+    const l2 = Math.hypot(dx, dz) || 1;
+    dx /= l2; dz /= l2;
+  }
+  this.truckDest = dest;
+  return [gate, [gate[0] + dx * TRUCK_TRIP, gate[1] + dz * TRUCK_TRIP]];
+};
+
+// 짐이 다 찼다 — 트럭을 내보낸다
+Excavator.prototype.sendTruck = function (game) {
+  const tr = this.truck;
+  if (tr.state !== 'idle') return;
+  tr.route = this.truckRoute(game);
+  tr.ri = 0;
+  tr.state = 'out';
+  const to = this.truckDest ? (this.truckDest.name || this.truckDest.code) : '다른 도시';
+  game.ui.toast('짐을 다 실었습니다 — 덤프트럭이 ' + to + euroJosa(to) + ' 떠납니다');
+};
+
+// 트럭을 한 걸음 옮긴다. 다 왔으면 true
+Excavator.prototype.driveTruck = function (dt, game, route) {
+  const tr = this.truck;
+  const wp = route[Math.min(tr.ri, route.length - 1)];
+  const tx = wp[0] - tr.x, tz = wp[1] - tr.z;
+  const d = Math.hypot(tx, tz);
+  if (d < 2.2) {
+    tr.ri++;
+    return tr.ri >= route.length;
+  }
+  // 차 방향 규약 — 앞은 (sin yaw, cos yaw)
+  const want = Math.atan2(tx, tz);
+  let dy = want - tr.yaw;
+  while (dy > Math.PI) dy -= Math.PI * 2;
+  while (dy < -Math.PI) dy += Math.PI * 2;
+  tr.yaw += Math.max(-TRUCK_TURN * dt, Math.min(TRUCK_TURN * dt, dy));
+  // 많이 꺾을 때는 천천히 (제자리에서 홱 돌지 않게)
+  const step = TRUCK_SPEED * (Math.abs(dy) > 0.7 ? 0.4 : 1) * dt;
+  tr.x += Math.sin(tr.yaw) * step;
+  tr.z += Math.cos(tr.yaw) * step;
+  tr.wheel += step / TRUCK_WHEEL_R;
+  // 땅 높이를 따라간다 — 오르막은 바로 올라타고(파묻히지 않게), 내리막은 부드럽게.
+  // 물 위를 지날 때 가라앉지 않도록 바다 높이 아래로는 내려가지 않는다.
+  const gy = game.world.topSolidY(Math.floor(tr.x), Math.floor(tr.z));
+  if (gy > 0) {
+    const ty = Math.max(gy + 1, SEA_LEVEL + 1);
+    if (ty > tr.y) tr.y = ty;
+    else tr.y += (ty - tr.y) * Math.min(1, dt * 6);
+  }
+  return false;
+};
+
+Excavator.prototype.updateTruck = function (dt, game) {
+  const tr = this.truck;
+  if (tr.state === 'idle') return;
+
+  if (tr.state === 'away') {
+    tr.wait -= dt;
+    if (tr.wait > 0) return;
+    // 빈 트럭이 떠난 길을 거꾸로 들어온다
+    const far = tr.route[tr.route.length - 1];
+    tr.x = far[0]; tr.z = far[1];
+    const gy = game.world.topSolidY(Math.floor(tr.x), Math.floor(tr.z));
+    tr.y = (gy > 0 ? gy : this.home.y - 1) + 1;
+    tr.fill = 0;
+    tr.ri = 0;
+    tr.inRoute = [tr.route[0], [this.home.x, this.home.z]];
+    tr.yaw = Math.atan2(tr.inRoute[0][0] - tr.x, tr.inRoute[0][1] - tr.z);
+    tr.state = 'in';
+    if (this.nearPlayer(game, 190)) {
+      game.ui.toast('빈 덤프트럭이 들어옵니다');
+      game.playSound('place');
+    }
+    return;
+  }
+
+  if (tr.state === 'park') {
+    // 짐칸이 흙더미 쪽을 보도록 제자리에서 돌려 세운다
+    let dy = this.home.yaw - tr.yaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    const turn = TRUCK_TURN * 0.8 * dt;
+    if (Math.abs(dy) <= turn) {
+      tr.yaw = this.home.yaw;
+      tr.x = this.home.x; tr.y = this.home.y; tr.z = this.home.z;
+      tr.state = 'idle';
+      if (this.nearPlayer(game, 190)) game.ui.toast('덤프트럭 준비 완료 — 다시 실을 수 있습니다');
+    } else {
+      tr.yaw += Math.sign(dy) * turn;
+      tr.wheel += turn * 2;
+    }
+    return;
+  }
+
+  const done = this.driveTruck(dt, game, tr.state === 'out' ? tr.route : tr.inRoute);
+  if (!done) return;
+  if (tr.state === 'out') {
+    tr.state = 'away';
+    tr.wait = TRUCK_GAP;
+  } else {
+    tr.x = this.home.x; tr.z = this.home.z; tr.y = this.home.y;
+    tr.state = 'park';
+  }
+};
+
+Excavator.prototype.nearPlayer = function (game, r) {
+  const p = game.player;
+  return Math.hypot(p.x - this.x, p.z - this.z) < r;
+};
+
+// 공사장 트럭들을 매 틱 굴린다 (굴착기에 타고 있지 않아도 오간다)
+Game.prototype.updateSiteTrucks = function (dt) {
+  const map = this.diggers;
+  if (!map || !map.size) return;
+  const self = this;
+  map.forEach(function (ex) { ex.updateTruck(dt, self); });
 };
 
 // ── 미니게임 ──────────────────────────────────────────────────────────
@@ -169,6 +328,14 @@ Game.prototype.updateDigJob = function (dt) {
 Game.prototype.digScoop = function () {
   const ex = this.player.inDigger;
   if (!ex) return;
+  const tr = ex.truck;
+  if (tr.state !== 'idle') {
+    // 트럭이 없는 동안은 퍼도 부을 데가 없다
+    const wait = (tr.state === 'away') ? Math.ceil(tr.wait) : 0;
+    this.ui.toast(wait > 0 ? ('덤프트럭이 오는 중입니다 — ' + wait + '초')
+      : '덤프트럭이 오는 중입니다');
+    return;
+  }
   if (ex.loaded) {
     // 담고 있으면 붓는다
     if (ex.overTruck()) {
@@ -180,10 +347,10 @@ Game.prototype.digScoop = function () {
       job.loads++;
       if (job.loads >= job.need) {
         this.digJob = null;
-        ex.truck.fill = 0;
         this.addMoney(EX_REWARD);
         this.ui.toast('트럭을 다 채웠습니다 — ' + EX_REWARD + '원 (모두 ' + this.money + '원)');
         this.playSound('levelup');
+        ex.sendTruck(this);          // 짐을 싣고 다른 도시로 떠난다
       } else {
         this.ui.toast('실었습니다 ' + job.loads + '/' + job.need);
       }
@@ -218,7 +385,7 @@ Game.prototype.ensureDiggers = function () {
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
     if (!c.site || this.diggers.has(c.code)) continue;
-    this.diggers.set(c.code, new Excavator(c.site));
+    this.diggers.set(c.code, new Excavator(c.site, c));
   }
   return this.diggers;
 };
