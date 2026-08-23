@@ -4,13 +4,13 @@
 // 검은 현무암 돌담과 귤밭이 있는 낮은 제주 시가지다.
 'use strict';
 
-const CITY_R = 112;         // 도시 반지름
-const CITY_MARGIN = 30;     // 원래 지형으로 이어 붙이는 띠
+const CITY_R = 224;         // 도시 반지름 (예전의 두 배)
+const CITY_MARGIN = 34;     // 원래 지형으로 이어 붙이는 띠
 const CITY_CLEAR_H = 26;    // 지면 위로 이만큼 치운다
-const CITY_DIST = 420;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
+const CITY_DIST = 640;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
 const CITY_GRID = 26;       // 격자 간격
 const ROAD_HALF = 3;        // 도로 반폭
-const CITY_LINES = 4;       // 가운데 큰길 양옆으로 몇 줄씩 더 나는가
+const CITY_LINES = 8;       // 가운데 큰길 양옆으로 몇 줄씩 더 나는가
 const CITY_RING = CITY_LINES * CITY_GRID;   // 순환도로 반지름 (제일 바깥 격자선에 접한다)
 const RAIL_UP = 12;         // 고가 철로 높이
 const RAIL_HALF = 6;        // 고가 상판 반폭 (복선이라 넓다)
@@ -805,8 +805,9 @@ function cityRoads(plan, st) {
 // 순환도로를 한 바퀴 도는 노선. 정거장은 큰길이 빠져나가는 축을 피해
 // 45도마다 하나씩, 바깥 인도 옆에 세운다.
 const BUS_STOP_NAMES = ['시청앞', '중앙공원', '종합운동장', '시외버스터미널',
-  '대학교앞', '전통시장', '전철역앞', '시민병원'];
-const BUS_STOP_N = 8;
+  '대학교앞', '전통시장', '전철역앞', '시민병원',
+  '문화회관', '해안도로', '산업단지', '도서관앞'];
+const BUS_STOP_N = 12;
 const BUS_STOP_R = CITY_RING + ROAD_HALF + 4;   // 정거장 중심 반지름
 
 function busRoute(plan, st) {
@@ -1168,32 +1169,39 @@ function buildCityPlan(world, ap, index) {
   const st = CSTYLE[def.style];
   const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + ap.code));
 
-  // 활주로 축을 따라(±X) 공항에서 떨어진 평평한 자리를 찾는다.
-  // 옆으로도 조금씩 밀어 보며 바다·산을 피한다.
-  let best = null;
-  for (let ring = 0; ring <= 14 && !best; ring++) {
-    const dist = CITY_DIST + ring * 55;
-    for (let k = 0; k < 15 && !best; k++) {
-      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 55);
+  // 활주로 축을 따라(±X) 공항에서 떨어진 자리를 찾는다.
+  // 도시가 넓어지면서 "바다 한 점 없는 평지"는 이 세계에 아예 없으므로
+  // (물이 지면의 6할이다) 조건에 맞는 첫 자리를 고르는 대신,
+  // 여러 후보에 점수를 매겨 가장 나은 곳을 고른다.
+  // 남는 바다는 도시를 찍을 때 메운다 — 송도처럼 매립한 땅인 셈이다.
+  let best = null, bestScore = 1e9;
+  for (let ring = 0; ring <= 6; ring++) {
+    const dist = CITY_DIST + ring * 70;
+    for (let k = 0; k < 9; k++) {
+      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 70);
       for (const sx of [1, -1]) {
         const cx = ap.x + sx * dist;
         const cz = ap.z + lateral;
-        let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0;
-        for (let dz = -CITY_R; dz <= CITY_R; dz += 11) {
-          for (let dx = -CITY_R; dx <= CITY_R; dx += 11) {
+        let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
+        for (let dz = -CITY_R; dz <= CITY_R; dz += 16) {
+          for (let dx = -CITY_R; dx <= CITY_R; dx += 16) {
             if (Math.hypot(dx, dz) > CITY_R) continue;
             const h = world.heightAt(cx + dx, cz + dz);
             const bi = world.biomeAt(cx + dx, cz + dz, h);
             if (h <= SEA_LEVEL + 1 || bi === BIOME.OCEAN || bi === BIOME.MOUNTAINS) bad++;
+            if (h < SEA_LEVEL - 12) deep++;              // 아주 깊은 바다는 메우기 벅차다
             if (bi === BIOME.SNOWY) snowy++;
             lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
           }
         }
-        const badLimit = n * (0.02 + ring * 0.015);
-        if (!n || bad > badLimit || hi - lo > 14 + ring * 2) continue;
-        if (snowy > n * (0.15 + ring * 0.12)) continue;   // 눈밭은 뒤로 미룬다
-        best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
-        break;
+        if (!n) continue;
+        // 바다·산이 적고, 얕고, 평평하고, 눈이 없고, 공항에서 가까울수록 좋다
+        const score = (bad / n) * 2.0 + (deep / n) * 2.5 + (snowy / n) * 0.8
+          + Math.max(0, hi - lo - 18) * 0.03 + ring * 0.06;
+        if (score < bestScore) {
+          bestScore = score;
+          best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
+        }
       }
     }
   }
@@ -1226,7 +1234,7 @@ function buildCityPlan(world, ap, index) {
     for (let j = 0; j + 1 < lines.length; j++) {
       const lx = (lines[i] + lines[i + 1]) / 2;
       const lz = (lines[j] + lines[j + 1]) / 2;
-      if (Math.hypot(lx, lz) > CITY_R - 15) continue;
+      if (Math.hypot(lx, lz) > CITY_RING - 13) continue;   // 순환도로를 침범하지 않게
       lots.push({ x: lx, z: lz, d: Math.hypot(lx, lz) });
     }
   }
@@ -1496,7 +1504,14 @@ World.prototype.paintCity = function (c) {
             c.meta[idx(lx, y, lz)] = 0;
           }
           if (target >= 1 && target < CHUNK_Y) c.blocks[idx(lx, target, lz)] = p.style.grass;
-          for (let y = Math.max(1, target - 5); y < target; y++) c.blocks[idx(lx, y, lz)] = p.style.soil;
+          const soil0 = Math.max(1, target - 4);
+          for (let y = soil0; y < target; y++) c.blocks[idx(lx, y, lz)] = p.style.soil;
+          // 바다 위에 세운 자리는 바닥까지 메운다 (매립지). 안 메우면
+          // 도시 지면 아래가 물로 남아 물가에서 땅이 떠 보인다.
+          for (let y = Math.max(1, Math.min(nat - 1, soil0 - 1)); y < soil0; y++) {
+            const j = idx(lx, y, lz);
+            if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
+          }
         }
       }
     }

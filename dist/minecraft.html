@@ -948,6 +948,10 @@ button.tiny {
           <li>도시 길에는 <b>자동차 아홉 종류</b>(승용차·택시·승합차·버스·트럭·덤프트럭·순찰차·소방차)가
               우측통행으로 달리고, 교차로에서 방향을 튼다. 앞에 서 있으면 멈춘다.
               도시마다 <b>경찰서</b>와 <b>소방서</b>도 있다</li>
+          <li>도시는 반지름 <b>224블록</b>짜리 큰 도시다. 격자 큰길 17줄이 나 있고
+              바깥을 <b>순환도로</b>가 한 바퀴 두른다. 바다 위에 걸친 자리는 메워서 쓴다</li>
+          <li>고속도로에는 <b>두 칸 높이 가드레일</b>이 빈틈없이 서 있다 —
+              아무리 핸들을 꺾어도 들판이나 바다로 떨어지지 않는다 (다리 위도 마찬가지)</li>
           <li>도시와 도시는 <b>고속도로</b>로 이어져 있다. 왕복 2차선에 갓길·가드레일이 있고,
               곧게만 가지 않고 크게 굽어 돈다. 길가 <b>안내판</b>이 남은 거리를 알려 준다</li>
           <li>도로 한가운데 <b>호수</b>가 있고, 그 위를 <b>강철 아치교</b>가 건넌다
@@ -8380,8 +8384,11 @@ VillagePlan.prototype.fill = function (x0, y0, z0, x1, y1, z1, id, meta, force) 
 
 // 배열을 정수 배열로 굳혀 메모리를 아낀다
 VillagePlan.prototype.freeze = function () {
+  // 담기는 값이 모두 16비트에 들어간다 (칸 안 좌표 0~15, y 0~159,
+  // 블록 번호 1000 미만, run 160 이하). 도시가 커지면서 도면이 수십 MB가
+  // 되므로 절반으로 줄인다.
   const self = this;
-  this.ops.forEach(function (a, k) { self.ops.set(k, Int32Array.from(a)); });
+  this.ops.forEach(function (a, k) { self.ops.set(k, Int16Array.from(a)); });
 };
 
 // ── 지형 고르기 ───────────────────────────────────────────────────────
@@ -9782,13 +9789,13 @@ World.prototype.paintAirport = function (c) {
 // 검은 현무암 돌담과 귤밭이 있는 낮은 제주 시가지다.
 'use strict';
 
-const CITY_R = 112;         // 도시 반지름
-const CITY_MARGIN = 30;     // 원래 지형으로 이어 붙이는 띠
+const CITY_R = 224;         // 도시 반지름 (예전의 두 배)
+const CITY_MARGIN = 34;     // 원래 지형으로 이어 붙이는 띠
 const CITY_CLEAR_H = 26;    // 지면 위로 이만큼 치운다
-const CITY_DIST = 420;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
+const CITY_DIST = 640;      // 공항 중심에서 도시 중심까지 (활주로 축 +X)
 const CITY_GRID = 26;       // 격자 간격
 const ROAD_HALF = 3;        // 도로 반폭
-const CITY_LINES = 4;       // 가운데 큰길 양옆으로 몇 줄씩 더 나는가
+const CITY_LINES = 8;       // 가운데 큰길 양옆으로 몇 줄씩 더 나는가
 const CITY_RING = CITY_LINES * CITY_GRID;   // 순환도로 반지름 (제일 바깥 격자선에 접한다)
 const RAIL_UP = 12;         // 고가 철로 높이
 const RAIL_HALF = 6;        // 고가 상판 반폭 (복선이라 넓다)
@@ -10583,8 +10590,9 @@ function cityRoads(plan, st) {
 // 순환도로를 한 바퀴 도는 노선. 정거장은 큰길이 빠져나가는 축을 피해
 // 45도마다 하나씩, 바깥 인도 옆에 세운다.
 const BUS_STOP_NAMES = ['시청앞', '중앙공원', '종합운동장', '시외버스터미널',
-  '대학교앞', '전통시장', '전철역앞', '시민병원'];
-const BUS_STOP_N = 8;
+  '대학교앞', '전통시장', '전철역앞', '시민병원',
+  '문화회관', '해안도로', '산업단지', '도서관앞'];
+const BUS_STOP_N = 12;
 const BUS_STOP_R = CITY_RING + ROAD_HALF + 4;   // 정거장 중심 반지름
 
 function busRoute(plan, st) {
@@ -10946,32 +10954,39 @@ function buildCityPlan(world, ap, index) {
   const st = CSTYLE[def.style];
   const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + ap.code));
 
-  // 활주로 축을 따라(±X) 공항에서 떨어진 평평한 자리를 찾는다.
-  // 옆으로도 조금씩 밀어 보며 바다·산을 피한다.
-  let best = null;
-  for (let ring = 0; ring <= 14 && !best; ring++) {
-    const dist = CITY_DIST + ring * 55;
-    for (let k = 0; k < 15 && !best; k++) {
-      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 55);
+  // 활주로 축을 따라(±X) 공항에서 떨어진 자리를 찾는다.
+  // 도시가 넓어지면서 "바다 한 점 없는 평지"는 이 세계에 아예 없으므로
+  // (물이 지면의 6할이다) 조건에 맞는 첫 자리를 고르는 대신,
+  // 여러 후보에 점수를 매겨 가장 나은 곳을 고른다.
+  // 남는 바다는 도시를 찍을 때 메운다 — 송도처럼 매립한 땅인 셈이다.
+  let best = null, bestScore = 1e9;
+  for (let ring = 0; ring <= 6; ring++) {
+    const dist = CITY_DIST + ring * 70;
+    for (let k = 0; k < 9; k++) {
+      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 70);
       for (const sx of [1, -1]) {
         const cx = ap.x + sx * dist;
         const cz = ap.z + lateral;
-        let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0;
-        for (let dz = -CITY_R; dz <= CITY_R; dz += 11) {
-          for (let dx = -CITY_R; dx <= CITY_R; dx += 11) {
+        let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
+        for (let dz = -CITY_R; dz <= CITY_R; dz += 16) {
+          for (let dx = -CITY_R; dx <= CITY_R; dx += 16) {
             if (Math.hypot(dx, dz) > CITY_R) continue;
             const h = world.heightAt(cx + dx, cz + dz);
             const bi = world.biomeAt(cx + dx, cz + dz, h);
             if (h <= SEA_LEVEL + 1 || bi === BIOME.OCEAN || bi === BIOME.MOUNTAINS) bad++;
+            if (h < SEA_LEVEL - 12) deep++;              // 아주 깊은 바다는 메우기 벅차다
             if (bi === BIOME.SNOWY) snowy++;
             lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
           }
         }
-        const badLimit = n * (0.02 + ring * 0.015);
-        if (!n || bad > badLimit || hi - lo > 14 + ring * 2) continue;
-        if (snowy > n * (0.15 + ring * 0.12)) continue;   // 눈밭은 뒤로 미룬다
-        best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
-        break;
+        if (!n) continue;
+        // 바다·산이 적고, 얕고, 평평하고, 눈이 없고, 공항에서 가까울수록 좋다
+        const score = (bad / n) * 2.0 + (deep / n) * 2.5 + (snowy / n) * 0.8
+          + Math.max(0, hi - lo - 18) * 0.03 + ring * 0.06;
+        if (score < bestScore) {
+          bestScore = score;
+          best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
+        }
       }
     }
   }
@@ -11004,7 +11019,7 @@ function buildCityPlan(world, ap, index) {
     for (let j = 0; j + 1 < lines.length; j++) {
       const lx = (lines[i] + lines[i + 1]) / 2;
       const lz = (lines[j] + lines[j + 1]) / 2;
-      if (Math.hypot(lx, lz) > CITY_R - 15) continue;
+      if (Math.hypot(lx, lz) > CITY_RING - 13) continue;   // 순환도로를 침범하지 않게
       lots.push({ x: lx, z: lz, d: Math.hypot(lx, lz) });
     }
   }
@@ -11274,7 +11289,14 @@ World.prototype.paintCity = function (c) {
             c.meta[idx(lx, y, lz)] = 0;
           }
           if (target >= 1 && target < CHUNK_Y) c.blocks[idx(lx, target, lz)] = p.style.grass;
-          for (let y = Math.max(1, target - 5); y < target; y++) c.blocks[idx(lx, y, lz)] = p.style.soil;
+          const soil0 = Math.max(1, target - 4);
+          for (let y = soil0; y < target; y++) c.blocks[idx(lx, y, lz)] = p.style.soil;
+          // 바다 위에 세운 자리는 바닥까지 메운다 (매립지). 안 메우면
+          // 도시 지면 아래가 물로 남아 물가에서 땅이 떠 보인다.
+          for (let y = Math.max(1, Math.min(nat - 1, soil0 - 1)); y < soil0; y++) {
+            const j = idx(lx, y, lz);
+            if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
+          }
         }
       }
     }
@@ -13885,7 +13907,7 @@ const CAR_MAX = 9.0;         // 최고 속도 (블록/초)
 const CAR_ACC = 5.0;
 const CAR_BRAKE = 9.0;
 const CAR_WHEEL_R = 0.42;
-const CARS_PER_CITY = 38;   // 도시가 넓어진 만큼 차도 늘렸다
+const CARS_PER_CITY = 72;   // 도시가 넓어진 만큼 차도 늘렸다
 const CAR_SPAWN_R = 260;     // 이 안에 들어오면 차를 굴린다
 const CAR_DESPAWN_R = 420;
 
@@ -18894,9 +18916,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v8.2';
+const GAME_VERSION = 'v8.3';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '곡면 3D 탈것 전부 · 코너 도는 열차 · 로컬 멀티플레이';
+const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -21294,6 +21316,7 @@ const HW_STEP = 2.0;          // 길 위 점 간격
 const HW_GRID = 96;           // 빠른 조회용 격자 칸 크기
 const HW_LIMIT_KMH = 120;     // 제한 속도
 const HW_SIGN_GAP = 420;      // 안내판 간격
+const HW_RAIL_H = 2;          // 가드레일 높이 (한 칸이면 차가 타고 넘는다)
 
 // 블록/초 → km/h (1블록 = 1m 로 본다)
 function kmh(blocksPerSec) { return blocksPerSec * 3.6; }
@@ -21645,11 +21668,16 @@ World.prototype.paintHighway = function (c) {
         const j = idx(lx, yy, lz);
         if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
       }
-      // 가드레일 — 도시 어귀는 비워 둔다 (시내 도로와 이어져야 한다)
-      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 0.6 &&
-          !hw.nearCity(wx, wz, CITY_RING + 16)) {
-        if (((wx * 7 + wz * 13) % 4) !== 0 && y + 1 < CHUNK_Y) {
-          c.blocks[idx(lx, y + 1, lz)] = B.iron_bars;
+      // 가드레일 — 빈틈 없이 두 칸 높이로 세운다.
+      // 예전에는 한 칸 높이에 군데군데 끊겨 있어 차가 그냥 타고 넘어
+      // 들판이나 바다로 떨어졌다. 도시 어귀만 비워 둔다 (시내 도로와 이어져야 한다).
+      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 1.8 &&
+          !hw.nearCity(wx, wz, CITY_RING + 10)) {
+        for (let k = 1; k <= HW_RAIL_H; k++) {
+          if (y + k < CHUNK_Y) {
+            c.blocks[idx(lx, y + k, lz)] = B.iron_bars;
+            c.meta[idx(lx, y + k, lz)] = 0;
+          }
         }
       }
     }
@@ -21746,6 +21774,14 @@ World.prototype.paintBridge = function (c) {
         const sx = Math.round(p[0] + nx * d), sz = Math.round(p[1] + nz * d);
         put(sx, y - 1, sz, B.smooth_stone);
         for (let yy = y + 1; yy <= y + 6; yy++) clear(sx, yy, sz);
+      }
+      // 다리 난간 — 위를 치우면서 가드레일까지 지워지므로 여기서 다시 세운다.
+      // 이게 없으면 다리 위에서 호수로 떨어진다.
+      for (const s of [-1, 1]) {
+        for (const d of [HW_HALF - 0.4, HW_HALF + 0.6]) {
+          const sx = Math.round(p[0] + nx * d * s), sz = Math.round(p[1] + nz * d * s);
+          for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.iron_bars);
+        }
       }
 
       // 교탑 — 양 끝에 네모난 석탑

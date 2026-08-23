@@ -101,8 +101,11 @@ VillagePlan.prototype.fill = function (x0, y0, z0, x1, y1, z1, id, meta, force) 
 
 // 배열을 정수 배열로 굳혀 메모리를 아낀다
 VillagePlan.prototype.freeze = function () {
+  // 담기는 값이 모두 16비트에 들어간다 (칸 안 좌표 0~15, y 0~159,
+  // 블록 번호 1000 미만, run 160 이하). 도시가 커지면서 도면이 수십 MB가
+  // 되므로 절반으로 줄인다.
   const self = this;
-  this.ops.forEach(function (a, k) { self.ops.set(k, Int32Array.from(a)); });
+  this.ops.forEach(function (a, k) { self.ops.set(k, Int16Array.from(a)); });
 };
 
 // ── 지형 고르기 ───────────────────────────────────────────────────────

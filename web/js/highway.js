@@ -11,6 +11,7 @@ const HW_STEP = 2.0;          // 길 위 점 간격
 const HW_GRID = 96;           // 빠른 조회용 격자 칸 크기
 const HW_LIMIT_KMH = 120;     // 제한 속도
 const HW_SIGN_GAP = 420;      // 안내판 간격
+const HW_RAIL_H = 2;          // 가드레일 높이 (한 칸이면 차가 타고 넘는다)
 
 // 블록/초 → km/h (1블록 = 1m 로 본다)
 function kmh(blocksPerSec) { return blocksPerSec * 3.6; }
@@ -362,11 +363,16 @@ World.prototype.paintHighway = function (c) {
         const j = idx(lx, yy, lz);
         if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
       }
-      // 가드레일 — 도시 어귀는 비워 둔다 (시내 도로와 이어져야 한다)
-      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 0.6 &&
-          !hw.nearCity(wx, wz, CITY_RING + 16)) {
-        if (((wx * 7 + wz * 13) % 4) !== 0 && y + 1 < CHUNK_Y) {
-          c.blocks[idx(lx, y + 1, lz)] = B.iron_bars;
+      // 가드레일 — 빈틈 없이 두 칸 높이로 세운다.
+      // 예전에는 한 칸 높이에 군데군데 끊겨 있어 차가 그냥 타고 넘어
+      // 들판이나 바다로 떨어졌다. 도시 어귀만 비워 둔다 (시내 도로와 이어져야 한다).
+      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 1.8 &&
+          !hw.nearCity(wx, wz, CITY_RING + 10)) {
+        for (let k = 1; k <= HW_RAIL_H; k++) {
+          if (y + k < CHUNK_Y) {
+            c.blocks[idx(lx, y + k, lz)] = B.iron_bars;
+            c.meta[idx(lx, y + k, lz)] = 0;
+          }
         }
       }
     }
@@ -463,6 +469,14 @@ World.prototype.paintBridge = function (c) {
         const sx = Math.round(p[0] + nx * d), sz = Math.round(p[1] + nz * d);
         put(sx, y - 1, sz, B.smooth_stone);
         for (let yy = y + 1; yy <= y + 6; yy++) clear(sx, yy, sz);
+      }
+      // 다리 난간 — 위를 치우면서 가드레일까지 지워지므로 여기서 다시 세운다.
+      // 이게 없으면 다리 위에서 호수로 떨어진다.
+      for (const s of [-1, 1]) {
+        for (const d of [HW_HALF - 0.4, HW_HALF + 0.6]) {
+          const sx = Math.round(p[0] + nx * d * s), sz = Math.round(p[1] + nz * d * s);
+          for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.iron_bars);
+        }
       }
 
       // 교탑 — 양 끝에 네모난 석탑

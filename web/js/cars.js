@@ -8,7 +8,7 @@ const CAR_MAX = 9.0;         // 최고 속도 (블록/초)
 const CAR_ACC = 5.0;
 const CAR_BRAKE = 9.0;
 const CAR_WHEEL_R = 0.42;
-const CARS_PER_CITY = 38;   // 도시가 넓어진 만큼 차도 늘렸다
+const CARS_PER_CITY = 72;   // 도시가 넓어진 만큼 차도 늘렸다
 const CAR_SPAWN_R = 260;     // 이 안에 들어오면 차를 굴린다
 const CAR_DESPAWN_R = 420;
 
