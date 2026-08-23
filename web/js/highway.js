@@ -101,12 +101,23 @@ Highway.prototype.build = function () {
     // 도시 안으로는 들어가지 않는다. 도시의 가운데 큰길(격자선 0)이 바깥으로
     // 이어지는 자리에서 시작해, 상대 도시의 같은 자리에서 끝낸다.
     // (예전에는 도시 한복판에서 출발해 건물을 뚫고 나갔다)
+    // 도시의 가운데 큰길이 순환도로를 만나는 네 자리 가운데 하나를 고른다.
+    // 고가철로가 빠져나가는 쪽(-side)만은 피한다 — 그리로 내면 도로가
+    // 고가 상판을 뚫고 지나간다.
     const exitOf = function (C, tx, tz) {
       const ex = tx - C.x, ez = tz - C.z;
+      const el = Math.hypot(ex, ez) || 1;
       const out = CITY_RING;      // 순환도로에 그대로 물린다
-      // 큰 쪽 축으로 빠져나간다 — 도시의 가운데 큰길과 그대로 이어진다
-      if (Math.abs(ex) >= Math.abs(ez)) return [C.x + Math.sign(ex) * out, C.z];
-      return [C.x, C.z + Math.sign(ez) * out];
+      const rail = -(C.side || 1);
+      const cand = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      let best = null, bd = -2;
+      for (let n = 0; n < cand.length; n++) {
+        const d = cand[n];
+        if (d[0] === rail && d[1] === 0) continue;     // 철로가 나가는 쪽
+        const dot = (d[0] * ex + d[1] * ez) / el;
+        if (dot > bd) { bd = dot; best = d; }
+      }
+      return [C.x + best[0] * out, C.z + best[1] * out];
     };
     const Astart = exitOf(A, B.x, B.z);
     const Bend = exitOf(B, A.x, A.z);

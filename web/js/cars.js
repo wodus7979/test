@@ -424,9 +424,11 @@ Car.prototype.update = function (dt, game) {
       break;
     }
   }
-  // 포장이 끝나는 곳에서는 멈춰 서서 되돌아간다 (풀밭으로 나가지 않는다)
-  if (this.pos > ext) { this.pos = ext; this.dir = -1; this.speed = 0; this.turnCool = 1.0; }
-  else if (this.pos < -ext) { this.pos = -ext; this.dir = 1; this.speed = 0; this.turnCool = 1.0; }
+  // 포장이 끝나는 곳에서는 멈춰 서서 되돌아간다 (풀밭으로 나가지 않는다).
+  // 방금 꺾었다면 차선이 바뀌었으므로 길이를 다시 잰다.
+  const ext2 = laneExtent(this.line) - 5;
+  if (this.pos > ext2) { this.pos = ext2; this.dir = -1; this.speed = 0; this.turnCool = 1.0; }
+  else if (this.pos < -ext2) { this.pos = -ext2; this.dir = 1; this.speed = 0; this.turnCool = 1.0; }
 
   this.y = c.y + 1;
   this.sync();

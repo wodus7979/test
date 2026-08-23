@@ -1202,6 +1202,7 @@ function buildCityPlan(world, ap, index) {
   const plan = new VillagePlan(world, best.x, best.z, best.y, st, rnd);
   plan.isCity = true;
   plan.code = ap.code;
+  plan.side = best.side;      // 고가철로가 빠져나가는 쪽(-side) 을 알려 준다
   plan.name = def.name;
   plan.styleName = def.style;
   plan.index = index;
@@ -1351,8 +1352,10 @@ function buildCityPlan(world, ap, index) {
   {
     // 철로는 도시에서 -side 쪽으로 빠져나가므로, 공사장은 반대쪽에 낸다.
     // (겹치면 고가 상판이 흙더미 위를 덮어 버린다)
+    // 축 네 방향은 고가철로와 고속도로가 쓰므로 45도로 비켜 놓는다
     const sSide = best.side || 1;
-    const sx = Math.round((CITY_R + 34) * sSide), sz = 0;
+    const sr = (CITY_R + 34) * Math.SQRT1_2;
+    const sx = Math.round(sr * sSide), sz = Math.round(sr);
     const half = 26;
     const syGround = gy;
     // 바닥 고르기 — 자갈 마당

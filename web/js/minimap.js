@@ -181,6 +181,39 @@ Minimap.prototype.draw = function () {
     ctx.fillText(ct.name, m[0], m[1] - 7);
   }
 
+  // ── 버스 정거장 (버스를 몰 때만) ──
+  const inBus = g.player.inCar && g.player.inCar.type.key === 'bus';
+  if (inBus && w.cities) {
+    const cl = w.cities();
+    for (let i = 0; i < cl.length; i++) {
+      const ct = cl[i];
+      if (!ct.busRoute) continue;
+      if (Math.hypot(ct.x - cx, ct.z - cz) > CITY_R + 260) continue;
+      const stops = ct.busRoute.stops;
+      const nearest = g.busRun && g.busRun.near ? g.busRun.near : null;
+      // 노선을 잇는 선
+      ctx.strokeStyle = 'rgba(255,214,102,.55)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let k = 0; k <= stops.length; k++) {
+        const st = stops[k % stops.length];
+        const m = toMap(st.x, st.z);
+        if (k === 0) ctx.moveTo(m[0], m[1]); else ctx.lineTo(m[0], m[1]);
+      }
+      ctx.stroke();
+      for (let k = 0; k < stops.length; k++) {
+        const m = toMap(stops[k].x, stops[k].z);
+        if (m[0] < -10 || m[0] > S + 10 || m[1] < -10 || m[1] > S + 10) continue;
+        const isNext = nearest && nearest.city === ct && ((nearest.i + 1) % stops.length) === k;
+        ctx.fillStyle = isNext ? '#7cffa8' : '#ffd666';
+        ctx.strokeStyle = 'rgba(0,0,0,.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(m[0], m[1], isNext ? 4 : 3, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      }
+    }
+  }
+
   // ── 열차 ──
   const trains = g.entities.trains || [];
   for (let i = 0; i < trains.length; i++) {

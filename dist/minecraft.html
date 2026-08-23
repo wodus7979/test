@@ -10563,6 +10563,7 @@ function buildCityPlan(world, ap, index) {
   const plan = new VillagePlan(world, best.x, best.z, best.y, st, rnd);
   plan.isCity = true;
   plan.code = ap.code;
+  plan.side = best.side;      // 고가철로가 빠져나가는 쪽(-side) 을 알려 준다
   plan.name = def.name;
   plan.styleName = def.style;
   plan.index = index;
@@ -10712,8 +10713,10 @@ function buildCityPlan(world, ap, index) {
   {
     // 철로는 도시에서 -side 쪽으로 빠져나가므로, 공사장은 반대쪽에 낸다.
     // (겹치면 고가 상판이 흙더미 위를 덮어 버린다)
+    // 축 네 방향은 고가철로와 고속도로가 쓰므로 45도로 비켜 놓는다
     const sSide = best.side || 1;
-    const sx = Math.round((CITY_R + 34) * sSide), sz = 0;
+    const sr = (CITY_R + 34) * Math.SQRT1_2;
+    const sx = Math.round(sr * sSide), sz = Math.round(sr);
     const half = 26;
     const syGround = gy;
     // 바닥 고르기 — 자갈 마당
@@ -16595,6 +16598,39 @@ Minimap.prototype.draw = function () {
     ctx.fillText(ct.name, m[0], m[1] - 7);
   }
 
+  // ── 버스 정거장 (버스를 몰 때만) ──
+  const inBus = g.player.inCar && g.player.inCar.type.key === 'bus';
+  if (inBus && w.cities) {
+    const cl = w.cities();
+    for (let i = 0; i < cl.length; i++) {
+      const ct = cl[i];
+      if (!ct.busRoute) continue;
+      if (Math.hypot(ct.x - cx, ct.z - cz) > CITY_R + 260) continue;
+      const stops = ct.busRoute.stops;
+      const nearest = g.busRun && g.busRun.near ? g.busRun.near : null;
+      // 노선을 잇는 선
+      ctx.strokeStyle = 'rgba(255,214,102,.55)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let k = 0; k <= stops.length; k++) {
+        const st = stops[k % stops.length];
+        const m = toMap(st.x, st.z);
+        if (k === 0) ctx.moveTo(m[0], m[1]); else ctx.lineTo(m[0], m[1]);
+      }
+      ctx.stroke();
+      for (let k = 0; k < stops.length; k++) {
+        const m = toMap(stops[k].x, stops[k].z);
+        if (m[0] < -10 || m[0] > S + 10 || m[1] < -10 || m[1] > S + 10) continue;
+        const isNext = nearest && nearest.city === ct && ((nearest.i + 1) % stops.length) === k;
+        ctx.fillStyle = isNext ? '#7cffa8' : '#ffd666';
+        ctx.strokeStyle = 'rgba(0,0,0,.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(m[0], m[1], isNext ? 4 : 3, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      }
+    }
+  }
+
   // ── 열차 ──
   const trains = g.entities.trains || [];
   for (let i = 0; i < trains.length; i++) {
@@ -20139,12 +20175,23 @@ Highway.prototype.build = function () {
     // 도시 안으로는 들어가지 않는다. 도시의 가운데 큰길(격자선 0)이 바깥으로
     // 이어지는 자리에서 시작해, 상대 도시의 같은 자리에서 끝낸다.
     // (예전에는 도시 한복판에서 출발해 건물을 뚫고 나갔다)
+    // 도시의 가운데 큰길이 순환도로를 만나는 네 자리 가운데 하나를 고른다.
+    // 고가철로가 빠져나가는 쪽(-side)만은 피한다 — 그리로 내면 도로가
+    // 고가 상판을 뚫고 지나간다.
     const exitOf = function (C, tx, tz) {
       const ex = tx - C.x, ez = tz - C.z;
+      const el = Math.hypot(ex, ez) || 1;
       const out = CITY_RING;      // 순환도로에 그대로 물린다
-      // 큰 쪽 축으로 빠져나간다 — 도시의 가운데 큰길과 그대로 이어진다
-      if (Math.abs(ex) >= Math.abs(ez)) return [C.x + Math.sign(ex) * out, C.z];
-      return [C.x, C.z + Math.sign(ez) * out];
+      const rail = -(C.side || 1);
+      const cand = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      let best = null, bd = -2;
+      for (let n = 0; n < cand.length; n++) {
+        const d = cand[n];
+        if (d[0] === rail && d[1] === 0) continue;     // 철로가 나가는 쪽
+        const dot = (d[0] * ex + d[1] * ez) / el;
+        if (dot > bd) { bd = dot; best = d; }
+      }
+      return [C.x + best[0] * out, C.z + best[1] * out];
     };
     const Astart = exitOf(A, B.x, B.z);
     const Bend = exitOf(B, A.x, A.z);
