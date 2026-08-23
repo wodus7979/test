@@ -4,38 +4,8 @@
 // ── 생김새 ────────────────────────────────────────────────────────────
 // 상자마다 {x, y, z} 는 "가운데" 좌표. 앞쪽은 +Z, 위는 +Y.
 // 747 특유의 앞쪽 이층 혹(hump)과 뒤로 젖혀진 날개, 엔진 네 개를 살렸다.
-const PLANE_BOXES = [
-  // 동체
-  { x: 0, y: 0, z: -1, w: 3.0, h: 3.0, d: 22, tex: 'plane_win' },
-  { x: 0, y: -1.1, z: -1, w: 2.6, h: 1.0, d: 22, tex: 'plane_belly' },
-  // 기수 (두 단으로 좁혀 뾰족하게)
-  { x: 0, y: 0.1, z: 10.9, w: 2.4, h: 2.4, d: 2.0, tex: 'plane_white' },
-  { x: 0, y: 0.2, z: 12.3, w: 1.5, h: 1.5, d: 1.2, tex: 'plane_white' },
-  // 이층 혹 + 조종석
-  { x: 0, y: 1.9, z: 5.2, w: 2.6, h: 1.4, d: 8.0, tex: 'plane_white' },
-  { x: 0, y: 1.9, z: 9.4, w: 2.4, h: 1.3, d: 0.6, tex: 'plane_cockpit', front: 'plane_cockpit' },
-  // 주날개 — 뒤로 갈수록 바깥쪽 (뒤젖힘)
-  { x: -3.6, y: -0.5, z: -1.0, w: 4.4, h: 0.6, d: 7.4, tex: 'plane_wing' },
-  { x: 3.6, y: -0.5, z: -1.0, w: 4.4, h: 0.6, d: 7.4, tex: 'plane_wing' },
-  { x: -7.3, y: -0.4, z: -2.8, w: 3.2, h: 0.5, d: 5.6, tex: 'plane_wing' },
-  { x: 7.3, y: -0.4, z: -2.8, w: 3.2, h: 0.5, d: 5.6, tex: 'plane_wing' },
-  { x: -10.3, y: -0.3, z: -4.4, w: 3.0, h: 0.4, d: 4.0, tex: 'plane_wing' },
-  { x: 10.3, y: -0.3, z: -4.4, w: 3.0, h: 0.4, d: 4.0, tex: 'plane_wing' },
-  // 엔진 네 개 (날개 아래·앞쪽)
-  { x: -4.4, y: -1.1, z: 0.6, w: 0.5, h: 0.9, d: 1.6, tex: 'plane_wing' },
-  { x: 4.4, y: -1.1, z: 0.6, w: 0.5, h: 0.9, d: 1.6, tex: 'plane_wing' },
-  { x: -4.4, y: -1.8, z: 1.4, w: 1.7, h: 1.7, d: 3.4, tex: 'plane_engine', front: 'plane_intake' },
-  { x: 4.4, y: -1.8, z: 1.4, w: 1.7, h: 1.7, d: 3.4, tex: 'plane_engine', front: 'plane_intake' },
-  { x: -8.2, y: -1.0, z: -1.0, w: 0.5, h: 0.8, d: 1.4, tex: 'plane_wing' },
-  { x: 8.2, y: -1.0, z: -1.0, w: 0.5, h: 0.8, d: 1.4, tex: 'plane_wing' },
-  { x: -8.2, y: -1.6, z: -0.3, w: 1.5, h: 1.5, d: 3.0, tex: 'plane_engine', front: 'plane_intake' },
-  { x: 8.2, y: -1.6, z: -0.3, w: 1.5, h: 1.5, d: 3.0, tex: 'plane_engine', front: 'plane_intake' },
-  // 꼬리 — 수직 안정판과 수평 안정판
-  { x: 0, y: 3.4, z: -9.6, w: 0.6, h: 5.0, d: 5.4, tex: 'plane_tail' },
-  { x: 0, y: 6.2, z: -10.8, w: 0.5, h: 1.2, d: 3.0, tex: 'plane_tail' },
-  { x: -2.9, y: 0.9, z: -10.6, w: 5.0, h: 0.4, d: 3.4, tex: 'plane_wing' },
-  { x: 2.9, y: 0.9, z: -10.6, w: 5.0, h: 0.4, d: 3.4, tex: 'plane_wing' }
-];
+// 동체·날개·엔진·꼬리는 model3d.js 가 곡면 모형으로 만든다.
+// 여기에는 접었다 펴는 착륙장치 상자만 남는다.
 
 // 접었다 폈다 하는 착륙장치
 const PLANE_GEAR = [

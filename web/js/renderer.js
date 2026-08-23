@@ -505,6 +505,26 @@ GeomBuf.prototype.reserveBox = function () {
   }
 };
 
+// 사각형 n 개를 더 담을 자리를 만든다 (상자가 아닌 자유 모양용)
+GeomBuf.prototype.reserveQuads = function (n) {
+  const needV = this.vn + n * 4 * 8;
+  if (needV > this.v.length) {
+    let cap = this.v.length;
+    while (cap < needV) cap *= 2;
+    const nv = new Float32Array(cap);
+    nv.set(this.v.subarray(0, this.vn));
+    this.v = nv;
+  }
+  const needI = this.inn + n * 6;
+  if (needI > this.i.length) {
+    let cap = this.i.length;
+    while (cap < needI) cap *= 2;
+    const ni = new Uint32Array(cap);
+    ni.set(this.i.subarray(0, this.inn));
+    this.i = ni;
+  }
+};
+
 // 그릴 인덱스 배열 — uint32 를 못 쓰는 기기에서는 16비트로 옮겨 담는다
 GeomBuf.prototype.indices = function (uint32) {
   if (uint32) return this.i.subarray(0, this.inn);
@@ -515,6 +535,73 @@ GeomBuf.prototype.indices = function (uint32) {
 
 const _geom = new GeomBuf(8192);
 const _out3 = [0, 0, 0];
+const _out3b = [0, 0, 0];
+
+// 면이 향한 쪽에 따른 밝기. 블록은 여섯 방향뿐이라 표를 썼지만,
+// 매끈한 모형은 방향이 제각각이라 그때그때 셈한다.
+function shadeOfNormal(nx, ny, nz) {
+  const s = 0.63 + 0.33 * ny + 0.07 * nx + 0.04 * nz;
+  return s < 0.42 ? 0.42 : (s > 1 ? 1 : s);
+}
+
+// 미리 만들어 둔 모형(Mesh3D)을 한 번에 얹는다.
+// rot 은 회전만 하는 함수다 — 자리 옮김은 모형 좌표에 이미 들어 있다.
+Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opts) {
+  const buf = _geom;
+  const P = mesh.pos, U = mesh.uv, N = mesh.nrm, T = mesh.tex, TW = mesh.two;
+  const nq = T.length;
+  const glow = opts && opts.glow;
+  buf.reserveQuads(nq * 2);
+  const V = buf.i, F = buf.v;
+  const o = _out3, no = _out3b;
+  const l0 = light[0], l1 = light[1];
+  for (let q = 0; q < nq; q++) {
+    const name = T[q];
+    if (opts && opts.skip && opts.skip[name]) continue;
+    const t = texUV(name);
+    const du = t.u1 - t.u0, dv = t.v1 - t.v0;
+    rot(N[q * 3], N[q * 3 + 1], N[q * 3 + 2], no);
+    const lit = (glow && glow[name]) ? 1 : shadeOfNormal(no[0], no[1], no[2]);
+    const gl0 = (glow && glow[name]) ? 1 : l0;
+    const gl1 = (glow && glow[name]) ? 1 : l1;
+    let vn = buf.vn;
+    const base = vn / 8;
+    for (let c = 0; c < 4; c++) {
+      const pi = (q * 4 + c) * 3, ui = (q * 4 + c) * 2;
+      rot(P[pi] * scale, P[pi + 1] * scale, P[pi + 2] * scale, o);
+      F[vn] = cx + o[0]; F[vn + 1] = cy + o[1]; F[vn + 2] = cz + o[2];
+      F[vn + 3] = t.u0 + du * U[ui];
+      F[vn + 4] = t.v0 + dv * U[ui + 1];
+      F[vn + 5] = gl0; F[vn + 6] = gl1; F[vn + 7] = lit;
+      vn += 8;
+    }
+    buf.vn = vn;
+    let inn = buf.inn;
+    V[inn] = base; V[inn + 1] = base + 1; V[inn + 2] = base + 2;
+    V[inn + 3] = base; V[inn + 4] = base + 2; V[inn + 5] = base + 3;
+    buf.inn = inn + 6;
+
+    // 얇은 판은 안쪽에서도 보여야 한다 (객실 안, 조종석 안)
+    if (TW[q]) {
+      const backLit = shadeOfNormal(-no[0], -no[1], -no[2]);
+      vn = buf.vn;
+      const b2 = vn / 8;
+      for (let c = 0; c < 4; c++) {
+        const src = (buf.vn - 32) + c * 8;
+        F[vn] = F[src]; F[vn + 1] = F[src + 1]; F[vn + 2] = F[src + 2];
+        F[vn + 3] = F[src + 3]; F[vn + 4] = F[src + 4];
+        F[vn + 5] = gl0; F[vn + 6] = gl1;
+        F[vn + 7] = (glow && glow[name]) ? 1 : backLit;
+        vn += 8;
+      }
+      buf.vn = vn;
+      inn = buf.inn;
+      V[inn] = b2; V[inn + 1] = b2 + 2; V[inn + 2] = b2 + 1;
+      V[inn + 3] = b2; V[inn + 4] = b2 + 3; V[inn + 5] = b2 + 2;
+      buf.inn = inn + 6;
+    }
+  }
+};
 
 // 면 6 × 모서리 4 마다 [단위큐브 x, y, z, 텍스처 u, v] — 매번 다시 셈하지 않는다
 const BOX_CORNER = (function () {
@@ -680,8 +767,8 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
     const dx = p.x - player.x, dz = p.z - player.z;
     if (dx * dx + dz * dz > 1400 * 1400) continue;
     const PS = PLANE_SCALE;
-    if (!this.boxInFrustum(p.x - 13 * PS, p.y - 5 * PS, p.z - 14 * PS,
-      p.x + 13 * PS, p.y + 8 * PS, p.z + 14 * PS)) continue;
+    if (!this.boxInFrustum(p.x - 14 * PS, p.y - 6 * PS, p.z - 15 * PS,
+      p.x + 14 * PS, p.y + 9 * PS, p.z + 15 * PS)) continue;
 
     const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
     const sky = (p.y > CHUNK_Y - 4) ? 1 : world.getSky(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
@@ -693,22 +780,27 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
     const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch);
     const cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
 
-    const boxes = PLANE_BOXES;
-    for (let k = 0; k < boxes.length + PLANE_GEAR.length; k++) {
-      const gearPart = k >= boxes.length;
-      if (gearPart && p.gear < 0.05) continue;
-      const b = gearPart ? PLANE_GEAR[k - boxes.length] : boxes[k];
-      // 착륙장치는 접히면서 동체 안으로 들어간다
-      const tuck = gearPart ? (1 - p.gear) * 1.7 : 0;
-      const bh = b.h;
-      const transform = function (px, py, pz, out) {
-        // 상자 안 좌표(px,py,pz)는 이미 크기가 곱해져 들어오므로 위치만 배율을 준다
-        const lx = px + b.x * PS, ly = py - bh * PS / 2 + (b.y + tuck) * PS, lz = pz + b.z * PS;
-        const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
-        const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
-        out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
-      };
-      emitBox(_geom, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, b.tex, b.front, transform, light);
+    // 기체 자세 — 롤 → 피치 → 요 차례로 돌린다 (자리 옮김은 없다)
+    const rot = function (lx, ly, lz, out) {
+      const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+      const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
+      out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
+    };
+    // 동체·날개·엔진·꼬리는 곡면 모형 한 덩어리
+    this.emitMesh(planeMesh(), p.x, p.y, p.z, rot, PS, light, null);
+
+    // 착륙장치만 상자로 남는다 (접히면서 동체 안으로 들어간다)
+    if (p.gear >= 0.05) {
+      for (let k = 0; k < PLANE_GEAR.length; k++) {
+        const b = PLANE_GEAR[k];
+        const tuck = (1 - p.gear) * 1.7;
+        const bh = b.h;
+        const transform = function (px, py, pz, out) {
+          const lx = px + b.x * PS, ly = py - bh * PS / 2 + (b.y + tuck) * PS, lz = pz + b.z * PS;
+          rot(lx, ly, lz, out);
+        };
+        emitBox(_geom, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, b.tex, b.front, transform, light);
+      }
     }
   }
 
@@ -716,6 +808,9 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
 };
 
 // ── 열차 ──────────────────────────────────────────────────────────────
+// 전조등은 밤에도 스스로 빛난다
+const TRAIN_MESH_OPTS = { glow: { tr_light: 1 } };
+
 Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
   const list = mgr.trains;
   if (!list || !list.length) return;
@@ -734,6 +829,12 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
     const light = [Math.max(sky, 0.55), Math.max(blk, 0.35)];
 
     const cy = Math.cos(t.yaw), sy = Math.sin(t.yaw);
+    // 지붕과 앞머리는 곡면 모형으로 한 번에 (블록처럼 각지지 않게)
+    const rot = function (lx, ly, lz, out) {
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+    this.emitMesh(trainMesh(), t.x, t.y, t.z, rot, 1, light, TRAIN_MESH_OPTS);
+
     // 거리에 따라 부품을 줄인다 — 멀리 있는 열차는 겉모습만 그린다
     const near = Math.sqrt(dx * dx + dz * dz);
     const showInner = (t.rider === player) || near < 90;

@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v8.0';
+const GAME_VERSION = 'v8.1';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '로컬 멀티플레이 · 캐릭터 꾸미기 · 시내버스 · 도시 간 고속도로';
+const GAME_FEATURES = '곡면 3D 여객기·전동차 · 로컬 멀티플레이 · 캐릭터 꾸미기';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)

@@ -32,9 +32,7 @@ function trainCarParts(P, zc, isFront, isBack) {
   // ── 바닥과 천장 ──
   box(0, TRAIN_FLOOR, 0, HW * 2, 0.26, L, 'tr_floor');
   P.push({ x: 0, y: TRAIN_CEIL, z: zc, w: HW * 2 - 0.2, h: 0.22, d: L, tex: 'tr_wall', inner: true });
-  // 지붕 (바깥) — 어깨를 깎아 둥글게
-  box(0, TRAIN_CEIL + 0.28, 0, HW * 2 - 0.5, 0.34, L, 'tr_roof');
-  for (const s of [-1, 1]) box(s * (HW - 0.32), TRAIN_CEIL + 0.14, 0, 0.7, 0.34, L, 'tr_roof');
+  // 지붕(바깥)과 운전실 앞머리는 model3d.js 가 곡면으로 만든다
 
   // ── 옆면 ── (창은 비워 두고 기둥과 띠만 세운다)
   for (const s of [-1, 1]) {
@@ -112,20 +110,10 @@ function trainCarParts(P, zc, isFront, isBack) {
   }
 
   // ── 운전실 (앞·뒤 끝) ──
+  // 코·앞유리·전조등은 곡면 모형(model3d.js) 쪽에 있다.
+  // 여기서는 아래쪽 치마와 연결기만 세운다.
   const cab = function (e) {
     const z0 = e * (L / 2);
-    // 코가 앞으로 갈수록 좁아지고 낮아진다
-    box(0, -0.12, z0 + e * 0.45, HW * 2 - 0.06, 3.15, 0.9, 'tr_body');
-    box(0, -0.06, z0 + e * 1.15, HW * 2 - 0.55, 2.85, 0.7, 'tr_body');
-    box(0, 0.02, z0 + e * 1.7, HW * 2 - 1.15, 2.35, 0.55, 'tr_body',
-      e > 0 ? 'tr_face' : undefined);
-    // 앞유리
-    box(0, 0.62, z0 + e * 1.98, HW * 2 - 1.35, 1.15, 0.14, 'tr_face');
-    // 전조등
-    for (const s of [-1, 1]) {
-      box(s * 0.82, -0.62, z0 + e * 1.95, 0.42, 0.3, 0.14, 'tr_light');
-    }
-    // 스커트와 연결기
     box(0, -1.95, z0 + e * 1.0, HW * 2 - 0.5, 0.85, 1.6, 'tr_skirt');
     box(0, -1.85, z0 + e * 2.0, 0.5, 0.4, 0.6, 'tr_bogie');
   };
