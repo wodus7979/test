@@ -692,6 +692,19 @@ body.touch .hand { display: none !important; }
 #drive-hud .over { color: #ff7a6a; }
 #drive-hud .lim { color: #9fb0c8; }
 
+/* 공사장 계기판 */
+#dig-hud {
+  display: none;
+  position: fixed; left: 16px; bottom: 84px;
+  z-index: 40; pointer-events: none;
+  background: rgba(10,14,22,.72);
+  border: 1px solid rgba(150,190,240,.25);
+  border-radius: 8px; padding: 8px 14px;
+  font: 13px/1.6 ui-monospace, Menlo, monospace; color: #cfe0f5;
+}
+#dig-hud .warn { color: #ff7a6a; font-weight: 700; }
+#dig-hud .ok { color: #7cc44a; }
+
 </style>
 </head>
 <body>
@@ -707,6 +720,7 @@ body.touch .hand { display: none !important; }
 <!-- 채굴 진행 -->
 <div id="crack"></div>
 <div id="drive-hud"></div>
+<div id="dig-hud"></div>
 
 <!-- 터치 조작 -->
 <div id="touch-stick"><div id="touch-knob"></div></div>
@@ -795,6 +809,11 @@ body.touch .hand { display: none !important; }
           <li>지나가는 <b>자동차에 우클릭하면 직접 몰 수 있다</b> —
               <b>W/S</b> 가속·후진, <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기.
               벽에 막히면 후진으로 빠져나오면 된다</li>
+          <li>도시 외곽에 <b>공사장</b>이 있다. <b>포크레인</b>에 다가가 <b>우클릭</b>하면 탄다 —
+              <b>A/D</b> 몸통 회전, <b>W/S</b> 붐, <b>Q/E</b> 암, <b>Z/X</b> 버킷,
+              <b>Space</b> 퍼기·붓기, <b>Shift</b> 내리기</li>
+          <li>흙더미를 퍼서 <b>덤프트럭</b>에 부으면 된다. <b>1분 안에 8삽</b>을 채우면
+              <b>100원</b>을 번다. 모은 돈은 저장된다</li>
           <li>공항마다 <b>도시</b>가 하나씩 딸려 있고 <b>생김새가 저마다 다르다</b> —
               유리 신도시 <b>인천 송도</b>, <b>롯데타워</b>와 벽돌 상가 거리가 섞인 <b>김포 도심</b>,
               현무암 기단에 주황 기와를 얹은 <b>제주시</b>. 횡단보도와 가로수도 있다.
@@ -3099,6 +3118,30 @@ defFurnTex('car_siren', function (p, rnd) {
   p.rect(0, 0, 8, 16, '#d33a30');
   p.rect(8, 0, 8, 16, '#2f6fd0');
 });
+// ── 포크레인 ──────────────────────────────────────────────────────────
+defFurnTex('ex_body', function (p, rnd) {
+  p.noise(rnd, '#e0a41f', 5, 4);
+  p.rect(0, 0, 16, 2, '#a8761a');
+  p.rect(0, 13, 16, 3, '#2e3238');
+});
+defFurnTex('ex_track', function (p, rnd) {
+  p.noise(rnd, '#33383f', 5, 3);
+  for (let y = 0; y < 16; y += 3) p.rect(0, y, 16, 1, '#1d2126');
+});
+defFurnTex('ex_boom', function (p, rnd) {
+  p.noise(rnd, '#e0a41f', 4, 4);
+  p.rect(0, 6, 16, 2, '#a8761a');
+});
+defFurnTex('ex_bucket', function (p, rnd) {
+  p.noise(rnd, '#4a5057', 5, 4);
+  p.rect(0, 12, 16, 4, '#8d949c');
+});
+defFurnTex('ex_glass', function (p, rnd) {
+  p.noise(rnd, '#1b2530', 5, 3);
+  p.rect(1, 2, 14, 10, '#3c5871');
+});
+defFurnTex('ex_dirt', function (p, rnd) { p.noise(rnd, '#6b4c2e', 7, 6); });
+
 // 덤프트럭 — 주황 차체
 defFurnTex('car_dump', function (p, rnd) {
   p.noise(rnd, '#d98324', 5, 4);
@@ -10535,6 +10578,60 @@ function buildCityPlan(world, ap, index) {
     for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 5, null);
   }
 
+  // ── 외곽 공사장 ──
+  // 도시 바깥 한쪽에 공터를 내고, 파낼 흙더미와 덤프트럭 자리를 만든다.
+  {
+    // 철로는 도시에서 -side 쪽으로 빠져나가므로, 공사장은 반대쪽에 낸다.
+    // (겹치면 고가 상판이 흙더미 위를 덮어 버린다)
+    const sSide = best.side || 1;
+    const sx = Math.round((CITY_R + 34) * sSide), sz = 0;
+    const half = 26;
+    const syGround = gy;
+    // 바닥 고르기 — 자갈 마당
+    for (let dz = -half; dz <= half; dz++) {
+      for (let dx = -half; dx <= half; dx++) {
+        const edge = Math.abs(dx) === half || Math.abs(dz) === half;
+        plan.set(best.x + sx + dx, syGround, best.z + sz + dz,
+          edge ? bid('stone_bricks') : bid('coarse_dirt', 'dirt'), 0, true);
+        // 위를 비운다
+        plan.set(best.x + sx + dx, syGround + 1, best.z + sz + dz, 0, 0, true, 14);
+      }
+    }
+    // 울타리
+    for (let dz = -half; dz <= half; dz += 1) {
+      for (const dx of [-half, half]) {
+        plan.set(best.x + sx + dx, syGround + 1, best.z + sz + dz, B.iron_bars, 0, true, 2);
+      }
+    }
+    for (let dx = -half; dx <= half; dx += 1) {
+      for (const dz of [-half, half]) {
+        if (Math.abs(dx) < 4) continue;             // 드나드는 문
+        plan.set(best.x + sx + dx, syGround + 1, best.z + sz + dz, B.iron_bars, 0, true, 2);
+      }
+    }
+    // 파낼 흙더미 — 가운데에서 조금 옆으로
+    const px = sx - 9, pz = sz + 6;
+    for (let dz = -6; dz <= 6; dz++) {
+      for (let dx = -6; dx <= 6; dx++) {
+        const d = Math.hypot(dx, dz);
+        if (d > 6.2) continue;
+        const h = Math.max(1, Math.round(5 - d * 0.72));
+        for (let y = 1; y <= h; y++) {
+          plan.set(best.x + px + dx, syGround + y, best.z + pz + dz,
+            (y === h) ? bid('coarse_dirt', 'dirt') : B.dirt, 0, true);
+        }
+      }
+    }
+    // 안내 표시
+    apText(plan, '0', sx + 10, sz - 12, 1, bid('yellow_concrete'), false, syGround, true);
+    plan.site = {
+      x: best.x + sx, y: syGround, z: best.z + sz, half: half,
+      pile: { x: best.x + px, y: syGround, z: best.z + pz, r: 6 },
+      truck: { x: best.x + sx + 10, y: syGround, z: best.z + sz + 4 },
+      digger: { x: best.x + sx - 1, y: syGround, z: best.z + sz + 6 }
+    };
+  }
+
   // ── 도시에서 시작할 자리 ──
   // 광장에서 두 블록 떨어진 큰길 위. 길 위는 cityRoads 가 하늘까지 비워 두므로
   // 건물에 끼일 일이 없고, 북(-Z)쪽으로 큰길이 쭉 뚫려 있다. 시선을 살짝
@@ -15658,6 +15755,81 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// ── 포크레인 ──────────────────────────────────────────────────────────
+// 궤도(하부) 위에 상부가 얹히고, 붐 → 암 → 버킷이 이어 붙는다.
+Renderer.prototype.drawDiggers = function (game, world, player, opts) {
+  const map = game.diggers;
+  if (!map || !map.size) return;
+  _geom.reset();
+  const self = this;
+  map.forEach(function (ex) {
+    const dx = ex.x - player.x, dz = ex.z - player.z;
+    if (dx * dx + dz * dz > 200 * 200) return;
+    if (!self.boxInFrustum(ex.x - 14, ex.y - 2, ex.z - 14, ex.x + 14, ex.y + 14, ex.z + 14)) return;
+    const bx = Math.floor(ex.x), by = Math.floor(ex.y), bz = Math.floor(ex.z);
+    const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 1), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    const light = [Math.max(sky, 0.32), Math.max(blk, 0.25)];
+
+    // 하부 궤도 — 몸통 방향
+    const cy0 = Math.cos(ex.yaw), sy0 = Math.sin(ex.yaw);
+    const flat = function (ox, oy, oz) {
+      return function (px, py, pz, out) {
+        const lx = px + ox, ly = py + oy, lz = pz + oz;
+        out[0] = lx * cy0 + lz * sy0; out[1] = ly; out[2] = -lx * sy0 + lz * cy0;
+      };
+    };
+    for (const s of [-1, 1]) {
+      emitBox(_geom, ex.x, ex.y, ex.z, 0.9, EX_TRACK_H, EX_TRACK_L,
+        'ex_track', null, flat(s * (EX_TRACK_W / 2 - 0.45), 0, 0), light);
+    }
+    emitBox(_geom, ex.x, ex.y, ex.z, EX_TRACK_W - 0.6, 0.35, EX_TRACK_L - 1.2,
+      'ex_track', null, flat(0, EX_TRACK_H - 0.2, 0), light);
+
+    // 상부 — 회전한다
+    const a = ex.yaw + ex.swing;
+    const cy = Math.cos(a), sy = Math.sin(a);
+    const up = function (of, ou, oside) {
+      return function (px, py, pz, out) {
+        // px 는 좌우, py 는 위아래, pz 는 앞뒤
+        const lx = px + (oside || 0), ly = py + ou, lz = pz + of;
+        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+      };
+    };
+    const base = EX_TRACK_H;
+    emitBox(_geom, ex.x, ex.y, ex.z, 2.6, 0.4, 3.4, 'ex_body', null, up(-0.2, base, 0), light);
+    emitBox(_geom, ex.x, ex.y, ex.z, 1.7, EX_CAB_H, 1.9, 'ex_body', 'ex_glass',
+      up(0.5, base + 0.4, -0.55), light);
+    emitBox(_geom, ex.x, ex.y, ex.z, 1.5, 1.2, 1.5, 'ex_body', null,
+      up(-1.5, base + 0.4, 0.3), light);   // 뒤 균형추
+
+    // 팔 — 각 마디를 통째 상자 하나로 그린다
+    const jt = ex.joints();
+    const arms = jt.arms;
+    const texes = ['ex_boom', 'ex_boom', 'ex_bucket'];
+    const thick = [0.55, 0.45, 0.9];
+    for (let k = 0; k < arms.length; k++) {
+      const seg = arms[k];
+      const ca2 = Math.cos(seg.ang), sa2 = Math.sin(seg.ang);
+      const tf = function (px, py, pz, out) {
+        // pz 를 마디 길이 방향으로 쓴다
+        const lf = seg.f + (pz + seg.len / 2) * ca2 - py * sa2;
+        const lu = seg.u + (pz + seg.len / 2) * sa2 + py * ca2;
+        const lx = px;
+        out[0] = lx * cy + lf * sy; out[1] = lu; out[2] = -lx * sy + lf * cy;
+      };
+      emitBox(_geom, ex.x, ex.y, ex.z, thick[k], thick[k], seg.len, texes[k], null, tf, light);
+    }
+    // 버킷에 담긴 흙
+    if (ex.loaded) {
+      const t = ex.tipPos();
+      emitBox(_geom, t[0], t[1] - 0.1, t[2], 0.9, 0.5, 0.9, 'ex_dirt', null,
+        function (px, py, pz, out) { out[0] = px; out[1] = py - 0.25; out[2] = pz; }, light);
+    }
+  });
+  this.flushEntityGeom(opts);
+};
+
 // 쫓아오는 순찰차 — 실제 Car 가 아니라 게임이 들고 있는 간단한 표적이다
 Renderer.prototype.drawChase = function (game, world, player, opts) {
   const ch = game.chase;
@@ -17391,9 +17563,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.5';
+const GAME_VERSION = 'v7.6';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '도시 간 고속도로 · 호수와 아치교 · 과속 단속 · 전체 지도(M)';
+const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -17616,7 +17788,7 @@ const ESCALATOR_SPEED = 3.2;
 
 Game.prototype.updateEscalators = function () {
   const p = this.player;
-  if (p.riding || p.onTrain || p.inCar || p.flying || p.dead) return;
+  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.flying || p.dead) return;
   if (!this.world.cities) return;
   const list = this.world.cities();
   for (let i = 0; i < list.length; i++) {
@@ -17656,6 +17828,29 @@ Game.prototype.updateDriveHud = function () {
     if (info) html += '<br>' + info.to + '까지 ' + info.toDist + 'm';
   }
   if (this.chase) html += '<br><span class="over">순찰차 추적 중</span>';
+  el.innerHTML = html;
+};
+
+// 공사장 계기판 — 남은 시간·실은 삽 수·모은 돈
+Game.prototype.updateDigHud = function () {
+  const el = document.getElementById('dig-hud');
+  if (!el) return;
+  const ex = this.player.inDigger;
+  if (!ex) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const job = this.digJob;
+  let html = '';
+  if (job) {
+    const t = Math.max(0, job.left);
+    html += '<span class="' + (t < 15 ? 'warn' : '') + '">' + t.toFixed(1) + '초</span>' +
+      '  ' + job.loads + ' / ' + job.need + ' 삽';
+  } else {
+    html += '흙더미를 퍼서 트럭에 부으세요';
+  }
+  html += '<br>버킷: ' + (ex.loaded ? '흙 있음' : '비어 있음');
+  if (!ex.loaded && ex.overPile(this.world)) html += ' <span class="ok">← 여기서 Space</span>';
+  if (ex.loaded && ex.overTruck(this)) html += ' <span class="ok">← 여기서 Space</span>';
+  html += '<br>모은 돈 ' + (this.money || 0) + '원';
   el.innerHTML = html;
 };
 
@@ -17859,6 +18054,12 @@ Game.prototype.bindInput = function () {
     const act = keyMap[e.code];
     if (act) {
       // 스페이스 두 번 = 비행 전환 (창작 모드)
+      if (e.code === 'Space' && self.player.inDigger) {
+        if (!self.input.jump) self.digScoop();
+        self.input.jump = true;
+        e.preventDefault();
+        return;
+      }
       if (e.code === 'Space' && !self.input.jump) {
         const now = performance.now();
         if (self.player.creative && self._lastSpace && now - self._lastSpace < 320) {
@@ -17883,12 +18084,22 @@ Game.prototype.bindInput = function () {
         else { self.ui.openScreen('inventory'); self.exitPointerLock(); }
         e.preventDefault();
         break;
+      case 'KeyE':
+        if (self.player.inDigger) { self.input.stickOut = true; e.preventDefault(); break; }
+        break;
+      case 'KeyZ':
+        if (self.player.inDigger) { self.input.curlIn = true; e.preventDefault(); }
+        break;
+      case 'KeyX':
+        if (self.player.inDigger) { self.input.curlOut = true; e.preventDefault(); }
+        break;
       case 'Escape':
         if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
         else if (self.ui.open) self.ui.closeScreen();
         else self.exitPointerLock();
         break;
       case 'KeyQ':
+        if (self.player.inDigger) { self.input.stickIn = true; e.preventDefault(); break; }
         self.dropHeld(e.ctrlKey);
         break;
       case 'F3':
@@ -17975,6 +18186,11 @@ Game.prototype.bindInput = function () {
   window.addEventListener('keyup', function (e) {
     const act = keyMap[e.code];
     if (act) self.input[act] = false;
+    // 굴착기 관절 키
+    if (e.code === 'KeyQ') self.input.stickIn = false;
+    if (e.code === 'KeyE') self.input.stickOut = false;
+    if (e.code === 'KeyZ') self.input.curlIn = false;
+    if (e.code === 'KeyX') self.input.curlOut = false;
   });
 
   window.addEventListener('blur', function () {
@@ -18239,7 +18455,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain || p.inCar) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar || p.inDigger) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -18273,6 +18489,12 @@ Game.prototype.onUse = function () {
       this.enterCar(hitCar.car);
       return;
     }
+  }
+
+  // 0-4) 포크레인 타기 (공사장)
+  if (this.nearestDigger) {
+    const ex = this.nearestDigger();
+    if (ex && !ex.driver) { this.enterDigger(ex); return; }
   }
 
   // 0-1) 주민과 거래 — 블록보다 앞에 있을 때만
@@ -18965,7 +19187,8 @@ Game.prototype.buildSaveData = function () {
     },
     chunks: chunks,
     furnaces: furnaces,
-    chests: chests
+    chests: chests,
+    money: this.money || 0
   };
 };
 
@@ -19025,6 +19248,7 @@ Game.prototype.load = function (given) {
   }
 
   this.initAssets();
+  this.money = data.money || 0;
   this.world = new World(null);
   this.world.seed = data.seed;
   // 시드에서 파생된 노이즈를 다시 만든다
@@ -19127,7 +19351,8 @@ Game.prototype.update = function (dt) {
   if (this.swingTimer > 0) this.swingTimer -= dt;
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
-  if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
+  if (p.inDigger && this.input.sneak && !this._sneakPrev) this.exitDigger();
+  else if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
   this._sneakPrev = this.input.sneak;
@@ -19138,6 +19363,20 @@ Game.prototype.update = function (dt) {
   } else if (p.onTrain) {
     // 열차를 타고 있으면 몸은 객실에 고정된다 (열차가 자리를 정한다)
     if (p.dead) this.exitTrain();
+  } else if (p.inDigger) {
+    // 굴착기 조종석에 앉는다
+    if (p.dead) this.exitDigger();
+    else {
+      const ex = p.inDigger;
+      ex.control(dt, this.input);
+      const a = ex.yaw + ex.swing;
+      p.x = ex.x - Math.sin(a) * 0.9;
+      p.z = ex.z - Math.cos(a) * 0.9;
+      p.y = ex.y + EX_TRACK_H + 1.0;
+      p.vx = p.vy = p.vz = 0;
+      p.onGround = true; p.fallStart = p.y;
+      this.updateDigJob(dt);
+    }
   } else if (p.inCar) {
     // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
     if (p.dead) this.exitCar();
@@ -19186,6 +19425,7 @@ Game.prototype.update = function (dt) {
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
   this.updateDriveHud();
+  this.updateDigHud();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -19301,11 +19541,12 @@ Game.prototype.render = function (dt) {
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
+  if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
-  if (!this.ui.open && !p.dead && !p.riding && !p.inCar) {
+  if (!this.ui.open && !p.dead && !p.riding && !p.inCar && !p.inDigger) {
     const hit = p.pick(5);
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }
@@ -19893,6 +20134,241 @@ Game.prototype.pullOver = function () {
   if (car) this.exitCar();
   this.ui.toast('정지 — 과속으로 적발되었습니다. ' + (DRIVE_BAN_SEC / 60) + '분 동안 운전할 수 없습니다');
   this.playSound('hurt');
+};
+
+</script>
+<script>
+/* ==== js/excavator.js ==== */
+// excavator.js - 공사장 포크레인과 흙 나르기 미니게임, 그리고 돈.
+// 실제 굴착기처럼 상부가 돌고 붐·암·버킷이 따로 움직인다.
+// 흙더미에 버킷을 넣고 퍼서 덤프트럭 짐칸에 부으면 된다.
+'use strict';
+
+// ── 치수 (미터) ───────────────────────────────────────────────────────
+const EX_TRACK_W = 3.0, EX_TRACK_L = 4.6, EX_TRACK_H = 0.9;
+const EX_CAB_H = 2.1;
+const EX_BOOM_LEN = 5.2;      // 붐 (1단)
+const EX_STICK_LEN = 3.6;     // 암 (2단)
+const EX_BUCKET_LEN = 1.5;
+
+// 관절이 움직일 수 있는 범위 (라디안)
+const EX_BOOM_MIN = -0.15, EX_BOOM_MAX = 1.15;
+const EX_STICK_MIN = -2.35, EX_STICK_MAX = -0.35;
+const EX_BUCKET_MIN = -1.7, EX_BUCKET_MAX = 0.5;
+const EX_SWING_RATE = 0.85, EX_JOINT_RATE = 0.9;
+
+const EX_LOADS_TO_FILL = 8;   // 트럭을 채우는 데 필요한 삽질 횟수
+const EX_TIME_LIMIT = 60;     // 제한 시간(초)
+const EX_REWARD = 100;        // 성공 보수(원)
+
+function Excavator(site) {
+  this.site = site;
+  this.x = site.digger.x + 0.5;
+  this.y = site.digger.y + 1;
+  this.z = site.digger.z + 0.5;
+  this.yaw = 0;               // 하부(궤도) 방향
+  this.swing = 0;             // 상부 회전 (하부 기준)
+  this.boom = 0.7;
+  this.stick = -1.5;
+  this.bucket = -0.6;
+  this.loaded = 0;            // 버킷에 담긴 흙 (0 또는 1)
+  this.driver = null;
+}
+
+// 버킷 끝이 세상 어디에 있나 (붐 → 암 → 버킷 순서로 이어 붙인다)
+Excavator.prototype.tipPos = function () {
+  const a = this.yaw + this.swing;
+  // 옆에서 본 평면에서의 좌표 (앞으로 f, 위로 u)
+  let f = 0.6, u = EX_TRACK_H + EX_CAB_H * 0.45;
+  let ang = this.boom;
+  f += Math.cos(ang) * EX_BOOM_LEN;
+  u += Math.sin(ang) * EX_BOOM_LEN;
+  ang += this.stick;
+  f += Math.cos(ang) * EX_STICK_LEN;
+  u += Math.sin(ang) * EX_STICK_LEN;
+  ang += this.bucket;
+  f += Math.cos(ang) * EX_BUCKET_LEN;
+  u += Math.sin(ang) * EX_BUCKET_LEN;
+  return [this.x + Math.sin(a) * f, this.y + u, this.z + Math.cos(a) * f];
+};
+
+// 관절 하나하나의 자리 (그릴 때 쓴다)
+Excavator.prototype.joints = function () {
+  const a = this.yaw + this.swing;
+  const out = [];
+  let f = 0.6, u = EX_TRACK_H + EX_CAB_H * 0.45;
+  const push = function (fv, uv, ang, len) {
+    out.push({ f: fv, u: uv, ang: ang, len: len });
+  };
+  let ang = this.boom;
+  push(f, u, ang, EX_BOOM_LEN);
+  f += Math.cos(ang) * EX_BOOM_LEN; u += Math.sin(ang) * EX_BOOM_LEN;
+  ang += this.stick;
+  push(f, u, ang, EX_STICK_LEN);
+  f += Math.cos(ang) * EX_STICK_LEN; u += Math.sin(ang) * EX_STICK_LEN;
+  ang += this.bucket;
+  push(f, u, ang, EX_BUCKET_LEN);
+  return { a: a, arms: out };
+};
+
+Excavator.prototype.board = function (player) {
+  if (this.driver) return false;
+  this.driver = player;
+  player.inDigger = this;
+  return true;
+};
+
+Excavator.prototype.unboard = function () {
+  const p = this.driver;
+  if (!p) return;
+  this.driver = null;
+  p.inDigger = null;
+  const a = this.yaw + this.swing;
+  p.x = this.x - Math.sin(a) * 4.5;
+  p.z = this.z - Math.cos(a) * 4.5;
+  p.y = this.y + 1;
+  p.vx = p.vy = p.vz = 0;
+  p.fallStart = p.y;
+};
+
+// 조종 — 실제 굴착기처럼 관절을 따로 움직인다
+Excavator.prototype.control = function (dt, input) {
+  if (input.left) this.swing += EX_SWING_RATE * dt;
+  if (input.right) this.swing -= EX_SWING_RATE * dt;
+  if (input.forward) this.boom = Math.min(EX_BOOM_MAX, this.boom + EX_JOINT_RATE * dt);
+  if (input.back) this.boom = Math.max(EX_BOOM_MIN, this.boom - EX_JOINT_RATE * dt);
+  if (input.stickOut) this.stick = Math.min(EX_STICK_MAX, this.stick + EX_JOINT_RATE * dt);
+  if (input.stickIn) this.stick = Math.max(EX_STICK_MIN, this.stick - EX_JOINT_RATE * dt);
+  if (input.curlIn) this.bucket = Math.max(EX_BUCKET_MIN, this.bucket - EX_JOINT_RATE * dt);
+  if (input.curlOut) this.bucket = Math.min(EX_BUCKET_MAX, this.bucket + EX_JOINT_RATE * dt);
+};
+
+// 버킷 끝이 흙더미 안에 있나.
+// 머리 위로 고가철로 같은 게 지날 수도 있어서 topSolidY 를 믿지 않고,
+// 버킷 끝 언저리를 위아래로 훑어 흙을 직접 찾는다.
+Excavator.prototype.overPile = function (world) {
+  const t = this.tipPos();
+  const pile = this.site.pile;
+  if (Math.hypot(t[0] - pile.x, t[2] - pile.z) > pile.r + 2) return null;
+  const bx = Math.floor(t[0]), bz = Math.floor(t[2]);
+  for (let dy = 1; dy >= -2; dy--) {
+    const y = Math.floor(t[1]) + dy;
+    if (y < 1) break;
+    const id = world.getBlock(bx, y, bz);
+    if (id === B.dirt || id === B.coarse_dirt || id === B.grass_block) {
+      // 위가 트여 있어야 퍼낼 수 있다
+      if (world.getBlock(bx, y + 1, bz) === 0) return { x: bx, y: y, z: bz, id: id };
+    }
+  }
+  return null;
+};
+
+// 버킷 끝이 트럭 짐칸 위에 있나
+Excavator.prototype.overTruck = function (game) {
+  const tr = game.siteTruck;
+  if (!tr) return false;
+  const t = this.tipPos();
+  if (Math.hypot(t[0] - tr.x, t[2] - tr.z) > 4.2) return false;
+  return t[1] > tr.y + 1.2 && t[1] < tr.y + 7;
+};
+
+// ── 미니게임 ──────────────────────────────────────────────────────────
+Game.prototype.startDigJob = function () {
+  this.digJob = { left: EX_TIME_LIMIT, loads: 0, need: EX_LOADS_TO_FILL };
+  this.ui.toast('흙 나르기 시작 — ' + EX_TIME_LIMIT + '초 안에 ' + EX_LOADS_TO_FILL +
+    '삽을 트럭에 채우세요 (성공 ' + EX_REWARD + '원)');
+};
+
+Game.prototype.updateDigJob = function (dt) {
+  const job = this.digJob;
+  if (!job) return;
+  if (!this.player.inDigger) { this.digJob = null; return; }
+  job.left -= dt;
+  if (job.left <= 0) {
+    this.digJob = null;
+    this.ui.toast('시간 초과 — 다시 해 보세요');
+    this.playSound('hurt');
+  }
+};
+
+Game.prototype.digScoop = function () {
+  const ex = this.player.inDigger;
+  if (!ex) return;
+  if (ex.loaded) {
+    // 담고 있으면 붓는다
+    if (ex.overTruck(this)) {
+      ex.loaded = 0;
+      this.siteTruck.fill = (this.siteTruck.fill || 0) + 1;
+      this.playSound('place');
+      if (!this.digJob) this.startDigJob();
+      const job = this.digJob;
+      job.loads++;
+      if (job.loads >= job.need) {
+        this.digJob = null;
+        this.siteTruck.fill = 0;
+        this.addMoney(EX_REWARD);
+        this.ui.toast('트럭을 다 채웠습니다 — ' + EX_REWARD + '원 (모두 ' + this.money + '원)');
+        this.playSound('levelup');
+      } else {
+        this.ui.toast('실었습니다 ' + job.loads + '/' + job.need);
+      }
+    } else {
+      ex.loaded = 0;
+      this.ui.toast('트럭 밖에 쏟았습니다');
+    }
+    return;
+  }
+  // 비어 있으면 판다
+  const hit = ex.overPile(this.world);
+  if (!hit) { this.ui.toast('버킷을 흙더미에 대고 퍼세요'); return; }
+  this.world.setBlock(hit.x, hit.y, hit.z, 0);
+  ex.loaded = 1;
+  if (!this.digJob) this.startDigJob();
+  this.playSound('dig');
+};
+
+// ── 돈 ────────────────────────────────────────────────────────────────
+Game.prototype.addMoney = function (n) {
+  this.money = (this.money || 0) + n;
+};
+
+// ── 타고 내리기 ───────────────────────────────────────────────────────
+Game.prototype.nearestDigger = function () {
+  const w = this.world;
+  if (!w.cities) return null;
+  const p = this.player;
+  const list = w.cities();
+  let best = null, bd = 7;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.site) continue;
+    if (!this.diggers) this.diggers = new Map();
+    let ex = this.diggers.get(c.code);
+    if (!ex) { ex = new Excavator(c.site); this.diggers.set(c.code, ex); }
+    const d = Math.hypot(ex.x - p.x, ex.z - p.z);
+    if (d < bd && Math.abs(ex.y - p.y) < 6) { bd = d; best = ex; }
+  }
+  return best;
+};
+
+Game.prototype.enterDigger = function (ex) {
+  if (!ex.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  // 트럭이 없으면 옆에 세워 둔다
+  if (!this.siteTruck || this.siteTruck.site !== ex.site) {
+    this.siteTruck = { site: ex.site, x: ex.site.truck.x + 0.5, y: ex.site.truck.y + 1,
+      z: ex.site.truck.z + 0.5, yaw: Math.PI / 2, fill: 0 };
+  }
+  this.ui.toast('포크레인 탑승 — A/D 몸통 회전, W/S 붐, Q/E 암, Z/X 버킷, ' +
+    'Space 퍼기·붓기, Shift 내리기');
+  this.playSound('place');
+};
+
+Game.prototype.exitDigger = function () {
+  const ex = this.player.inDigger;
+  if (!ex) return;
+  ex.unboard();
+  this.digJob = null;
+  this.ui.toast('포크레인에서 내렸습니다');
 };
 
 </script>

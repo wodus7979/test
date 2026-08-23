@@ -1249,6 +1249,60 @@ function buildCityPlan(world, ap, index) {
     for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 5, null);
   }
 
+  // ── 외곽 공사장 ──
+  // 도시 바깥 한쪽에 공터를 내고, 파낼 흙더미와 덤프트럭 자리를 만든다.
+  {
+    // 철로는 도시에서 -side 쪽으로 빠져나가므로, 공사장은 반대쪽에 낸다.
+    // (겹치면 고가 상판이 흙더미 위를 덮어 버린다)
+    const sSide = best.side || 1;
+    const sx = Math.round((CITY_R + 34) * sSide), sz = 0;
+    const half = 26;
+    const syGround = gy;
+    // 바닥 고르기 — 자갈 마당
+    for (let dz = -half; dz <= half; dz++) {
+      for (let dx = -half; dx <= half; dx++) {
+        const edge = Math.abs(dx) === half || Math.abs(dz) === half;
+        plan.set(best.x + sx + dx, syGround, best.z + sz + dz,
+          edge ? bid('stone_bricks') : bid('coarse_dirt', 'dirt'), 0, true);
+        // 위를 비운다
+        plan.set(best.x + sx + dx, syGround + 1, best.z + sz + dz, 0, 0, true, 14);
+      }
+    }
+    // 울타리
+    for (let dz = -half; dz <= half; dz += 1) {
+      for (const dx of [-half, half]) {
+        plan.set(best.x + sx + dx, syGround + 1, best.z + sz + dz, B.iron_bars, 0, true, 2);
+      }
+    }
+    for (let dx = -half; dx <= half; dx += 1) {
+      for (const dz of [-half, half]) {
+        if (Math.abs(dx) < 4) continue;             // 드나드는 문
+        plan.set(best.x + sx + dx, syGround + 1, best.z + sz + dz, B.iron_bars, 0, true, 2);
+      }
+    }
+    // 파낼 흙더미 — 가운데에서 조금 옆으로
+    const px = sx - 9, pz = sz + 6;
+    for (let dz = -6; dz <= 6; dz++) {
+      for (let dx = -6; dx <= 6; dx++) {
+        const d = Math.hypot(dx, dz);
+        if (d > 6.2) continue;
+        const h = Math.max(1, Math.round(5 - d * 0.72));
+        for (let y = 1; y <= h; y++) {
+          plan.set(best.x + px + dx, syGround + y, best.z + pz + dz,
+            (y === h) ? bid('coarse_dirt', 'dirt') : B.dirt, 0, true);
+        }
+      }
+    }
+    // 안내 표시
+    apText(plan, '0', sx + 10, sz - 12, 1, bid('yellow_concrete'), false, syGround, true);
+    plan.site = {
+      x: best.x + sx, y: syGround, z: best.z + sz, half: half,
+      pile: { x: best.x + px, y: syGround, z: best.z + pz, r: 6 },
+      truck: { x: best.x + sx + 10, y: syGround, z: best.z + sz + 4 },
+      digger: { x: best.x + sx - 1, y: syGround, z: best.z + sz + 6 }
+    };
+  }
+
   // ── 도시에서 시작할 자리 ──
   // 광장에서 두 블록 떨어진 큰길 위. 길 위는 cityRoads 가 하늘까지 비워 두므로
   // 건물에 끼일 일이 없고, 북(-Z)쪽으로 큰길이 쭉 뚫려 있다. 시선을 살짝

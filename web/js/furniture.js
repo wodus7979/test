@@ -476,6 +476,30 @@ defFurnTex('car_siren', function (p, rnd) {
   p.rect(0, 0, 8, 16, '#d33a30');
   p.rect(8, 0, 8, 16, '#2f6fd0');
 });
+// ── 포크레인 ──────────────────────────────────────────────────────────
+defFurnTex('ex_body', function (p, rnd) {
+  p.noise(rnd, '#e0a41f', 5, 4);
+  p.rect(0, 0, 16, 2, '#a8761a');
+  p.rect(0, 13, 16, 3, '#2e3238');
+});
+defFurnTex('ex_track', function (p, rnd) {
+  p.noise(rnd, '#33383f', 5, 3);
+  for (let y = 0; y < 16; y += 3) p.rect(0, y, 16, 1, '#1d2126');
+});
+defFurnTex('ex_boom', function (p, rnd) {
+  p.noise(rnd, '#e0a41f', 4, 4);
+  p.rect(0, 6, 16, 2, '#a8761a');
+});
+defFurnTex('ex_bucket', function (p, rnd) {
+  p.noise(rnd, '#4a5057', 5, 4);
+  p.rect(0, 12, 16, 4, '#8d949c');
+});
+defFurnTex('ex_glass', function (p, rnd) {
+  p.noise(rnd, '#1b2530', 5, 3);
+  p.rect(1, 2, 14, 10, '#3c5871');
+});
+defFurnTex('ex_dirt', function (p, rnd) { p.noise(rnd, '#6b4c2e', 7, 6); });
+
 // 덤프트럭 — 주황 차체
 defFurnTex('car_dump', function (p, rnd) {
   p.noise(rnd, '#d98324', 5, 4);

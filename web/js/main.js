@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.5';
+const GAME_VERSION = 'v7.6';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '도시 간 고속도로 · 호수와 아치교 · 과속 단속 · 전체 지도(M)';
+const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -253,7 +253,7 @@ const ESCALATOR_SPEED = 3.2;
 
 Game.prototype.updateEscalators = function () {
   const p = this.player;
-  if (p.riding || p.onTrain || p.inCar || p.flying || p.dead) return;
+  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.flying || p.dead) return;
   if (!this.world.cities) return;
   const list = this.world.cities();
   for (let i = 0; i < list.length; i++) {
@@ -293,6 +293,29 @@ Game.prototype.updateDriveHud = function () {
     if (info) html += '<br>' + info.to + '까지 ' + info.toDist + 'm';
   }
   if (this.chase) html += '<br><span class="over">순찰차 추적 중</span>';
+  el.innerHTML = html;
+};
+
+// 공사장 계기판 — 남은 시간·실은 삽 수·모은 돈
+Game.prototype.updateDigHud = function () {
+  const el = document.getElementById('dig-hud');
+  if (!el) return;
+  const ex = this.player.inDigger;
+  if (!ex) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const job = this.digJob;
+  let html = '';
+  if (job) {
+    const t = Math.max(0, job.left);
+    html += '<span class="' + (t < 15 ? 'warn' : '') + '">' + t.toFixed(1) + '초</span>' +
+      '  ' + job.loads + ' / ' + job.need + ' 삽';
+  } else {
+    html += '흙더미를 퍼서 트럭에 부으세요';
+  }
+  html += '<br>버킷: ' + (ex.loaded ? '흙 있음' : '비어 있음');
+  if (!ex.loaded && ex.overPile(this.world)) html += ' <span class="ok">← 여기서 Space</span>';
+  if (ex.loaded && ex.overTruck(this)) html += ' <span class="ok">← 여기서 Space</span>';
+  html += '<br>모은 돈 ' + (this.money || 0) + '원';
   el.innerHTML = html;
 };
 
@@ -496,6 +519,12 @@ Game.prototype.bindInput = function () {
     const act = keyMap[e.code];
     if (act) {
       // 스페이스 두 번 = 비행 전환 (창작 모드)
+      if (e.code === 'Space' && self.player.inDigger) {
+        if (!self.input.jump) self.digScoop();
+        self.input.jump = true;
+        e.preventDefault();
+        return;
+      }
       if (e.code === 'Space' && !self.input.jump) {
         const now = performance.now();
         if (self.player.creative && self._lastSpace && now - self._lastSpace < 320) {
@@ -520,12 +549,22 @@ Game.prototype.bindInput = function () {
         else { self.ui.openScreen('inventory'); self.exitPointerLock(); }
         e.preventDefault();
         break;
+      case 'KeyE':
+        if (self.player.inDigger) { self.input.stickOut = true; e.preventDefault(); break; }
+        break;
+      case 'KeyZ':
+        if (self.player.inDigger) { self.input.curlIn = true; e.preventDefault(); }
+        break;
+      case 'KeyX':
+        if (self.player.inDigger) { self.input.curlOut = true; e.preventDefault(); }
+        break;
       case 'Escape':
         if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
         else if (self.ui.open) self.ui.closeScreen();
         else self.exitPointerLock();
         break;
       case 'KeyQ':
+        if (self.player.inDigger) { self.input.stickIn = true; e.preventDefault(); break; }
         self.dropHeld(e.ctrlKey);
         break;
       case 'F3':
@@ -612,6 +651,11 @@ Game.prototype.bindInput = function () {
   window.addEventListener('keyup', function (e) {
     const act = keyMap[e.code];
     if (act) self.input[act] = false;
+    // 굴착기 관절 키
+    if (e.code === 'KeyQ') self.input.stickIn = false;
+    if (e.code === 'KeyE') self.input.stickOut = false;
+    if (e.code === 'KeyZ') self.input.curlIn = false;
+    if (e.code === 'KeyX') self.input.curlOut = false;
   });
 
   window.addEventListener('blur', function () {
@@ -876,7 +920,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain || p.inCar) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar || p.inDigger) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -910,6 +954,12 @@ Game.prototype.onUse = function () {
       this.enterCar(hitCar.car);
       return;
     }
+  }
+
+  // 0-4) 포크레인 타기 (공사장)
+  if (this.nearestDigger) {
+    const ex = this.nearestDigger();
+    if (ex && !ex.driver) { this.enterDigger(ex); return; }
   }
 
   // 0-1) 주민과 거래 — 블록보다 앞에 있을 때만
@@ -1602,7 +1652,8 @@ Game.prototype.buildSaveData = function () {
     },
     chunks: chunks,
     furnaces: furnaces,
-    chests: chests
+    chests: chests,
+    money: this.money || 0
   };
 };
 
@@ -1662,6 +1713,7 @@ Game.prototype.load = function (given) {
   }
 
   this.initAssets();
+  this.money = data.money || 0;
   this.world = new World(null);
   this.world.seed = data.seed;
   // 시드에서 파생된 노이즈를 다시 만든다
@@ -1764,7 +1816,8 @@ Game.prototype.update = function (dt) {
   if (this.swingTimer > 0) this.swingTimer -= dt;
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
-  if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
+  if (p.inDigger && this.input.sneak && !this._sneakPrev) this.exitDigger();
+  else if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
   this._sneakPrev = this.input.sneak;
@@ -1775,6 +1828,20 @@ Game.prototype.update = function (dt) {
   } else if (p.onTrain) {
     // 열차를 타고 있으면 몸은 객실에 고정된다 (열차가 자리를 정한다)
     if (p.dead) this.exitTrain();
+  } else if (p.inDigger) {
+    // 굴착기 조종석에 앉는다
+    if (p.dead) this.exitDigger();
+    else {
+      const ex = p.inDigger;
+      ex.control(dt, this.input);
+      const a = ex.yaw + ex.swing;
+      p.x = ex.x - Math.sin(a) * 0.9;
+      p.z = ex.z - Math.cos(a) * 0.9;
+      p.y = ex.y + EX_TRACK_H + 1.0;
+      p.vx = p.vy = p.vz = 0;
+      p.onGround = true; p.fallStart = p.y;
+      this.updateDigJob(dt);
+    }
   } else if (p.inCar) {
     // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
     if (p.dead) this.exitCar();
@@ -1823,6 +1890,7 @@ Game.prototype.update = function (dt) {
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
   this.updateDriveHud();
+  this.updateDigHud();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -1938,11 +2006,12 @@ Game.prototype.render = function (dt) {
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
+  if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
-  if (!this.ui.open && !p.dead && !p.riding && !p.inCar) {
+  if (!this.ui.open && !p.dead && !p.riding && !p.inCar && !p.inDigger) {
     const hit = p.pick(5);
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }

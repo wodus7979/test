@@ -832,6 +832,81 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// ── 포크레인 ──────────────────────────────────────────────────────────
+// 궤도(하부) 위에 상부가 얹히고, 붐 → 암 → 버킷이 이어 붙는다.
+Renderer.prototype.drawDiggers = function (game, world, player, opts) {
+  const map = game.diggers;
+  if (!map || !map.size) return;
+  _geom.reset();
+  const self = this;
+  map.forEach(function (ex) {
+    const dx = ex.x - player.x, dz = ex.z - player.z;
+    if (dx * dx + dz * dz > 200 * 200) return;
+    if (!self.boxInFrustum(ex.x - 14, ex.y - 2, ex.z - 14, ex.x + 14, ex.y + 14, ex.z + 14)) return;
+    const bx = Math.floor(ex.x), by = Math.floor(ex.y), bz = Math.floor(ex.z);
+    const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by + 1), bz) / 15;
+    const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
+    const light = [Math.max(sky, 0.32), Math.max(blk, 0.25)];
+
+    // 하부 궤도 — 몸통 방향
+    const cy0 = Math.cos(ex.yaw), sy0 = Math.sin(ex.yaw);
+    const flat = function (ox, oy, oz) {
+      return function (px, py, pz, out) {
+        const lx = px + ox, ly = py + oy, lz = pz + oz;
+        out[0] = lx * cy0 + lz * sy0; out[1] = ly; out[2] = -lx * sy0 + lz * cy0;
+      };
+    };
+    for (const s of [-1, 1]) {
+      emitBox(_geom, ex.x, ex.y, ex.z, 0.9, EX_TRACK_H, EX_TRACK_L,
+        'ex_track', null, flat(s * (EX_TRACK_W / 2 - 0.45), 0, 0), light);
+    }
+    emitBox(_geom, ex.x, ex.y, ex.z, EX_TRACK_W - 0.6, 0.35, EX_TRACK_L - 1.2,
+      'ex_track', null, flat(0, EX_TRACK_H - 0.2, 0), light);
+
+    // 상부 — 회전한다
+    const a = ex.yaw + ex.swing;
+    const cy = Math.cos(a), sy = Math.sin(a);
+    const up = function (of, ou, oside) {
+      return function (px, py, pz, out) {
+        // px 는 좌우, py 는 위아래, pz 는 앞뒤
+        const lx = px + (oside || 0), ly = py + ou, lz = pz + of;
+        out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+      };
+    };
+    const base = EX_TRACK_H;
+    emitBox(_geom, ex.x, ex.y, ex.z, 2.6, 0.4, 3.4, 'ex_body', null, up(-0.2, base, 0), light);
+    emitBox(_geom, ex.x, ex.y, ex.z, 1.7, EX_CAB_H, 1.9, 'ex_body', 'ex_glass',
+      up(0.5, base + 0.4, -0.55), light);
+    emitBox(_geom, ex.x, ex.y, ex.z, 1.5, 1.2, 1.5, 'ex_body', null,
+      up(-1.5, base + 0.4, 0.3), light);   // 뒤 균형추
+
+    // 팔 — 각 마디를 통째 상자 하나로 그린다
+    const jt = ex.joints();
+    const arms = jt.arms;
+    const texes = ['ex_boom', 'ex_boom', 'ex_bucket'];
+    const thick = [0.55, 0.45, 0.9];
+    for (let k = 0; k < arms.length; k++) {
+      const seg = arms[k];
+      const ca2 = Math.cos(seg.ang), sa2 = Math.sin(seg.ang);
+      const tf = function (px, py, pz, out) {
+        // pz 를 마디 길이 방향으로 쓴다
+        const lf = seg.f + (pz + seg.len / 2) * ca2 - py * sa2;
+        const lu = seg.u + (pz + seg.len / 2) * sa2 + py * ca2;
+        const lx = px;
+        out[0] = lx * cy + lf * sy; out[1] = lu; out[2] = -lx * sy + lf * cy;
+      };
+      emitBox(_geom, ex.x, ex.y, ex.z, thick[k], thick[k], seg.len, texes[k], null, tf, light);
+    }
+    // 버킷에 담긴 흙
+    if (ex.loaded) {
+      const t = ex.tipPos();
+      emitBox(_geom, t[0], t[1] - 0.1, t[2], 0.9, 0.5, 0.9, 'ex_dirt', null,
+        function (px, py, pz, out) { out[0] = px; out[1] = py - 0.25; out[2] = pz; }, light);
+    }
+  });
+  this.flushEntityGeom(opts);
+};
+
 // 쫓아오는 순찰차 — 실제 Car 가 아니라 게임이 들고 있는 간단한 표적이다
 Renderer.prototype.drawChase = function (game, world, player, opts) {
   const ch = game.chase;
