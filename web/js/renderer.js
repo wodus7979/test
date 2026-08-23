@@ -750,13 +750,13 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
           const ang = t.wheelAngle + sp * (Math.PI / 3);
           const ca = Math.cos(ang), sa = Math.sin(ang);
           const wt = function (px, py, pz, out) {
-            // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전
+            // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전. b.y 는 굴대 높이다.
             const ry = py - b.r, rz = pz;
             const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
             out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
           };
-          emitBox(_geom, t.x, t.y, t.z, b.w, b.r * 2, b.r * 0.62, 'tr_wheel', null, wt, light);
+          emitBox(_geom, t.x, t.y, t.z, b.w, b.r * 2, b.r, 'tr_wheel', null, wt, light);
         }
         continue;
       }
@@ -808,12 +808,13 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
           const ang = c.wheelAngle + sp * (Math.PI / 3);
           const ca = Math.cos(ang), sa = Math.sin(ang);
           const wt = function (px, py, pz, out) {
+            // b.y 는 굴대 높이 — 반지름을 또 더하면 바퀴가 반지름만큼 떠오른다
             const ry = py - b.r, rz = pz;
             const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
             out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
           };
-          emitBox(_geom, c.x, c.y, c.z, b.w, b.r * 2, b.r * 0.62, 'car_wheel', null, wt, light);
+          emitBox(_geom, c.x, c.y, c.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
         }
         continue;
       }

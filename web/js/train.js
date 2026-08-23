@@ -94,7 +94,8 @@ function trainCarParts(P, zc, isFront, isBack) {
     P.push({ x: 0, y: -2.05, z: zc + bz, w: 1.6, h: 0.4, d: 3.0, tex: 'tr_bogie' });
     for (const wx of [-1.28, 1.28]) {
       for (const wz of [bz - 1.35, bz + 1.35]) {
-        P.push({ wheel: true, x: wx, y: -2.62, z: zc + wz, r: TRAIN_WHEEL_R, w: 0.34 });
+        // 굴대 높이 — 바퀴 아랫면이 레일에 정확히 닿는 자리
+        P.push({ wheel: true, x: wx, y: -(TRAIN_RIDE - TRAIN_WHEEL_R), z: zc + wz, r: TRAIN_WHEEL_R, w: 0.34 });
       }
     }
   }

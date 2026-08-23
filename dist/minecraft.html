@@ -12607,7 +12607,8 @@ function trainCarParts(P, zc, isFront, isBack) {
     P.push({ x: 0, y: -2.05, z: zc + bz, w: 1.6, h: 0.4, d: 3.0, tex: 'tr_bogie' });
     for (const wx of [-1.28, 1.28]) {
       for (const wz of [bz - 1.35, bz + 1.35]) {
-        P.push({ wheel: true, x: wx, y: -2.62, z: zc + wz, r: TRAIN_WHEEL_R, w: 0.34 });
+        // 굴대 높이 — 바퀴 아랫면이 레일에 정확히 닿는 자리
+        P.push({ wheel: true, x: wx, y: -(TRAIN_RIDE - TRAIN_WHEEL_R), z: zc + wz, r: TRAIN_WHEEL_R, w: 0.34 });
       }
     }
   }
@@ -12934,10 +12935,17 @@ function carBody(paint, opts) {
     box(s * (W / 2 - 0.42), 0.86, L / 2 + 0.1, 0.5, 0.26, 0.14, 'car_lightF');
     box(s * (W / 2 - 0.42), 0.86, -L / 2 - 0.1, 0.5, 0.26, 0.14, 'car_lightR');
   }
-  // 바퀴 넷
+  // 바퀴 넷 — 축간거리는 차 길이의 6할쯤 (실제 승용차 비율)
+  const axle = L * 0.30;
   for (const s of [-1, 1]) {
-    for (const z of [L / 2 - 1.05, -L / 2 + 1.05]) {
+    for (const z of [axle, -axle]) {
       P.push({ wheel: true, x: s * (W / 2 - 0.06), y: CAR_WHEEL_R, z: z, r: CAR_WHEEL_R, w: 0.3 });
+    }
+  }
+  // 바퀴 위 흙받이 — 바퀴가 차체 밖으로 조금 나오므로 위를 덮어 준다
+  for (const s of [-1, 1]) {
+    for (const z of [axle, -axle]) {
+      box(s * (W / 2 - 0.02), CAR_WHEEL_R + 0.42, z, 0.16, 0.18, CAR_WHEEL_R * 2.3, 'car_black');
     }
   }
   if (opts.extra) opts.extra(P, box, L, W);
@@ -15118,13 +15126,13 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
           const ang = t.wheelAngle + sp * (Math.PI / 3);
           const ca = Math.cos(ang), sa = Math.sin(ang);
           const wt = function (px, py, pz, out) {
-            // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전
+            // 바퀴 로컬 (py 는 0~h) -> 축(X) 둘레 회전. b.y 는 굴대 높이다.
             const ry = py - b.r, rz = pz;
             const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
             out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
           };
-          emitBox(_geom, t.x, t.y, t.z, b.w, b.r * 2, b.r * 0.62, 'tr_wheel', null, wt, light);
+          emitBox(_geom, t.x, t.y, t.z, b.w, b.r * 2, b.r, 'tr_wheel', null, wt, light);
         }
         continue;
       }
@@ -15176,12 +15184,13 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
           const ang = c.wheelAngle + sp * (Math.PI / 3);
           const ca = Math.cos(ang), sa = Math.sin(ang);
           const wt = function (px, py, pz, out) {
+            // b.y 는 굴대 높이 — 반지름을 또 더하면 바퀴가 반지름만큼 떠오른다
             const ry = py - b.r, rz = pz;
             const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
-            const lx = px + b.x, ly = y2 + b.y + b.r, lz = z2 + b.z;
+            const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
             out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
           };
-          emitBox(_geom, c.x, c.y, c.z, b.w, b.r * 2, b.r * 0.62, 'car_wheel', null, wt, light);
+          emitBox(_geom, c.x, c.y, c.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
         }
         continue;
       }

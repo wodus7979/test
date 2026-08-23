@@ -34,10 +34,17 @@ function carBody(paint, opts) {
     box(s * (W / 2 - 0.42), 0.86, L / 2 + 0.1, 0.5, 0.26, 0.14, 'car_lightF');
     box(s * (W / 2 - 0.42), 0.86, -L / 2 - 0.1, 0.5, 0.26, 0.14, 'car_lightR');
   }
-  // 바퀴 넷
+  // 바퀴 넷 — 축간거리는 차 길이의 6할쯤 (실제 승용차 비율)
+  const axle = L * 0.30;
   for (const s of [-1, 1]) {
-    for (const z of [L / 2 - 1.05, -L / 2 + 1.05]) {
+    for (const z of [axle, -axle]) {
       P.push({ wheel: true, x: s * (W / 2 - 0.06), y: CAR_WHEEL_R, z: z, r: CAR_WHEEL_R, w: 0.3 });
+    }
+  }
+  // 바퀴 위 흙받이 — 바퀴가 차체 밖으로 조금 나오므로 위를 덮어 준다
+  for (const s of [-1, 1]) {
+    for (const z of [axle, -axle]) {
+      box(s * (W / 2 - 0.02), CAR_WHEEL_R + 0.42, z, 0.16, 0.18, CAR_WHEEL_R * 2.3, 'car_black');
     }
   }
   if (opts.extra) opts.extra(P, box, L, W);
