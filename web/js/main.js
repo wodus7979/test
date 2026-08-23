@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.3';
+const GAME_VERSION = 'v7.4';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '도시에서 바로 시작 · 도시 교통 · 경찰서와 소방서 · 3량 전동차';
+const GAME_FEATURES = '자동차 운전 · 복선 철로 · 역 계단과 에스컬레이터 · 도시에서 바로 시작';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -243,6 +243,32 @@ Game.prototype.spawnAtCity = function (code) {
     if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
   }
   return { x: c.spawn.x, z: c.spawn.z, name: c.name, code: c.code };
+};
+
+// ── 에스컬레이터 ──────────────────────────────────────────────────────
+// 역 계단 옆 에스컬레이터에 올라서면 가만 있어도 승강장까지 실려 올라간다.
+// 발판 한 칸이 한 블록씩 높아지므로 앞으로 밀어 주기만 하면 계단처럼 오른다.
+const ESCALATOR_SPEED = 3.2;
+
+Game.prototype.updateEscalators = function () {
+  const p = this.player;
+  if (p.riding || p.onTrain || p.inCar || p.flying || p.dead) return;
+  if (!this.world.cities) return;
+  const list = this.world.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.escalators) continue;
+    if (Math.abs(c.x - p.x) > 600 || Math.abs(c.z - p.z) > 600) continue;
+    for (let k = 0; k < c.escalators.length; k++) {
+      const e = c.escalators[k];
+      if (p.x < e.x0 - 0.4 || p.x > e.x1 + 1.4) continue;
+      if (p.z < e.z0 - 0.4 || p.z > e.z1 + 1.4) continue;
+      if (p.y < e.y0 - 1 || p.y > e.y1 + 1) continue;
+      p.beltX = e.dx * ESCALATOR_SPEED;
+      p.beltZ = e.dz * ESCALATOR_SPEED;
+      return;
+    }
+  }
 };
 
 Game.prototype.respawn = function () {
@@ -788,7 +814,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -811,6 +837,15 @@ Game.prototype.onUse = function () {
     const hitTrain = this.entities.pickTrain(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 8);
     if (hitTrain && (!hit.hit || hitTrain.t < hit.dist)) {
       this.enterTrain(hitTrain.train);
+      return;
+    }
+  }
+
+  // 0-3) 자동차 타기
+  if (this.entities.pickCar) {
+    const hitCar = this.entities.pickCar(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 5);
+    if (hitCar && (!hit.hit || hitCar.dist < hit.dist)) {
+      this.enterCar(hitCar.car);
       return;
     }
   }
@@ -920,6 +955,43 @@ Game.prototype.exitTrain = function () {
   if (!t) return;
   t.unboard();
   this.ui.toast('열차에서 내렸습니다');
+};
+
+// ── 자동차 운전 ───────────────────────────────────────────────────────
+Game.prototype.enterCar = function (car) {
+  if (!car.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, Shift 내리기');
+  this.playSound('place');
+};
+
+Game.prototype.exitCar = function () {
+  const car = this.player.inCar;
+  if (!car) return;
+  car.unboard();
+  this.ui.toast('차에서 내렸습니다');
+};
+
+// 운전 중 카메라 — 차 뒤쪽 위에서 따라간다
+Game.prototype.carCamera = function (car, dt) {
+  if (this._carYaw === undefined) this._carYaw = car.yaw;
+  let d = car.yaw - this._carYaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  this._carYaw += d * Math.min(1, (dt || 0.016) * 6);
+
+  const back = 9.5 + Math.min(3.5, Math.abs(car.speed) * 0.22);
+  const up = 4.4;
+  const s = Math.sin(this._carYaw), c = Math.cos(this._carYaw);
+  let ex = car.x - s * back, ez = car.z - c * back;
+  let ey = car.y + up;
+  const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
+  if (gy >= 0 && ey < gy + 2.2) ey = gy + 2.2;
+  return {
+    eye: [ex, ey, ez],
+    yaw: this._carYaw + Math.PI,   // 렌더러 규약(앞 = -Z)에 맞춘다
+    pitch: -0.22,
+    roll: 0
+  };
 };
 
 // 역에 서면 알려 준다
@@ -1628,6 +1700,7 @@ Game.prototype.update = function (dt) {
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
   if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
+  else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
   this._sneakPrev = this.input.sneak;
 
   if (p.riding) {
@@ -1636,7 +1709,18 @@ Game.prototype.update = function (dt) {
   } else if (p.onTrain) {
     // 열차를 타고 있으면 몸은 객실에 고정된다 (열차가 자리를 정한다)
     if (p.dead) this.exitTrain();
+  } else if (p.inCar) {
+    // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
+    if (p.dead) this.exitCar();
+    else {
+      const s = p.inCar.seatPos();
+      p.x = s[0]; p.y = s[1] - PLAYER_EYE; p.z = s[2];
+      p.vx = p.vy = p.vz = 0;
+      p.onGround = true;
+      p.fallStart = p.y;
+    }
   } else if (!this.ui.open && !p.dead) {
+    this.updateEscalators();
     p.update(dt, this.input);
     this.updateMining(dt);
     // 우클릭 유지 = 연속 설치
@@ -1772,6 +1856,7 @@ Game.prototype.render = function (dt) {
     opts.shakeY = (Math.random() - 0.5) * this.shake * 0.06;
   }
   if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
+  else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawClouds(p, opts);
@@ -1783,7 +1868,7 @@ Game.prototype.render = function (dt) {
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
-  if (!this.ui.open && !p.dead && !p.riding) {
+  if (!this.ui.open && !p.dead && !p.riding && !p.inCar) {
     const hit = p.pick(5);
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }

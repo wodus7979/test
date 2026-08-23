@@ -11,7 +11,8 @@ const CITY_DIST = 340;      // 공항 중심에서 도시 중심까지 (활주�
 const CITY_GRID = 26;       // 격자 간격
 const ROAD_HALF = 3;        // 도로 반폭
 const RAIL_UP = 12;         // 고가 철로 높이
-const RAIL_HALF = 3;        // 고가 상판 반폭
+const RAIL_HALF = 6;        // 고가 상판 반폭 (복선이라 넓다)
+const TRACK_OFFSET = 3;     // 상판 가운데에서 각 선로 중심까지 (상행 +, 하행 -)
 
 // ── 도시 색채 ─────────────────────────────────────────────────────────
 let CSTYLE = null;
@@ -774,24 +775,29 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
       set(x, ry, z, Math.abs(d) === RAIL_HALF ? st.trim : st.walk);       // 상판
       // 상판 위로 통로를 비운다 (언덕을 만나면 뚫고 지나간다)
       plan.set(x, ry + 1, z, 0, 0, true, 9);
-      if (Math.abs(d) === RAIL_HALF) {
+      const ad = Math.abs(d);
+      if (ad === RAIL_HALF) {
         set(x, ry + 1, z, B.iron_bars);
         set(x, ry + 2, z, B.iron_bars);
-      } else if (Math.abs(d) === 1) {
-        set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);        // 레일
+      } else if (ad === TRACK_OFFSET - 1 || ad === TRACK_OFFSET + 1) {
+        // 선로 두 벌 — 가운데(d=0)를 사이에 두고 상행·하행이 따로 간다
+        set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);
+      } else if (d === 0) {
+        set(x, ry, z, st.dash);   // 두 선로를 가르는 가운데 줄
       }
     }
     // 교각
     if ((a - a0) % 9 === 0) {
       const px = horiz ? a : b, pz = horiz ? b : a;
       const g = w.heightAt(px, pz);
-      for (const d of [-2, 2]) {
+      for (const d of [-4, 4]) {
         const qx = horiz ? px : px + d, qz = horiz ? pz + d : pz;
         const h = ry - 1 - Math.max(1, g);
         if (h > 0) plan.set(qx, Math.max(1, g), qz, st.post, 0, true, h + 1);
       }
-      set(horiz ? px : px - 3, ry - 1, horiz ? pz - 3 : pz, st.post);
-      set(horiz ? px : px + 3, ry - 1, horiz ? pz + 3 : pz, st.post);
+      for (const d of [-6, 6]) {
+        set(horiz ? px : px + d, ry - 1, horiz ? pz + d : pz, st.post);
+      }
     }
   }
 }
@@ -841,25 +847,92 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
     set(faceX ? cx + d : cx - 6, ry + 3, faceX ? cz - 6 : cz + d, B.flight_board, faceX ? 0 : 1);
   }
 
-  // 지상으로 내려가는 계단탑
-  const sx = faceX ? cx + L + 2 : cx + 7;
-  const sz = faceX ? cz + 7 : cz + L + 2;
-  for (let y = gy; y <= ry; y++) {
-    for (let dz = -2; dz <= 2; dz++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
-        set(sx + dx, y, sz + dz, edge ? st.trim : 0);
+  // ── 지상에서 승강장으로 — 계단 한 벌과 에스컬레이터 한 벌 ──
+  // 승강장 옆(가로 방향 바깥)으로 나란히 내려간다. 한 칸 오를 때마다 한 칸
+  // 물러나므로, 승강장 높이(ry-gy)만큼 길어진다.
+  const rise = ry - gy;
+  // u = 승강장을 따라가는 축, v = 승강장에서 바깥으로 나가는 축
+  const at = function (u, v, y, id, meta, run) {
+    const x = faceX ? cx + u : cx + v;
+    const z = faceX ? cz + v : cz + u;
+    set(x, y, z, id, meta, run);
+  };
+  const runSet = function (u, v, y, id, run) {
+    const x = faceX ? cx + u : cx + v;
+    const z = faceX ? cz + v : cz + u;
+    plan.set(x, y, z, id, 0, true, run);
+  };
+
+  const V0 = 7;                       // 승강장 유리벽 바로 바깥
+  const STAIR_U = -6, ESC_U = 2;      // 계단 / 에스컬레이터가 놓이는 자리
+  const WIDE = 4;                     // 각각 네 칸 폭
+
+  for (let k = 0; k <= rise; k++) {
+    const v = V0 + k;                 // 바깥으로 나갈수록
+    const top = ry - k;               // 그만큼 낮아진다
+    for (const [u0, kind] of [[STAIR_U, 'stair'], [ESC_U, 'esc']]) {
+      for (let w = 0; w < WIDE; w++) {
+        const u = u0 + w;
+        // 디딤판 아래를 땅까지 채워 받친다 (run 하나로 기록)
+        if (top - 1 >= gy) runSet(u, v, gy, st.base || st.trim, top - gy);
+        at(u, top, v, kind === 'esc' ? bid('black_concrete') : st.floor);
+        // 위쪽은 비워 둔다
+        runSet(u, top + 1, v, 0, 4);
+      }
+      // 난간
+      for (const w of [-1, WIDE]) {
+        at(u0 + w, top, v, st.trim);
+        at(u0 + w, top + 1, v, B.iron_bars);
+        at(u0 + w, top + 2, v, B.iron_bars);
       }
     }
-    set(sx, y, sz + 1, B.ladder, 0);
+    // 에스컬레이터 발판 가운데 줄 — 움직이는 느낌을 주는 금속 띠
+    if (k % 2 === 0) {
+      at(ESC_U + 1, ry - k, v, bid('iron_block', 'light_gray_concrete'));
+      at(ESC_U + 2, ry - k, v, bid('iron_block', 'light_gray_concrete'));
+    }
   }
-  for (let dz = -2; dz <= 2; dz++) {
-    for (let dx = -2; dx <= 2; dx++) set(sx + dx, gy, sz + dz, st.plaza);
+
+  // 두 벌 사이 벽과, 맨 위 승강장으로 이어지는 자리를 비운다
+  for (let k = 0; k <= rise; k++) {
+    const v = V0 + k;
+    for (const u of [STAIR_U + WIDE + 1, ESC_U - 2]) at(u, ry - k, v, st.trim);
   }
-  set(sx - 1, gy + 1, sz - 2, 0); set(sx, gy + 1, sz - 2, 0); set(sx + 1, gy + 1, sz - 2, 0);
-  set(sx - 1, gy + 2, sz - 2, 0); set(sx, gy + 2, sz - 2, 0); set(sx + 1, gy + 2, sz - 2, 0);
-  set(sx, ry + 1, sz, 0); set(sx, ry + 2, sz, 0);
-  return { x: sx, y: gy, z: sz };
+
+  // 지상 광장 — 계단·에스컬레이터 아래를 포장한다
+  const gv = V0 + rise;
+  for (let v = gv - 1; v <= gv + 4; v++) {
+    for (let u = STAIR_U - 2; u <= ESC_U + WIDE + 1; u++) at(u, gy, v, st.plaza);
+  }
+  // 입구 표지
+  apText(plan, 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + gv + 3,
+    faceX ? cz + gv + 3 : cz + (STAIR_U + ESC_U) / 2 + 2, 1, st.accent, !faceX, gy, faceX);
+  // 조명
+  for (let k = 2; k <= rise; k += 4) {
+    at(STAIR_U - 1, ry - k + 3, V0 + k, B.sea_lantern);
+    at(ESC_U + WIDE, ry - k + 3, V0 + k, B.sea_lantern);
+  }
+
+  // 에스컬레이터는 실제로 사람을 밀어 올린다 (main.js 가 이 상자를 본다)
+  const eu0 = ESC_U, eu1 = ESC_U + WIDE - 1;
+  const ev0 = V0, ev1 = V0 + rise;
+  const esc = {
+    x0: faceX ? cx + eu0 : cx + ev0, x1: faceX ? cx + eu1 : cx + ev1,
+    z0: faceX ? cz + ev0 : cz + eu0, z1: faceX ? cz + ev1 : cz + eu1,
+    y0: gy, y1: ry + 2,
+    // 위로 가는 방향 = 바깥(v 큰 쪽)에서 승강장(v 작은 쪽)으로
+    dx: faceX ? 0 : -1, dz: faceX ? -1 : 0
+  };
+  if (!plan.escalators) plan.escalators = [];
+  plan.escalators.push(esc);
+
+  // 개찰구로 삼을 지상 지점 (계단 아래)
+  const gate = {
+    x: faceX ? cx + STAIR_U + 1 : cx + gv + 1,
+    y: gy,
+    z: faceX ? cz + gv + 1 : cz + STAIR_U + 1
+  };
+  return gate;
 }
 
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────

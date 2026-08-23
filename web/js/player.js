@@ -293,7 +293,9 @@ Player.prototype.update = function (dt, input) {
   } else {
     // 지상 마찰 / 공중 관성
     const control = this.onGround ? 1 : (this.inWater ? 0.5 : 0.25);
-    const targetVx = wx * speed, targetVz = wz * speed;
+    // 발판(에스컬레이터)이 밀어 주는 몫을 걸음에 더한다 — 가만 있어도 실려 간다
+    const targetVx = wx * speed + (this.beltX || 0);
+    const targetVz = wz * speed + (this.beltZ || 0);
     this.vx += (targetVx - this.vx) * Math.min(1, control * dt * 14);
     this.vz += (targetVz - this.vz) * Math.min(1, control * dt * 14);
 
@@ -329,6 +331,7 @@ Player.prototype.update = function (dt, input) {
 
   const wasGround = this.onGround;
   this.onGround = false;
+  this.beltX = 0; this.beltZ = 0;   // 다음 프레임에 다시 얹어 준다
   const dx = this.vx * dt, dy = this.vy * dt, dz = this.vz * dt;
 
   // 계단 오르기 시도

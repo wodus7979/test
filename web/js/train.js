@@ -176,19 +176,31 @@ TrainRoute.prototype.at = function (s) {
 };
 
 // ── 열차 ──────────────────────────────────────────────────────────────
-function Train(world, route, s, dir) {
+function Train(world, route, s, dir, track) {
   this.world = world;
   this.route = route;
   this.s = s;
   this.dir = dir || 1;
+  // 복선 — 편성마다 제 선로를 하나 잡고 왕복 내내 그 선로만 쓴다.
+  // 종착역에서 방향을 바꿔도 선로를 바꾸지 않으므로(승강장 양쪽 면),
+  // 두 편성은 어디서 마주쳐도 늘 선로 간격만큼 떨어져 있다.
+  this.track = track || 1;
   this.speed = 0;
   this.dwell = 2 + Math.random() * 4;
   this.rider = null;
-  this.yaw = 0;
   this.wheelAngle = 0;
   const p = route.at(s);
-  this.x = p.x; this.y = route.y + TRAIN_RIDE; this.z = p.z;
+  this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  const o = this.trackOffset(p.yaw);
+  this.x = p.x + o[0]; this.y = route.y + TRAIN_RIDE; this.z = p.z + o[1];
 }
+
+// 노선 중심선에서 제 선로까지의 옆거리. 노선이 향하는 쪽을 기준으로 잡으므로
+// 열차가 어느 쪽으로 달리든 같은 선로에 머문다.
+Train.prototype.trackOffset = function (routeYaw) {
+  const k = TRACK_OFFSET * this.track;
+  return [Math.cos(routeYaw) * k, -Math.sin(routeYaw) * k];
+};
 
 Train.prototype.update = function (dt) {
   const r = this.route;
@@ -211,9 +223,10 @@ Train.prototype.update = function (dt) {
     }
   }
   const p = r.at(this.s);
-  this.x = p.x; this.z = p.z;
   this.y = r.y + TRAIN_RIDE;
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  const o = this.trackOffset(p.yaw);
+  this.x = p.x + o[0]; this.z = p.z + o[1];
   this.wheelAngle += (this.speed * dt) / TRAIN_WHEEL_R;
 };
 
@@ -349,7 +362,9 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
     let here = 0;
     for (let k = 0; k < this.trains.length; k++) if (this.trains[k].route === r) here++;
     while (here < 2) {
-      this.trains.push(new Train(this.world, r, here === 0 ? 0 : r.len, here === 0 ? 1 : -1));
+      // 한 대는 상행 선로, 한 대는 하행 선로
+      this.trains.push(new Train(this.world, r,
+        here === 0 ? 0 : r.len, here === 0 ? 1 : -1, here === 0 ? 1 : -1));
       here++;
     }
   }

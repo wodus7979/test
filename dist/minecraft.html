@@ -756,6 +756,9 @@ body.touch .hand { display: none !important; }
           <li>도시 길에는 <b>자동차 여덟 종류</b>(승용차·택시·승합차·버스·트럭·순찰차·소방차)가
               우측통행으로 달리고, 교차로에서 방향을 튼다. 앞에 서 있으면 멈춘다.
               도시마다 <b>경찰서</b>와 <b>소방서</b>도 있다</li>
+          <li>지나가는 <b>자동차에 우클릭하면 직접 몰 수 있다</b> —
+              <b>W/S</b> 가속·후진, <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기.
+              벽에 막히면 후진으로 빠져나오면 된다</li>
           <li>공항마다 <b>도시</b>가 하나씩 딸려 있고 <b>생김새가 저마다 다르다</b> —
               유리 신도시 <b>인천 송도</b>, <b>롯데타워</b>와 벽돌 상가 거리가 섞인 <b>김포 도심</b>,
               현무암 기단에 주황 기와를 얹은 <b>제주시</b>. 횡단보도와 가로수도 있다.
@@ -763,6 +766,9 @@ body.touch .hand { display: none !important; }
           <li>터미널 옆 <b>공항철도역</b>에서 <b>3량짜리 전동차</b>가 도시까지 오간다.
               바퀴가 실제로 구르고, <b>객실 안을 걸어 다닐 수 있다</b> —
               열차에 <b>우클릭</b>하면 타고, 안에서 <b>WASD</b>로 움직이고, <b>Shift</b>로 내린다</li>
+          <li>고가 철로는 <b>복선</b>이라 상행·하행 열차가 제 선로로 다닌다 (마주쳐도 안 부딪힌다)</li>
+          <li>역 승강장으로는 <b>계단</b>과 <b>에스컬레이터</b>로 올라간다.
+              에스컬레이터는 올라서 있기만 하면 알아서 실어 준다</li>
           <li>공항 안은 의자·소파·카운터·진열장 같은 <b>진짜 가구</b>로 꾸며져 있다 (창작 모드 <b>가구</b> 탭)</li>
           <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다.
               하늘이 두 배로 높아져 <b>고도 150</b>까지 올라갈 수 있다</li>
@@ -9246,7 +9252,8 @@ const CITY_DIST = 340;      // 공항 중심에서 도시 중심까지 (활주�
 const CITY_GRID = 26;       // 격자 간격
 const ROAD_HALF = 3;        // 도로 반폭
 const RAIL_UP = 12;         // 고가 철로 높이
-const RAIL_HALF = 3;        // 고가 상판 반폭
+const RAIL_HALF = 6;        // 고가 상판 반폭 (복선이라 넓다)
+const TRACK_OFFSET = 3;     // 상판 가운데에서 각 선로 중심까지 (상행 +, 하행 -)
 
 // ── 도시 색채 ─────────────────────────────────────────────────────────
 let CSTYLE = null;
@@ -10009,24 +10016,29 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
       set(x, ry, z, Math.abs(d) === RAIL_HALF ? st.trim : st.walk);       // 상판
       // 상판 위로 통로를 비운다 (언덕을 만나면 뚫고 지나간다)
       plan.set(x, ry + 1, z, 0, 0, true, 9);
-      if (Math.abs(d) === RAIL_HALF) {
+      const ad = Math.abs(d);
+      if (ad === RAIL_HALF) {
         set(x, ry + 1, z, B.iron_bars);
         set(x, ry + 2, z, B.iron_bars);
-      } else if (Math.abs(d) === 1) {
-        set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);        // 레일
+      } else if (ad === TRACK_OFFSET - 1 || ad === TRACK_OFFSET + 1) {
+        // 선로 두 벌 — 가운데(d=0)를 사이에 두고 상행·하행이 따로 간다
+        set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);
+      } else if (d === 0) {
+        set(x, ry, z, st.dash);   // 두 선로를 가르는 가운데 줄
       }
     }
     // 교각
     if ((a - a0) % 9 === 0) {
       const px = horiz ? a : b, pz = horiz ? b : a;
       const g = w.heightAt(px, pz);
-      for (const d of [-2, 2]) {
+      for (const d of [-4, 4]) {
         const qx = horiz ? px : px + d, qz = horiz ? pz + d : pz;
         const h = ry - 1 - Math.max(1, g);
         if (h > 0) plan.set(qx, Math.max(1, g), qz, st.post, 0, true, h + 1);
       }
-      set(horiz ? px : px - 3, ry - 1, horiz ? pz - 3 : pz, st.post);
-      set(horiz ? px : px + 3, ry - 1, horiz ? pz + 3 : pz, st.post);
+      for (const d of [-6, 6]) {
+        set(horiz ? px : px + d, ry - 1, horiz ? pz + d : pz, st.post);
+      }
     }
   }
 }
@@ -10076,25 +10088,92 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
     set(faceX ? cx + d : cx - 6, ry + 3, faceX ? cz - 6 : cz + d, B.flight_board, faceX ? 0 : 1);
   }
 
-  // 지상으로 내려가는 계단탑
-  const sx = faceX ? cx + L + 2 : cx + 7;
-  const sz = faceX ? cz + 7 : cz + L + 2;
-  for (let y = gy; y <= ry; y++) {
-    for (let dz = -2; dz <= 2; dz++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
-        set(sx + dx, y, sz + dz, edge ? st.trim : 0);
+  // ── 지상에서 승강장으로 — 계단 한 벌과 에스컬레이터 한 벌 ──
+  // 승강장 옆(가로 방향 바깥)으로 나란히 내려간다. 한 칸 오를 때마다 한 칸
+  // 물러나므로, 승강장 높이(ry-gy)만큼 길어진다.
+  const rise = ry - gy;
+  // u = 승강장을 따라가는 축, v = 승강장에서 바깥으로 나가는 축
+  const at = function (u, v, y, id, meta, run) {
+    const x = faceX ? cx + u : cx + v;
+    const z = faceX ? cz + v : cz + u;
+    set(x, y, z, id, meta, run);
+  };
+  const runSet = function (u, v, y, id, run) {
+    const x = faceX ? cx + u : cx + v;
+    const z = faceX ? cz + v : cz + u;
+    plan.set(x, y, z, id, 0, true, run);
+  };
+
+  const V0 = 7;                       // 승강장 유리벽 바로 바깥
+  const STAIR_U = -6, ESC_U = 2;      // 계단 / 에스컬레이터가 놓이는 자리
+  const WIDE = 4;                     // 각각 네 칸 폭
+
+  for (let k = 0; k <= rise; k++) {
+    const v = V0 + k;                 // 바깥으로 나갈수록
+    const top = ry - k;               // 그만큼 낮아진다
+    for (const [u0, kind] of [[STAIR_U, 'stair'], [ESC_U, 'esc']]) {
+      for (let w = 0; w < WIDE; w++) {
+        const u = u0 + w;
+        // 디딤판 아래를 땅까지 채워 받친다 (run 하나로 기록)
+        if (top - 1 >= gy) runSet(u, v, gy, st.base || st.trim, top - gy);
+        at(u, top, v, kind === 'esc' ? bid('black_concrete') : st.floor);
+        // 위쪽은 비워 둔다
+        runSet(u, top + 1, v, 0, 4);
+      }
+      // 난간
+      for (const w of [-1, WIDE]) {
+        at(u0 + w, top, v, st.trim);
+        at(u0 + w, top + 1, v, B.iron_bars);
+        at(u0 + w, top + 2, v, B.iron_bars);
       }
     }
-    set(sx, y, sz + 1, B.ladder, 0);
+    // 에스컬레이터 발판 가운데 줄 — 움직이는 느낌을 주는 금속 띠
+    if (k % 2 === 0) {
+      at(ESC_U + 1, ry - k, v, bid('iron_block', 'light_gray_concrete'));
+      at(ESC_U + 2, ry - k, v, bid('iron_block', 'light_gray_concrete'));
+    }
   }
-  for (let dz = -2; dz <= 2; dz++) {
-    for (let dx = -2; dx <= 2; dx++) set(sx + dx, gy, sz + dz, st.plaza);
+
+  // 두 벌 사이 벽과, 맨 위 승강장으로 이어지는 자리를 비운다
+  for (let k = 0; k <= rise; k++) {
+    const v = V0 + k;
+    for (const u of [STAIR_U + WIDE + 1, ESC_U - 2]) at(u, ry - k, v, st.trim);
   }
-  set(sx - 1, gy + 1, sz - 2, 0); set(sx, gy + 1, sz - 2, 0); set(sx + 1, gy + 1, sz - 2, 0);
-  set(sx - 1, gy + 2, sz - 2, 0); set(sx, gy + 2, sz - 2, 0); set(sx + 1, gy + 2, sz - 2, 0);
-  set(sx, ry + 1, sz, 0); set(sx, ry + 2, sz, 0);
-  return { x: sx, y: gy, z: sz };
+
+  // 지상 광장 — 계단·에스컬레이터 아래를 포장한다
+  const gv = V0 + rise;
+  for (let v = gv - 1; v <= gv + 4; v++) {
+    for (let u = STAIR_U - 2; u <= ESC_U + WIDE + 1; u++) at(u, gy, v, st.plaza);
+  }
+  // 입구 표지
+  apText(plan, 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + gv + 3,
+    faceX ? cz + gv + 3 : cz + (STAIR_U + ESC_U) / 2 + 2, 1, st.accent, !faceX, gy, faceX);
+  // 조명
+  for (let k = 2; k <= rise; k += 4) {
+    at(STAIR_U - 1, ry - k + 3, V0 + k, B.sea_lantern);
+    at(ESC_U + WIDE, ry - k + 3, V0 + k, B.sea_lantern);
+  }
+
+  // 에스컬레이터는 실제로 사람을 밀어 올린다 (main.js 가 이 상자를 본다)
+  const eu0 = ESC_U, eu1 = ESC_U + WIDE - 1;
+  const ev0 = V0, ev1 = V0 + rise;
+  const esc = {
+    x0: faceX ? cx + eu0 : cx + ev0, x1: faceX ? cx + eu1 : cx + ev1,
+    z0: faceX ? cz + ev0 : cz + eu0, z1: faceX ? cz + ev1 : cz + eu1,
+    y0: gy, y1: ry + 2,
+    // 위로 가는 방향 = 바깥(v 큰 쪽)에서 승강장(v 작은 쪽)으로
+    dx: faceX ? 0 : -1, dz: faceX ? -1 : 0
+  };
+  if (!plan.escalators) plan.escalators = [];
+  plan.escalators.push(esc);
+
+  // 개찰구로 삼을 지상 지점 (계단 아래)
+  const gate = {
+    x: faceX ? cx + STAIR_U + 1 : cx + gv + 1,
+    y: gy,
+    z: faceX ? cz + gv + 1 : cz + STAIR_U + 1
+  };
+  return gate;
 }
 
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────
@@ -11064,7 +11143,9 @@ Player.prototype.update = function (dt, input) {
   } else {
     // 지상 마찰 / 공중 관성
     const control = this.onGround ? 1 : (this.inWater ? 0.5 : 0.25);
-    const targetVx = wx * speed, targetVz = wz * speed;
+    // 발판(에스컬레이터)이 밀어 주는 몫을 걸음에 더한다 — 가만 있어도 실려 간다
+    const targetVx = wx * speed + (this.beltX || 0);
+    const targetVz = wz * speed + (this.beltZ || 0);
     this.vx += (targetVx - this.vx) * Math.min(1, control * dt * 14);
     this.vz += (targetVz - this.vz) * Math.min(1, control * dt * 14);
 
@@ -11100,6 +11181,7 @@ Player.prototype.update = function (dt, input) {
 
   const wasGround = this.onGround;
   this.onGround = false;
+  this.beltX = 0; this.beltZ = 0;   // 다음 프레임에 다시 얹어 준다
   const dx = this.vx * dt, dy = this.vy * dt, dz = this.vz * dt;
 
   // 계단 오르기 시도
@@ -12689,19 +12771,31 @@ TrainRoute.prototype.at = function (s) {
 };
 
 // ── 열차 ──────────────────────────────────────────────────────────────
-function Train(world, route, s, dir) {
+function Train(world, route, s, dir, track) {
   this.world = world;
   this.route = route;
   this.s = s;
   this.dir = dir || 1;
+  // 복선 — 편성마다 제 선로를 하나 잡고 왕복 내내 그 선로만 쓴다.
+  // 종착역에서 방향을 바꿔도 선로를 바꾸지 않으므로(승강장 양쪽 면),
+  // 두 편성은 어디서 마주쳐도 늘 선로 간격만큼 떨어져 있다.
+  this.track = track || 1;
   this.speed = 0;
   this.dwell = 2 + Math.random() * 4;
   this.rider = null;
-  this.yaw = 0;
   this.wheelAngle = 0;
   const p = route.at(s);
-  this.x = p.x; this.y = route.y + TRAIN_RIDE; this.z = p.z;
+  this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  const o = this.trackOffset(p.yaw);
+  this.x = p.x + o[0]; this.y = route.y + TRAIN_RIDE; this.z = p.z + o[1];
 }
+
+// 노선 중심선에서 제 선로까지의 옆거리. 노선이 향하는 쪽을 기준으로 잡으므로
+// 열차가 어느 쪽으로 달리든 같은 선로에 머문다.
+Train.prototype.trackOffset = function (routeYaw) {
+  const k = TRACK_OFFSET * this.track;
+  return [Math.cos(routeYaw) * k, -Math.sin(routeYaw) * k];
+};
 
 Train.prototype.update = function (dt) {
   const r = this.route;
@@ -12724,9 +12818,10 @@ Train.prototype.update = function (dt) {
     }
   }
   const p = r.at(this.s);
-  this.x = p.x; this.z = p.z;
   this.y = r.y + TRAIN_RIDE;
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
+  const o = this.trackOffset(p.yaw);
+  this.x = p.x + o[0]; this.z = p.z + o[1];
   this.wheelAngle += (this.speed * dt) / TRAIN_WHEEL_R;
 };
 
@@ -12862,7 +12957,9 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
     let here = 0;
     for (let k = 0; k < this.trains.length; k++) if (this.trains[k].route === r) here++;
     while (here < 2) {
-      this.trains.push(new Train(this.world, r, here === 0 ? 0 : r.len, here === 0 ? 1 : -1));
+      // 한 대는 상행 선로, 한 대는 하행 선로
+      this.trains.push(new Train(this.world, r,
+        here === 0 ? 0 : r.len, here === 0 ? 1 : -1, here === 0 ? 1 : -1));
       here++;
     }
   }
@@ -13081,6 +13178,121 @@ Car.prototype.sync = function () {
   }
 };
 
+// ── 사람이 모는 차 ────────────────────────────────────────────────────
+const CAR_DRIVE_ACC = 7.0;      // 밟았을 때 붙는 가속
+const CAR_DRIVE_MAX = 14.0;     // 사람이 몰 때 최고 속도
+const CAR_REV_MAX = 5.0;        // 후진
+const CAR_STEER = 1.5;          // 초당 최대 조향(라디안)
+const CAR_ROLL = 1.4;           // 발을 떼면 굴러가다 서는 감속
+
+Car.prototype.board = function (player) {
+  if (this.driver) return false;
+  this.driver = player;
+  player.inCar = this;
+  this.speed = 0;
+  return true;
+};
+
+// 지금 서 있는 자리에서 가장 가까운 차선을 찾아 다시 붙인다.
+// 이걸 안 하면 내리는 순간 원래 달리던 자리로 되돌아가 버린다.
+Car.prototype.rejoinLane = function () {
+  const c = this.city;
+  const lines = c.roadLines;
+  if (!lines || !lines.length) return;
+  const rx = this.x - c.x, rz = this.z - c.z;
+  let best = null;
+  for (let axis = 0; axis < 2; axis++) {
+    const across = axis === 0 ? rz : rx;      // 차선을 가로지르는 좌표
+    const along = axis === 0 ? rx : rz;
+    for (let i = 0; i < lines.length; i++) {
+      const d = Math.abs(across - lines[i]);
+      if (!best || d < best.d) best = { d: d, axis: axis, line: lines[i], pos: along, across: across };
+    }
+  }
+  if (!best) return;
+  this.axis = best.axis;
+  this.line = best.line;
+  this.pos = Math.max(-(CITY_R - 8), Math.min(CITY_R - 8, best.pos));
+  // 차선 안쪽(오른쪽)으로 붙는 방향을 고른다
+  const off = best.across - best.line;
+  this.dir = (best.axis === 0) ? (off >= 0 ? 1 : -1) : (off <= 0 ? 1 : -1);
+  this.turnCool = 2.5;
+  this.sync();
+};
+
+Car.prototype.unboard = function () {
+  const p = this.driver;
+  if (!p) return;
+  this.driver = null;
+  p.inCar = null;
+  // 왼쪽 옆에 내려 준다
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const w = this.type.wide / 2 + 1.1;
+  p.x = this.x - c * w; p.z = this.z + s * w;
+  p.y = this.y + 1;
+  p.vx = p.vy = p.vz = 0;
+  p.fallStart = p.y;
+  this.speed = 0;
+  this.rejoinLane();
+};
+
+// 운전석 눈높이
+Car.prototype.seatPos = function () {
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const lx = -this.type.wide * 0.22, lz = this.type.len * 0.06;
+  return [this.x + lx * c + lz * s, this.y + 1.45, this.z - lx * s + lz * c];
+};
+
+// 사람이 모는 동안의 움직임
+Car.prototype.drive = function (dt, input, world) {
+  // 앞뒤
+  let want = 0;
+  if (input.forward) want = CAR_DRIVE_MAX;
+  else if (input.back) want = -CAR_REV_MAX;
+  if (input.jump) want = 0;                      // Space = 급제동
+  const rate = (want === 0) ? CAR_ROLL * (input.jump ? 4 : 1)
+    : ((want > this.speed) ? CAR_DRIVE_ACC : CAR_BRAKE);
+  const d = want - this.speed;
+  this.speed += Math.max(-rate * dt, Math.min(rate * dt, d));
+  if (Math.abs(this.speed) < 0.05) this.speed = 0;
+
+  // 조향 — 서 있으면 돌지 않는다 (실제 차처럼)
+  const grip = Math.min(1, Math.abs(this.speed) / 4);
+  let turn = 0;
+  if (input.left) turn += 1;
+  if (input.right) turn -= 1;
+  this.yaw += turn * CAR_STEER * grip * dt * (this.speed < 0 ? -1 : 1);
+
+  // 나아가기 — 벽에 막히면 선다
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const step = this.speed * dt;
+  const nx = this.x + s * step, nz = this.z + c * step;
+  const half = this.type.wide / 2;
+  // 가는 쪽 모서리를 본다. 앞만 보면 벽에 코를 박았을 때 후진으로도 못 빠진다.
+  const lead = this.speed < 0 ? -1 : 1;
+  if (this.canStand(world, nx, nz, half, lead)) { this.x = nx; this.z = nz; }
+  else this.speed = 0;
+
+  // 땅 높이를 따라간다 (턱은 한 칸까지 올라간다)
+  const top = world.topSolidY(Math.floor(this.x), Math.floor(this.z));
+  if (top >= 0) this.y += Math.max(-14 * dt, Math.min(14 * dt, (top + 1) - this.y));
+  this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
+};
+
+// 이 자리에 차가 설 수 있나 (가는 쪽 모서리 두 곳을 본다)
+Car.prototype.canStand = function (world, x, z, half, lead) {
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const nose = (this.type.len / 2 - 0.2) * (lead || 1);
+  for (const sw of [-half, half]) {
+    const px = x + s * nose + c * sw, pz = z + c * nose - s * sw;
+    const top = world.topSolidY(Math.floor(px), Math.floor(pz));
+    if (top < 0) continue;
+    // 한 칸까지는 타고 오른다. 그보다 높으면 벽이다.
+    if (top + 1 > this.y + 1.2) return false;
+  }
+  return true;
+};
+
 Car.prototype.update = function (dt, game) {
   const c = this.city;
   // 앞이 막혔는지 — 플레이어와 다른 차
@@ -13131,6 +13343,26 @@ Car.prototype.update = function (dt, game) {
 };
 
 // ── 관리 ──────────────────────────────────────────────────────────────
+// 시선에 걸리는 차 (우클릭으로 타기)
+EntityManager.prototype.pickCar = function (ox, oy, oz, dx, dy, dz, maxDist) {
+  if (!this.cars) return null;
+  let best = null, bestT = maxDist;
+  for (let i = 0; i < this.cars.length; i++) {
+    const car = this.cars[i];
+    if (car.driver) continue;
+    if (Math.hypot(car.x - ox, car.z - oz) > maxDist + 12) continue;
+    const c = Math.cos(-car.yaw), s = Math.sin(-car.yaw);
+    const rx = (ox - car.x) * c - (oz - car.z) * s;
+    const rz = (ox - car.x) * s + (oz - car.z) * c;
+    const rdx = dx * c - dz * s, rdz = dx * s + dz * c;
+    const hw = car.type.wide / 2 + 0.2, hl = car.type.len / 2 + 0.2;
+    const t = rayBox(rx, oy - car.y, rz, rdx, dy, rdz,
+      -hw, -0.2, -hl, hw, 2.4, hl);
+    if (t !== null && t < bestT) { bestT = t; best = { car: car, dist: t }; }
+  }
+  return best;
+};
+
 EntityManager.prototype.updateCars = function (dt, player, game) {
   if (!this.cars) this.cars = [];
   const w = this.world;
@@ -13158,14 +13390,21 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
   // 굴리기 + 앞차 살피기
   for (let i = this.cars.length - 1; i >= 0; i--) {
     const car = this.cars[i];
-    if (Math.hypot(car.city.x - player.x, car.city.z - player.z) > CAR_DESPAWN_R) {
+    if (!car.driver &&
+        Math.hypot(car.city.x - player.x, car.city.z - player.z) > CAR_DESPAWN_R) {
       this.cars.splice(i, 1);
+      continue;
+    }
+    if (car.driver) {
+      // 사람이 몰고 있으면 차선을 따르지 않는다
+      car.drive(dt, game.input, this.world);
       continue;
     }
     car._blocked = null;
     for (let k = 0; k < this.cars.length; k++) {
       if (k === i) continue;
       const o = this.cars[k];
+      if (o.driver) continue;
       if (o.city !== car.city || o.axis !== car.axis || o.line !== car.line || o.dir !== car.dir) continue;
       const gap = (o.pos - car.pos) * car.dir;
       if (gap > 0 && gap < car.type.len + 2.5) car._blocked = Math.min(o.speed * 0.85, 2);
@@ -16669,9 +16908,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.3';
+const GAME_VERSION = 'v7.4';
 const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '도시에서 바로 시작 · 도시 교통 · 경찰서와 소방서 · 3량 전동차';
+const GAME_FEATURES = '자동차 운전 · 복선 철로 · 역 계단과 에스컬레이터 · 도시에서 바로 시작';
 
 const RENDER_DISTANCE_DEFAULT = 7;
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -16884,6 +17123,32 @@ Game.prototype.spawnAtCity = function (code) {
     if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
   }
   return { x: c.spawn.x, z: c.spawn.z, name: c.name, code: c.code };
+};
+
+// ── 에스컬레이터 ──────────────────────────────────────────────────────
+// 역 계단 옆 에스컬레이터에 올라서면 가만 있어도 승강장까지 실려 올라간다.
+// 발판 한 칸이 한 블록씩 높아지므로 앞으로 밀어 주기만 하면 계단처럼 오른다.
+const ESCALATOR_SPEED = 3.2;
+
+Game.prototype.updateEscalators = function () {
+  const p = this.player;
+  if (p.riding || p.onTrain || p.inCar || p.flying || p.dead) return;
+  if (!this.world.cities) return;
+  const list = this.world.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.escalators) continue;
+    if (Math.abs(c.x - p.x) > 600 || Math.abs(c.z - p.z) > 600) continue;
+    for (let k = 0; k < c.escalators.length; k++) {
+      const e = c.escalators[k];
+      if (p.x < e.x0 - 0.4 || p.x > e.x1 + 1.4) continue;
+      if (p.z < e.z0 - 0.4 || p.z > e.z1 + 1.4) continue;
+      if (p.y < e.y0 - 1 || p.y > e.y1 + 1) continue;
+      p.beltX = e.dx * ESCALATOR_SPEED;
+      p.beltZ = e.dz * ESCALATOR_SPEED;
+      return;
+    }
+  }
 };
 
 Game.prototype.respawn = function () {
@@ -17429,7 +17694,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -17452,6 +17717,15 @@ Game.prototype.onUse = function () {
     const hitTrain = this.entities.pickTrain(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 8);
     if (hitTrain && (!hit.hit || hitTrain.t < hit.dist)) {
       this.enterTrain(hitTrain.train);
+      return;
+    }
+  }
+
+  // 0-3) 자동차 타기
+  if (this.entities.pickCar) {
+    const hitCar = this.entities.pickCar(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 5);
+    if (hitCar && (!hit.hit || hitCar.dist < hit.dist)) {
+      this.enterCar(hitCar.car);
       return;
     }
   }
@@ -17561,6 +17835,43 @@ Game.prototype.exitTrain = function () {
   if (!t) return;
   t.unboard();
   this.ui.toast('열차에서 내렸습니다');
+};
+
+// ── 자동차 운전 ───────────────────────────────────────────────────────
+Game.prototype.enterCar = function (car) {
+  if (!car.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  this.ui.toast(car.type.kr + ' 탑승 — W/S 가속·후진, A/D 방향, Space 제동, Shift 내리기');
+  this.playSound('place');
+};
+
+Game.prototype.exitCar = function () {
+  const car = this.player.inCar;
+  if (!car) return;
+  car.unboard();
+  this.ui.toast('차에서 내렸습니다');
+};
+
+// 운전 중 카메라 — 차 뒤쪽 위에서 따라간다
+Game.prototype.carCamera = function (car, dt) {
+  if (this._carYaw === undefined) this._carYaw = car.yaw;
+  let d = car.yaw - this._carYaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  this._carYaw += d * Math.min(1, (dt || 0.016) * 6);
+
+  const back = 9.5 + Math.min(3.5, Math.abs(car.speed) * 0.22);
+  const up = 4.4;
+  const s = Math.sin(this._carYaw), c = Math.cos(this._carYaw);
+  let ex = car.x - s * back, ez = car.z - c * back;
+  let ey = car.y + up;
+  const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
+  if (gy >= 0 && ey < gy + 2.2) ey = gy + 2.2;
+  return {
+    eye: [ex, ey, ez],
+    yaw: this._carYaw + Math.PI,   // 렌더러 규약(앞 = -Z)에 맞춘다
+    pitch: -0.22,
+    roll: 0
+  };
 };
 
 // 역에 서면 알려 준다
@@ -18269,6 +18580,7 @@ Game.prototype.update = function (dt) {
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
   if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
+  else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
   this._sneakPrev = this.input.sneak;
 
   if (p.riding) {
@@ -18277,7 +18589,18 @@ Game.prototype.update = function (dt) {
   } else if (p.onTrain) {
     // 열차를 타고 있으면 몸은 객실에 고정된다 (열차가 자리를 정한다)
     if (p.dead) this.exitTrain();
+  } else if (p.inCar) {
+    // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
+    if (p.dead) this.exitCar();
+    else {
+      const s = p.inCar.seatPos();
+      p.x = s[0]; p.y = s[1] - PLAYER_EYE; p.z = s[2];
+      p.vx = p.vy = p.vz = 0;
+      p.onGround = true;
+      p.fallStart = p.y;
+    }
   } else if (!this.ui.open && !p.dead) {
+    this.updateEscalators();
     p.update(dt, this.input);
     this.updateMining(dt);
     // 우클릭 유지 = 연속 설치
@@ -18413,6 +18736,7 @@ Game.prototype.render = function (dt) {
     opts.shakeY = (Math.random() - 0.5) * this.shake * 0.06;
   }
   if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
+  else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawClouds(p, opts);
@@ -18424,7 +18748,7 @@ Game.prototype.render = function (dt) {
   r.drawBlockEntities(this.entities, this.world, p, opts);
   r.drawItems(this.entities, this.world, p, opts);
 
-  if (!this.ui.open && !p.dead && !p.riding) {
+  if (!this.ui.open && !p.dead && !p.riding && !p.inCar) {
     const hit = p.pick(5);
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }

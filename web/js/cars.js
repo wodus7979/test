@@ -180,6 +180,121 @@ Car.prototype.sync = function () {
   }
 };
 
+// ── 사람이 모는 차 ────────────────────────────────────────────────────
+const CAR_DRIVE_ACC = 7.0;      // 밟았을 때 붙는 가속
+const CAR_DRIVE_MAX = 14.0;     // 사람이 몰 때 최고 속도
+const CAR_REV_MAX = 5.0;        // 후진
+const CAR_STEER = 1.5;          // 초당 최대 조향(라디안)
+const CAR_ROLL = 1.4;           // 발을 떼면 굴러가다 서는 감속
+
+Car.prototype.board = function (player) {
+  if (this.driver) return false;
+  this.driver = player;
+  player.inCar = this;
+  this.speed = 0;
+  return true;
+};
+
+// 지금 서 있는 자리에서 가장 가까운 차선을 찾아 다시 붙인다.
+// 이걸 안 하면 내리는 순간 원래 달리던 자리로 되돌아가 버린다.
+Car.prototype.rejoinLane = function () {
+  const c = this.city;
+  const lines = c.roadLines;
+  if (!lines || !lines.length) return;
+  const rx = this.x - c.x, rz = this.z - c.z;
+  let best = null;
+  for (let axis = 0; axis < 2; axis++) {
+    const across = axis === 0 ? rz : rx;      // 차선을 가로지르는 좌표
+    const along = axis === 0 ? rx : rz;
+    for (let i = 0; i < lines.length; i++) {
+      const d = Math.abs(across - lines[i]);
+      if (!best || d < best.d) best = { d: d, axis: axis, line: lines[i], pos: along, across: across };
+    }
+  }
+  if (!best) return;
+  this.axis = best.axis;
+  this.line = best.line;
+  this.pos = Math.max(-(CITY_R - 8), Math.min(CITY_R - 8, best.pos));
+  // 차선 안쪽(오른쪽)으로 붙는 방향을 고른다
+  const off = best.across - best.line;
+  this.dir = (best.axis === 0) ? (off >= 0 ? 1 : -1) : (off <= 0 ? 1 : -1);
+  this.turnCool = 2.5;
+  this.sync();
+};
+
+Car.prototype.unboard = function () {
+  const p = this.driver;
+  if (!p) return;
+  this.driver = null;
+  p.inCar = null;
+  // 왼쪽 옆에 내려 준다
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const w = this.type.wide / 2 + 1.1;
+  p.x = this.x - c * w; p.z = this.z + s * w;
+  p.y = this.y + 1;
+  p.vx = p.vy = p.vz = 0;
+  p.fallStart = p.y;
+  this.speed = 0;
+  this.rejoinLane();
+};
+
+// 운전석 눈높이
+Car.prototype.seatPos = function () {
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const lx = -this.type.wide * 0.22, lz = this.type.len * 0.06;
+  return [this.x + lx * c + lz * s, this.y + 1.45, this.z - lx * s + lz * c];
+};
+
+// 사람이 모는 동안의 움직임
+Car.prototype.drive = function (dt, input, world) {
+  // 앞뒤
+  let want = 0;
+  if (input.forward) want = CAR_DRIVE_MAX;
+  else if (input.back) want = -CAR_REV_MAX;
+  if (input.jump) want = 0;                      // Space = 급제동
+  const rate = (want === 0) ? CAR_ROLL * (input.jump ? 4 : 1)
+    : ((want > this.speed) ? CAR_DRIVE_ACC : CAR_BRAKE);
+  const d = want - this.speed;
+  this.speed += Math.max(-rate * dt, Math.min(rate * dt, d));
+  if (Math.abs(this.speed) < 0.05) this.speed = 0;
+
+  // 조향 — 서 있으면 돌지 않는다 (실제 차처럼)
+  const grip = Math.min(1, Math.abs(this.speed) / 4);
+  let turn = 0;
+  if (input.left) turn += 1;
+  if (input.right) turn -= 1;
+  this.yaw += turn * CAR_STEER * grip * dt * (this.speed < 0 ? -1 : 1);
+
+  // 나아가기 — 벽에 막히면 선다
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const step = this.speed * dt;
+  const nx = this.x + s * step, nz = this.z + c * step;
+  const half = this.type.wide / 2;
+  // 가는 쪽 모서리를 본다. 앞만 보면 벽에 코를 박았을 때 후진으로도 못 빠진다.
+  const lead = this.speed < 0 ? -1 : 1;
+  if (this.canStand(world, nx, nz, half, lead)) { this.x = nx; this.z = nz; }
+  else this.speed = 0;
+
+  // 땅 높이를 따라간다 (턱은 한 칸까지 올라간다)
+  const top = world.topSolidY(Math.floor(this.x), Math.floor(this.z));
+  if (top >= 0) this.y += Math.max(-14 * dt, Math.min(14 * dt, (top + 1) - this.y));
+  this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
+};
+
+// 이 자리에 차가 설 수 있나 (가는 쪽 모서리 두 곳을 본다)
+Car.prototype.canStand = function (world, x, z, half, lead) {
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  const nose = (this.type.len / 2 - 0.2) * (lead || 1);
+  for (const sw of [-half, half]) {
+    const px = x + s * nose + c * sw, pz = z + c * nose - s * sw;
+    const top = world.topSolidY(Math.floor(px), Math.floor(pz));
+    if (top < 0) continue;
+    // 한 칸까지는 타고 오른다. 그보다 높으면 벽이다.
+    if (top + 1 > this.y + 1.2) return false;
+  }
+  return true;
+};
+
 Car.prototype.update = function (dt, game) {
   const c = this.city;
   // 앞이 막혔는지 — 플레이어와 다른 차
@@ -230,6 +345,26 @@ Car.prototype.update = function (dt, game) {
 };
 
 // ── 관리 ──────────────────────────────────────────────────────────────
+// 시선에 걸리는 차 (우클릭으로 타기)
+EntityManager.prototype.pickCar = function (ox, oy, oz, dx, dy, dz, maxDist) {
+  if (!this.cars) return null;
+  let best = null, bestT = maxDist;
+  for (let i = 0; i < this.cars.length; i++) {
+    const car = this.cars[i];
+    if (car.driver) continue;
+    if (Math.hypot(car.x - ox, car.z - oz) > maxDist + 12) continue;
+    const c = Math.cos(-car.yaw), s = Math.sin(-car.yaw);
+    const rx = (ox - car.x) * c - (oz - car.z) * s;
+    const rz = (ox - car.x) * s + (oz - car.z) * c;
+    const rdx = dx * c - dz * s, rdz = dx * s + dz * c;
+    const hw = car.type.wide / 2 + 0.2, hl = car.type.len / 2 + 0.2;
+    const t = rayBox(rx, oy - car.y, rz, rdx, dy, rdz,
+      -hw, -0.2, -hl, hw, 2.4, hl);
+    if (t !== null && t < bestT) { bestT = t; best = { car: car, dist: t }; }
+  }
+  return best;
+};
+
 EntityManager.prototype.updateCars = function (dt, player, game) {
   if (!this.cars) this.cars = [];
   const w = this.world;
@@ -257,14 +392,21 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
   // 굴리기 + 앞차 살피기
   for (let i = this.cars.length - 1; i >= 0; i--) {
     const car = this.cars[i];
-    if (Math.hypot(car.city.x - player.x, car.city.z - player.z) > CAR_DESPAWN_R) {
+    if (!car.driver &&
+        Math.hypot(car.city.x - player.x, car.city.z - player.z) > CAR_DESPAWN_R) {
       this.cars.splice(i, 1);
+      continue;
+    }
+    if (car.driver) {
+      // 사람이 몰고 있으면 차선을 따르지 않는다
+      car.drive(dt, game.input, this.world);
       continue;
     }
     car._blocked = null;
     for (let k = 0; k < this.cars.length; k++) {
       if (k === i) continue;
       const o = this.cars[k];
+      if (o.driver) continue;
       if (o.city !== car.city || o.axis !== car.axis || o.line !== car.line || o.dir !== car.dir) continue;
       const gap = (o.pos - car.pos) * car.dir;
       if (gap > 0 && gap < car.type.len + 2.5) car._blocked = Math.min(o.speed * 0.85, 2);
