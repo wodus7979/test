@@ -13269,6 +13269,18 @@ Train.prototype.atStation = function () {
   return null;
 };
 
+// 상행/하행 — 공항 쪽으로 가면 상행, 도심 쪽으로 가면 하행으로 부른다
+Train.prototype.updown = function () {
+  return this.dir > 0 ? '하행' : '상행';
+};
+
+// 이 방향이면 어느 역으로 들어가는가 (양 끝이 곧 종착역이다)
+Train.prototype.targetStationIndex = function () {
+  const n = this.route.stations.length;
+  if (!n) return -1;
+  return this.dir > 0 ? n - 1 : 0;
+};
+
 Train.prototype.nextStation = function () {
   const list = this.route.stations;
   if (!list.length) return null;
@@ -13379,13 +13391,23 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
     const r = routes[i];
     const mid = r.at(r.len / 2);
     if (Math.hypot(mid.x - player.x, mid.z - player.z) > r.len / 2 + 420) continue;
-    let here = 0;
-    for (let k = 0; k < this.trains.length; k++) if (this.trains[k].route === r) here++;
-    while (here < 2) {
-      // 한 대는 상행 선로, 한 대는 하행 선로
-      this.trains.push(new Train(this.world, r,
-        here === 0 ? 0 : r.len, here === 0 ? 1 : -1));
-      here++;
+    let here = 0, mine = null;
+    for (let k = 0; k < this.trains.length; k++) {
+      if (this.trains[k].route === r) { here++; mine = this.trains[k]; }
+    }
+    if (here === 0) {
+      // 양쪽 끝에서 마주 오게 — 한 대는 상행, 한 대는 하행
+      this.trains.push(new Train(this.world, r, 0, 1));
+      this.trains.push(new Train(this.world, r, r.len, -1));
+    } else if (here === 1) {
+      // 한 대만 남아 있으면(멀어져서 치워졌다가 돌아온 경우) 남은 편성의
+      // 정반대 위상으로 만든다. 그냥 끝에서 새로 띄우면 두 대가 같은 방향
+      // · 같은 선로로 나란히 달리게 된다.
+      const t = new Train(this.world, r, r.len - mine.s, -mine.dir);
+      t.speed = mine.speed;
+      t.dwell = mine.dwell;
+      t.tk = t.track;
+      this.trains.push(t);
     }
   }
 
@@ -17864,7 +17886,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.8';
+const GAME_VERSION = 'v7.9';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
 
@@ -19358,6 +19380,95 @@ Game.prototype.setRainSound = function (level) {
   } catch (e) { /* 소리는 없어도 그만 */ }
 };
 
+// ── 역 안내방송 ───────────────────────────────────────────────────────
+// 소리 파일을 쓰지 않는다. 종소리는 사인파 배음을 겹쳐 만들고,
+// 안내 음성은 브라우저에 들어 있는 음성 합성(TTS)에 맡긴다.
+Game.prototype.stationBell = function () {
+  try {
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99];        // 도 – 미 – 솔 (딩동댕)
+    const parts = [[1, 1], [2.76, 0.30], [5.4, 0.12]];   // 종은 배음이 어긋나 있다
+    for (let i = 0; i < notes.length; i++) {
+      const t0 = now + i * 0.26;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.08, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
+      g.connect(ctx.destination);
+      for (let k = 0; k < parts.length; k++) {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = notes[i] * parts[k][0];
+        const og = ctx.createGain();
+        og.gain.value = parts[k][1];
+        o.connect(og); og.connect(g);
+        o.start(t0); o.stop(t0 + 1.25);
+      }
+    }
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 한국어 음성으로 읽어 준다. 음성이 없는 기기에서는 자막(토스트)만 남는다.
+Game.prototype.speak = function (text) {
+  try {
+    const ss = window.speechSynthesis;
+    if (!ss || typeof SpeechSynthesisUtterance === 'undefined') return false;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ko-KR';
+    u.rate = 0.96;
+    u.pitch = 1.05;
+    const vs = ss.getVoices ? ss.getVoices() : [];
+    for (let i = 0; i < vs.length; i++) {
+      const lg = (vs[i].lang || '').replace('_', '-').toLowerCase();
+      if (lg.indexOf('ko') === 0) { u.voice = vs[i]; break; }
+    }
+    ss.cancel();
+    ss.speak(u);
+    return true;
+  } catch (e) { return false; }
+};
+
+Game.prototype.announceTrain = function (station, train) {
+  const line = train.updown() + ' 기차가 들어옵니다. 뒤로 물러서 주세요.';
+  this.ui.toast('🔔 ' + station.name + ' — ' + line);
+  this.stationBell();
+  const self = this;
+  // 종소리가 울린 뒤에 안내 음성이 나온다
+  setTimeout(function () { self.speak(line); }, 1250);
+};
+
+// 승강장에 서 있는데 열차가 들어오면 알려 준다.
+// 두 역이 곧 노선의 양 끝이라, 열차가 어느 역으로 들어가는지는 방향이 정한다.
+Game.prototype.updateStationAnnounce = function (dt) {
+  const p = this.player;
+  const trains = (this.entities && this.entities.trains) || [];
+  for (let i = 0; i < trains.length; i++) {
+    const t = trains[i];
+    if (!t._ann) t._ann = {};
+    const list = t.route.stations;
+    const k = t.targetStationIndex();
+    if (k < 0) continue;
+    const st = list[k];
+    const dTrain = Math.hypot(st.x - t.x, st.z - t.z);
+    if (dTrain > 150) { t._ann[k] = 0; continue; }   // 멀어지면 다음에 다시 알린다
+    if (t._ann[k]) continue;
+    if (dTrain > 130 || dTrain < 35) continue;       // 들어오기 직전에 한 번
+    if (t.speed < 1.5) continue;
+    if (t.rider === p) continue;                     // 타고 있으면 알리지 않는다
+    if (Math.hypot(st.x - p.x, st.z - p.z) > 46) continue;
+    if (Math.abs(p.y - st.y) > 30) continue;
+    t._ann[k] = 1;
+    this.announceTrain(st, t);
+  }
+};
+
 // ── 자동차 소리 ───────────────────────────────────────────────────────
 // 소리 파일을 쓰지 않고 톱니파(엔진)와 잡음(노면)을 섞어 만든다.
 // level 0~1 = 얼마나 세게 밟았나, speed = 블록/초.
@@ -19886,6 +19997,7 @@ Game.prototype.update = function (dt) {
   this.entities.updatePhysics(dt, p);
   this.entities.updatePlanes(dt, p, this);
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
+  if (this.updateStationAnnounce) this.updateStationAnnounce(dt);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다

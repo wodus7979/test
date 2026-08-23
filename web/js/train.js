@@ -268,6 +268,18 @@ Train.prototype.atStation = function () {
   return null;
 };
 
+// 상행/하행 — 공항 쪽으로 가면 상행, 도심 쪽으로 가면 하행으로 부른다
+Train.prototype.updown = function () {
+  return this.dir > 0 ? '하행' : '상행';
+};
+
+// 이 방향이면 어느 역으로 들어가는가 (양 끝이 곧 종착역이다)
+Train.prototype.targetStationIndex = function () {
+  const n = this.route.stations.length;
+  if (!n) return -1;
+  return this.dir > 0 ? n - 1 : 0;
+};
+
 Train.prototype.nextStation = function () {
   const list = this.route.stations;
   if (!list.length) return null;
@@ -378,13 +390,23 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
     const r = routes[i];
     const mid = r.at(r.len / 2);
     if (Math.hypot(mid.x - player.x, mid.z - player.z) > r.len / 2 + 420) continue;
-    let here = 0;
-    for (let k = 0; k < this.trains.length; k++) if (this.trains[k].route === r) here++;
-    while (here < 2) {
-      // 한 대는 상행 선로, 한 대는 하행 선로
-      this.trains.push(new Train(this.world, r,
-        here === 0 ? 0 : r.len, here === 0 ? 1 : -1));
-      here++;
+    let here = 0, mine = null;
+    for (let k = 0; k < this.trains.length; k++) {
+      if (this.trains[k].route === r) { here++; mine = this.trains[k]; }
+    }
+    if (here === 0) {
+      // 양쪽 끝에서 마주 오게 — 한 대는 상행, 한 대는 하행
+      this.trains.push(new Train(this.world, r, 0, 1));
+      this.trains.push(new Train(this.world, r, r.len, -1));
+    } else if (here === 1) {
+      // 한 대만 남아 있으면(멀어져서 치워졌다가 돌아온 경우) 남은 편성의
+      // 정반대 위상으로 만든다. 그냥 끝에서 새로 띄우면 두 대가 같은 방향
+      // · 같은 선로로 나란히 달리게 된다.
+      const t = new Train(this.world, r, r.len - mine.s, -mine.dir);
+      t.speed = mine.speed;
+      t.dwell = mine.dwell;
+      t.tk = t.track;
+      this.trains.push(t);
     }
   }
 
