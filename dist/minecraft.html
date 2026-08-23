@@ -10627,7 +10627,7 @@ function buildCityPlan(world, ap, index) {
     plan.site = {
       x: best.x + sx, y: syGround, z: best.z + sz, half: half,
       pile: { x: best.x + px, y: syGround, z: best.z + pz, r: 6 },
-      truck: { x: best.x + sx + 10, y: syGround, z: best.z + sz + 4 },
+      truck: { x: best.x + sx - 1, y: syGround, z: best.z + sz + 15, yaw: 0 },
       digger: { x: best.x + sx - 1, y: syGround, z: best.z + sz + 6 }
     };
   }
@@ -15826,8 +15826,57 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
       emitBox(_geom, t[0], t[1] - 0.1, t[2], 0.9, 0.5, 0.9, 'ex_dirt', null,
         function (px, py, pz, out) { out[0] = px; out[1] = py - 0.25; out[2] = pz; }, light);
     }
+
+    // 바로 옆에 세워 둔 덤프트럭 — 짐칸에 흙이 쌓인다
+    self.emitSiteTruck(ex.truck, light);
   });
   this.flushEntityGeom(opts);
+};
+
+// 공사장 덤프트럭 하나를 _geom 에 얹는다 (drawDiggers 가 한꺼번에 flush 한다)
+Renderer.prototype.emitSiteTruck = function (tr, light) {
+  if (!tr) return;
+  const type = (typeof CAR_TYPES !== 'undefined')
+    ? CAR_TYPES.find(function (t) { return t.key === 'dump'; }) : null;
+  if (!type) return;
+  const cy = Math.cos(tr.yaw), sy = Math.sin(tr.yaw);
+  const glow = [1, 1];
+  const parts = type.parts;
+  for (let k = 0; k < parts.length; k++) {
+    const b = parts[k];
+    if (b.wheel) {
+      // 세워 둔 차라 굴러가지는 않지만, 달리는 차와 같은 모양으로 그린다
+      for (let sp = 0; sp < 3; sp++) {
+        const ang = sp * (Math.PI / 3);
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const wt = function (px, py, pz, out) {
+          const ry = py - b.r, rz = pz;
+          const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+          const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
+          out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+        };
+        emitBox(_geom, tr.x, tr.y, tr.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
+      }
+      continue;
+    }
+    const bh = b.h;
+    const transform = function (px, py, pz, out) {
+      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+    const lit = (typeof CAR_GLOW !== 'undefined' && CAR_GLOW[b.tex]) ? glow : light;
+    emitBox(_geom, tr.x, tr.y, tr.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
+  }
+  // 짐칸에 실린 흙 — 부을 때마다 높아진다
+  const fill = Math.min(EX_LOADS_TO_FILL, tr.fill || 0);
+  if (fill > 0) {
+    const h = 0.18 + (fill / EX_LOADS_TO_FILL) * 1.25;
+    const dt2 = function (px, py, pz, out) {
+      const lx = px, ly = py + 1.2 + h / 2, lz = pz - 1.9;
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+    emitBox(_geom, tr.x, tr.y, tr.z, 2.2, h, 5.5, 'ex_dirt', null, dt2, light);
+  }
 };
 
 // 쫓아오는 순찰차 — 실제 Car 가 아니라 게임이 들고 있는 간단한 표적이다
@@ -17849,7 +17898,7 @@ Game.prototype.updateDigHud = function () {
   }
   html += '<br>버킷: ' + (ex.loaded ? '흙 있음' : '비어 있음');
   if (!ex.loaded && ex.overPile(this.world)) html += ' <span class="ok">← 여기서 Space</span>';
-  if (ex.loaded && ex.overTruck(this)) html += ' <span class="ok">← 여기서 Space</span>';
+  if (ex.loaded && ex.overTruck()) html += ' <span class="ok">← 여기서 Space</span>';
   html += '<br>모은 돈 ' + (this.money || 0) + '원';
   el.innerHTML = html;
 };
@@ -18645,6 +18694,27 @@ Game.prototype.carCamera = function (car, dt) {
   };
 };
 
+// 포크레인 카메라 — 상부 뒤쪽 높은 곳에서 작업 반경을 내려다본다.
+// 운전석 눈높이에서는 붐에 가려 버킷과 흙더미가 보이지 않는다.
+Game.prototype.diggerCamera = function (ex, dt) {
+  const a = ex.yaw + ex.swing;
+  if (this._digYaw === undefined) this._digYaw = a;
+  let d = a - this._digYaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  this._digYaw += d * Math.min(1, (dt || 0.016) * 5);
+
+  const back = 11.5, up = 8.5;
+  const s = Math.sin(this._digYaw), c = Math.cos(this._digYaw);
+  const cx = ex.x - s * back, cz = ex.z - c * back;
+  let cyy = ex.y + up;
+  const gy = this.world.topSolidY(Math.floor(cx), Math.floor(cz));
+  if (gy >= 0 && cyy < gy + 3) cyy = gy + 3;
+  // 마우스로 내려다보는 각도만 조금 조절한다 (좌우는 몸통 회전이 정한다)
+  const pitch = Math.max(-1.15, Math.min(-0.1, -0.52 + this.player.pitch * 0.6));
+  return { eye: [cx, cyy, cz], yaw: this._digYaw + Math.PI, pitch: pitch, roll: 0 };
+};
+
 // 역에 서면 알려 준다
 Game.prototype.updateTrainInfo = function (dt) {
   const t = this.player.onTrain;
@@ -19413,6 +19483,7 @@ Game.prototype.update = function (dt) {
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
+  if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -19533,6 +19604,7 @@ Game.prototype.render = function (dt) {
   }
   if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
+  else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawClouds(p, opts);
@@ -19685,21 +19757,31 @@ Highway.prototype.build = function () {
 
   for (let k = 0; k + 1 < order.length; k++) {
     const A = order[k], B = order[k + 1];
-    // 곧게만 가지 않도록 가운데를 옆으로 밀어 굽힌다.
-    // 첫 구간은 호수 한가운데를 지나가게 해서 다리를 놓는다.
-    const ux = B.x - A.x, uz = B.z - A.z;
+    // 도시 안으로는 들어가지 않는다. 도시의 가운데 큰길(격자선 0)이 바깥으로
+    // 이어지는 자리에서 시작해, 상대 도시의 같은 자리에서 끝낸다.
+    // (예전에는 도시 한복판에서 출발해 건물을 뚫고 나갔다)
+    const exitOf = function (C, tx, tz) {
+      const ex = tx - C.x, ez = tz - C.z;
+      const out = CITY_R + 5;
+      // 큰 쪽 축으로 빠져나간다 — 도시의 가운데 큰길과 그대로 이어진다
+      if (Math.abs(ex) >= Math.abs(ez)) return [C.x + Math.sign(ex) * out, C.z];
+      return [C.x, C.z + Math.sign(ez) * out];
+    };
+    const Astart = exitOf(A, B.x, B.z);
+    const Bend = exitOf(B, A.x, A.z);
+    const ux = Bend[0] - Astart[0], uz = Bend[1] - Astart[1];
     const ul = Math.hypot(ux, uz) || 1;
     const nx = uz / ul, nz = -ux / ul;              // 직각 방향
-    const pts = [[A.x, A.z]];
+    const pts = [[Astart[0], Astart[1]]];
     if (k === 0) {
-      pts.push([A.x + ux * 0.28 + nx * ul * 0.10, A.z + uz * 0.28 + nz * ul * 0.10]);
+      pts.push([Astart[0] + ux * 0.28 + nx * ul * 0.10, Astart[1] + uz * 0.28 + nz * ul * 0.10]);
       pts.push([this.lake.x, this.lake.z]);
-      pts.push([A.x + ux * 0.72 - nx * ul * 0.09, A.z + uz * 0.72 - nz * ul * 0.09]);
+      pts.push([Astart[0] + ux * 0.72 - nx * ul * 0.09, Astart[1] + uz * 0.72 - nz * ul * 0.09]);
     } else {
-      pts.push([A.x + ux * 0.30 - nx * ul * 0.12, A.z + uz * 0.30 - nz * ul * 0.12]);
-      pts.push([A.x + ux * 0.62 + nx * ul * 0.11, A.z + uz * 0.62 + nz * ul * 0.11]);
+      pts.push([Astart[0] + ux * 0.30 - nx * ul * 0.12, Astart[1] + uz * 0.30 - nz * ul * 0.12]);
+      pts.push([Astart[0] + ux * 0.62 + nx * ul * 0.11, Astart[1] + uz * 0.62 + nz * ul * 0.11]);
     }
-    pts.push([B.x, B.z]);
+    pts.push([Bend[0], Bend[1]]);
 
     const path = smoothPath(pts, HW_CURVE_R, HW_STEP);
     const rec = { pts: path, h: new Array(path.length), name: A.name + ' ↔ ' + B.name,
@@ -19795,6 +19877,18 @@ Highway.prototype.at = function (x, z) {
   return { y: Math.round(rec.h[i]), off: off, pi: best.pi, i: i, tx: tx, tz: tz, rec: rec };
 };
 
+// 도시 안(건물이 선 자리)인가 — 여기는 고속도로가 건드리지 않는다
+Highway.prototype.insideCity = function (x, z) {
+  if (!this._cityList) this._cityList = this.world.cities ? this.world.cities() : [];
+  const list = this._cityList;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (Math.abs(c.x - x) > CITY_R + 2 || Math.abs(c.z - z) > CITY_R + 2) continue;
+    if (Math.hypot(c.x - x, c.z - z) <= CITY_R + 2) return true;
+  }
+  return false;
+};
+
 // 도시까지 남은 거리 (지금 서 있는 도로 기준)
 Highway.prototype.aheadInfo = function (x, z) {
   const hit = this.at(x, z);
@@ -19854,6 +19948,7 @@ World.prototype.paintHighway = function (c) {
       const wx = bx + lx, wz = bz + lz;
       const hit = hw.at(wx, wz);
       if (!hit) continue;
+      if (hw.insideCity(wx, wz)) continue;   // 도시 안은 원래 길을 쓴다
       touched = true;
       const y = hit.y;
       if (y < 1 || y >= CHUNK_Y - 2) continue;
@@ -20021,6 +20116,7 @@ World.prototype.paintHighwaySigns = function (c) {
     const rec = hw.paths[sg.pi];
     const p = rec.pts[sg.i];
     if (Math.abs(p[0] - (bx + 8)) > 26 || Math.abs(p[1] - (bz + 8)) > 26) continue;
+    if (hw.insideCity(p[0], p[1])) continue;
     const j = Math.min(rec.pts.length - 1, sg.i + 1), q = Math.max(0, sg.i - 1);
     let tx = rec.pts[j][0] - rec.pts[q][0], tz = rec.pts[j][1] - rec.pts[q][1];
     const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
@@ -20173,7 +20269,23 @@ function Excavator(site) {
   this.bucket = -0.6;
   this.loaded = 0;            // 버킷에 담긴 흙 (0 또는 1)
   this.driver = null;
+  // 덤프트럭은 굴착기와 한 짝이다 — 공사장이 생길 때 옆에 같이 세워 둔다
+  this.truck = {
+    x: site.truck.x + 0.5,
+    y: site.truck.y + 1,
+    z: site.truck.z + 0.5,
+    yaw: (site.truck.yaw === undefined) ? Math.PI / 2 : site.truck.yaw,
+    fill: 0
+  };
 }
+
+// 세상 좌표를 트럭 기준 좌표로 (lx = 좌우, lz = 앞뒤)
+Excavator.prototype.truckLocal = function (wx, wy, wz) {
+  const tr = this.truck;
+  const c = Math.cos(tr.yaw), s = Math.sin(tr.yaw);
+  const dx = wx - tr.x, dz = wz - tr.z;
+  return [dx * c - dz * s, wy - tr.y, dx * s + dz * c];
+};
 
 // 버킷 끝이 세상 어디에 있나 (붐 → 암 → 버킷 순서로 이어 붙인다)
 Excavator.prototype.tipPos = function () {
@@ -20263,13 +20375,13 @@ Excavator.prototype.overPile = function (world) {
   return null;
 };
 
-// 버킷 끝이 트럭 짐칸 위에 있나
-Excavator.prototype.overTruck = function (game) {
-  const tr = game.siteTruck;
-  if (!tr) return false;
-  const t = this.tipPos();
-  if (Math.hypot(t[0] - tr.x, t[2] - tr.z) > 4.2) return false;
-  return t[1] > tr.y + 1.2 && t[1] < tr.y + 7;
+// 버킷 끝이 트럭 짐칸 입구 안에 있나.
+// 짐칸은 트럭 기준 lz -4.7 ~ 0.9, 폭 2.5, 바닥 1.2 위가 열려 있다.
+Excavator.prototype.overTruck = function () {
+  const l = this.truckLocal.apply(this, this.tipPos());
+  if (Math.abs(l[0]) > 1.4) return false;
+  if (l[2] < -4.9 || l[2] > 1.1) return false;
+  return l[1] > 0.9 && l[1] < 5.5;
 };
 
 // ── 미니게임 ──────────────────────────────────────────────────────────
@@ -20296,16 +20408,16 @@ Game.prototype.digScoop = function () {
   if (!ex) return;
   if (ex.loaded) {
     // 담고 있으면 붓는다
-    if (ex.overTruck(this)) {
+    if (ex.overTruck()) {
       ex.loaded = 0;
-      this.siteTruck.fill = (this.siteTruck.fill || 0) + 1;
+      ex.truck.fill = (ex.truck.fill || 0) + 1;
       this.playSound('place');
       if (!this.digJob) this.startDigJob();
       const job = this.digJob;
       job.loads++;
       if (job.loads >= job.need) {
         this.digJob = null;
-        this.siteTruck.fill = 0;
+        ex.truck.fill = 0;
         this.addMoney(EX_REWARD);
         this.ui.toast('트럭을 다 채웠습니다 — ' + EX_REWARD + '원 (모두 ' + this.money + '원)');
         this.playSound('levelup');
@@ -20333,31 +20445,37 @@ Game.prototype.addMoney = function (n) {
 };
 
 // ── 타고 내리기 ───────────────────────────────────────────────────────
-Game.prototype.nearestDigger = function () {
+// 공사장이 있는 도시마다 굴착기 한 대를 만들어 둔다.
+// 타기 전에도 굴착기와 덤프트럭이 눈에 보여야 하므로 매 틱 불러 준다.
+Game.prototype.ensureDiggers = function () {
   const w = this.world;
   if (!w.cities) return null;
-  const p = this.player;
+  if (!this.diggers) this.diggers = new Map();
   const list = w.cities();
-  let best = null, bd = 7;
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
-    if (!c.site) continue;
-    if (!this.diggers) this.diggers = new Map();
-    let ex = this.diggers.get(c.code);
-    if (!ex) { ex = new Excavator(c.site); this.diggers.set(c.code, ex); }
+    if (!c.site || this.diggers.has(c.code)) continue;
+    this.diggers.set(c.code, new Excavator(c.site));
+  }
+  return this.diggers;
+};
+
+Game.prototype.nearestDigger = function () {
+  const map = this.ensureDiggers();
+  if (!map) return null;
+  const p = this.player;
+  let best = null, bd = 7;
+  map.forEach(function (ex) {
     const d = Math.hypot(ex.x - p.x, ex.z - p.z);
     if (d < bd && Math.abs(ex.y - p.y) < 6) { bd = d; best = ex; }
-  }
+  });
   return best;
 };
 
 Game.prototype.enterDigger = function (ex) {
   if (!ex.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
-  // 트럭이 없으면 옆에 세워 둔다
-  if (!this.siteTruck || this.siteTruck.site !== ex.site) {
-    this.siteTruck = { site: ex.site, x: ex.site.truck.x + 0.5, y: ex.site.truck.y + 1,
-      z: ex.site.truck.z + 0.5, yaw: Math.PI / 2, fill: 0 };
-  }
+  this.player.pitch = 0;    // 3인칭 카메라 기준 각도로 맞춘다
+  this._digYaw = undefined;
   this.ui.toast('포크레인 탑승 — A/D 몸통 회전, W/S 붐, Q/E 암, Z/X 버킷, ' +
     'Space 퍼기·붓기, Shift 내리기');
   this.playSound('place');

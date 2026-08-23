@@ -32,7 +32,23 @@ function Excavator(site) {
   this.bucket = -0.6;
   this.loaded = 0;            // 버킷에 담긴 흙 (0 또는 1)
   this.driver = null;
+  // 덤프트럭은 굴착기와 한 짝이다 — 공사장이 생길 때 옆에 같이 세워 둔다
+  this.truck = {
+    x: site.truck.x + 0.5,
+    y: site.truck.y + 1,
+    z: site.truck.z + 0.5,
+    yaw: (site.truck.yaw === undefined) ? Math.PI / 2 : site.truck.yaw,
+    fill: 0
+  };
 }
+
+// 세상 좌표를 트럭 기준 좌표로 (lx = 좌우, lz = 앞뒤)
+Excavator.prototype.truckLocal = function (wx, wy, wz) {
+  const tr = this.truck;
+  const c = Math.cos(tr.yaw), s = Math.sin(tr.yaw);
+  const dx = wx - tr.x, dz = wz - tr.z;
+  return [dx * c - dz * s, wy - tr.y, dx * s + dz * c];
+};
 
 // 버킷 끝이 세상 어디에 있나 (붐 → 암 → 버킷 순서로 이어 붙인다)
 Excavator.prototype.tipPos = function () {
@@ -122,13 +138,13 @@ Excavator.prototype.overPile = function (world) {
   return null;
 };
 
-// 버킷 끝이 트럭 짐칸 위에 있나
-Excavator.prototype.overTruck = function (game) {
-  const tr = game.siteTruck;
-  if (!tr) return false;
-  const t = this.tipPos();
-  if (Math.hypot(t[0] - tr.x, t[2] - tr.z) > 4.2) return false;
-  return t[1] > tr.y + 1.2 && t[1] < tr.y + 7;
+// 버킷 끝이 트럭 짐칸 입구 안에 있나.
+// 짐칸은 트럭 기준 lz -4.7 ~ 0.9, 폭 2.5, 바닥 1.2 위가 열려 있다.
+Excavator.prototype.overTruck = function () {
+  const l = this.truckLocal.apply(this, this.tipPos());
+  if (Math.abs(l[0]) > 1.4) return false;
+  if (l[2] < -4.9 || l[2] > 1.1) return false;
+  return l[1] > 0.9 && l[1] < 5.5;
 };
 
 // ── 미니게임 ──────────────────────────────────────────────────────────
@@ -155,16 +171,16 @@ Game.prototype.digScoop = function () {
   if (!ex) return;
   if (ex.loaded) {
     // 담고 있으면 붓는다
-    if (ex.overTruck(this)) {
+    if (ex.overTruck()) {
       ex.loaded = 0;
-      this.siteTruck.fill = (this.siteTruck.fill || 0) + 1;
+      ex.truck.fill = (ex.truck.fill || 0) + 1;
       this.playSound('place');
       if (!this.digJob) this.startDigJob();
       const job = this.digJob;
       job.loads++;
       if (job.loads >= job.need) {
         this.digJob = null;
-        this.siteTruck.fill = 0;
+        ex.truck.fill = 0;
         this.addMoney(EX_REWARD);
         this.ui.toast('트럭을 다 채웠습니다 — ' + EX_REWARD + '원 (모두 ' + this.money + '원)');
         this.playSound('levelup');
@@ -192,31 +208,37 @@ Game.prototype.addMoney = function (n) {
 };
 
 // ── 타고 내리기 ───────────────────────────────────────────────────────
-Game.prototype.nearestDigger = function () {
+// 공사장이 있는 도시마다 굴착기 한 대를 만들어 둔다.
+// 타기 전에도 굴착기와 덤프트럭이 눈에 보여야 하므로 매 틱 불러 준다.
+Game.prototype.ensureDiggers = function () {
   const w = this.world;
   if (!w.cities) return null;
-  const p = this.player;
+  if (!this.diggers) this.diggers = new Map();
   const list = w.cities();
-  let best = null, bd = 7;
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
-    if (!c.site) continue;
-    if (!this.diggers) this.diggers = new Map();
-    let ex = this.diggers.get(c.code);
-    if (!ex) { ex = new Excavator(c.site); this.diggers.set(c.code, ex); }
+    if (!c.site || this.diggers.has(c.code)) continue;
+    this.diggers.set(c.code, new Excavator(c.site));
+  }
+  return this.diggers;
+};
+
+Game.prototype.nearestDigger = function () {
+  const map = this.ensureDiggers();
+  if (!map) return null;
+  const p = this.player;
+  let best = null, bd = 7;
+  map.forEach(function (ex) {
     const d = Math.hypot(ex.x - p.x, ex.z - p.z);
     if (d < bd && Math.abs(ex.y - p.y) < 6) { bd = d; best = ex; }
-  }
+  });
   return best;
 };
 
 Game.prototype.enterDigger = function (ex) {
   if (!ex.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
-  // 트럭이 없으면 옆에 세워 둔다
-  if (!this.siteTruck || this.siteTruck.site !== ex.site) {
-    this.siteTruck = { site: ex.site, x: ex.site.truck.x + 0.5, y: ex.site.truck.y + 1,
-      z: ex.site.truck.z + 0.5, yaw: Math.PI / 2, fill: 0 };
-  }
+  this.player.pitch = 0;    // 3인칭 카메라 기준 각도로 맞춘다
+  this._digYaw = undefined;
   this.ui.toast('포크레인 탑승 — A/D 몸통 회전, W/S 붐, Q/E 암, Z/X 버킷, ' +
     'Space 퍼기·붓기, Shift 내리기');
   this.playSound('place');

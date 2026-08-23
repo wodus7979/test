@@ -903,8 +903,57 @@ Renderer.prototype.drawDiggers = function (game, world, player, opts) {
       emitBox(_geom, t[0], t[1] - 0.1, t[2], 0.9, 0.5, 0.9, 'ex_dirt', null,
         function (px, py, pz, out) { out[0] = px; out[1] = py - 0.25; out[2] = pz; }, light);
     }
+
+    // 바로 옆에 세워 둔 덤프트럭 — 짐칸에 흙이 쌓인다
+    self.emitSiteTruck(ex.truck, light);
   });
   this.flushEntityGeom(opts);
+};
+
+// 공사장 덤프트럭 하나를 _geom 에 얹는다 (drawDiggers 가 한꺼번에 flush 한다)
+Renderer.prototype.emitSiteTruck = function (tr, light) {
+  if (!tr) return;
+  const type = (typeof CAR_TYPES !== 'undefined')
+    ? CAR_TYPES.find(function (t) { return t.key === 'dump'; }) : null;
+  if (!type) return;
+  const cy = Math.cos(tr.yaw), sy = Math.sin(tr.yaw);
+  const glow = [1, 1];
+  const parts = type.parts;
+  for (let k = 0; k < parts.length; k++) {
+    const b = parts[k];
+    if (b.wheel) {
+      // 세워 둔 차라 굴러가지는 않지만, 달리는 차와 같은 모양으로 그린다
+      for (let sp = 0; sp < 3; sp++) {
+        const ang = sp * (Math.PI / 3);
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const wt = function (px, py, pz, out) {
+          const ry = py - b.r, rz = pz;
+          const y2 = ry * ca - rz * sa, z2 = ry * sa + rz * ca;
+          const lx = px + b.x, ly = y2 + b.y, lz = z2 + b.z;
+          out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+        };
+        emitBox(_geom, tr.x, tr.y, tr.z, b.w, b.r * 2, b.r, 'car_wheel', null, wt, light);
+      }
+      continue;
+    }
+    const bh = b.h;
+    const transform = function (px, py, pz, out) {
+      const lx = px + b.x, ly = py - bh / 2 + b.y, lz = pz + b.z;
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+    const lit = (typeof CAR_GLOW !== 'undefined' && CAR_GLOW[b.tex]) ? glow : light;
+    emitBox(_geom, tr.x, tr.y, tr.z, b.w, bh, b.d, b.tex, b.front, transform, lit);
+  }
+  // 짐칸에 실린 흙 — 부을 때마다 높아진다
+  const fill = Math.min(EX_LOADS_TO_FILL, tr.fill || 0);
+  if (fill > 0) {
+    const h = 0.18 + (fill / EX_LOADS_TO_FILL) * 1.25;
+    const dt2 = function (px, py, pz, out) {
+      const lx = px, ly = py + 1.2 + h / 2, lz = pz - 1.9;
+      out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+    };
+    emitBox(_geom, tr.x, tr.y, tr.z, 2.2, h, 5.5, 'ex_dirt', null, dt2, light);
+  }
 };
 
 // 쫓아오는 순찰차 — 실제 Car 가 아니라 게임이 들고 있는 간단한 표적이다

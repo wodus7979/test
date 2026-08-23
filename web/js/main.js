@@ -314,7 +314,7 @@ Game.prototype.updateDigHud = function () {
   }
   html += '<br>버킷: ' + (ex.loaded ? '흙 있음' : '비어 있음');
   if (!ex.loaded && ex.overPile(this.world)) html += ' <span class="ok">← 여기서 Space</span>';
-  if (ex.loaded && ex.overTruck(this)) html += ' <span class="ok">← 여기서 Space</span>';
+  if (ex.loaded && ex.overTruck()) html += ' <span class="ok">← 여기서 Space</span>';
   html += '<br>모은 돈 ' + (this.money || 0) + '원';
   el.innerHTML = html;
 };
@@ -1110,6 +1110,27 @@ Game.prototype.carCamera = function (car, dt) {
   };
 };
 
+// 포크레인 카메라 — 상부 뒤쪽 높은 곳에서 작업 반경을 내려다본다.
+// 운전석 눈높이에서는 붐에 가려 버킷과 흙더미가 보이지 않는다.
+Game.prototype.diggerCamera = function (ex, dt) {
+  const a = ex.yaw + ex.swing;
+  if (this._digYaw === undefined) this._digYaw = a;
+  let d = a - this._digYaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  this._digYaw += d * Math.min(1, (dt || 0.016) * 5);
+
+  const back = 11.5, up = 8.5;
+  const s = Math.sin(this._digYaw), c = Math.cos(this._digYaw);
+  const cx = ex.x - s * back, cz = ex.z - c * back;
+  let cyy = ex.y + up;
+  const gy = this.world.topSolidY(Math.floor(cx), Math.floor(cz));
+  if (gy >= 0 && cyy < gy + 3) cyy = gy + 3;
+  // 마우스로 내려다보는 각도만 조금 조절한다 (좌우는 몸통 회전이 정한다)
+  const pitch = Math.max(-1.15, Math.min(-0.1, -0.52 + this.player.pitch * 0.6));
+  return { eye: [cx, cyy, cz], yaw: this._digYaw + Math.PI, pitch: pitch, roll: 0 };
+};
+
 // 역에 서면 알려 준다
 Game.prototype.updateTrainInfo = function (dt) {
   const t = this.player.onTrain;
@@ -1878,6 +1899,7 @@ Game.prototype.update = function (dt) {
   if (this.entities.updateTrains) this.entities.updateTrains(dt, p, this);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
+  if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   this.updateTrainInfo(dt);
   this.setEngineSound(p.riding ? (0.25 + p.riding.throttle * 0.75) : 0);
   this.updateAlerts(dt);
@@ -1998,6 +2020,7 @@ Game.prototype.render = function (dt) {
   }
   if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
+  else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawClouds(p, opts);

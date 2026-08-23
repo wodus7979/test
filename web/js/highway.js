@@ -78,21 +78,31 @@ Highway.prototype.build = function () {
 
   for (let k = 0; k + 1 < order.length; k++) {
     const A = order[k], B = order[k + 1];
-    // 곧게만 가지 않도록 가운데를 옆으로 밀어 굽힌다.
-    // 첫 구간은 호수 한가운데를 지나가게 해서 다리를 놓는다.
-    const ux = B.x - A.x, uz = B.z - A.z;
+    // 도시 안으로는 들어가지 않는다. 도시의 가운데 큰길(격자선 0)이 바깥으로
+    // 이어지는 자리에서 시작해, 상대 도시의 같은 자리에서 끝낸다.
+    // (예전에는 도시 한복판에서 출발해 건물을 뚫고 나갔다)
+    const exitOf = function (C, tx, tz) {
+      const ex = tx - C.x, ez = tz - C.z;
+      const out = CITY_R + 5;
+      // 큰 쪽 축으로 빠져나간다 — 도시의 가운데 큰길과 그대로 이어진다
+      if (Math.abs(ex) >= Math.abs(ez)) return [C.x + Math.sign(ex) * out, C.z];
+      return [C.x, C.z + Math.sign(ez) * out];
+    };
+    const Astart = exitOf(A, B.x, B.z);
+    const Bend = exitOf(B, A.x, A.z);
+    const ux = Bend[0] - Astart[0], uz = Bend[1] - Astart[1];
     const ul = Math.hypot(ux, uz) || 1;
     const nx = uz / ul, nz = -ux / ul;              // 직각 방향
-    const pts = [[A.x, A.z]];
+    const pts = [[Astart[0], Astart[1]]];
     if (k === 0) {
-      pts.push([A.x + ux * 0.28 + nx * ul * 0.10, A.z + uz * 0.28 + nz * ul * 0.10]);
+      pts.push([Astart[0] + ux * 0.28 + nx * ul * 0.10, Astart[1] + uz * 0.28 + nz * ul * 0.10]);
       pts.push([this.lake.x, this.lake.z]);
-      pts.push([A.x + ux * 0.72 - nx * ul * 0.09, A.z + uz * 0.72 - nz * ul * 0.09]);
+      pts.push([Astart[0] + ux * 0.72 - nx * ul * 0.09, Astart[1] + uz * 0.72 - nz * ul * 0.09]);
     } else {
-      pts.push([A.x + ux * 0.30 - nx * ul * 0.12, A.z + uz * 0.30 - nz * ul * 0.12]);
-      pts.push([A.x + ux * 0.62 + nx * ul * 0.11, A.z + uz * 0.62 + nz * ul * 0.11]);
+      pts.push([Astart[0] + ux * 0.30 - nx * ul * 0.12, Astart[1] + uz * 0.30 - nz * ul * 0.12]);
+      pts.push([Astart[0] + ux * 0.62 + nx * ul * 0.11, Astart[1] + uz * 0.62 + nz * ul * 0.11]);
     }
-    pts.push([B.x, B.z]);
+    pts.push([Bend[0], Bend[1]]);
 
     const path = smoothPath(pts, HW_CURVE_R, HW_STEP);
     const rec = { pts: path, h: new Array(path.length), name: A.name + ' ↔ ' + B.name,
@@ -188,6 +198,18 @@ Highway.prototype.at = function (x, z) {
   return { y: Math.round(rec.h[i]), off: off, pi: best.pi, i: i, tx: tx, tz: tz, rec: rec };
 };
 
+// 도시 안(건물이 선 자리)인가 — 여기는 고속도로가 건드리지 않는다
+Highway.prototype.insideCity = function (x, z) {
+  if (!this._cityList) this._cityList = this.world.cities ? this.world.cities() : [];
+  const list = this._cityList;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (Math.abs(c.x - x) > CITY_R + 2 || Math.abs(c.z - z) > CITY_R + 2) continue;
+    if (Math.hypot(c.x - x, c.z - z) <= CITY_R + 2) return true;
+  }
+  return false;
+};
+
 // 도시까지 남은 거리 (지금 서 있는 도로 기준)
 Highway.prototype.aheadInfo = function (x, z) {
   const hit = this.at(x, z);
@@ -247,6 +269,7 @@ World.prototype.paintHighway = function (c) {
       const wx = bx + lx, wz = bz + lz;
       const hit = hw.at(wx, wz);
       if (!hit) continue;
+      if (hw.insideCity(wx, wz)) continue;   // 도시 안은 원래 길을 쓴다
       touched = true;
       const y = hit.y;
       if (y < 1 || y >= CHUNK_Y - 2) continue;
@@ -414,6 +437,7 @@ World.prototype.paintHighwaySigns = function (c) {
     const rec = hw.paths[sg.pi];
     const p = rec.pts[sg.i];
     if (Math.abs(p[0] - (bx + 8)) > 26 || Math.abs(p[1] - (bz + 8)) > 26) continue;
+    if (hw.insideCity(p[0], p[1])) continue;
     const j = Math.min(rec.pts.length - 1, sg.i + 1), q = Math.max(0, sg.i - 1);
     let tx = rec.pts[j][0] - rec.pts[q][0], tz = rec.pts[j][1] - rec.pts[q][1];
     const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;

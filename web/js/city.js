@@ -1298,7 +1298,7 @@ function buildCityPlan(world, ap, index) {
     plan.site = {
       x: best.x + sx, y: syGround, z: best.z + sz, half: half,
       pile: { x: best.x + px, y: syGround, z: best.z + pz, r: 6 },
-      truck: { x: best.x + sx + 10, y: syGround, z: best.z + sz + 4 },
+      truck: { x: best.x + sx - 1, y: syGround, z: best.z + sz + 15, yaw: 0 },
       digger: { x: best.x + sx - 1, y: syGround, z: best.z + sz + 6 }
     };
   }
