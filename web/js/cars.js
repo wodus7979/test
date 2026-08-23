@@ -8,7 +8,7 @@ const CAR_MAX = 9.0;         // 최고 속도 (블록/초)
 const CAR_ACC = 5.0;
 const CAR_BRAKE = 9.0;
 const CAR_WHEEL_R = 0.42;
-const CARS_PER_CITY = 26;
+const CARS_PER_CITY = 38;   // 도시가 넓어진 만큼 차도 늘렸다
 const CAR_SPAWN_R = 260;     // 이 안에 들어오면 차를 굴린다
 const CAR_DESPAWN_R = 420;
 
@@ -379,7 +379,7 @@ Car.prototype.update = function (dt, game) {
   const ax = this.axis === 0 ? 'x' : 'z';
   const ahead = (p[ax] - (this.axis === 0 ? this.x : this.z)) * this.dir;
   const side = Math.abs(this.axis === 0 ? (p.z - this.z) : (p.x - this.x));
-  if (ahead > 0 && ahead < 7 && side < 2.4 && Math.abs(p.y - this.y) < 3) want = 0;
+  if (ahead > 0 && ahead < 9 && side < 3.2 && Math.abs(p.y - this.y) < 3) want = 0;
   if (this._blocked !== null && this._blocked !== undefined) want = Math.min(want, this._blocked);
 
   const target = want;
@@ -451,6 +451,25 @@ EntityManager.prototype.pickCar = function (ox, oy, oz, dx, dy, dz, maxDist) {
     const t = rayBox(rx, oy - car.y, rz, rdx, dy, rdz,
       -hw, -0.2, -hl, hw, 2.4, hl);
     if (t !== null && t < bestT) { bestT = t; best = { car: car, dist: t }; }
+  }
+  return best;
+};
+
+// 정조준이 아니어도 바로 옆에 서서 대충 바라보고 있으면 그 차로 친다.
+// 차는 길고 낮아서 조준선이 지붕 위로 살짝 빗나가기 쉽다.
+EntityManager.prototype.carNearLook = function (px, py, pz, dx, dz, maxDist, minDot) {
+  if (!this.cars) return null;
+  let best = null, bd = maxDist;
+  for (let i = 0; i < this.cars.length; i++) {
+    const car = this.cars[i];
+    if (car.driver) continue;
+    const ex = car.x - px, ez = car.z - pz;
+    const d = Math.hypot(ex, ez);
+    if (d > bd) continue;
+    if (Math.abs(car.y - py) > 3.5) continue;
+    const dot = d < 0.001 ? 1 : (ex * dx + ez * dz) / d;
+    if (dot < minDot) continue;
+    bd = d; best = { car: car, dist: d };
   }
   return best;
 };

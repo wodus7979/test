@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.9';
+const GAME_VERSION = 'v7.10';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
 
@@ -748,6 +748,7 @@ Game.prototype.bindTouch = function () {
   }
 
   canvas.addEventListener('touchstart', function (e) {
+    self._touchUsed = true;
     if (self.ui.open) return;
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
@@ -950,11 +951,20 @@ Game.prototype.onUse = function () {
   }
 
   // 0-3) 자동차 타기
+  // 차는 길고 낮아서 조준선이 지붕 위로 빗나가기 쉽다. 광선으로 먼저 찾고,
+  // 못 찾으면 "바로 옆에 서서 그쪽을 보고 있는" 차를 잡아 준다.
   if (this.entities.pickCar) {
-    const hitCar = this.entities.pickCar(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 5);
+    const hitCar = this.entities.pickCar(eye0[0], eye0[1], eye0[2], look0[0], look0[1], look0[2], 7);
     if (hitCar && (!hit.hit || hitCar.dist < hit.dist)) {
       this.enterCar(hitCar.car);
       return;
+    }
+    if (!hitCar && this.entities.carNearLook) {
+      const nearCar = this.entities.carNearLook(p.x, p.y, p.z, look0[0], look0[2], 5.0, 0.45);
+      if (nearCar && (!hit.hit || hit.dist === undefined || nearCar.dist < hit.dist + 2)) {
+        this.enterCar(nearCar.car);
+        return;
+      }
     }
   }
 
@@ -1520,6 +1530,47 @@ Game.prototype.setRainSound = function (level) {
     if (ctx.state === 'suspended') return;   // 아직 소리를 낼 수 없다
     this.rainGain.gain.setTargetAtTime(Math.min(1, level) * 0.05, ctx.currentTime, 0.8);
   } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// ── 조준 안내 ─────────────────────────────────────────────────────────
+// 지금 보고 있는 것이 탈 수 있는 것이면 조준점 아래에 알려 준다.
+// (탈 수 있는지 없는지 몰라 헤매는 일이 없게)
+Game.prototype.updateUseHint = function () {
+  const el = document.getElementById('use-hint');
+  if (!el) return;
+  const p = this.player;
+  if (this.ui.open || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger) {
+    if (el.style.display !== 'none') el.style.display = 'none';
+    return;
+  }
+  const eye = p.eyePos(), look = p.lookDir();
+  const em = this.entities;
+  let label = null;
+  if (em.pickPlane) {
+    const h = em.pickPlane(eye[0], eye[1], eye[2], look[0], look[1], look[2], 6);
+    if (h) label = '여객기 타기';
+  }
+  if (!label && em.pickTrain) {
+    const h = em.pickTrain(eye[0], eye[1], eye[2], look[0], look[1], look[2], 8);
+    if (h) label = '열차 타기';
+  }
+  if (!label && em.pickCar) {
+    let h = em.pickCar(eye[0], eye[1], eye[2], look[0], look[1], look[2], 7);
+    if (!h && em.carNearLook) h = em.carNearLook(p.x, p.y, p.z, look[0], look[2], 5.0, 0.45);
+    if (h) label = h.car.type.kr + ' 타기';
+  }
+  if (!label && this.nearestDigger) {
+    const ex = this.nearestDigger();
+    if (ex && !ex.driver) label = '포크레인 타기';
+  }
+  if (!label) {
+    if (el.style.display !== 'none') el.style.display = 'none';
+    return;
+  }
+  const key = this._touchUsed ? '화면 탭' : '우클릭';
+  const txt = key + ' — ' + label;
+  if (el.textContent !== txt) el.textContent = txt;
+  el.style.display = 'block';
 };
 
 // ── 역 안내방송 ───────────────────────────────────────────────────────
@@ -2160,6 +2211,7 @@ Game.prototype.update = function (dt) {
   this.updateDriveHud();
   this.updateDigHud();
   if (this.updateBusHud) this.updateBusHud();
+  if (this.updateUseHint) this.updateUseHint();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
