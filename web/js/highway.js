@@ -575,6 +575,73 @@ const SPEED_GRACE = 2.2;        // 이만큼 넘겨야 단속이 붙는다 (초)
 const CHASE_CATCH = 9;          // 이만큼 가까워지면 잡힌 것
 const DRIVE_BAN_SEC = 120;      // 정지 처분 (초)
 
+// ── 신호 위반 ─────────────────────────────────────────────────────────
+const PENALTY_PER_RUN = 10;    // 신호 위반 한 번에 붙는 벌점
+const PENALTY_LIMIT = 100;     // 이 점수를 넘으면 운전 정지
+
+// 신호 시각 — 창끼리도 같아야 하므로 벽시계를 쓴다
+Game.prototype.signalTime = function () { return Date.now() / 1000; };
+
+Game.prototype.addPenalty = function (n, why) {
+  this.penalty = (this.penalty || 0) + n;
+  this.playSound('hurt');
+  if (this.penalty >= PENALTY_LIMIT) {
+    this.penalty = 0;
+    this.carBan = DRIVE_BAN_SEC;
+    if (this.player.inCar) this.exitCar();
+    this.ui.toast(why + ' — 벌점 ' + PENALTY_LIMIT + '점을 넘겨 ' +
+      (DRIVE_BAN_SEC / 60) + '분 동안 운전할 수 없습니다');
+  } else {
+    this.ui.toast(why + ' — 벌점 +' + n + ' (합계 ' + this.penalty + ' / ' + PENALTY_LIMIT + '점)');
+  }
+};
+
+// 사람이 몰고 있을 때 신호를 지키는지 본다.
+// 교차로 한가운데를 "지나간 순간" 그 방향 신호가 빨강이면 위반이다.
+Game.prototype.updateSignals = function (dt) {
+  const car = this.player.inCar;
+  if (!this._sigSide) this._sigSide = new Map();
+  if (!car) { this._sigSide.clear(); this.nearSignal = null; return; }
+  const w = this.world;
+  if (!w.cities) return;
+  const list = w.cities();
+  const t = this.signalTime();
+  // 지금 달리는 축 (X축 도로인가 Z축 도로인가)
+  const ax = Math.abs(Math.sin(car.yaw)) > Math.abs(Math.cos(car.yaw)) ? 0 : 1;
+  const pos = ax === 0 ? car.x : car.z;
+  const cross = ax === 0 ? car.z : car.x;
+  let near = null, nearD = 1e9;
+
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.signals) continue;
+    if (Math.abs(c.x - car.x) > CITY_R + 40 || Math.abs(c.z - car.z) > CITY_R + 40) continue;
+    for (let k = 0; k < c.signals.length; k++) {
+      const sig = c.signals[k];
+      const sPos = ax === 0 ? sig.x : sig.z;
+      const sCross = ax === 0 ? sig.z : sig.x;
+      const d = Math.hypot(sig.x - car.x, sig.z - car.z);
+      if (d < nearD) {
+        nearD = d;
+        near = { sig: sig, state: (ax === 0 ? signalPhase(sig, t).ew : signalPhase(sig, t).ns), d: d };
+      }
+      if (d > 26) continue;
+      if (Math.abs(cross - sCross) > ROAD_HALF + 1.5) continue;   // 이 도로 위가 아니다
+      const key = c.code + ':' + k + ':' + ax;
+      const side = Math.sign(pos - sPos);
+      const prev = this._sigSide.get(key);
+      this._sigSide.set(key, side);
+      if (prev === undefined || prev === 0 || side === 0 || prev === side) continue;
+      // 방금 교차로를 지났다
+      const light = (ax === 0) ? signalPhase(sig, t).ew : signalPhase(sig, t).ns;
+      if (light === 0 && Math.abs(car.speed) > 1.2) {
+        this.addPenalty(PENALTY_PER_RUN, '신호 위반');
+      }
+    }
+  }
+  this.nearSignal = (near && near.d < 34) ? near : null;
+};
+
 Game.prototype.updateSpeedLimit = function (dt) {
   const p = this.player;
   if (this.carBan > 0) {

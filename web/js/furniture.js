@@ -476,6 +476,36 @@ defFurnTex('car_siren', function (p, rnd) {
   p.rect(0, 0, 8, 16, '#d33a30');
   p.rect(8, 0, 8, 16, '#2f6fd0');
 });
+// ── 신호등 ────────────────────────────────────────────────────────────
+defFurnTex('sig_body', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 5, 3);
+  p.frame(0, 0, 16, 16, '#1a1c21');
+});
+defFurnTex('sig_red', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 4, 3);
+  for (let y = 2; y < 14; y++) {
+    for (let x = 2; x < 14; x++) {
+      if (Math.hypot(x - 7.5, y - 7.5) < 5.6) p.set(x, y, '#e03a2a');
+    }
+  }
+});
+defFurnTex('sig_amber', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 4, 3);
+  for (let y = 2; y < 14; y++) {
+    for (let x = 2; x < 14; x++) {
+      if (Math.hypot(x - 7.5, y - 7.5) < 5.6) p.set(x, y, '#e8a41c');
+    }
+  }
+});
+defFurnTex('sig_green', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 4, 3);
+  for (let y = 2; y < 14; y++) {
+    for (let x = 2; x < 14; x++) {
+      if (Math.hypot(x - 7.5, y - 7.5) < 5.6) p.set(x, y, '#2fc25a');
+    }
+  }
+});
+
 // ── 포크레인 ──────────────────────────────────────────────────────────
 defFurnTex('ex_body', function (p, rnd) {
   p.noise(rnd, '#e0a41f', 5, 4);

@@ -681,6 +681,7 @@ body.touch .hand { display: none !important; }
 #drive-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
 #drive-hud .over { color: #ff7a6a; }
 #drive-hud .lim { color: #9fb0c8; }
+#drive-hud .ok { color: #7cc44a; }
 
 /* 공사장 계기판 */
 #dig-hud {

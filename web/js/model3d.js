@@ -618,6 +618,29 @@ function carMesh(key) {
 }
 function wheelMesh() { if (!WHEEL_MESH) WHEEL_MESH = buildWheelMesh(12); return WHEEL_MESH; }
 
+// ── 신호등 머리 ───────────────────────────────────────────────────────
+// 세로로 등 세 개가 든 통. +Z 쪽(다가오는 차 쪽)을 바라본다.
+function buildSignalMesh() {
+  const m = new Mesh3D();
+  const W = 0.34, H = 1.02, D = 0.3;
+  m.box(0, 0, 0, W, H, D, 'sig_body');
+  // 앞면에 등 세 개 (위부터 빨강·노랑·초록)
+  const lamps = ['sig_red', 'sig_amber', 'sig_green'];
+  for (let i = 0; i < 3; i++) {
+    const y = H / 2 - 0.19 - i * 0.32;
+    const z = D / 2 + 0.012;
+    m.quad([-0.13, y - 0.13, z], [0.13, y - 0.13, z],
+      [0.13, y + 0.13, z], [-0.13, y + 0.13, z], lamps[i], false);
+  }
+  // 눈부심 가리개
+  m.quad([-0.17, H / 2 + 0.02, D / 2 + 0.14], [0.17, H / 2 + 0.02, D / 2 + 0.14],
+    [0.17, H / 2 + 0.02, -D / 2], [-0.17, H / 2 + 0.02, -D / 2], 'sig_body', true);
+  return m.build();
+}
+
+let SIGNAL_MESH = null;
+function signalMesh() { if (!SIGNAL_MESH) SIGNAL_MESH = buildSignalMesh(); return SIGNAL_MESH; }
+
 // 처음 그릴 때 한 번만 만들어 두고 계속 쓴다
 let PLANE_MESH = null, TRAIN_MESHES = null;
 function planeMesh() { if (!PLANE_MESH) PLANE_MESH = buildPlaneMesh(); return PLANE_MESH; }

@@ -944,6 +944,59 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
 };
 
 
+// ── 신호등 ────────────────────────────────────────────────────────────
+// 켜진 등만 스스로 빛나게 한다 (블록을 바꾸지 않고 색이 바뀐다)
+const SIG_GLOW = [
+  { glow: { sig_red: 1 } },
+  { glow: { sig_amber: 1 } },
+  { glow: { sig_green: 1 } }
+];
+// 네 모서리 기둥에 하나씩 — [기둥 x부호, z부호, 머리 방향, 어느 축 신호]
+const SIG_HEADS = [
+  [-1, -1, -Math.PI / 2, 'ew'],   // +X 로 오는 차가 본다
+  [1, 1, Math.PI / 2, 'ew'],      // -X 로 오는 차
+  [1, -1, Math.PI, 'ns'],         // +Z 로 오는 차
+  [-1, 1, 0, 'ns']                // -Z 로 오는 차
+];
+
+Renderer.prototype.drawSignals = function (game, world, player, opts) {
+  if (!world.cities) return;
+  const list = world.cities();
+  if (!list.length) return;
+  const t = game.signalTime();
+  const off = ROAD_HALF + 2;
+  let any = false;
+  _geom.reset();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.signals || !c.signals.length) continue;
+    if (Math.abs(c.x - player.x) > CITY_R + 80 || Math.abs(c.z - player.z) > CITY_R + 80) continue;
+    for (let k = 0; k < c.signals.length; k++) {
+      const sig = c.signals[k];
+      const dx = sig.x - player.x, dz = sig.z - player.z;
+      if (dx * dx + dz * dz > 170 * 170) continue;
+      if (!this.boxInFrustum(sig.x - 9, sig.y, sig.z - 9, sig.x + 9, sig.y + 7, sig.z + 9)) continue;
+      const bx = Math.floor(sig.x), bz = Math.floor(sig.z);
+      const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, sig.y + 6), bz) / 15;
+      const light = [Math.max(sky, 0.3), 0.3];
+      const ph = signalPhase(sig, t);
+      for (let h = 0; h < SIG_HEADS.length; h++) {
+        const hd = SIG_HEADS[h];
+        const cy = Math.cos(hd[2]), sy = Math.sin(hd[2]);
+        const rot = function (lx, ly, lz, out) {
+          out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+        };
+        const state = (hd[3] === 'ew') ? ph.ew : ph.ns;
+        this.emitMesh(signalMesh(),
+          sig.x + hd[0] * off + 0.5, sig.y + SIGNAL_HEAD_Y, sig.z + hd[1] * off + 0.5,
+          rot, 1, light, SIG_GLOW[state]);
+        any = true;
+      }
+    }
+  }
+  if (any) this.flushEntityGeom(opts);
+};
+
 // ── 포크레인 ──────────────────────────────────────────────────────────
 // 궤도(하부) 위에 상부가 얹히고, 붐 → 암 → 버킷이 이어 붙는다.
 Renderer.prototype.drawDiggers = function (game, world, player, opts) {

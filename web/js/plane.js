@@ -33,6 +33,11 @@ const PLANE_REST = 3.4 * PLANE_SCALE;   // 바퀴가 땅에 닿을 때 동체 �
 // 전동차(고가 55~60)와 확실히 차이가 나도록 훨씬 높이 잡았다.
 const PLANE_CEIL = 320;
 const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
+// 추락 판정 — 이보다 세게 떨어지거나 기울어져 닿으면 터진다
+const PLANE_CRASH_SINK = 24;       // 가라앉는 속도 (블록/초)
+const PLANE_CRASH_BANK = 0.7;      // 접지 순간 기울기 (라디안)
+const PLANE_CRASH_HIT = 26;        // 산·건물에 정면으로 부딪히는 속도
+const PLANE_WRECK_KEEP = 9;        // 잔해를 남겨 두는 시간(초)
 
 function Plane(world, x, y, z, yaw) {
   this.world = world;
@@ -50,6 +55,39 @@ function Plane(world, x, y, z, yaw) {
   this.age = 0;
   this.home = null;         // 공항으로 돌아갈 자리
 }
+
+// 추락 — 폭발하고 그 기체는 다시 운항하지 못한다
+Plane.prototype.crash = function (game, why) {
+  if (this.wrecked) return;
+  this.wrecked = true;
+  this.dead = true;
+  this.ai = null;
+  this.speed = 0;
+  this.throttle = 0;
+  this.vy = 0;
+  this.onGround = true;
+  this.wreckT = 0;
+
+  const rider = this.rider;
+  if (rider) {
+    // 조종사는 튕겨 나가고 크게 다친다
+    this.unboard();
+    if (!rider.creative) rider.hurt(18, '비행기 ' + why);
+  }
+  if (game && game.entities && game.entities.explode) {
+    game.entities.explode(this.x, this.y + 1.5, this.z, 6, game.player);
+    // 날개 쪽에도 한 번씩 더 — 큰 기체답게 넓게 터진다
+    const c = Math.cos(this.yaw), s2 = Math.sin(this.yaw);
+    for (const sx of [-1, 1]) {
+      game.entities.explode(this.x + c * sx * 5, this.y + 1, this.z - s2 * sx * 5, 4, null);
+    }
+  }
+  if (game) {
+    if (game.playSound) game.playSound('boom');
+    game.shake = Math.max(game.shake || 0, 14);
+    if (game.ui) game.ui.toast('여객기 ' + why + ' — 이 기체는 더 이상 뜨지 못합니다');
+  }
+};
 
 // 기수가 향하는 방향
 Plane.prototype.nose = function () {
@@ -179,8 +217,13 @@ Plane.prototype.update = function (dt, game) {
   const gAhead = this.groundY(nx, nz);
   if (this.onGround) {
     ny = gAhead;
-    // 너무 가파른 턱은 넘지 못한다
+    // 너무 가파른 턱은 넘지 못한다. 빠른 속도로 들이받으면 그대로 터진다.
     if (gAhead - this.y > 1.6 && this.speed > 6) {
+      if (this.speed > PLANE_CRASH_HIT) {
+        this.x = nx; this.z = nz; this.y = ny;
+        this.crash(game, '충돌');
+        return;
+      }
       this.speed *= 0.25;
       if (rider && !rider.creative) rider.hurt(2, '비행기 충돌');
     }
@@ -192,12 +235,19 @@ Plane.prototype.update = function (dt, game) {
   } else if (ny <= gAhead) {
     // 착지 또는 추락
     const sink = -my;
+    const bank = Math.abs(this.roll);
     ny = gAhead;
     this.onGround = true;
     this.vy = 0;
     this.pitch = 0;
     this.roll = 0;
-    if (sink > 14 || Math.abs(this.roll) > 0.5) {
+    if (sink > PLANE_CRASH_SINK || bank > PLANE_CRASH_BANK) {
+      // 추락 — 터지고 그 기체는 다시 뜨지 못한다
+      this.x = nx; this.z = nz; this.y = ny;
+      this.crash(game, '추락');
+      return;
+    }
+    if (sink > 14) {
       this.speed *= 0.3;
       if (rider && !rider.creative) rider.hurt(Math.min(10, (sink - 12) * 0.7), '착륙 실패');
       if (game.playSound) game.playSound('boom');
@@ -278,6 +328,12 @@ EntityManager.prototype.updatePlanes = function (dt, player, game) {
     // 지나가는 비행기는 시야를 벗어나면 사라진다
     if (p.ambient && (far > SKY_DESPAWN_R || p.onGround)) {
       this.planes.splice(i, 1);
+      continue;
+    }
+    // 부서진 기체는 잠깐 잔해로 남았다가 사라진다 (다시 뜨지 않는다)
+    if (p.wrecked) {
+      p.wreckT = (p.wreckT || 0) + dt;
+      if (p.wreckT > PLANE_WRECK_KEEP || far > 420) this.planes.splice(i, 1);
       continue;
     }
     // 세워 둔 비행기는 멀어지면 정리한다 (정기편은 계속 난다)
@@ -378,7 +434,7 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
   let best = null, bestT = maxDist;
   for (let i = 0; i < this.planes.length; i++) {
     const p = this.planes[i];
-    if (p.rider || p.ambient || p.airline) continue;
+    if (p.rider || p.ambient || p.airline || p.wrecked) continue;
     const S = PLANE_SCALE;
     const t = rayBox(ox, oy, oz, dx, dy, dz,
       p.x - 12 * S, p.y - 4 * S, p.z - 13 * S,

@@ -691,6 +691,7 @@ body.touch .hand { display: none !important; }
 #drive-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
 #drive-hud .over { color: #ff7a6a; }
 #drive-hud .lim { color: #9fb0c8; }
+#drive-hud .ok { color: #7cc44a; }
 
 /* 공사장 계기판 */
 #dig-hud {
@@ -946,6 +947,8 @@ button.tiny {
           <li>정기편은 <b>도시 위를 높이 넘어간다</b> — 제일 높은 건물보다
               30블록 위로 올라간 뒤에야 지나간다. 뜨고 내리는 방향도
               <b>진입로가 도시 반대편이 되도록</b> 잡는다</li>
+          <li><b>추락하면 폭발한다</b> — 너무 빠르게 처박거나 옆으로 기운 채 닿으면
+              기체가 터지고 땅이 파인다. 그 기체는 <b>잔해로 남아 다시 뜨지 못한다</b></li>
           <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li>목적지까지 <b>500블록</b>이 남으면 <b>자동 착륙 승인 창</b>이 뜬다 — <b>Y</b> 승인, <b>N</b> 취소</li>
           <li>도시 길에는 <b>자동차 아홉 종류</b>(승용차·택시·승합차·버스·트럭·덤프트럭·순찰차·소방차)가
@@ -961,6 +964,12 @@ button.tiny {
               (시드니 하버브리지 꼴)</li>
           <li>고속도로 제한 속도는 <b>120km/h</b>. 넘긴 채로 달리면 <b>순찰차</b>가 따라붙어
               세우고, <b>2분 동안 운전할 수 없다</b>. 계기판에서 속도를 볼 수 있다</li>
+          <li>도시 큰 교차로 <b>10곳에 신호등</b>이 서 있다 (네 귀퉁이에 하나씩).
+              초록 12초 · 노랑 3초로 동서·남북이 번갈아 열리고,
+              <b>동네 차들은 정지선 앞에서 선다</b></li>
+          <li>내가 몰 때 <b>빨간불에 지나가면 벌점 10점</b>이 붙는다.
+              <b>100점</b>이 되면 그 자리에서 내려지고 <b>2분 동안 운전할 수 없다</b>
+              (그 뒤 벌점은 0으로 돌아간다). 계기판에 <b>앞 신호와 벌점</b>이 보인다</li>
           <li>지나가는 <b>자동차에 우클릭하면 직접 몰 수 있다</b> —
               <b>W/S</b> 가속·후진, <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기.
               벽에 막히면 후진으로 빠져나오면 된다</li>
@@ -3285,6 +3294,36 @@ defFurnTex('car_siren', function (p, rnd) {
   p.rect(0, 0, 8, 16, '#d33a30');
   p.rect(8, 0, 8, 16, '#2f6fd0');
 });
+// ── 신호등 ────────────────────────────────────────────────────────────
+defFurnTex('sig_body', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 5, 3);
+  p.frame(0, 0, 16, 16, '#1a1c21');
+});
+defFurnTex('sig_red', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 4, 3);
+  for (let y = 2; y < 14; y++) {
+    for (let x = 2; x < 14; x++) {
+      if (Math.hypot(x - 7.5, y - 7.5) < 5.6) p.set(x, y, '#e03a2a');
+    }
+  }
+});
+defFurnTex('sig_amber', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 4, 3);
+  for (let y = 2; y < 14; y++) {
+    for (let x = 2; x < 14; x++) {
+      if (Math.hypot(x - 7.5, y - 7.5) < 5.6) p.set(x, y, '#e8a41c');
+    }
+  }
+});
+defFurnTex('sig_green', function (p, rnd) {
+  p.noise(rnd, '#2a2c32', 4, 3);
+  for (let y = 2; y < 14; y++) {
+    for (let x = 2; x < 14; x++) {
+      if (Math.hypot(x - 7.5, y - 7.5) < 5.6) p.set(x, y, '#2fc25a');
+    }
+  }
+});
+
 // ── 포크레인 ──────────────────────────────────────────────────────────
 defFurnTex('ex_body', function (p, rnd) {
   p.noise(rnd, '#e0a41f', 5, 4);
@@ -10592,6 +10631,74 @@ function cityRoads(plan, st) {
 }
 
 
+// ── 신호등 ────────────────────────────────────────────────────────────
+// 도시마다 큰 교차로 열 곳에 신호등을 세운다. 등 색은 블록이 아니라
+// 그릴 때 정해지므로(model3d.js 의 신호등 머리) 세계를 고치지 않고 바뀐다.
+const SIGNAL_COUNT = 10;       // 도시마다 신호등 교차로 수
+const SIGNAL_GREEN = 12;       // 초록 (초)
+const SIGNAL_AMBER = 3;        // 노랑 (초)
+const SIGNAL_CYCLE = (SIGNAL_GREEN + SIGNAL_AMBER) * 2;
+const SIGNAL_POST_H = 5;       // 기둥 높이
+const SIGNAL_HEAD_Y = 4.6;     // 등이 달리는 높이
+
+// 0 = 빨강, 1 = 노랑, 2 = 초록.
+// ew 는 X축 도로(동서), ns 는 Z축 도로(남북) 차례다.
+function signalPhase(sig, t) {
+  let c = (t + (sig.phase || 0)) % SIGNAL_CYCLE;
+  if (c < 0) c += SIGNAL_CYCLE;
+  if (c < SIGNAL_GREEN) return { ew: 2, ns: 0 };
+  if (c < SIGNAL_GREEN + SIGNAL_AMBER) return { ew: 1, ns: 0 };
+  if (c < SIGNAL_GREEN * 2 + SIGNAL_AMBER) return { ew: 0, ns: 2 };
+  return { ew: 0, ns: 1 };
+}
+
+function citySignals(plan, st) {
+  const gy = plan.y;
+  const lines = plan.roadLines;
+  const cand = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = 0; j < lines.length; j++) {
+      const a = lines[i], b = lines[j];
+      const d = Math.hypot(a, b);
+      if (d > CITY_RING - 30) continue;          // 순환도로 안쪽 교차로만
+      cand.push({ a: a, b: b, d: d });
+    }
+  }
+  // 가운데에서 가까운 순으로, 서로 너무 붙지 않게 골라 간다
+  cand.sort(function (p, q) { return p.d - q.d; });
+  const picked = [];
+  for (let k = 0; k < cand.length && picked.length < SIGNAL_COUNT; k++) {
+    const c = cand[k];
+    let near = false;
+    for (let n = 0; n < picked.length; n++) {
+      if (Math.hypot(picked[n].a - c.a, picked[n].b - c.b) < CITY_GRID * 1.6) { near = true; break; }
+    }
+    if (!near) picked.push(c);
+  }
+
+  plan.signals = [];
+  plan.signalMap = new Map();
+  for (let k = 0; k < picked.length; k++) {
+    const c = picked[k];
+    // 네 모서리에 기둥 (등은 그릴 때 얹는다)
+    const off = ROAD_HALF + 2;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const px = c.a + sx * off, pz = c.b + sz * off;
+        plan.set(plan.x + px, gy, plan.z + pz, st.curb, 0, true);
+        plan.set(plan.x + px, gy + 1, plan.z + pz, st.post, 0, true, SIGNAL_POST_H);
+      }
+    }
+    const sig = {
+      x: plan.x + c.a, y: gy, z: plan.z + c.b,
+      a: c.a, b: c.b,
+      phase: (k * 7) % SIGNAL_CYCLE
+    };
+    plan.signals.push(sig);
+    plan.signalMap.set(c.a + ',' + c.b, sig);
+  }
+}
+
 // ── 버스 노선 ─────────────────────────────────────────────────────────
 // 순환도로를 한 바퀴 도는 노선. 정거장은 큰길이 빠져나가는 축을 피해
 // 45도마다 하나씩, 바깥 인도 옆에 세운다.
@@ -11213,6 +11320,8 @@ function buildCityPlan(world, ap, index) {
     z: best.z + plaza.z + CITY_GRID / 2 + CITY_GRID,
     yaw: 0.35
   };
+
+  citySignals(plan, st);
 
   // ── 공원과 밭 ──
   for (let i = 0; i < parks.length; i++) {
@@ -12763,6 +12872,11 @@ const PLANE_REST = 3.4 * PLANE_SCALE;   // 바퀴가 땅에 닿을 때 동체 �
 // 전동차(고가 55~60)와 확실히 차이가 나도록 훨씬 높이 잡았다.
 const PLANE_CEIL = 320;
 const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
+// 추락 판정 — 이보다 세게 떨어지거나 기울어져 닿으면 터진다
+const PLANE_CRASH_SINK = 24;       // 가라앉는 속도 (블록/초)
+const PLANE_CRASH_BANK = 0.7;      // 접지 순간 기울기 (라디안)
+const PLANE_CRASH_HIT = 26;        // 산·건물에 정면으로 부딪히는 속도
+const PLANE_WRECK_KEEP = 9;        // 잔해를 남겨 두는 시간(초)
 
 function Plane(world, x, y, z, yaw) {
   this.world = world;
@@ -12780,6 +12894,39 @@ function Plane(world, x, y, z, yaw) {
   this.age = 0;
   this.home = null;         // 공항으로 돌아갈 자리
 }
+
+// 추락 — 폭발하고 그 기체는 다시 운항하지 못한다
+Plane.prototype.crash = function (game, why) {
+  if (this.wrecked) return;
+  this.wrecked = true;
+  this.dead = true;
+  this.ai = null;
+  this.speed = 0;
+  this.throttle = 0;
+  this.vy = 0;
+  this.onGround = true;
+  this.wreckT = 0;
+
+  const rider = this.rider;
+  if (rider) {
+    // 조종사는 튕겨 나가고 크게 다친다
+    this.unboard();
+    if (!rider.creative) rider.hurt(18, '비행기 ' + why);
+  }
+  if (game && game.entities && game.entities.explode) {
+    game.entities.explode(this.x, this.y + 1.5, this.z, 6, game.player);
+    // 날개 쪽에도 한 번씩 더 — 큰 기체답게 넓게 터진다
+    const c = Math.cos(this.yaw), s2 = Math.sin(this.yaw);
+    for (const sx of [-1, 1]) {
+      game.entities.explode(this.x + c * sx * 5, this.y + 1, this.z - s2 * sx * 5, 4, null);
+    }
+  }
+  if (game) {
+    if (game.playSound) game.playSound('boom');
+    game.shake = Math.max(game.shake || 0, 14);
+    if (game.ui) game.ui.toast('여객기 ' + why + ' — 이 기체는 더 이상 뜨지 못합니다');
+  }
+};
 
 // 기수가 향하는 방향
 Plane.prototype.nose = function () {
@@ -12909,8 +13056,13 @@ Plane.prototype.update = function (dt, game) {
   const gAhead = this.groundY(nx, nz);
   if (this.onGround) {
     ny = gAhead;
-    // 너무 가파른 턱은 넘지 못한다
+    // 너무 가파른 턱은 넘지 못한다. 빠른 속도로 들이받으면 그대로 터진다.
     if (gAhead - this.y > 1.6 && this.speed > 6) {
+      if (this.speed > PLANE_CRASH_HIT) {
+        this.x = nx; this.z = nz; this.y = ny;
+        this.crash(game, '충돌');
+        return;
+      }
       this.speed *= 0.25;
       if (rider && !rider.creative) rider.hurt(2, '비행기 충돌');
     }
@@ -12922,12 +13074,19 @@ Plane.prototype.update = function (dt, game) {
   } else if (ny <= gAhead) {
     // 착지 또는 추락
     const sink = -my;
+    const bank = Math.abs(this.roll);
     ny = gAhead;
     this.onGround = true;
     this.vy = 0;
     this.pitch = 0;
     this.roll = 0;
-    if (sink > 14 || Math.abs(this.roll) > 0.5) {
+    if (sink > PLANE_CRASH_SINK || bank > PLANE_CRASH_BANK) {
+      // 추락 — 터지고 그 기체는 다시 뜨지 못한다
+      this.x = nx; this.z = nz; this.y = ny;
+      this.crash(game, '추락');
+      return;
+    }
+    if (sink > 14) {
       this.speed *= 0.3;
       if (rider && !rider.creative) rider.hurt(Math.min(10, (sink - 12) * 0.7), '착륙 실패');
       if (game.playSound) game.playSound('boom');
@@ -13008,6 +13167,12 @@ EntityManager.prototype.updatePlanes = function (dt, player, game) {
     // 지나가는 비행기는 시야를 벗어나면 사라진다
     if (p.ambient && (far > SKY_DESPAWN_R || p.onGround)) {
       this.planes.splice(i, 1);
+      continue;
+    }
+    // 부서진 기체는 잠깐 잔해로 남았다가 사라진다 (다시 뜨지 않는다)
+    if (p.wrecked) {
+      p.wreckT = (p.wreckT || 0) + dt;
+      if (p.wreckT > PLANE_WRECK_KEEP || far > 420) this.planes.splice(i, 1);
       continue;
     }
     // 세워 둔 비행기는 멀어지면 정리한다 (정기편은 계속 난다)
@@ -13108,7 +13273,7 @@ EntityManager.prototype.pickPlane = function (ox, oy, oz, dx, dy, dz, maxDist) {
   let best = null, bestT = maxDist;
   for (let i = 0; i < this.planes.length; i++) {
     const p = this.planes[i];
-    if (p.rider || p.ambient || p.airline) continue;
+    if (p.rider || p.ambient || p.airline || p.wrecked) continue;
     const S = PLANE_SCALE;
     const t = rayBox(ox, oy, oz, dx, dy, dz,
       p.x - 12 * S, p.y - 4 * S, p.z - 13 * S,
@@ -14187,6 +14352,29 @@ function carAhead(car, list) {
   return slow;
 }
 
+// 앞에 놓인 신호가 빨강(또는 설 수 있는 노랑)이면 멈춰 설 자리를 돌려준다.
+// 초록이거나 신호등 없는 교차로면 null.
+Car.prototype.signalStop = function (city, game) {
+  const map = city.signalMap;
+  if (!map || !map.size) return null;
+  const lines = city.roadLines;
+  let bestA = null, bestAhead = 1e9;
+  for (let i = 0; i < lines.length; i++) {
+    const ahead = (lines[i] - this.pos) * this.dir;
+    if (ahead < -1.5) continue;                 // 이미 지난 교차로
+    if (ahead < bestAhead) { bestAhead = ahead; bestA = lines[i]; }
+  }
+  if (bestA === null || bestAhead > 42) return null;
+  const key = (this.axis === 0) ? (bestA + ',' + this.line) : (this.line + ',' + bestA);
+  const sig = map.get(key);
+  if (!sig) return null;
+  const ph = signalPhase(sig, game.signalTime());
+  const light = (this.axis === 0) ? ph.ew : ph.ns;
+  if (light === 2) return null;                                   // 초록
+  if (light === 1 && bestAhead < 9) return null;                  // 노랑 — 코앞이면 지나간다
+  return bestA - this.dir * (ROAD_HALF + 2 + this.type.len * 0.5);
+};
+
 Car.prototype.update = function (dt, game) {
   const c = this.city;
   // 앞이 막혔는지 — 플레이어와 다른 차
@@ -14198,12 +14386,24 @@ Car.prototype.update = function (dt, game) {
   if (ahead > 0 && ahead < 9 && side < 3.2 && Math.abs(p.y - this.y) < 3) want = 0;
   if (this._blocked !== null && this._blocked !== undefined) want = Math.min(want, this._blocked);
 
+  // 신호등 — 빨간불이면 정지선 앞에서 선다
+  const stopAt = this.signalStop(c, game);
+  if (stopAt !== null) {
+    const gap = (stopAt - this.pos) * this.dir;
+    want = Math.min(want, Math.max(0, gap * 1.1));
+  }
+
   const target = want;
   if (target > this.speed) this.speed = Math.min(target, this.speed + CAR_ACC * dt);
   else this.speed = Math.max(target, this.speed - CAR_BRAKE * dt);
 
   const was = this.pos;
   this.pos += this.dir * this.speed * dt;
+  // 정지선을 넘어가지 않게 붙잡는다
+  if (stopAt !== null && (this.pos - stopAt) * this.dir > 0) {
+    this.pos = stopAt;
+    this.speed = 0;
+  }
   this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
   this.turnCool -= dt;
 
@@ -16498,6 +16698,59 @@ Renderer.prototype.drawCars = function (mgr, world, player, opts) {
 };
 
 
+// ── 신호등 ────────────────────────────────────────────────────────────
+// 켜진 등만 스스로 빛나게 한다 (블록을 바꾸지 않고 색이 바뀐다)
+const SIG_GLOW = [
+  { glow: { sig_red: 1 } },
+  { glow: { sig_amber: 1 } },
+  { glow: { sig_green: 1 } }
+];
+// 네 모서리 기둥에 하나씩 — [기둥 x부호, z부호, 머리 방향, 어느 축 신호]
+const SIG_HEADS = [
+  [-1, -1, -Math.PI / 2, 'ew'],   // +X 로 오는 차가 본다
+  [1, 1, Math.PI / 2, 'ew'],      // -X 로 오는 차
+  [1, -1, Math.PI, 'ns'],         // +Z 로 오는 차
+  [-1, 1, 0, 'ns']                // -Z 로 오는 차
+];
+
+Renderer.prototype.drawSignals = function (game, world, player, opts) {
+  if (!world.cities) return;
+  const list = world.cities();
+  if (!list.length) return;
+  const t = game.signalTime();
+  const off = ROAD_HALF + 2;
+  let any = false;
+  _geom.reset();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.signals || !c.signals.length) continue;
+    if (Math.abs(c.x - player.x) > CITY_R + 80 || Math.abs(c.z - player.z) > CITY_R + 80) continue;
+    for (let k = 0; k < c.signals.length; k++) {
+      const sig = c.signals[k];
+      const dx = sig.x - player.x, dz = sig.z - player.z;
+      if (dx * dx + dz * dz > 170 * 170) continue;
+      if (!this.boxInFrustum(sig.x - 9, sig.y, sig.z - 9, sig.x + 9, sig.y + 7, sig.z + 9)) continue;
+      const bx = Math.floor(sig.x), bz = Math.floor(sig.z);
+      const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, sig.y + 6), bz) / 15;
+      const light = [Math.max(sky, 0.3), 0.3];
+      const ph = signalPhase(sig, t);
+      for (let h = 0; h < SIG_HEADS.length; h++) {
+        const hd = SIG_HEADS[h];
+        const cy = Math.cos(hd[2]), sy = Math.sin(hd[2]);
+        const rot = function (lx, ly, lz, out) {
+          out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
+        };
+        const state = (hd[3] === 'ew') ? ph.ew : ph.ns;
+        this.emitMesh(signalMesh(),
+          sig.x + hd[0] * off + 0.5, sig.y + SIGNAL_HEAD_Y, sig.z + hd[1] * off + 0.5,
+          rot, 1, light, SIG_GLOW[state]);
+        any = true;
+      }
+    }
+  }
+  if (any) this.flushEntityGeom(opts);
+};
+
 // ── 포크레인 ──────────────────────────────────────────────────────────
 // 궤도(하부) 위에 상부가 얹히고, 붐 → 암 → 버킷이 이어 붙는다.
 Renderer.prototype.drawDiggers = function (game, world, player, opts) {
@@ -17517,6 +17770,29 @@ function carMesh(key) {
   return CAR_MESHES[key] || CAR_MESHES.sedan;
 }
 function wheelMesh() { if (!WHEEL_MESH) WHEEL_MESH = buildWheelMesh(12); return WHEEL_MESH; }
+
+// ── 신호등 머리 ───────────────────────────────────────────────────────
+// 세로로 등 세 개가 든 통. +Z 쪽(다가오는 차 쪽)을 바라본다.
+function buildSignalMesh() {
+  const m = new Mesh3D();
+  const W = 0.34, H = 1.02, D = 0.3;
+  m.box(0, 0, 0, W, H, D, 'sig_body');
+  // 앞면에 등 세 개 (위부터 빨강·노랑·초록)
+  const lamps = ['sig_red', 'sig_amber', 'sig_green'];
+  for (let i = 0; i < 3; i++) {
+    const y = H / 2 - 0.19 - i * 0.32;
+    const z = D / 2 + 0.012;
+    m.quad([-0.13, y - 0.13, z], [0.13, y - 0.13, z],
+      [0.13, y + 0.13, z], [-0.13, y + 0.13, z], lamps[i], false);
+  }
+  // 눈부심 가리개
+  m.quad([-0.17, H / 2 + 0.02, D / 2 + 0.14], [0.17, H / 2 + 0.02, D / 2 + 0.14],
+    [0.17, H / 2 + 0.02, -D / 2], [-0.17, H / 2 + 0.02, -D / 2], 'sig_body', true);
+  return m.build();
+}
+
+let SIGNAL_MESH = null;
+function signalMesh() { if (!SIGNAL_MESH) SIGNAL_MESH = buildSignalMesh(); return SIGNAL_MESH; }
 
 // 처음 그릴 때 한 번만 만들어 두고 계속 쓴다
 let PLANE_MESH = null, TRAIN_MESHES = null;
@@ -18969,7 +19245,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v8.4';
+const GAME_VERSION = 'v8.5';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -19233,6 +19509,15 @@ Game.prototype.updateDriveHud = function () {
     const info = hw ? hw.aheadInfo(Math.floor(car.x), Math.floor(car.z)) : null;
     if (info) html += '<br>' + info.to + '까지 ' + info.toDist + 'm';
   }
+  if (this.nearSignal) {
+    const names = ['<span class="over">빨간불</span>', '<span class="lim">노란불</span>',
+      '<span class="ok">초록불</span>'];
+    html += '<br>앞 신호 ' + names[this.nearSignal.state] +
+      ' <span class="lim">' + Math.round(this.nearSignal.d) + 'm</span>';
+  }
+  const pen = this.penalty || 0;
+  html += '<br>벌점 <span class="' + (pen >= 70 ? 'over' : 'lim') + '">' + pen +
+    '</span> / ' + PENALTY_LIMIT;
   if (this.chase) html += '<br><span class="over">순찰차 추적 중</span>';
   el.innerHTML = html;
 };
@@ -19991,6 +20276,7 @@ Game.prototype.onUse = function () {
 
 // ── 비행기 ────────────────────────────────────────────────────────────
 Game.prototype.enterPlane = function (plane) {
+  if (plane.wrecked) { this.ui.toast('부서진 기체입니다'); return; }
   if (!plane.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
   this.ui.toast('747 탑승 — W 추력 · 마우스 조종 · Shift 내리기');
   this.playSound('place');
@@ -20926,7 +21212,8 @@ Game.prototype.buildSaveData = function () {
     chunks: chunks,
     furnaces: furnaces,
     chests: chests,
-    money: this.money || 0
+    money: this.money || 0,
+    penalty: this.penalty || 0
   };
 };
 
@@ -20987,6 +21274,7 @@ Game.prototype.load = function (given) {
 
   this.initAssets();
   this.money = data.money || 0;
+  this.penalty = data.penalty || 0;
   this.world = new World(null);
   this.world.seed = data.seed;
   // 시드에서 파생된 노이즈를 다시 만든다
@@ -21154,6 +21442,7 @@ Game.prototype.update = function (dt) {
   if (this.updateChat) this.updateChat(dt);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
+  if (this.updateSignals) this.updateSignals(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   if (this.updateCarAudio) this.updateCarAudio(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
@@ -21291,6 +21580,7 @@ Game.prototype.render = function (dt) {
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
+  if (r.drawSignals) r.drawSignals(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
@@ -21932,6 +22222,73 @@ function hwSignDigits(text, cb) {
 const SPEED_GRACE = 2.2;        // 이만큼 넘겨야 단속이 붙는다 (초)
 const CHASE_CATCH = 9;          // 이만큼 가까워지면 잡힌 것
 const DRIVE_BAN_SEC = 120;      // 정지 처분 (초)
+
+// ── 신호 위반 ─────────────────────────────────────────────────────────
+const PENALTY_PER_RUN = 10;    // 신호 위반 한 번에 붙는 벌점
+const PENALTY_LIMIT = 100;     // 이 점수를 넘으면 운전 정지
+
+// 신호 시각 — 창끼리도 같아야 하므로 벽시계를 쓴다
+Game.prototype.signalTime = function () { return Date.now() / 1000; };
+
+Game.prototype.addPenalty = function (n, why) {
+  this.penalty = (this.penalty || 0) + n;
+  this.playSound('hurt');
+  if (this.penalty >= PENALTY_LIMIT) {
+    this.penalty = 0;
+    this.carBan = DRIVE_BAN_SEC;
+    if (this.player.inCar) this.exitCar();
+    this.ui.toast(why + ' — 벌점 ' + PENALTY_LIMIT + '점을 넘겨 ' +
+      (DRIVE_BAN_SEC / 60) + '분 동안 운전할 수 없습니다');
+  } else {
+    this.ui.toast(why + ' — 벌점 +' + n + ' (합계 ' + this.penalty + ' / ' + PENALTY_LIMIT + '점)');
+  }
+};
+
+// 사람이 몰고 있을 때 신호를 지키는지 본다.
+// 교차로 한가운데를 "지나간 순간" 그 방향 신호가 빨강이면 위반이다.
+Game.prototype.updateSignals = function (dt) {
+  const car = this.player.inCar;
+  if (!this._sigSide) this._sigSide = new Map();
+  if (!car) { this._sigSide.clear(); this.nearSignal = null; return; }
+  const w = this.world;
+  if (!w.cities) return;
+  const list = w.cities();
+  const t = this.signalTime();
+  // 지금 달리는 축 (X축 도로인가 Z축 도로인가)
+  const ax = Math.abs(Math.sin(car.yaw)) > Math.abs(Math.cos(car.yaw)) ? 0 : 1;
+  const pos = ax === 0 ? car.x : car.z;
+  const cross = ax === 0 ? car.z : car.x;
+  let near = null, nearD = 1e9;
+
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.signals) continue;
+    if (Math.abs(c.x - car.x) > CITY_R + 40 || Math.abs(c.z - car.z) > CITY_R + 40) continue;
+    for (let k = 0; k < c.signals.length; k++) {
+      const sig = c.signals[k];
+      const sPos = ax === 0 ? sig.x : sig.z;
+      const sCross = ax === 0 ? sig.z : sig.x;
+      const d = Math.hypot(sig.x - car.x, sig.z - car.z);
+      if (d < nearD) {
+        nearD = d;
+        near = { sig: sig, state: (ax === 0 ? signalPhase(sig, t).ew : signalPhase(sig, t).ns), d: d };
+      }
+      if (d > 26) continue;
+      if (Math.abs(cross - sCross) > ROAD_HALF + 1.5) continue;   // 이 도로 위가 아니다
+      const key = c.code + ':' + k + ':' + ax;
+      const side = Math.sign(pos - sPos);
+      const prev = this._sigSide.get(key);
+      this._sigSide.set(key, side);
+      if (prev === undefined || prev === 0 || side === 0 || prev === side) continue;
+      // 방금 교차로를 지났다
+      const light = (ax === 0) ? signalPhase(sig, t).ew : signalPhase(sig, t).ns;
+      if (light === 0 && Math.abs(car.speed) > 1.2) {
+        this.addPenalty(PENALTY_PER_RUN, '신호 위반');
+      }
+    }
+  }
+  this.nearSignal = (near && near.d < 34) ? near : null;
+};
 
 Game.prototype.updateSpeedLimit = function (dt) {
   const p = this.player;

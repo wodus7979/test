@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v8.4';
+const GAME_VERSION = 'v8.5';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -292,6 +292,15 @@ Game.prototype.updateDriveHud = function () {
     const info = hw ? hw.aheadInfo(Math.floor(car.x), Math.floor(car.z)) : null;
     if (info) html += '<br>' + info.to + '까지 ' + info.toDist + 'm';
   }
+  if (this.nearSignal) {
+    const names = ['<span class="over">빨간불</span>', '<span class="lim">노란불</span>',
+      '<span class="ok">초록불</span>'];
+    html += '<br>앞 신호 ' + names[this.nearSignal.state] +
+      ' <span class="lim">' + Math.round(this.nearSignal.d) + 'm</span>';
+  }
+  const pen = this.penalty || 0;
+  html += '<br>벌점 <span class="' + (pen >= 70 ? 'over' : 'lim') + '">' + pen +
+    '</span> / ' + PENALTY_LIMIT;
   if (this.chase) html += '<br><span class="over">순찰차 추적 중</span>';
   el.innerHTML = html;
 };
@@ -1050,6 +1059,7 @@ Game.prototype.onUse = function () {
 
 // ── 비행기 ────────────────────────────────────────────────────────────
 Game.prototype.enterPlane = function (plane) {
+  if (plane.wrecked) { this.ui.toast('부서진 기체입니다'); return; }
   if (!plane.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
   this.ui.toast('747 탑승 — W 추력 · 마우스 조종 · Shift 내리기');
   this.playSound('place');
@@ -1985,7 +1995,8 @@ Game.prototype.buildSaveData = function () {
     chunks: chunks,
     furnaces: furnaces,
     chests: chests,
-    money: this.money || 0
+    money: this.money || 0,
+    penalty: this.penalty || 0
   };
 };
 
@@ -2046,6 +2057,7 @@ Game.prototype.load = function (given) {
 
   this.initAssets();
   this.money = data.money || 0;
+  this.penalty = data.penalty || 0;
   this.world = new World(null);
   this.world.seed = data.seed;
   // 시드에서 파생된 노이즈를 다시 만든다
@@ -2213,6 +2225,7 @@ Game.prototype.update = function (dt) {
   if (this.updateChat) this.updateChat(dt);
   if (this.entities.updateCars) this.entities.updateCars(dt, p, this);
   if (this.updateSpeedLimit) this.updateSpeedLimit(dt);
+  if (this.updateSignals) this.updateSignals(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   if (this.updateCarAudio) this.updateCarAudio(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
@@ -2350,6 +2363,7 @@ Game.prototype.render = function (dt) {
   if (r.drawTrains) r.drawTrains(this.entities, this.world, p, opts);
   if (r.drawCars) r.drawCars(this.entities, this.world, p, opts);
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
+  if (r.drawSignals) r.drawSignals(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);

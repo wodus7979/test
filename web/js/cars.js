@@ -235,6 +235,29 @@ function carAhead(car, list) {
   return slow;
 }
 
+// 앞에 놓인 신호가 빨강(또는 설 수 있는 노랑)이면 멈춰 설 자리를 돌려준다.
+// 초록이거나 신호등 없는 교차로면 null.
+Car.prototype.signalStop = function (city, game) {
+  const map = city.signalMap;
+  if (!map || !map.size) return null;
+  const lines = city.roadLines;
+  let bestA = null, bestAhead = 1e9;
+  for (let i = 0; i < lines.length; i++) {
+    const ahead = (lines[i] - this.pos) * this.dir;
+    if (ahead < -1.5) continue;                 // 이미 지난 교차로
+    if (ahead < bestAhead) { bestAhead = ahead; bestA = lines[i]; }
+  }
+  if (bestA === null || bestAhead > 42) return null;
+  const key = (this.axis === 0) ? (bestA + ',' + this.line) : (this.line + ',' + bestA);
+  const sig = map.get(key);
+  if (!sig) return null;
+  const ph = signalPhase(sig, game.signalTime());
+  const light = (this.axis === 0) ? ph.ew : ph.ns;
+  if (light === 2) return null;                                   // 초록
+  if (light === 1 && bestAhead < 9) return null;                  // 노랑 — 코앞이면 지나간다
+  return bestA - this.dir * (ROAD_HALF + 2 + this.type.len * 0.5);
+};
+
 Car.prototype.update = function (dt, game) {
   const c = this.city;
   // 앞이 막혔는지 — 플레이어와 다른 차
@@ -246,12 +269,24 @@ Car.prototype.update = function (dt, game) {
   if (ahead > 0 && ahead < 9 && side < 3.2 && Math.abs(p.y - this.y) < 3) want = 0;
   if (this._blocked !== null && this._blocked !== undefined) want = Math.min(want, this._blocked);
 
+  // 신호등 — 빨간불이면 정지선 앞에서 선다
+  const stopAt = this.signalStop(c, game);
+  if (stopAt !== null) {
+    const gap = (stopAt - this.pos) * this.dir;
+    want = Math.min(want, Math.max(0, gap * 1.1));
+  }
+
   const target = want;
   if (target > this.speed) this.speed = Math.min(target, this.speed + CAR_ACC * dt);
   else this.speed = Math.max(target, this.speed - CAR_BRAKE * dt);
 
   const was = this.pos;
   this.pos += this.dir * this.speed * dt;
+  // 정지선을 넘어가지 않게 붙잡는다
+  if (stopAt !== null && (this.pos - stopAt) * this.dir > 0) {
+    this.pos = stopAt;
+    this.speed = 0;
+  }
   this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
   this.turnCool -= dt;
 

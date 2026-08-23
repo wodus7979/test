@@ -804,6 +804,74 @@ function cityRoads(plan, st) {
 }
 
 
+// ── 신호등 ────────────────────────────────────────────────────────────
+// 도시마다 큰 교차로 열 곳에 신호등을 세운다. 등 색은 블록이 아니라
+// 그릴 때 정해지므로(model3d.js 의 신호등 머리) 세계를 고치지 않고 바뀐다.
+const SIGNAL_COUNT = 10;       // 도시마다 신호등 교차로 수
+const SIGNAL_GREEN = 12;       // 초록 (초)
+const SIGNAL_AMBER = 3;        // 노랑 (초)
+const SIGNAL_CYCLE = (SIGNAL_GREEN + SIGNAL_AMBER) * 2;
+const SIGNAL_POST_H = 5;       // 기둥 높이
+const SIGNAL_HEAD_Y = 4.6;     // 등이 달리는 높이
+
+// 0 = 빨강, 1 = 노랑, 2 = 초록.
+// ew 는 X축 도로(동서), ns 는 Z축 도로(남북) 차례다.
+function signalPhase(sig, t) {
+  let c = (t + (sig.phase || 0)) % SIGNAL_CYCLE;
+  if (c < 0) c += SIGNAL_CYCLE;
+  if (c < SIGNAL_GREEN) return { ew: 2, ns: 0 };
+  if (c < SIGNAL_GREEN + SIGNAL_AMBER) return { ew: 1, ns: 0 };
+  if (c < SIGNAL_GREEN * 2 + SIGNAL_AMBER) return { ew: 0, ns: 2 };
+  return { ew: 0, ns: 1 };
+}
+
+function citySignals(plan, st) {
+  const gy = plan.y;
+  const lines = plan.roadLines;
+  const cand = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = 0; j < lines.length; j++) {
+      const a = lines[i], b = lines[j];
+      const d = Math.hypot(a, b);
+      if (d > CITY_RING - 30) continue;          // 순환도로 안쪽 교차로만
+      cand.push({ a: a, b: b, d: d });
+    }
+  }
+  // 가운데에서 가까운 순으로, 서로 너무 붙지 않게 골라 간다
+  cand.sort(function (p, q) { return p.d - q.d; });
+  const picked = [];
+  for (let k = 0; k < cand.length && picked.length < SIGNAL_COUNT; k++) {
+    const c = cand[k];
+    let near = false;
+    for (let n = 0; n < picked.length; n++) {
+      if (Math.hypot(picked[n].a - c.a, picked[n].b - c.b) < CITY_GRID * 1.6) { near = true; break; }
+    }
+    if (!near) picked.push(c);
+  }
+
+  plan.signals = [];
+  plan.signalMap = new Map();
+  for (let k = 0; k < picked.length; k++) {
+    const c = picked[k];
+    // 네 모서리에 기둥 (등은 그릴 때 얹는다)
+    const off = ROAD_HALF + 2;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const px = c.a + sx * off, pz = c.b + sz * off;
+        plan.set(plan.x + px, gy, plan.z + pz, st.curb, 0, true);
+        plan.set(plan.x + px, gy + 1, plan.z + pz, st.post, 0, true, SIGNAL_POST_H);
+      }
+    }
+    const sig = {
+      x: plan.x + c.a, y: gy, z: plan.z + c.b,
+      a: c.a, b: c.b,
+      phase: (k * 7) % SIGNAL_CYCLE
+    };
+    plan.signals.push(sig);
+    plan.signalMap.set(c.a + ',' + c.b, sig);
+  }
+}
+
 // ── 버스 노선 ─────────────────────────────────────────────────────────
 // 순환도로를 한 바퀴 도는 노선. 정거장은 큰길이 빠져나가는 축을 피해
 // 45도마다 하나씩, 바깥 인도 옆에 세운다.
@@ -1425,6 +1493,8 @@ function buildCityPlan(world, ap, index) {
     z: best.z + plaza.z + CITY_GRID / 2 + CITY_GRID,
     yaw: 0.35
   };
+
+  citySignals(plan, st);
 
   // ── 공원과 밭 ──
   for (let i = 0; i < parks.length; i++) {
