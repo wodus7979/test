@@ -346,10 +346,15 @@ World.prototype.paintHighway = function (c) {
         c.blocks[idx(lx, yy, lz)] = 0; c.meta[idx(lx, yy, lz)] = 0;
       }
       // 노면
+      // 노면 무늬. 중앙선은 두 줄로 굵게, 차선은 진행 방향으로 끊어 점선으로
+      // 찍는다 (폭만 보고 찍으면 굽은 길에서 얼룩처럼 흩어진다).
       let surf = B.black_concrete;
       if (ao > HW_HALF - 0.6) surf = B.light_gray_concrete;          // 갓길
-      else if (ao < 0.55) surf = B.yellow_concrete;                  // 중앙선
-      else if (ao > HW_HALF - 2.4 && ao < HW_HALF - 1.6) surf = B.white_concrete;  // 차선
+      else if (ao < 1.15) surf = B.yellow_concrete;                  // 중앙선
+      else if (ao > HW_HALF - 3.1 && ao < HW_HALF - 1.8 &&
+               (hit.rec.dist[hit.i] % 24) < 12) {
+        surf = B.white_concrete;      // 차선 점선 (12칸 긋고 12칸 쉰다)
+      }
       c.blocks[idx(lx, y, lz)] = surf;
       c.meta[idx(lx, y, lz)] = 0;
       // 노반 — 아래를 받친다
