@@ -118,11 +118,14 @@ function initCityPalettes() {
       { wall: bid('bricks'), trim: bid('smooth_quartz'), rail: bid('spruce_fence', 'oak_fence'), plant: bid('oak_leaves') },
       { wall: bid('light_gray_terracotta'), trim: bid('white_concrete'), rail: bid('oak_fence'), plant: bid('birch_leaves', 'oak_leaves') }
     ],
-    // 유리 커튼월
+    // 유리 커튼월 — 건물마다 유리와 기둥 색을 달리해 한 덩어리로 보이지 않게
     glass: [
-      { wall: bid('light_gray_concrete'), glass: bid('light_blue_stained_glass'), trim: bid('smooth_quartz') },
-      { wall: bid('gray_concrete'), glass: bid('cyan_stained_glass', 'light_blue_stained_glass'), trim: bid('white_concrete') },
-      { wall: bid('white_concrete'), glass: bid('light_blue_stained_glass'), trim: bid('polished_andesite', 'smooth_stone') }
+      { wall: bid('white_concrete'), glass: bid('light_gray_stained_glass'), trim: bid('smooth_quartz'), roof: bid('gray_concrete') },
+      { wall: bid('light_gray_concrete'), glass: bid('gray_stained_glass'), trim: bid('white_concrete'), roof: bid('gray_concrete') },
+      { wall: bid('smooth_quartz'), glass: bid('light_blue_stained_glass'), trim: bid('light_gray_concrete'), roof: bid('light_gray_concrete') },
+      { wall: bid('gray_concrete'), glass: bid('blue_stained_glass', 'light_blue_stained_glass'), trim: bid('smooth_quartz'), roof: bid('black_concrete') },
+      { wall: bid('white_concrete'), glass: bid('cyan_stained_glass'), trim: bid('polished_andesite', 'smooth_stone'), roof: bid('gray_concrete') },
+      { wall: bid('bricks'), glass: bid('light_gray_stained_glass'), trim: bid('smooth_quartz'), roof: bid('deepslate_tiles', 'gray_concrete') }
     ]
   };
   return CPAL;
@@ -327,6 +330,7 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
     plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1);
   };
   h = Math.max(4, Math.min(h, CHUNK_Y - 18 - gy));
+  const gp = opts.pal || st;
   const bands = Math.max(1, Math.ceil(h / 4));
   const taperTo = opts.taperTo;
   let lastHw = hw0, lastHd = hd0;
@@ -345,12 +349,14 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
         const edge = Math.abs(dx) === hw || Math.abs(dz) === hd;
         if (!edge) {
           // 층이 좁아지는 자리에는 테라스 바닥을 깐다
-          if (b === 0) set(cx + dx, 0, cz + dz, st.base);
+          if (b === 0) set(cx + dx, 0, cz + dz, gp.base || st.base);
           continue;
         }
         const corner = Math.abs(dx) === hw && Math.abs(dz) === hd;
-        set(cx + dx, y0, cz + dz, st.trim);
-        set(cx + dx, y0 + 1, cz + dz, corner ? st.wall : st.glass, 3);
+        // 기둥을 한 칸 건너 세워 유리가 한 장으로 뭉치지 않게 한다
+        const pier = corner || ((dx + dz + 64) % 4 === 0);
+        set(cx + dx, y0, cz + dz, gp.trim);
+        set(cx + dx, y0 + 1, cz + dz, pier ? gp.wall : gp.glass, 3);
       }
     }
     // 좁아진 만큼 아래층 지붕을 덮는다
@@ -362,7 +368,7 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
       for (let dz = -pd; dz <= pd; dz++) {
         for (let dx = -pw; dx <= pw; dx++) {
           if (Math.abs(dx) <= hw && Math.abs(dz) <= hd) continue;
-          set(cx + dx, y0, cz + dz, st.roof);
+          set(cx + dx, y0, cz + dz, gp.roof || st.roof);
         }
       }
     }
@@ -371,7 +377,7 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
   // 옥상
   const top = 1 + bands * 4;
   for (let dz = -lastHd; dz <= lastHd; dz++) {
-    for (let dx = -lastHw; dx <= lastHw; dx++) set(cx + dx, top, cz + dz, st.roof);
+    for (let dx = -lastHw; dx <= lastHw; dx++) set(cx + dx, top, cz + dz, gp.roof || st.roof);
   }
   for (let dz = -lastHd; dz <= lastHd; dz++) {
     for (let dx = -lastHw; dx <= lastHw; dx++) {
@@ -383,7 +389,7 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
   set(cx, top + 1, cz, B.red_concrete);
   set(cx, top + 2, cz, B.glowstone);
   if (opts.spire) {
-    for (let k = 1; k <= opts.spire; k++) set(cx, top + 2 + k, cz, st.trim);
+    for (let k = 1; k <= opts.spire; k++) set(cx, top + 2 + k, cz, gp.trim || st.trim);
     set(cx, top + 2 + opts.spire + 1, cz, B.sea_lantern);
     set(cx, top + 2 + opts.spire + 2, cz, B.glowstone);
   }
@@ -773,6 +779,7 @@ function buildCityPlan(world, ap, index) {
   const archList = CITY_ARCH[def.style] || CITY_ARCH.modern;
   const rowPal = (def.style === 'jeju') ? 'rowJeju' : 'row';
   const balPals = initCityPalettes().balcony;
+  const glassPals = initCityPalettes().glass;
 
   let tallLeft = st.tall;
   const parks = [];
@@ -804,7 +811,7 @@ function buildCityPlan(world, ap, index) {
     } else if (kind === 'jeju') {
       jejuHouse(plan, lot.x, lot.z, hw, hd, Math.min(h, 20), st, rnd);
     } else {
-      cityTower(plan, lot.x, lot.z, hw, hd, h, st, {});
+      cityTower(plan, lot.x, lot.z, hw, hd, h, st, { pal: glassPals[(rnd() * glassPals.length) | 0] });
     }
     // 길가 사람들
     if (rnd() < 0.8) put(lot.x + hw + 3, lot.z, null);
@@ -816,7 +823,7 @@ function buildCityPlan(world, ap, index) {
     if (i % 7 === 3) continue;
     if (archList[i % archList.length] === 'glass') continue;
     const h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
-    cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, {});
+    cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, { pal: glassPals[(rnd() * glassPals.length) | 0] });
     tallLeft--;
   }
 
