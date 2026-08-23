@@ -13177,17 +13177,21 @@ TrainRoute.prototype.at = function (s) {
 };
 
 // ── 열차 ──────────────────────────────────────────────────────────────
-function Train(world, route, s, dir, track) {
+const TRAIN_CROSS = 0.8;     // 종착역에서 옆 선로로 건너가는 속도(선로/초)
+
+function Train(world, route, s, dir) {
   this.world = world;
   this.route = route;
   this.s = s;
   this.dir = dir || 1;
-  // 복선 — 편성마다 제 선로를 하나 잡고 왕복 내내 그 선로만 쓴다.
-  // 종착역에서 방향을 바꿔도 선로를 바꾸지 않으므로(승강장 양쪽 면),
-  // 두 편성은 어디서 마주쳐도 늘 선로 간격만큼 떨어져 있다.
-  this.track = track || 1;
+  // 복선 우측통행 — 늘 진행 방향의 오른쪽 선로로 달린다.
+  // 종착역에서 방향을 바꾸면 승강장 반대편 선로로 건너간다.
+  this.track = -this.dir;
+  this.tk = this.track;       // 실제로 그려지는 선로 (건너가는 동안 사이 값)
   this.speed = 0;
-  this.dwell = 2 + Math.random() * 4;
+  // 두 편성이 늘 반대 방향으로 달리도록 정차 시간을 같게 둔다.
+  // (제각각이면 언젠가 같은 방향 · 같은 선로에 나란히 서게 된다)
+  this.dwell = 3;
   this.rider = null;
   this.wheelAngle = 0;
   const p = route.at(s);
@@ -13196,10 +13200,10 @@ function Train(world, route, s, dir, track) {
   this.x = p.x + o[0]; this.y = route.y + TRAIN_RIDE; this.z = p.z + o[1];
 }
 
-// 노선 중심선에서 제 선로까지의 옆거리. 노선이 향하는 쪽을 기준으로 잡으므로
-// 열차가 어느 쪽으로 달리든 같은 선로에 머문다.
+// 노선 중심선에서 제 선로까지의 옆거리.
+// 노선이 향하는 쪽 기준 오른쪽이 -tk 쪽이라 부호가 반대로 붙는다.
 Train.prototype.trackOffset = function (routeYaw) {
-  const k = TRACK_OFFSET * this.track;
+  const k = TRACK_OFFSET * this.tk;
   return [Math.cos(routeYaw) * k, -Math.sin(routeYaw) * k];
 };
 
@@ -13221,8 +13225,16 @@ Train.prototype.update = function (dt) {
       this.speed = 0;
       this.dwell = TRAIN_DWELL;
       this.dir = -this.dir;
+      this.track = -this.dir;      // 우측통행 — 반대편 선로로 건너간다
     }
   }
+  // 서 있는 동안 옆 선로로 슬슬 건너간다 (한 번에 튀지 않게)
+  if (this.tk !== this.track) {
+    const d2 = this.track - this.tk;
+    const step = TRAIN_CROSS * dt;
+    this.tk = (Math.abs(d2) <= step) ? this.track : this.tk + Math.sign(d2) * step;
+  }
+
   const p = r.at(this.s);
   this.y = r.y + TRAIN_RIDE;
   // 노선은 짧은 직선을 이어 붙인 것이라 구간을 넘을 때 방향이 조금씩 튄다.
@@ -13372,7 +13384,7 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
     while (here < 2) {
       // 한 대는 상행 선로, 한 대는 하행 선로
       this.trains.push(new Train(this.world, r,
-        here === 0 ? 0 : r.len, here === 0 ? 1 : -1, here === 0 ? 1 : -1));
+        here === 0 ? 0 : r.len, here === 0 ? 1 : -1));
       here++;
     }
   }
@@ -17852,7 +17864,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v7.7';
+const GAME_VERSION = 'v7.8';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '포크레인 공사장과 돈 · 도시 간 고속도로 · 아치교 · 전체 지도(M)';
 
