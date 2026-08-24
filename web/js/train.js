@@ -29,10 +29,10 @@ function trainCarParts(P, zc, isFront, isBack) {
     P.push({ x: x, y: y, z: zc + z, w: w, h: h, d: d, tex: tex, front: front });
   };
 
-  // ── 바닥과 천장 ──
+  // ── 바닥 ──
   box(0, TRAIN_FLOOR, 0, HW * 2, 0.26, L, 'tr_floor');
-  P.push({ x: 0, y: TRAIN_CEIL, z: zc, w: HW * 2 - 0.2, h: 0.22, d: L, tex: 'tr_wall', inner: true });
-  // 지붕(바깥)과 운전실 앞머리는 model3d.js 가 곡면으로 만든다
+  // 지붕(바깥)·운전실 앞머리·객실 안(둥근 천장, 긴의자, 손잡이)은
+  // model3d.js 가 곡면으로 만든다
 
   // ── 옆면 ── (창은 비워 두고 기둥과 띠만 세운다)
   for (const s of [-1, 1]) {
@@ -64,26 +64,6 @@ function trainCarParts(P, zc, isFront, isBack) {
       box(s * 1.12, 0.1, zEnd, 1.3, 3.0, 0.2, 'tr_wall');
     }
     box(0, TRAIN_CEIL - 0.4, zEnd, 1.0, 0.5, 0.2, 'tr_wall');
-  }
-
-  // ── 객실 ── (inner=true 인 부품은 멀리서 안 그린다)
-  const inner = function (x, y, z, w, h, d, tex) {
-    P.push({ x: x, y: y, z: zc + z, w: w, h: h, d: d, tex: tex, inner: true });
-  };
-  for (const s of [-1, 1]) {
-    // 긴 의자
-    inner(s * 1.18, -1.02, 0, 1.02, 0.55, L - 6.5, 'tr_seat');
-    inner(s * 1.6, -0.42, 0, 0.22, 0.9, L - 6.5, 'tr_seat');
-    // 의자 다리 가리개
-    inner(s * 1.18, -1.36, 0, 1.0, 0.22, L - 6.5, 'tr_wall');
-    // 손잡이 기둥
-    for (let k = -2; k <= 2; k++) {
-      inner(s * 0.66, 0.1, k * 3.4, 0.13, 3.0, 0.13, 'f_metal');
-    }
-    // 천장 손잡이 봉
-    inner(s * 0.86, 1.3, 0, 0.11, 0.11, L - 3.5, 'f_metal');
-    // 천장 조명 띠
-    inner(s * 0.58, 1.54, 0, 0.5, 0.11, L - 3.5, 'tr_light');
   }
 
   // ── 대차와 바퀴 ──

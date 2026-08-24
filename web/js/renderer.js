@@ -942,6 +942,10 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
       };
       // 둥근 지붕과 운전실 코
       this.emitMesh(trainCarMesh(ci), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+      // 객실 안 — 둥근 천장·긴의자·손잡이봉·조명. 가까이 왔을 때만 그린다.
+      if (showInner) {
+        this.emitMesh(trainInsideMesh(), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+      }
 
       const parts = TRAIN_CAR_PARTS[ci];
       for (let k = 0; k < parts.length; k++) {

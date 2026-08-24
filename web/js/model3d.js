@@ -850,3 +850,123 @@ function dirtHeapMesh() {
   if (!DIRT_HEAP_MESH) DIRT_HEAP_MESH = buildDirtHeapMesh();
   return DIRT_HEAP_MESH;
 }
+
+// ── 전동차 객실 ───────────────────────────────────────────────────────
+// 상자를 쌓던 객실 안(천장·긴의자·손잡이봉·조명)을 곡면으로 다시 만든다.
+// 량 하나 몫만 만들어 두고 량마다 같은 것을 그린다.
+
+// Y축(세로) 원기둥 — 손잡이 기둥
+function tubeY(m, x, z, y0, y1, r, tex, n) {
+  const N = n || 6;
+  const ring = function (y) {
+    const pts = [];
+    // +Y 축 둘레 반시계: +Z → +X → -Z → -X
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      pts.push([x + r * Math.sin(t), y, z + r * Math.cos(t)]);
+    }
+    return pts;
+  };
+  loft(m, ring(y0), ring(y1), function () { return tex; }, false);
+}
+
+// Z축(길이 방향) 원기둥 — 천장 손잡이 봉, 조명 커버
+function tubeZ(m, x, y, z0, z1, r, tex, n) {
+  const N = n || 6;
+  const ring = function (z) {
+    const pts = [];
+    // +Z 축 둘레 반시계: +X → +Y → -X → -Y
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      pts.push([x + r * Math.cos(t), y + r * Math.sin(t), z]);
+    }
+    return pts;
+  };
+  loft(m, ring(z0), ring(z1), function () { return tex; }, false);
+}
+
+// 긴의자 한 짝. 앞코가 둥글고 등받이가 벽에 기대 있다.
+// prof 는 (x, y) 단면을 +Z 에서 봤을 때 반시계로 돈 차례.
+function trainBench(m, side, z0, z1) {
+  const prof = [
+    [0.66, -1.40], [1.62, -1.40], [1.62, 0.18], [1.40, 0.22],
+    [1.33, -0.70], [1.18, -0.86], [0.80, -0.90], [0.66, -1.00], [0.60, -1.18]
+  ];
+  const ring = function (z) {
+    const pts = [];
+    for (let i = 0; i < prof.length; i++) {
+      // 왼쪽 자리는 거울처럼 뒤집는다 (뒤집으면 차례도 거꾸로 돌려야 한다)
+      const k = (side > 0) ? i : (prof.length - 1 - i);
+      pts.push([side * prof[k][0], prof[k][1], z]);
+    }
+    return pts;
+  };
+  const tex = function (my) {
+    if (my < -1.3) return 'tr_wall';          // 의자 밑 가리개
+    if (my > -0.6) return 'tr_seatback';      // 등받이
+    return 'tr_seat';
+  };
+  const a = ring(z0), b = ring(z1);
+  loft(m, a, b, tex, false);
+  // 양 끝 마구리 — 가운데로 모아 거의 평평하게 막는다
+  let cx = 0, cy = 0;
+  for (let i = 0; i < prof.length; i++) { cx += prof[i][0]; cy += prof[i][1]; }
+  cx = side * cx / prof.length; cy /= prof.length;
+  capRing(m, a, [cx, cy, z0 - 0.02], 'tr_seat', true);
+  capRing(m, b, [cx, cy, z1 + 0.02], 'tr_seat', false);
+  // 자리 나누는 턱
+  for (let z = z0 + 1.3; z < z1 - 0.4; z += 1.35) {
+    m.box(side * 1.12, -0.80, z, 0.98, 0.09, 0.1, 'tr_pole');
+  }
+}
+
+function buildTrainInsideMesh() {
+  const m = new Mesh3D();
+  const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
+  const HL = L / 2;
+
+  // ── 둥근 천장 ── (안쪽에서 올려다보는 면)
+  const arcN = 10;
+  const arc = [];
+  for (let i = 0; i <= arcN; i++) {
+    const t = (i / arcN) * Math.PI;
+    arc.push([HW * 0.93 * Math.cos(t), TRAIN_CEIL - 0.04 + 0.32 * Math.sin(t)]);
+  }
+  for (let i = 0; i < arcN; i++) {
+    const a = arc[i], b = arc[i + 1];
+    m.quad([a[0], a[1], -HL], [b[0], b[1], -HL], [b[0], b[1], HL], [a[0], a[1], HL],
+      'tr_wall', true);
+  }
+
+  // ── 긴의자 ── 문(z ±5.2) 사이와 양 끝에 나눠 놓는다
+  const spans = [[-3.9, 3.9], [6.5, 8.5], [-8.5, -6.5]];
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < spans.length; k++) trainBench(m, s, spans[k][0], spans[k][1]);
+
+    // ── 손잡이 기둥 ── 통로 쪽에 세로로 선다
+    for (let k = -2; k <= 2; k++) {
+      tubeY(m, s * 0.66, k * 3.4, TRAIN_FLOOR_TOP, TRAIN_CEIL - 0.05, 0.065, 'tr_pole');
+    }
+    // ── 천장 손잡이 봉 ──
+    tubeZ(m, s * 0.86, 1.28, -HL + 1.8, HL - 1.8, 0.055, 'tr_pole');
+    // ── 조명 커버 ── (스스로 빛난다)
+    tubeZ(m, s * 0.58, 1.52, -HL + 1.7, HL - 1.7, 0.1, 'tr_light', 5);
+
+    // ── 손잡이 ── 봉에 매달린 고리. 십자로 겹쳐 어느 쪽에서 봐도 보인다.
+    for (let k = -3; k <= 3; k++) {
+      const zc = k * 2.3;
+      const x = s * 0.86, y0 = 1.24, y1 = 0.52, r = 0.19;
+      m.quad([x - r, y1, zc], [x + r, y1, zc], [x + r, y0, zc], [x - r, y0, zc],
+        'tr_strap', true);
+      m.quad([x, y1, zc - r], [x, y1, zc + r], [x, y0, zc + r], [x, y0, zc - r],
+        'tr_strap', true);
+    }
+  }
+  return m.build();
+}
+
+let TRAIN_INSIDE_MESH = null;
+function trainInsideMesh() {
+  if (!TRAIN_INSIDE_MESH) TRAIN_INSIDE_MESH = buildTrainInsideMesh();
+  return TRAIN_INSIDE_MESH;
+}

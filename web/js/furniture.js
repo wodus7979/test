@@ -413,6 +413,28 @@ defFurnTex('tr_seat', function (p, rnd) {
   for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#27508a');
 });
 defFurnTex('tr_light', function (p, rnd) { p.noise(rnd, '#fdf7e2', 4, 6); });
+// 객실 안 — 스테인리스 봉과 노란 손잡이
+defFurnTex('tr_pole', function (p, rnd) {
+  p.noise(rnd, '#c6ccd2', 4, 5);
+  p.rect(0, 0, 16, 2, '#8e959c');
+  p.rect(0, 6, 16, 1, '#eef2f5');
+});
+// 손잡이 — 가운데가 뚫린 고리 (알파로 잘라 낸다)
+defFurnTex('tr_strap', function (p, rnd) {
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      // 위쪽은 천장 봉에서 내려오는 띠, 아래쪽은 잡는 고리
+      if (y < 6) { if (x >= 7 && x <= 8) p.set(x, y, '#d8dde2'); continue; }
+      const d = Math.hypot(x - 7.5, y - 10.5);
+      if (d < 5.2 && d > 3.1) p.set(x, y, '#f0b429');
+      else if (d <= 3.1 && d > 2.6) p.set(x, y, '#c98f16');
+    }
+  }
+});
+defFurnTex('tr_seatback', function (p, rnd) {
+  p.noise(rnd, '#27508a', 6, 3);
+  for (let x = 0; x < 16; x += 5) p.rect(x, 0, 1, 16, '#1f4373');
+});
 defFurnTex('tr_wheel', function (p, rnd) {
   p.noise(rnd, '#22262b', 5, 3);
   p.rect(0, 7, 16, 2, '#4a5058');
