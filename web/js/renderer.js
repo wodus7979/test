@@ -15,6 +15,8 @@ function Renderer(canvas) {
   this.lineProg = createProgram(gl, LINE_VS, LINE_FS, ['aPos']);
   this.cloudProg = createProgram(gl, CLOUD_VS, CLOUD_FS, ['aPos', 'aShade']);
   this.weatherProg = createProgram(gl, WEATHER_VS, WEATHER_FS, ['aCorner', 'aSeed']);
+  this.fxProg = createProgram(gl, PARTICLE_VS, PARTICLE_FS,
+    ['aCorner', 'aPos', 'aColor', 'aParam']);
 
   // 하늘용 전체 화면 삼각형
   this.skyBuf = makeBuffer(gl, gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]));
@@ -218,6 +220,83 @@ Renderer.prototype.drawWeather = function (player, opts) {
   gl.depthMask(true);
   gl.enable(gl.CULL_FACE);
   this.stats.tris += buf.idxCount / 3;
+};
+
+// ── 불꽃·연기 알갱이 ──────────────────────────────────────────────────
+// 연기는 보통 합성으로 먼저, 불꽃은 더하기 합성으로 나중에 그린다.
+// 정점 하나에 (모서리xy, 자리xyz, 색rgb, 지름, 진하기) 열 개가 들어간다.
+const FX_STRIDE = 10 * 4;
+
+Renderer.prototype.ensureFxBuffers = function (max) {
+  if (this.fxAdd && this.fxMax >= max) return;
+  const gl = this.gl;
+  this.fxMax = max;
+  this.fxAdd = new Float32Array(max * 4 * 10);
+  this.fxAlpha = new Float32Array(max * 4 * 10);
+  if (!this.fxVbo) this.fxVbo = gl.createBuffer();
+  // 네모 차례는 늘 같으므로 색인은 한 번만 만든다
+  const useInt = !!this.uintExt;
+  const quads = useInt ? max : Math.min(max, 16000);
+  const idx = useInt ? new Uint32Array(quads * 6) : new Uint16Array(quads * 6);
+  for (let i = 0, o = 0; i < quads; i++) {
+    const b = i * 4;
+    idx[o++] = b; idx[o++] = b + 1; idx[o++] = b + 2;
+    idx[o++] = b; idx[o++] = b + 2; idx[o++] = b + 3;
+  }
+  if (!this.fxIbo) this.fxIbo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.fxIbo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  this.fxIdxType = useInt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
+  this.fxQuadMax = quads;
+};
+
+Renderer.prototype.drawParticles = function (fx, player, opts) {
+  if (!fx || !fx.list.length) return;
+  const gl = this.gl;
+  this.ensureFxBuffers(FX_MAX);
+  const n = fx.fill(this.fxAdd, this.fxAlpha, player);
+  if (!n.add && !n.alpha) return;
+
+  const p = this.fxProg;
+  const vm = this.view;
+  gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u.uProj, false, this.proj);
+  gl.uniformMatrix4fv(p.u.uView, false, this.view);
+  // 뷰 행렬의 가로·세로 축 — 알갱이가 늘 카메라를 마주 본다
+  gl.uniform3f(p.u.uRight, vm[0], vm[4], vm[8]);
+  gl.uniform3f(p.u.uUp, vm[1], vm[5], vm[9]);
+
+  gl.enableVertexAttribArray(0);
+  gl.enableVertexAttribArray(1);
+  gl.enableVertexAttribArray(2);
+  gl.enableVertexAttribArray(3);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.fxIbo);
+  gl.enable(gl.BLEND);
+  gl.depthMask(false);
+  gl.disable(gl.CULL_FACE);
+
+  const self = this;
+  const pass = function (data, count, soft, additive) {
+    if (!count) return;
+    const q = Math.min(count, self.fxQuadMax);
+    gl.blendFunc(gl.SRC_ALPHA, additive ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+    gl.uniform1f(p.u.uSoft, soft);
+    gl.bindBuffer(gl.ARRAY_BUFFER, self.fxVbo);
+    gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, q * 40), gl.DYNAMIC_DRAW);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, FX_STRIDE, 0);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, FX_STRIDE, 8);
+    gl.vertexAttribPointer(2, 3, gl.FLOAT, false, FX_STRIDE, 20);
+    gl.vertexAttribPointer(3, 2, gl.FLOAT, false, FX_STRIDE, 32);
+    gl.drawElements(gl.TRIANGLES, q * 6, self.fxIdxType, 0);
+    self.stats.tris += q * 2;
+  };
+  pass(this.fxAlpha, n.alpha, 0.05, false);   // 연기 — 가장자리가 아주 부드럽다
+  pass(this.fxAdd, n.add, 0.35, true);        // 불꽃 — 가운데가 밝다
+
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  gl.enable(gl.CULL_FACE);
+  gl.disableVertexAttribArray(3);
 };
 
 Renderer.prototype.setAtlases = function (blockCanvas, itemCanvas) {

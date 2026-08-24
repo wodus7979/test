@@ -47,7 +47,7 @@ const PLANE_SEAT = [0, 1.9, 5.5];   // 조종석 (로컬 좌표)
 const PLANE_CRASH_SINK = 24;       // 가라앉는 속도 (블록/초)
 const PLANE_CRASH_BANK = 0.7;      // 접지 순간 기울기 (라디안)
 const PLANE_CRASH_HIT = 26;        // 산·건물에 정면으로 부딪히는 속도
-const PLANE_WRECK_KEEP = 9;        // 잔해를 남겨 두는 시간(초)
+const PLANE_WRECK_KEEP = 16;       // 잔해가 타면서 남아 있는 시간(초)
 
 function Plane(world, x, y, z, yaw) {
   this.world = world;
@@ -95,7 +95,7 @@ Plane.prototype.crash = function (game, why) {
   }
   if (game) {
     if (game.playSound) game.playSound('boom');
-    game.shake = Math.max(game.shake || 0, 14);
+    game.shake = Math.max(game.shake || 0, 2.2);
     if (game.ui) game.ui.toast('여객기 ' + why + ' — 이 기체는 더 이상 뜨지 못합니다');
   }
 };
@@ -346,9 +346,17 @@ EntityManager.prototype.updatePlanes = function (dt, player, game) {
       this.planes.splice(i, 1);
       continue;
     }
-    // 부서진 기체는 잠깐 잔해로 남았다가 사라진다 (다시 뜨지 않는다)
+    // 부서진 기체는 잔해로 남아 타다가 사라진다 (다시 뜨지 않는다)
     if (p.wrecked) {
       p.wreckT = (p.wreckT || 0) + dt;
+      // 잔해에서 불길과 검은 연기가 계속 피어오른다
+      if (game && game.fx && far < 260) {
+        if (p.fxFloor === undefined) {
+          const top = this.world.topSolidY(Math.floor(p.x), Math.floor(p.z));
+          p.fxFloor = (top < 0 ? p.y - 3 : top + 1);
+        }
+        p.fxAcc = game.fx.flame(p.x, p.y, p.z, 5.0, dt, p.fxAcc || 0, p.fxFloor);
+      }
       if (p.wreckT > PLANE_WRECK_KEEP || far > 420) this.planes.splice(i, 1);
       continue;
     }

@@ -376,6 +376,43 @@ const WEATHER_FS = [
   '}'
 ].join('\n');
 
+// ── 불꽃·연기 알갱이 ──────────────────────────────────────────────────
+// 언제나 카메라를 마주 보는 작은 네모. 자리·크기·색은 매 프레임 올린다.
+const PARTICLE_VS = [
+  'precision highp float;',
+  'attribute vec2 aCorner;',      // -0.5 ~ 0.5
+  'attribute vec3 aPos;',         // 알갱이 가운데 (세계 좌표)
+  'attribute vec3 aColor;',
+  'attribute vec2 aParam;',       // (지름, 진하기)
+  'uniform mat4 uProj; uniform mat4 uView;',
+  'uniform vec3 uRight; uniform vec3 uUp;',
+  'varying vec3 vColor;',
+  'varying float vAlpha;',
+  'varying vec2 vC;',
+  'void main() {',
+  '  vec3 p = aPos + uRight * (aCorner.x * aParam.x) + uUp * (aCorner.y * aParam.x);',
+  '  vColor = aColor;',
+  '  vAlpha = aParam.y;',
+  '  vC = aCorner;',
+  '  gl_Position = uProj * uView * vec4(p, 1.0);',
+  '}'
+].join('\n');
+
+const PARTICLE_FS = [
+  'precision highp float;',
+  'uniform float uSoft;',         // 가장자리가 흐려지기 시작하는 곳
+  'varying vec3 vColor;',
+  'varying float vAlpha;',
+  'varying vec2 vC;',
+  'void main() {',
+  '  float d = length(vC) * 2.0;',           // 0 가운데 · 1 가장자리
+  '  if (d > 1.0) discard;',                 // 동그랗게 자른다
+  '  float a = vAlpha * (1.0 - smoothstep(uSoft, 1.0, d));',
+  '  if (a < 0.008) discard;',
+  '  gl_FragColor = vec4(vColor, a);',
+  '}'
+].join('\n');
+
 // 블록 선택 외곽선
 const LINE_VS = [
   'precision highp float;',

@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v8.7';
+const GAME_VERSION = 'v8.8';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -69,6 +69,7 @@ function Game(canvas) {
   this.frameTimes = [];
   this.useHeld = 0;
   this.shake = 0;
+  this.fx = new ParticleFX();      // 불꽃·연기 알갱이
   this.touch = { look: null, move: null, moveBase: null };
 }
 
@@ -141,7 +142,13 @@ Game.prototype.setupCallbacks = function () {
   };
   // 물이 용암을 굳힐 때 나는 소리
   this.world.onFluidHiss = function () { self.playSound('hiss'); };
-  this.entities.onExplosion = function () { self.playSound('boom'); self.shake = 0.45; };
+  // 터질 때마다 불덩이와 연기가 피어오른다
+  this.entities.onExplosion = function (x, y, z, power) {
+    self.playSound('boom');
+    self.shake = Math.max(self.shake, 0.45 + power * 0.12);
+    const top = self.world.topSolidY(Math.floor(x), Math.floor(z));
+    self.fx.burst(x, y, z, power, (top < 0 ? y - 3 : top + 1));
+  };
   this.world.initFluids();
 };
 
@@ -2228,6 +2235,7 @@ Game.prototype.update = function (dt) {
   if (this.updateSignals) this.updateSignals(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
+  this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);
@@ -2376,6 +2384,7 @@ Game.prototype.render = function (dt) {
     if (hit.hit) r.drawOutline(hit.x, hit.y, hit.z, outlineBox(this.world, hit.x, hit.y, hit.z, hit.id));
   }
   r.drawChunks(this.world, p, opts, 'water');
+  r.drawParticles(this.fx, p, opts);
   r.drawWeather(p, opts);
   r.endFrame(fx);
 
