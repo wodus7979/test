@@ -984,6 +984,9 @@ button.tiny {
           <li>내가 몰 때 <b>빨간불에 지나가면 벌점 10점</b>이 붙는다.
               <b>100점</b>이 되면 그 자리에서 내려지고 <b>2분 동안 운전할 수 없다</b>
               (그 뒤 벌점은 0으로 돌아간다). 계기판에 <b>앞 신호와 벌점</b>이 보인다</li>
+          <li><b>차끼리 뚫고 지나가지 못한다</b> — 차를 방향 있는 네모로 보고 겹침을 재서
+              떼어 놓는다. 들이받으면 내 속도가 <b>3분의 1로 떨어지고</b> 받힌 차는
+              잠깐 멈춰 선다. 교차로에서 옆에서 밀린 차는 서서 길을 내준다</li>
           <li>지나가는 <b>자동차에 우클릭하면 직접 몰 수 있다</b> —
               <b>W/S</b> 가속·후진, <b>A/D</b> 방향, <b>Space</b> 제동, <b>Shift</b> 내리기.
               벽에 막히면 후진으로 빠져나오면 된다</li>
@@ -995,6 +998,8 @@ button.tiny {
               단면을 이어 붙여 만들었다</li>
           <li>흙더미를 퍼서 <b>덤프트럭</b>에 부으면 된다. <b>1분 안에 8삽</b>을 채우면
               <b>100원</b>을 번다. 모은 돈은 저장된다</li>
+          <li>덤프트럭은 <b>나무 위로 올라가지 않는다</b> — 앞을 살펴 넘을 수 없는 턱이면
+              옆으로 돌아 나가고, 오르내림도 한 번에 순간이동하지 않는다</li>
           <li>짐칸이 다 차면 트럭은 정문으로 나가 <b>다른 도시로 떠난다</b>.
               <b>10초</b> 뒤에 빈 트럭이 같은 길로 들어와 제자리에 선다 —
               그동안은 퍼도 부을 데가 없다</li>
@@ -9260,6 +9265,21 @@ World.prototype.topSolidY = function (x, z) {
   return -1;
 };
 
+// 탈것이 딛고 설 높이 (자동차·덤프트럭이 함께 쓴다).
+// 기둥 꼭대기(topSolidY)를 쓰면 머리 위로 지나가는 나뭇가지·다리 상판·고가 철로가
+// 전부 땅이 되어, 차가 나무 위로 순간이동하거나 가지에 걸려 서 버린다.
+// 그래서 base(지금 딛고 있는 높이)에서 지붕 높이까지만 내려다본다.
+// 돌려주는 값은 발이 닿는 높이. 근처에 아무것도 없으면 null.
+World.prototype.rideSurfaceAt = function (x, z, base, headroom, digDown) {
+  const bx = Math.floor(x), bz = Math.floor(z);
+  const hi = Math.min(CHUNK_Y - 1, Math.floor(base + (headroom === undefined ? 2 : headroom)));
+  const lo = Math.max(0, Math.floor(base) - (digDown === undefined ? 4 : digDown));
+  for (let y = hi; y >= lo; y--) {
+    if (this.getBlock(bx, y, bz) !== 0) return y + 1;
+  }
+  return null;
+};
+
 // 추운 곳이면 지형 위에 눈을 얹는다. 나무·지붕처럼 하늘에 닿은 것은
 // 무엇이든 하얗게 덮이고, 물은 언다. (장식·마을을 찍은 뒤에 부른다)
 World.prototype.snowChunk = function (c) {
@@ -14291,6 +14311,8 @@ const CAR_RISE = 42;            // 오르막을 따라 올라가는 속도 (블�
 const CAR_FALL = 16;            // 내리막을 따라 내려가는 속도
 const CAR_DEFLECT = 4.5;        // 벽이 차를 나란하게 밀어 주는 속도 (라디안/초)
 const CAR_BODY_H = 2;           // 차 높이 — 이보다 높이 떠 있는 것은 지나간다
+const CAR_HIT_KEEP = 0.34;      // 다른 차를 들이받았을 때 남는 속도
+const CAR_HIT_STUN = 1.1;       // 받힌 차가 멈춰 서 있는 시간(초)
 const CAR_LOOK_DOWN = 4;        // 발밑을 이만큼까지만 내려다본다
 // 벽에 닿았을 때 어느 쪽으로 비켜 갈 수 있나 — 작은 각도부터 양쪽으로 찾아본다
 const CAR_DEFLECT_TRY = [0.18, -0.18, 0.36, -0.36, 0.55, -0.55,
@@ -14436,13 +14458,7 @@ Car.prototype.drive = function (dt, input, world) {
 // 기둥 꼭대기(topSolidY)를 쓰면 머리 위로 지나가는 나뭇가지·다리 상판·고가 철로가
 // 전부 벽이 된다. 그래서 차 지붕 높이까지만 내려다본다.
 Car.prototype.surfaceAt = function (world, x, z, base) {
-  const bx = Math.floor(x), bz = Math.floor(z);
-  const hi = Math.floor(base + CAR_BODY_H);
-  const lo = Math.max(0, Math.floor(base) - CAR_LOOK_DOWN);
-  for (let y = hi; y >= lo; y--) {
-    if (world.getBlock(bx, y, bz) !== 0) return y + 1;
-  }
-  return null;                               // 발밑이 텅 비었다 (낭떠러지) — 막지 않는다
+  return world.rideSurfaceAt(x, z, base, CAR_BODY_H, CAR_LOOK_DOWN);
 };
 
 // 이 자리로 갈 수 있나.
@@ -14470,6 +14486,92 @@ Car.prototype.canStand = function (world, x, z, half, lead) {
   }
   return true;
 };
+
+// ── 차끼리 부딪히기 ───────────────────────────────────────────────────
+// 차를 "방향 있는 네모"로 보고 분리축(SAT)으로 겹침을 잰다.
+// 겹치면 a 를 밀어낼 방향과 깊이를 준다. 안 겹치면 null.
+function carPush(a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const ra = (a.type.len + a.type.wide) * 0.5, rb = (b.type.len + b.type.wide) * 0.5;
+  if (dx * dx + dz * dz > (ra + rb) * (ra + rb)) return null;   // 멀면 볼 것도 없다
+  if (Math.abs(a.y - b.y) > 2.5) return null;                   // 고가 위아래는 안 부딪힌다
+  const af = [Math.sin(a.yaw), Math.cos(a.yaw)];                // 앞
+  const ar = [Math.cos(a.yaw), -Math.sin(a.yaw)];               // 오른쪽
+  const bf = [Math.sin(b.yaw), Math.cos(b.yaw)];
+  const br = [Math.cos(b.yaw), -Math.sin(b.yaw)];
+  const axes = [af, ar, bf, br];
+  const aL = a.type.len / 2, aW = a.type.wide / 2;
+  const bL = b.type.len / 2, bW = b.type.wide / 2;
+  let best = 1e9, px = 0, pz = 0;
+  for (let i = 0; i < 4; i++) {
+    const ax = axes[i];
+    const pa = aL * Math.abs(ax[0] * af[0] + ax[1] * af[1]) +
+               aW * Math.abs(ax[0] * ar[0] + ax[1] * ar[1]);
+    const pb = bL * Math.abs(ax[0] * bf[0] + ax[1] * bf[1]) +
+               bW * Math.abs(ax[0] * br[0] + ax[1] * br[1]);
+    const d = dx * ax[0] + dz * ax[1];
+    const ov = pa + pb - Math.abs(d);
+    if (ov <= 0) return null;                  // 이 축에서 떨어져 있다 = 안 겹침
+    if (ov < best) {
+      best = ov;
+      const sgn = (d < 0) ? 1 : -1;            // b 반대쪽으로 민다
+      px = ax[0] * sgn; pz = ax[1] * sgn;
+    }
+  }
+  return { x: px, z: pz, depth: best };
+}
+
+// 겹친 차들을 떼어 놓는다.
+// 사람이 모는 차는 세계 좌표로 직접 밀어내고,
+// 차선을 따라 도는 차는 제 차선 위에서 앞뒤로 밀린다 (안 그러면 다음 틱에 되돌아간다).
+function carSeparate(list, game) {
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    for (let j = i + 1; j < list.length; j++) {
+      const b = list[j];
+      if (Math.abs(a.x - b.x) > 14 || Math.abs(a.z - b.z) > 14) continue;
+      const p = carPush(a, b);
+      if (!p) continue;
+      // 한쪽이 못 밀리는 차면 나머지 한쪽이 다 물러난다
+      const aFixed = a.parked && !a.driver, bFixed = b.parked && !b.driver;
+      const full = Math.min(p.depth, 0.9) + 0.002;
+      const push = (aFixed || bFixed) ? full : full * 0.5;
+      carShove(a, p.x, p.z, push, game);
+      carShove(b, -p.x, -p.z, push, game);
+      // 부딪힌 만큼 속도가 준다
+      if (a.driver || b.driver) {
+        const me = a.driver ? a : b, other = a.driver ? b : a;
+        me.speed *= CAR_HIT_KEEP;
+        me.scrape = 2;
+        other.speed = 0;
+        other.stun = CAR_HIT_STUN;
+      } else {
+        // 차선을 도는 차끼리 — 제 차선으로는 옆으로 못 비킨다.
+        // 그래서 옆에서 밀린 쪽이 잠깐 서서 길을 내준다 (교차로에서 겹치는 걸 푼다)
+        const aAlong = Math.abs((a.axis === 0) ? p.x : p.z);
+        const bAlong = Math.abs((b.axis === 0) ? p.x : p.z);
+        if (aAlong < bAlong) { a.speed = 0; a.stun = 0.7; }
+        else { b.speed = 0; b.stun = 0.7; }
+        a.speed *= 0.6; b.speed *= 0.6;
+      }
+    }
+  }
+}
+
+// 차 한 대를 그 방향으로 조금 밀어낸다
+function carShove(car, dx, dz, amt, game) {
+  if (car.parked && !car.driver) return;     // 세워 둔 버스는 밀리지 않는다
+  if (car.driver) {
+    car.x += dx * amt; car.z += dz * amt;
+    return;
+  }
+  // 차선 위를 도는 차 — 진행 축으로 바꿔 pos 를 옮긴다
+  const along = (car.axis === 0) ? dx : dz;
+  car.pos += along * amt;
+  const ext = Math.max(6, laneExtent(car.line) - 4);
+  car.pos = Math.max(-ext, Math.min(ext, car.pos));
+  car.sync();
+}
 
 // ── 앞차 살피기 ───────────────────────────────────────────────────────
 // 같은 차선만 보면 교차로에서 서로 뚫고 지나가 겹쳐 버린다.
@@ -14554,6 +14656,15 @@ Car.prototype.update = function (dt, game) {
   if (this._blocked !== null && this._blocked !== undefined) want = Math.min(want, this._blocked);
 
   // 신호등 — 빨간불이면 정지선 앞에서 선다
+  // 받히면 잠깐 그 자리에 선다
+  if (this.stun > 0) {
+    this.stun -= dt;
+    this.speed = Math.max(0, this.speed - CAR_BRAKE * dt);
+    this.pos += this.speed * this.dir * dt;
+    this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
+    this.sync();
+    return;
+  }
   const stopAt = this.signalStop(c, game);
   if (stopAt !== null) {
     const gap = (stopAt - this.pos) * this.dir;
@@ -14727,6 +14838,8 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
     car._blocked = carAhead(car, this.cars);
     car.update(dt, game);
   }
+  // 다 옮긴 뒤 겹친 차들을 떼어 놓는다 (뚫고 지나가지 못한다)
+  carSeparate(this.cars, game);
 };
 
 </script>
@@ -20055,7 +20168,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.0';
+const GAME_VERSION = 'v9.1';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -23207,6 +23320,11 @@ const TRUCK_TURN = 1.6;       // 초당 최대 조향(라디안)
 const TRUCK_WHEEL_R = 0.52;   // 바퀴 반지름 (구르는 각도 계산용)
 const TRUCK_GAP = 10;         // 떠난 뒤 다음 트럭이 올 때까지(초)
 const TRUCK_TRIP = 120;       // 이만큼 멀어지면 길 너머로 사라진다
+const TRUCK_BODY_H = 3.2;     // 트럭 높이 — 이보다 높이 뜬 것은 지나간다
+const TRUCK_CLIMB = 1.3;      // 넘을 수 있는 턱 높이
+const TRUCK_STALL = 3;        // 이만큼 막혀 있으면 그 다리는 접는다(초)
+// 막혔을 때 비켜 갈 방향을 작은 각도부터 찾아본다
+const TRUCK_TRY = [0.3, -0.3, 0.6, -0.6, 0.95, -0.95, 1.4, -1.4];
 const EX_TIME_LIMIT = 60;     // 제한 시간(초)
 const EX_REWARD = 100;        // 성공 보수(원)
 
@@ -23411,18 +23529,63 @@ Excavator.prototype.driveTruck = function (dt, game, route) {
   tr.yaw += Math.max(-TRUCK_TURN * dt, Math.min(TRUCK_TURN * dt, dy));
   // 많이 꺾을 때는 천천히 (제자리에서 홱 돌지 않게)
   const step = TRUCK_SPEED * (Math.abs(dy) > 0.7 ? 0.4 : 1) * dt;
-  tr.x += Math.sin(tr.yaw) * step;
-  tr.z += Math.cos(tr.yaw) * step;
+
+  // 나무나 바위가 앞을 막으면 넘어가지 않고 비켜 간다.
+  // (예전에는 기둥 꼭대기를 땅으로 삼아 나무 위로 솟구쳐 올랐다)
+  const w = game.world;
+  let go = tr.yaw;
+  let ok = this.truckCanGo(w, tr.x + Math.sin(go) * step, tr.z + Math.cos(go) * step, go);
+  if (!ok) {
+    for (let k = 0; k < TRUCK_TRY.length; k++) {
+      const ny = tr.yaw + TRUCK_TRY[k];
+      if (!this.truckCanGo(w, tr.x + Math.sin(ny) * step, tr.z + Math.cos(ny) * step, ny)) continue;
+      // 조금씩 틀어 돌아 나간다
+      tr.yaw += Math.max(-TRUCK_TURN * dt, Math.min(TRUCK_TURN * dt, TRUCK_TRY[k]));
+      go = tr.yaw; ok = true;
+      break;
+    }
+  }
+  if (!ok) {
+    // 사방이 막혔다 — 오래 갇혀 있으면 이 다리는 접는다
+    tr.blockT = (tr.blockT || 0) + dt;
+    return tr.blockT > TRUCK_STALL;
+  }
+  tr.blockT = 0;
+  tr.x += Math.sin(go) * step;
+  tr.z += Math.cos(go) * step;
   tr.wheel += step / TRUCK_WHEEL_R;
-  // 땅 높이를 따라간다 — 오르막은 바로 올라타고(파묻히지 않게), 내리막은 부드럽게.
-  // 물 위를 지날 때 가라앉지 않도록 바다 높이 아래로는 내려가지 않는다.
-  const gy = game.world.topSolidY(Math.floor(tr.x), Math.floor(tr.z));
-  if (gy > 0) {
-    const ty = Math.max(gy + 1, SEA_LEVEL + 1);
-    if (ty > tr.y) tr.y = ty;
-    else tr.y += (ty - tr.y) * Math.min(1, dt * 6);
+
+  // 땅 높이를 따라간다. 지붕 높이까지만 내려다보므로 나뭇가지에 끌려 올라가지 않는다.
+  // 물 위를 지날 때 가라앉지 않도록 바다 높이 아래로도 내려가지 않는다.
+  const surf = w.rideSurfaceAt(tr.x, tr.z, tr.y, TRUCK_BODY_H, 5);
+  if (surf !== null) {
+    const ty = Math.max(surf, SEA_LEVEL + 1);
+    // 한 번에 턱 높이만큼만 오른다 (순간이동하지 않는다)
+    if (ty > tr.y) tr.y = Math.min(ty, tr.y + Math.max(TRUCK_CLIMB, 14 * dt));
+    else tr.y = Math.max(ty, tr.y - 18 * dt);      // 내리막에서 붕 뜨지 않게
   }
   return false;
+};
+
+// 이 자리로 갈 수 있나 — 앞바퀴 언저리 두 줄을 훑어 본다.
+// 걸음마다 TRUCK_CLIMB 넘게 솟으면 벽으로 본다 (비탈길은 그대로 지나간다).
+Excavator.prototype.truckCanGo = function (world, x, z, yaw) {
+  const tr = this.truck;
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const under = world.rideSurfaceAt(x, z, tr.y, TRUCK_BODY_H, 5);
+  const base = (under === null) ? tr.y : Math.max(tr.y, under);
+  for (const sw of [-1.25, 1.25]) {
+    let ref = base;
+    for (let i = 1; i <= 3; i++) {
+      const f = (4.6 * i) / 3;
+      const px = x + s * f + c * sw, pz = z + c * f - s * sw;
+      const surf = world.rideSurfaceAt(px, pz, ref, TRUCK_BODY_H, 5);
+      if (surf === null) continue;
+      if (surf > ref + TRUCK_CLIMB) return false;
+      if (surf > ref) ref = surf;
+    }
+  }
+  return true;
 };
 
 Excavator.prototype.updateTruck = function (dt, game) {

@@ -246,6 +246,21 @@ World.prototype.topSolidY = function (x, z) {
   return -1;
 };
 
+// 탈것이 딛고 설 높이 (자동차·덤프트럭이 함께 쓴다).
+// 기둥 꼭대기(topSolidY)를 쓰면 머리 위로 지나가는 나뭇가지·다리 상판·고가 철로가
+// 전부 땅이 되어, 차가 나무 위로 순간이동하거나 가지에 걸려 서 버린다.
+// 그래서 base(지금 딛고 있는 높이)에서 지붕 높이까지만 내려다본다.
+// 돌려주는 값은 발이 닿는 높이. 근처에 아무것도 없으면 null.
+World.prototype.rideSurfaceAt = function (x, z, base, headroom, digDown) {
+  const bx = Math.floor(x), bz = Math.floor(z);
+  const hi = Math.min(CHUNK_Y - 1, Math.floor(base + (headroom === undefined ? 2 : headroom)));
+  const lo = Math.max(0, Math.floor(base) - (digDown === undefined ? 4 : digDown));
+  for (let y = hi; y >= lo; y--) {
+    if (this.getBlock(bx, y, bz) !== 0) return y + 1;
+  }
+  return null;
+};
+
 // 추운 곳이면 지형 위에 눈을 얹는다. 나무·지붕처럼 하늘에 닿은 것은
 // 무엇이든 하얗게 덮이고, 물은 언다. (장식·마을을 찍은 뒤에 부른다)
 World.prototype.snowChunk = function (c) {

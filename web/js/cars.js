@@ -86,6 +86,8 @@ const CAR_RISE = 42;            // 오르막을 따라 올라가는 속도 (블�
 const CAR_FALL = 16;            // 내리막을 따라 내려가는 속도
 const CAR_DEFLECT = 4.5;        // 벽이 차를 나란하게 밀어 주는 속도 (라디안/초)
 const CAR_BODY_H = 2;           // 차 높이 — 이보다 높이 떠 있는 것은 지나간다
+const CAR_HIT_KEEP = 0.34;      // 다른 차를 들이받았을 때 남는 속도
+const CAR_HIT_STUN = 1.1;       // 받힌 차가 멈춰 서 있는 시간(초)
 const CAR_LOOK_DOWN = 4;        // 발밑을 이만큼까지만 내려다본다
 // 벽에 닿았을 때 어느 쪽으로 비켜 갈 수 있나 — 작은 각도부터 양쪽으로 찾아본다
 const CAR_DEFLECT_TRY = [0.18, -0.18, 0.36, -0.36, 0.55, -0.55,
@@ -231,13 +233,7 @@ Car.prototype.drive = function (dt, input, world) {
 // 기둥 꼭대기(topSolidY)를 쓰면 머리 위로 지나가는 나뭇가지·다리 상판·고가 철로가
 // 전부 벽이 된다. 그래서 차 지붕 높이까지만 내려다본다.
 Car.prototype.surfaceAt = function (world, x, z, base) {
-  const bx = Math.floor(x), bz = Math.floor(z);
-  const hi = Math.floor(base + CAR_BODY_H);
-  const lo = Math.max(0, Math.floor(base) - CAR_LOOK_DOWN);
-  for (let y = hi; y >= lo; y--) {
-    if (world.getBlock(bx, y, bz) !== 0) return y + 1;
-  }
-  return null;                               // 발밑이 텅 비었다 (낭떠러지) — 막지 않는다
+  return world.rideSurfaceAt(x, z, base, CAR_BODY_H, CAR_LOOK_DOWN);
 };
 
 // 이 자리로 갈 수 있나.
@@ -265,6 +261,92 @@ Car.prototype.canStand = function (world, x, z, half, lead) {
   }
   return true;
 };
+
+// ── 차끼리 부딪히기 ───────────────────────────────────────────────────
+// 차를 "방향 있는 네모"로 보고 분리축(SAT)으로 겹침을 잰다.
+// 겹치면 a 를 밀어낼 방향과 깊이를 준다. 안 겹치면 null.
+function carPush(a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const ra = (a.type.len + a.type.wide) * 0.5, rb = (b.type.len + b.type.wide) * 0.5;
+  if (dx * dx + dz * dz > (ra + rb) * (ra + rb)) return null;   // 멀면 볼 것도 없다
+  if (Math.abs(a.y - b.y) > 2.5) return null;                   // 고가 위아래는 안 부딪힌다
+  const af = [Math.sin(a.yaw), Math.cos(a.yaw)];                // 앞
+  const ar = [Math.cos(a.yaw), -Math.sin(a.yaw)];               // 오른쪽
+  const bf = [Math.sin(b.yaw), Math.cos(b.yaw)];
+  const br = [Math.cos(b.yaw), -Math.sin(b.yaw)];
+  const axes = [af, ar, bf, br];
+  const aL = a.type.len / 2, aW = a.type.wide / 2;
+  const bL = b.type.len / 2, bW = b.type.wide / 2;
+  let best = 1e9, px = 0, pz = 0;
+  for (let i = 0; i < 4; i++) {
+    const ax = axes[i];
+    const pa = aL * Math.abs(ax[0] * af[0] + ax[1] * af[1]) +
+               aW * Math.abs(ax[0] * ar[0] + ax[1] * ar[1]);
+    const pb = bL * Math.abs(ax[0] * bf[0] + ax[1] * bf[1]) +
+               bW * Math.abs(ax[0] * br[0] + ax[1] * br[1]);
+    const d = dx * ax[0] + dz * ax[1];
+    const ov = pa + pb - Math.abs(d);
+    if (ov <= 0) return null;                  // 이 축에서 떨어져 있다 = 안 겹침
+    if (ov < best) {
+      best = ov;
+      const sgn = (d < 0) ? 1 : -1;            // b 반대쪽으로 민다
+      px = ax[0] * sgn; pz = ax[1] * sgn;
+    }
+  }
+  return { x: px, z: pz, depth: best };
+}
+
+// 겹친 차들을 떼어 놓는다.
+// 사람이 모는 차는 세계 좌표로 직접 밀어내고,
+// 차선을 따라 도는 차는 제 차선 위에서 앞뒤로 밀린다 (안 그러면 다음 틱에 되돌아간다).
+function carSeparate(list, game) {
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    for (let j = i + 1; j < list.length; j++) {
+      const b = list[j];
+      if (Math.abs(a.x - b.x) > 14 || Math.abs(a.z - b.z) > 14) continue;
+      const p = carPush(a, b);
+      if (!p) continue;
+      // 한쪽이 못 밀리는 차면 나머지 한쪽이 다 물러난다
+      const aFixed = a.parked && !a.driver, bFixed = b.parked && !b.driver;
+      const full = Math.min(p.depth, 0.9) + 0.002;
+      const push = (aFixed || bFixed) ? full : full * 0.5;
+      carShove(a, p.x, p.z, push, game);
+      carShove(b, -p.x, -p.z, push, game);
+      // 부딪힌 만큼 속도가 준다
+      if (a.driver || b.driver) {
+        const me = a.driver ? a : b, other = a.driver ? b : a;
+        me.speed *= CAR_HIT_KEEP;
+        me.scrape = 2;
+        other.speed = 0;
+        other.stun = CAR_HIT_STUN;
+      } else {
+        // 차선을 도는 차끼리 — 제 차선으로는 옆으로 못 비킨다.
+        // 그래서 옆에서 밀린 쪽이 잠깐 서서 길을 내준다 (교차로에서 겹치는 걸 푼다)
+        const aAlong = Math.abs((a.axis === 0) ? p.x : p.z);
+        const bAlong = Math.abs((b.axis === 0) ? p.x : p.z);
+        if (aAlong < bAlong) { a.speed = 0; a.stun = 0.7; }
+        else { b.speed = 0; b.stun = 0.7; }
+        a.speed *= 0.6; b.speed *= 0.6;
+      }
+    }
+  }
+}
+
+// 차 한 대를 그 방향으로 조금 밀어낸다
+function carShove(car, dx, dz, amt, game) {
+  if (car.parked && !car.driver) return;     // 세워 둔 버스는 밀리지 않는다
+  if (car.driver) {
+    car.x += dx * amt; car.z += dz * amt;
+    return;
+  }
+  // 차선 위를 도는 차 — 진행 축으로 바꿔 pos 를 옮긴다
+  const along = (car.axis === 0) ? dx : dz;
+  car.pos += along * amt;
+  const ext = Math.max(6, laneExtent(car.line) - 4);
+  car.pos = Math.max(-ext, Math.min(ext, car.pos));
+  car.sync();
+}
 
 // ── 앞차 살피기 ───────────────────────────────────────────────────────
 // 같은 차선만 보면 교차로에서 서로 뚫고 지나가 겹쳐 버린다.
@@ -349,6 +431,15 @@ Car.prototype.update = function (dt, game) {
   if (this._blocked !== null && this._blocked !== undefined) want = Math.min(want, this._blocked);
 
   // 신호등 — 빨간불이면 정지선 앞에서 선다
+  // 받히면 잠깐 그 자리에 선다
+  if (this.stun > 0) {
+    this.stun -= dt;
+    this.speed = Math.max(0, this.speed - CAR_BRAKE * dt);
+    this.pos += this.speed * this.dir * dt;
+    this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
+    this.sync();
+    return;
+  }
   const stopAt = this.signalStop(c, game);
   if (stopAt !== null) {
     const gap = (stopAt - this.pos) * this.dir;
@@ -522,4 +613,6 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
     car._blocked = carAhead(car, this.cars);
     car.update(dt, game);
   }
+  // 다 옮긴 뒤 겹친 차들을 떼어 놓는다 (뚫고 지나가지 못한다)
+  carSeparate(this.cars, game);
 };

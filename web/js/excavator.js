@@ -22,6 +22,11 @@ const TRUCK_TURN = 1.6;       // 초당 최대 조향(라디안)
 const TRUCK_WHEEL_R = 0.52;   // 바퀴 반지름 (구르는 각도 계산용)
 const TRUCK_GAP = 10;         // 떠난 뒤 다음 트럭이 올 때까지(초)
 const TRUCK_TRIP = 120;       // 이만큼 멀어지면 길 너머로 사라진다
+const TRUCK_BODY_H = 3.2;     // 트럭 높이 — 이보다 높이 뜬 것은 지나간다
+const TRUCK_CLIMB = 1.3;      // 넘을 수 있는 턱 높이
+const TRUCK_STALL = 3;        // 이만큼 막혀 있으면 그 다리는 접는다(초)
+// 막혔을 때 비켜 갈 방향을 작은 각도부터 찾아본다
+const TRUCK_TRY = [0.3, -0.3, 0.6, -0.6, 0.95, -0.95, 1.4, -1.4];
 const EX_TIME_LIMIT = 60;     // 제한 시간(초)
 const EX_REWARD = 100;        // 성공 보수(원)
 
@@ -226,18 +231,63 @@ Excavator.prototype.driveTruck = function (dt, game, route) {
   tr.yaw += Math.max(-TRUCK_TURN * dt, Math.min(TRUCK_TURN * dt, dy));
   // 많이 꺾을 때는 천천히 (제자리에서 홱 돌지 않게)
   const step = TRUCK_SPEED * (Math.abs(dy) > 0.7 ? 0.4 : 1) * dt;
-  tr.x += Math.sin(tr.yaw) * step;
-  tr.z += Math.cos(tr.yaw) * step;
+
+  // 나무나 바위가 앞을 막으면 넘어가지 않고 비켜 간다.
+  // (예전에는 기둥 꼭대기를 땅으로 삼아 나무 위로 솟구쳐 올랐다)
+  const w = game.world;
+  let go = tr.yaw;
+  let ok = this.truckCanGo(w, tr.x + Math.sin(go) * step, tr.z + Math.cos(go) * step, go);
+  if (!ok) {
+    for (let k = 0; k < TRUCK_TRY.length; k++) {
+      const ny = tr.yaw + TRUCK_TRY[k];
+      if (!this.truckCanGo(w, tr.x + Math.sin(ny) * step, tr.z + Math.cos(ny) * step, ny)) continue;
+      // 조금씩 틀어 돌아 나간다
+      tr.yaw += Math.max(-TRUCK_TURN * dt, Math.min(TRUCK_TURN * dt, TRUCK_TRY[k]));
+      go = tr.yaw; ok = true;
+      break;
+    }
+  }
+  if (!ok) {
+    // 사방이 막혔다 — 오래 갇혀 있으면 이 다리는 접는다
+    tr.blockT = (tr.blockT || 0) + dt;
+    return tr.blockT > TRUCK_STALL;
+  }
+  tr.blockT = 0;
+  tr.x += Math.sin(go) * step;
+  tr.z += Math.cos(go) * step;
   tr.wheel += step / TRUCK_WHEEL_R;
-  // 땅 높이를 따라간다 — 오르막은 바로 올라타고(파묻히지 않게), 내리막은 부드럽게.
-  // 물 위를 지날 때 가라앉지 않도록 바다 높이 아래로는 내려가지 않는다.
-  const gy = game.world.topSolidY(Math.floor(tr.x), Math.floor(tr.z));
-  if (gy > 0) {
-    const ty = Math.max(gy + 1, SEA_LEVEL + 1);
-    if (ty > tr.y) tr.y = ty;
-    else tr.y += (ty - tr.y) * Math.min(1, dt * 6);
+
+  // 땅 높이를 따라간다. 지붕 높이까지만 내려다보므로 나뭇가지에 끌려 올라가지 않는다.
+  // 물 위를 지날 때 가라앉지 않도록 바다 높이 아래로도 내려가지 않는다.
+  const surf = w.rideSurfaceAt(tr.x, tr.z, tr.y, TRUCK_BODY_H, 5);
+  if (surf !== null) {
+    const ty = Math.max(surf, SEA_LEVEL + 1);
+    // 한 번에 턱 높이만큼만 오른다 (순간이동하지 않는다)
+    if (ty > tr.y) tr.y = Math.min(ty, tr.y + Math.max(TRUCK_CLIMB, 14 * dt));
+    else tr.y = Math.max(ty, tr.y - 18 * dt);      // 내리막에서 붕 뜨지 않게
   }
   return false;
+};
+
+// 이 자리로 갈 수 있나 — 앞바퀴 언저리 두 줄을 훑어 본다.
+// 걸음마다 TRUCK_CLIMB 넘게 솟으면 벽으로 본다 (비탈길은 그대로 지나간다).
+Excavator.prototype.truckCanGo = function (world, x, z, yaw) {
+  const tr = this.truck;
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const under = world.rideSurfaceAt(x, z, tr.y, TRUCK_BODY_H, 5);
+  const base = (under === null) ? tr.y : Math.max(tr.y, under);
+  for (const sw of [-1.25, 1.25]) {
+    let ref = base;
+    for (let i = 1; i <= 3; i++) {
+      const f = (4.6 * i) / 3;
+      const px = x + s * f + c * sw, pz = z + c * f - s * sw;
+      const surf = world.rideSurfaceAt(px, pz, ref, TRUCK_BODY_H, 5);
+      if (surf === null) continue;
+      if (surf > ref + TRUCK_CLIMB) return false;
+      if (surf > ref) ref = surf;
+    }
+  }
+  return true;
 };
 
 Excavator.prototype.updateTruck = function (dt, game) {
