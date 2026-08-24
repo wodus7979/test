@@ -141,6 +141,7 @@ Car.prototype.unboard = function () {
   p.y = this.y + 1;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  p.unstick();                 // 벽 쪽에 세웠으면 빈 자리로 빼 준다
   this.speed = 0;
   if (!this.parked) this.rejoinLane();   // 세워 둔 버스는 그 자리에 그대로 둔다
 };

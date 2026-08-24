@@ -120,6 +120,7 @@ Excavator.prototype.unboard = function () {
   p.y = this.y + 1;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  p.unstick();
 };
 
 // 조종 — 실제 굴착기처럼 관절을 따로 움직인다

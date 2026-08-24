@@ -1016,6 +1016,10 @@ button.tiny {
               그리고 은은히 빛나는 <b>둥근 조명 커버</b>가 들어 있다.
               가까이 갔을 때만 그리므로 멀리 있는 열차는 가볍다</li>
           <li>고가 철로는 <b>복선</b>이라 상행·하행 열차가 제 선로로 다닌다 (마주쳐도 안 부딪힌다)</li>
+          <li>벽 속에 몸이 박혀 못 움직이게 되면 <b>스스로 빠져나온다</b> —
+              가까운 빈 자리를 찾아 옮겨 준다. 탈것에서 내릴 때도 같은 판정을 거친다</li>
+          <li>열차는 <b>역에 섰을 때만 내릴 수 있다</b>. 달리는 중에 내리려 하면
+              막아 준다 (고가 밖으로 떨어지지 않게)</li>
           <li>역 승강장으로는 <b>계단</b>과 <b>에스컬레이터</b>로 올라간다.
               에스컬레이터는 올라서 있기만 하면 알아서 실어 준다</li>
           <li>공항 안은 의자·소파·카운터·진열장 같은 <b>진짜 가구</b>로 꾸며져 있다 (창작 모드 <b>가구</b> 탭)</li>
@@ -12099,6 +12103,40 @@ Player.prototype.collides = function (x, y, z) {
   return false;
 };
 
+// 몸이 블록에 박혔을 때 빠져나온다.
+// 탈것에서 내리거나 누가 옆에 블록을 놓거나 지형이 다시 그려지면
+// 몸이 벽 속에 들어가 한 발짝도 못 움직이게 된다. 그럴 때만 부른다.
+// 가까운 곳부터 훑어 몸이 들어가는 첫 자리로 옮긴다.
+const UNSTICK_UP = [0.35, 0.7, 1.05, 1.4, 2.0, 2.6];
+const UNSTICK_RING = 10;
+Player.prototype.unstick = function () {
+  if (!this.collides(this.x, this.y, this.z)) return false;
+  // 1) 바로 위 — 계단·반블록에 살짝 박힌 가장 흔한 경우
+  for (let i = 0; i < UNSTICK_UP.length; i++) {
+    const ny = this.y + UNSTICK_UP[i];
+    if (ny < CHUNK_Y - 3 && !this.collides(this.x, ny, this.z)) {
+      this.y = ny; this.vx = this.vy = this.vz = 0; this.fallStart = ny;
+      return true;
+    }
+  }
+  // 2) 둘레를 돌며 가까운 빈 자리
+  for (let r = 1; r <= 5; r++) {
+    for (let a = 0; a < UNSTICK_RING; a++) {
+      const t = (a / UNSTICK_RING) * Math.PI * 2;
+      const nx = this.x + Math.cos(t) * r, nz = this.z + Math.sin(t) * r;
+      for (let k = 0; k < 6; k++) {
+        const ny = this.y + [0, 1, 2, -1, 3, -2][k];
+        if (ny < 1 || ny > CHUNK_Y - 3) continue;
+        if (this.collides(nx, ny, nz)) continue;
+        this.x = nx; this.y = ny; this.z = nz;
+        this.vx = this.vy = this.vz = 0; this.fallStart = ny;
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
 // 축별로 나눠 이동 (벽에 걸려도 미끄러지도록)
 Player.prototype.moveAxis = function (dx, dy, dz) {
   const step = 0.2;
@@ -12145,6 +12183,9 @@ Player.prototype.moveAxis = function (dx, dy, dz) {
 Player.prototype.update = function (dt, input) {
   if (this.dead) return;
   const w = this.world;
+
+  // 벽 속에 박혀 한 발짝도 못 움직이는 상태면 먼저 빼낸다
+  if (!this.flying) this.unstick();
 
   // 유체 판정 — 수면 높이를 보고 판단하므로 얕게 흐르는 물에서는 헤엄치지 않는다
   const bx = Math.floor(this.x), bz = Math.floor(this.z);
@@ -13269,6 +13310,7 @@ Plane.prototype.unboard = function () {
   p.y = this.onGround ? (gy < 0 ? this.y : gy + 1) : this.y - 1;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  if (this.onGround) p.unstick();
 };
 
 // ── 엔티티 관리 ───────────────────────────────────────────────────────
@@ -14075,18 +14117,47 @@ Train.prototype.board = function (player) {
   return true;
 };
 
+// 내릴 자리를 골라 세운다.
+// 예전에는 늘 오른쪽 5칸·승강장 바닥 높이에 내려 놓았는데,
+// 바닥 블록 높이를 그대로 써서 몸이 승강장 안에 박혔고,
+// 선로에 따라서는 유리벽 바깥(고가 밖)에 떨어뜨리기도 했다.
 Train.prototype.unboard = function () {
   const p = this.rider;
   if (!p) return;
   this.rider = null;
   p.onTrain = null;
-  // 승강장 쪽으로 내려 준다 (지금 서 있던 량 옆으로)
-  const w = this.toWorld(5.0, TRAIN_FLOOR_TOP - 1.3, p.trainZ || 0);
-  p.x = w[0]; p.z = w[2];
-  p.y = this.route.y;
+  const w = this.world;
+  const zc = p.trainZ || 0;
+  const ry = this.route.y;
+  // 양옆으로 가까운 데부터 — 승강장이 있는 쪽이 먼저 걸린다
+  const offs = [3.4, -3.4, 4.6, -4.6, 2.6, -2.6, 5.8, -5.8];
+  let best = null;
+  for (let i = 0; i < offs.length; i++) {
+    const wp = this.toWorld(offs[i], 0, zc);
+    const bx = Math.floor(wp[0]), bz = Math.floor(wp[2]);
+    // 승강장 바닥은 철로와 같은 높이다. 그 위(발 닿는 자리)를 찾는다.
+    for (let dy = 1; dy >= -1; dy--) {
+      const y = ry + dy + 1;
+      if (w.getBlock(bx, y - 1, bz) === 0) continue;      // 발밑이 비었으면 안 된다
+      if (p.collides(wp[0], y, wp[2])) continue;          // 몸이 들어가야 한다
+      best = [wp[0], y, wp[2]];
+      break;
+    }
+    if (best) break;
+  }
+  if (!best) {
+    // 설 자리가 없다 — 달리는 중이거나 고가 한복판이다.
+    // 여기서 내려 주면 상판 밖으로 떨어져 죽는다. 그냥 태워 둔다.
+    this.rider = p;
+    p.onTrain = this;
+    return false;
+  }
+  p.x = best[0]; p.y = best[1]; p.z = best[2];
   p.trainX = p.trainZ = 0;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  p.unstick();
+  return true;
 };
 
 // 타고 있는 동안 — 객실 안을 걸어 다닐 수 있다.
@@ -14366,6 +14437,7 @@ Car.prototype.unboard = function () {
   p.y = this.y + 1;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  p.unstick();                 // 벽 쪽에 세웠으면 빈 자리로 빼 준다
   this.speed = 0;
   if (!this.parked) this.rejoinLane();   // 세워 둔 버스는 그 자리에 그대로 둔다
 };
@@ -20168,7 +20240,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.1';
+const GAME_VERSION = 'v9.2';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -21245,7 +21317,11 @@ Game.prototype.enterTrain = function (train) {
 Game.prototype.exitTrain = function () {
   const t = this.player.onTrain;
   if (!t) return;
-  t.unboard();
+  // 승강장이 없는 자리에서는 내려 주지 않는다 (고가 밖으로 떨어진다)
+  if (!t.unboard()) {
+    this.ui.toast('여기서는 내릴 수 없습니다 — 역에 서면 내리세요');
+    return;
+  }
   this.ui.toast('열차에서 내렸습니다');
 };
 
@@ -23418,6 +23494,7 @@ Excavator.prototype.unboard = function () {
   p.y = this.y + 1;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  p.unstick();
 };
 
 // 조종 — 실제 굴착기처럼 관절을 따로 움직인다

@@ -319,18 +319,47 @@ Train.prototype.board = function (player) {
   return true;
 };
 
+// 내릴 자리를 골라 세운다.
+// 예전에는 늘 오른쪽 5칸·승강장 바닥 높이에 내려 놓았는데,
+// 바닥 블록 높이를 그대로 써서 몸이 승강장 안에 박혔고,
+// 선로에 따라서는 유리벽 바깥(고가 밖)에 떨어뜨리기도 했다.
 Train.prototype.unboard = function () {
   const p = this.rider;
   if (!p) return;
   this.rider = null;
   p.onTrain = null;
-  // 승강장 쪽으로 내려 준다 (지금 서 있던 량 옆으로)
-  const w = this.toWorld(5.0, TRAIN_FLOOR_TOP - 1.3, p.trainZ || 0);
-  p.x = w[0]; p.z = w[2];
-  p.y = this.route.y;
+  const w = this.world;
+  const zc = p.trainZ || 0;
+  const ry = this.route.y;
+  // 양옆으로 가까운 데부터 — 승강장이 있는 쪽이 먼저 걸린다
+  const offs = [3.4, -3.4, 4.6, -4.6, 2.6, -2.6, 5.8, -5.8];
+  let best = null;
+  for (let i = 0; i < offs.length; i++) {
+    const wp = this.toWorld(offs[i], 0, zc);
+    const bx = Math.floor(wp[0]), bz = Math.floor(wp[2]);
+    // 승강장 바닥은 철로와 같은 높이다. 그 위(발 닿는 자리)를 찾는다.
+    for (let dy = 1; dy >= -1; dy--) {
+      const y = ry + dy + 1;
+      if (w.getBlock(bx, y - 1, bz) === 0) continue;      // 발밑이 비었으면 안 된다
+      if (p.collides(wp[0], y, wp[2])) continue;          // 몸이 들어가야 한다
+      best = [wp[0], y, wp[2]];
+      break;
+    }
+    if (best) break;
+  }
+  if (!best) {
+    // 설 자리가 없다 — 달리는 중이거나 고가 한복판이다.
+    // 여기서 내려 주면 상판 밖으로 떨어져 죽는다. 그냥 태워 둔다.
+    this.rider = p;
+    p.onTrain = this;
+    return false;
+  }
+  p.x = best[0]; p.y = best[1]; p.z = best[2];
   p.trainX = p.trainZ = 0;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  p.unstick();
+  return true;
 };
 
 // 타고 있는 동안 — 객실 안을 걸어 다닐 수 있다.

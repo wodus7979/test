@@ -326,6 +326,7 @@ Plane.prototype.unboard = function () {
   p.y = this.onGround ? (gy < 0 ? this.y : gy + 1) : this.y - 1;
   p.vx = p.vy = p.vz = 0;
   p.fallStart = p.y;
+  if (this.onGround) p.unstick();
 };
 
 // ── 엔티티 관리 ───────────────────────────────────────────────────────

@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.1';
+const GAME_VERSION = 'v9.2';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -1105,7 +1105,11 @@ Game.prototype.enterTrain = function (train) {
 Game.prototype.exitTrain = function () {
   const t = this.player.onTrain;
   if (!t) return;
-  t.unboard();
+  // 승강장이 없는 자리에서는 내려 주지 않는다 (고가 밖으로 떨어진다)
+  if (!t.unboard()) {
+    this.ui.toast('여기서는 내릴 수 없습니다 — 역에 서면 내리세요');
+    return;
+  }
   this.ui.toast('열차에서 내렸습니다');
 };
 

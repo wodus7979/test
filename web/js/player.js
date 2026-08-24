@@ -186,6 +186,40 @@ Player.prototype.collides = function (x, y, z) {
   return false;
 };
 
+// 몸이 블록에 박혔을 때 빠져나온다.
+// 탈것에서 내리거나 누가 옆에 블록을 놓거나 지형이 다시 그려지면
+// 몸이 벽 속에 들어가 한 발짝도 못 움직이게 된다. 그럴 때만 부른다.
+// 가까운 곳부터 훑어 몸이 들어가는 첫 자리로 옮긴다.
+const UNSTICK_UP = [0.35, 0.7, 1.05, 1.4, 2.0, 2.6];
+const UNSTICK_RING = 10;
+Player.prototype.unstick = function () {
+  if (!this.collides(this.x, this.y, this.z)) return false;
+  // 1) 바로 위 — 계단·반블록에 살짝 박힌 가장 흔한 경우
+  for (let i = 0; i < UNSTICK_UP.length; i++) {
+    const ny = this.y + UNSTICK_UP[i];
+    if (ny < CHUNK_Y - 3 && !this.collides(this.x, ny, this.z)) {
+      this.y = ny; this.vx = this.vy = this.vz = 0; this.fallStart = ny;
+      return true;
+    }
+  }
+  // 2) 둘레를 돌며 가까운 빈 자리
+  for (let r = 1; r <= 5; r++) {
+    for (let a = 0; a < UNSTICK_RING; a++) {
+      const t = (a / UNSTICK_RING) * Math.PI * 2;
+      const nx = this.x + Math.cos(t) * r, nz = this.z + Math.sin(t) * r;
+      for (let k = 0; k < 6; k++) {
+        const ny = this.y + [0, 1, 2, -1, 3, -2][k];
+        if (ny < 1 || ny > CHUNK_Y - 3) continue;
+        if (this.collides(nx, ny, nz)) continue;
+        this.x = nx; this.y = ny; this.z = nz;
+        this.vx = this.vy = this.vz = 0; this.fallStart = ny;
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
 // 축별로 나눠 이동 (벽에 걸려도 미끄러지도록)
 Player.prototype.moveAxis = function (dx, dy, dz) {
   const step = 0.2;
@@ -232,6 +266,9 @@ Player.prototype.moveAxis = function (dx, dy, dz) {
 Player.prototype.update = function (dt, input) {
   if (this.dead) return;
   const w = this.world;
+
+  // 벽 속에 박혀 한 발짝도 못 움직이는 상태면 먼저 빼낸다
+  if (!this.flying) this.unstick();
 
   // 유체 판정 — 수면 높이를 보고 판단하므로 얕게 흐르는 물에서는 헤엄치지 않는다
   const bx = Math.floor(this.x), bz = Math.floor(this.z);
