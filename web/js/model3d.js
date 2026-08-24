@@ -536,9 +536,10 @@ function rigMesh(o) {
 }
 
 // 바퀴 — 굴대가 X 축인 원기둥. 크기는 그릴 때 곱한다 (반지름 1, 폭 1).
-function buildWheelMesh(n) {
+function buildWheelMesh(n, tyreTex, capTex) {
   const m = new Mesh3D();
   const N = n || 12;
+  const tyre = tyreTex || 'car_wheel', cap = capTex || 'car_silver';
   const ring = function (x) {
     const pts = [];
     for (let i = 0; i < N; i++) {
@@ -552,12 +553,12 @@ function buildWheelMesh(n) {
   const n2 = a.length;
   for (let i = 0; i < n2; i++) {
     const j = (i + 1) % n2;
-    m.quad(a[i], a[j], b[j], b[i], 'car_wheel', false,
+    m.quad(a[i], a[j], b[j], b[i], tyre, false,
       [[0, i / n2], [0, (i + 1) / n2], [1, (i + 1) / n2], [1, i / n2]]);
   }
   // 양옆 휠캡
-  capRing(m, b, [0.52, 0, 0], 'car_silver', false);
-  capRing(m, a, [-0.52, 0, 0], 'car_silver', true);
+  capRing(m, b, [0.52, 0, 0], cap, false);
+  capRing(m, a, [-0.52, 0, 0], cap, true);
   return m.build();
 }
 
@@ -637,6 +638,13 @@ function carMesh(key) {
   return CAR_MESHES[key] || CAR_MESHES.sedan;
 }
 function wheelMesh() { if (!WHEEL_MESH) WHEEL_MESH = buildWheelMesh(12); return WHEEL_MESH; }
+
+// 여객기 바퀴 — 타이어와 휠 색만 다르다
+let PLANE_WHEEL_MESH = null;
+function planeWheelMesh() {
+  if (!PLANE_WHEEL_MESH) PLANE_WHEEL_MESH = buildWheelMesh(10, 'plane_wheel', 'plane_gear');
+  return PLANE_WHEEL_MESH;
+}
 
 // ── 신호등 머리 ───────────────────────────────────────────────────────
 // 세로로 등 세 개가 든 통. +Z 쪽(다가오는 차 쪽)을 바라본다.

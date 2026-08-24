@@ -791,17 +791,35 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
     // 동체·날개·엔진·꼬리는 곡면 모형 한 덩어리
     this.emitMesh(planeMesh(), p.x, p.y, p.z, rot, PS, light, null);
 
-    // 착륙장치만 상자로 남는다 (접히면서 동체 안으로 들어간다)
+    // 착륙장치 — 다리는 상자, 바퀴는 둥근 모형 (접히면서 동체 안으로 들어간다)
     if (p.gear >= 0.05) {
-      for (let k = 0; k < PLANE_GEAR.length; k++) {
-        const b = PLANE_GEAR[k];
-        const tuck = (1 - p.gear) * 1.7;
+      const tuck = (1 - p.gear) * 1.7;
+      for (let k = 0; k < PLANE_STRUT.length; k++) {
+        const b = PLANE_STRUT[k];
         const bh = b.h;
         const transform = function (px, py, pz, out) {
           const lx = px + b.x * PS, ly = py - bh * PS / 2 + (b.y + tuck) * PS, lz = pz + b.z * PS;
           rot(lx, ly, lz, out);
         };
-        emitBox(_geom, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, b.tex, b.front, transform, light);
+        emitBox(_geom, p.x, p.y, p.z, b.w * PS, bh * PS, b.d * PS, 'plane_gear', null, transform, light);
+      }
+      // 바퀴는 활주하는 동안 실제로 구른다
+      const spin = p.wheelSpin || 0;
+      const cw = Math.cos(spin), sw = Math.sin(spin);
+      const wm = planeWheelMesh();
+      for (let k = 0; k < PLANE_WHEELS.length; k++) {
+        const b = PLANE_WHEELS[k];
+        const wrot = function (lx, ly, lz, out) {
+          // 크기 → 굴림 → 다리에 매단 자리 → 기체 자세
+          const px = lx * b.w * PS, py = ly * b.r * PS, pz = lz * b.r * PS;
+          const y2 = py * cw - pz * sw, z2 = py * sw + pz * cw;
+          rot(px + b.x * PS, y2 + (b.y + tuck) * PS, z2 + b.z * PS, out);
+        };
+        const nrot = function (lx, ly, lz, out) {
+          const y2 = ly * cw - lz * sw, z2 = ly * sw + lz * cw;
+          rot(lx, y2, z2, out);
+        };
+        this.emitMesh(wm, p.x, p.y, p.z, wrot, 1, light, { nxf: nrot });
       }
     }
   }

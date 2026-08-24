@@ -7,15 +7,22 @@
 // 동체·날개·엔진·꼬리는 model3d.js 가 곡면 모형으로 만든다.
 // 여기에는 접었다 펴는 착륙장치 상자만 남는다.
 
-// 접었다 폈다 하는 착륙장치
-const PLANE_GEAR = [
-  { x: 0, y: -2.2, z: 8.4, w: 0.4, h: 1.6, d: 0.4, tex: 'plane_gear' },
-  { x: 0, y: -3.1, z: 8.4, w: 0.8, h: 0.8, d: 0.8, tex: 'plane_wheel' },
-  { x: -2.0, y: -2.2, z: -1.6, w: 0.5, h: 1.6, d: 0.5, tex: 'plane_gear' },
-  { x: 2.0, y: -2.2, z: -1.6, w: 0.5, h: 1.6, d: 0.5, tex: 'plane_gear' },
-  { x: -2.0, y: -3.1, z: -1.6, w: 1.0, h: 0.9, d: 1.6, tex: 'plane_wheel' },
-  { x: 2.0, y: -3.1, z: -1.6, w: 1.0, h: 0.9, d: 1.6, tex: 'plane_wheel' }
+// 접었다 폈다 하는 착륙장치 — 다리는 상자, 바퀴는 진짜 둥근 모형이다
+const PLANE_STRUT = [
+  { x: 0, y: -2.2, z: 8.4, w: 0.4, h: 1.6, d: 0.4 },
+  { x: -2.0, y: -2.2, z: -1.6, w: 0.5, h: 1.6, d: 0.5 },
+  { x: 2.0, y: -2.2, z: -1.6, w: 0.5, h: 1.6, d: 0.5 }
 ];
+// 바퀴 — 앞은 한 짝, 주 다리는 앞뒤로 두 짝씩 붙는다
+const PLANE_WHEELS = [
+  { x: 0, y: -3.1, z: 8.4, r: 0.5, w: 0.42 },
+  { x: -2.0, y: -3.05, z: -2.1, r: 0.55, w: 0.5 },
+  { x: -2.0, y: -3.05, z: -1.1, r: 0.55, w: 0.5 },
+  { x: 2.0, y: -3.05, z: -2.1, r: 0.55, w: 0.5 },
+  { x: 2.0, y: -3.05, z: -1.1, r: 0.55, w: 0.5 }
+];
+// 바퀴 맨 밑이 동체 중심에서 얼마나 내려가 있나 (그림 좌표)
+const PLANE_GEAR_DROP = 3.6;
 
 // ── 비행 성능 ─────────────────────────────────────────────────────────
 const PLANE_MAX_SPEED = 58;    // 블록/초
@@ -28,7 +35,10 @@ const PLANE_SINK = 15;         // 실속했을 때 가라앉는 속도
 // 기체 크기 배율. 맵에 견줘 너무 커서 60%로 줄였다.
 // 모델 상자는 그대로 두고 그릴 때·좌표를 옮길 때만 곱한다.
 const PLANE_SCALE = 0.6;
-const PLANE_REST = 3.4 * PLANE_SCALE;   // 바퀴가 땅에 닿을 때 동체 중심 높이
+// 바퀴가 땅에 닿을 때 동체 중심 높이.
+// topSolidY 는 맨 윗 블록의 번호라 실제 바닥은 그보다 한 칸 위다.
+// 그 한 칸을 빠뜨리면 기체가 활주로에 파묻혀 바퀴가 보이지 않는다.
+const PLANE_REST = 1 + PLANE_GEAR_DROP * PLANE_SCALE;
 // 비행기는 블록이 아니라 엔티티라 세계 높이(CHUNK_Y) 위로도 올라갈 수 있다.
 // 전동차(고가 55~60)와 확실히 차이가 나도록 훨씬 높이 잡았다.
 const PLANE_CEIL = 320;
@@ -50,6 +60,7 @@ function Plane(world, x, y, z, yaw) {
   this.vy = 0;
   this.onGround = true;
   this.gear = 1;            // 1 내림 · 0 올림 (사이 값은 접는 중)
+  this.wheelSpin = 0;       // 지상에서 구르는 바퀴 각도
   this.rider = null;
   this.dead = false;
   this.age = 0;
@@ -171,6 +182,8 @@ Plane.prototype.update = function (dt, game) {
   }
 
   if (this.onGround) {
+    // 땅에 서 있는 동안은 언제나 바퀴를 내리고 있는다
+    this.gear = Math.min(1, this.gear + dt * 0.8);
     // 활주 중에는 속도가 있어야 방향이 바뀐다
     const rate = Math.min(1, this.speed / 18) * 1.1;
     this.yaw = approachAngle(this.yaw, wantYaw, rate * dt);
@@ -256,6 +269,9 @@ Plane.prototype.update = function (dt, game) {
     }
     this.gear = 1;
   }
+
+  // 땅에 붙어 있는 동안은 바퀴가 구른다
+  if (this.onGround) this.wheelSpin += (this.speed * dt) / (PLANE_WHEELS[0].r * PLANE_SCALE);
 
   this.x = nx; this.z = nz;
   this.y = Math.min(PLANE_CEIL, ny);
