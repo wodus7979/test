@@ -77,6 +77,19 @@ const CAR_DRIVE_MAX = 40.0;     // 사람이 몰 때 최고 속도 (40블록/초
 const CAR_REV_MAX = 5.0;        // 후진
 const CAR_STEER = 1.5;          // 초당 최대 조향(라디안)
 const CAR_ROLL = 1.4;           // 발을 떼면 굴러가다 서는 감속
+// 턱을 타고 오르는 한도. 비탈길은 조금씩 오르므로 이 값만 넘지 않으면 지나간다.
+const CAR_CLIMB = 1.25;
+const CAR_SCRAPE_DEC = 26;      // 가드레일을 긁으며 갈 때 초당 줄어드는 속도
+const CAR_SCRAPE_MAX = 12;      // 긁는 동안 낼 수 있는 최고 속도 (약 43km/h)
+const CAR_BUMP_DEC = 80;        // 정면으로 들이받았을 때
+const CAR_RISE = 42;            // 오르막을 따라 올라가는 속도 (블록/초)
+const CAR_FALL = 16;            // 내리막을 따라 내려가는 속도
+const CAR_DEFLECT = 4.5;        // 벽이 차를 나란하게 밀어 주는 속도 (라디안/초)
+const CAR_BODY_H = 2;           // 차 높이 — 이보다 높이 떠 있는 것은 지나간다
+const CAR_LOOK_DOWN = 4;        // 발밑을 이만큼까지만 내려다본다
+// 벽에 닿았을 때 어느 쪽으로 비켜 갈 수 있나 — 작은 각도부터 양쪽으로 찾아본다
+const CAR_DEFLECT_TRY = [0.18, -0.18, 0.36, -0.36, 0.55, -0.55,
+  0.8, -0.8, 1.1, -1.1, 1.5, -1.5];
 
 Car.prototype.board = function (player) {
   if (this.driver) return false;
@@ -157,32 +170,98 @@ Car.prototype.drive = function (dt, input, world) {
   if (input.right) turn -= 1;
   this.yaw += turn * CAR_STEER * grip * dt * (this.speed < 0 ? -1 : 1);
 
-  // 나아가기 — 벽에 막히면 선다
+  // 나아가기 — 벽에 닿아도 서지 않는다. 벽을 따라 미끄러지며 속도만 준다.
   const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
   const step = this.speed * dt;
-  const nx = this.x + s * step, nz = this.z + c * step;
   const half = this.type.wide / 2;
   // 가는 쪽 모서리를 본다. 앞만 보면 벽에 코를 박았을 때 후진으로도 못 빠진다.
   const lead = this.speed < 0 ? -1 : 1;
-  if (this.canStand(world, nx, nz, half, lead)) { this.x = nx; this.z = nz; }
-  else this.speed = 0;
+  const mx = s * step, mz = c * step;
+  this.scrape = 0;
+  if (this.canStand(world, this.x + mx, this.z + mz, half, lead)) {
+    this.x += mx; this.z += mz;
+  } else {
+    // 벽에 닿았다. 서지 않고 벽을 따라 비켜 간다.
+    // 세계의 x·z 축으로만 나눠 보면 비스듬한 가드레일에서는 두 쪽 다 막혀
+    // 그대로 서 버린다. 그래서 갈 수 있는 방향을 조금씩 틀어 가며 찾는다.
+    let slid = false;
+    for (let k = 0; k < CAR_DEFLECT_TRY.length; k++) {
+      const a = CAR_DEFLECT_TRY[k];
+      const ny = this.yaw + a;
+      const sx = Math.sin(ny) * step, sz = Math.cos(ny) * step;
+      // 차체도 그쪽을 본다고 치고 살펴본다
+      const save = this.yaw;
+      this.yaw = ny;
+      const ok = this.canStand(world, this.x + sx, this.z + sz, half, lead);
+      this.yaw = save;
+      if (!ok) continue;
+      // 레일이 차를 밀어 조금씩 나란하게 만든다 (한 번에 홱 돌지는 않는다)
+      this.yaw += Math.max(-CAR_DEFLECT * dt, Math.min(CAR_DEFLECT * dt, a));
+      const s2 = Math.sin(this.yaw), c2 = Math.cos(this.yaw);
+      if (this.canStand(world, this.x + s2 * step, this.z + c2 * step, half, lead)) {
+        this.x += s2 * step; this.z += c2 * step;
+      } else {
+        this.x += sx; this.z += sz;          // 아직 덜 틀었으면 비켜난 쪽으로라도
+      }
+      slid = true;
+      break;
+    }
+    // 스치면 속도가 뚝 떨어지고, 정면으로 박으면 거의 선다
+    const sp = Math.abs(this.speed);
+    let ns = Math.max(0, sp - (slid ? CAR_SCRAPE_DEC : CAR_BUMP_DEC) * dt);
+    if (slid) ns = Math.min(ns, CAR_SCRAPE_MAX);
+    this.speed = (this.speed < 0) ? -ns : ns;
+    this.scrape = slid ? 1 : 2;
+  }
 
-  // 땅 높이를 따라간다 (턱은 한 칸까지 올라간다)
-  const top = world.topSolidY(Math.floor(this.x), Math.floor(this.z));
-  if (top >= 0) this.y += Math.max(-14 * dt, Math.min(14 * dt, (top + 1) - this.y));
+  // 땅 높이를 따라간다. 오르막은 빨리 따라 올라가야 앞 모서리가 걸리지 않는다.
+  // 머리 위 나뭇가지에 끌려 올라가지 않도록 여기서도 지붕 높이까지만 본다.
+  const surf = this.surfaceAt(world, this.x, this.z, this.y);
+  if (surf !== null) {
+    const d2 = surf - this.y;
+    this.y += (d2 > 0) ? Math.min(d2, CAR_RISE * dt) : Math.max(d2, -CAR_FALL * dt);
+  } else {
+    const top = world.topSolidY(Math.floor(this.x), Math.floor(this.z));
+    if (top >= 0) this.y += Math.max(-CAR_FALL * dt, (top + 1) - this.y);
+  }
   this.wheelAngle += (this.speed * dt) / CAR_WHEEL_R;
 };
 
-// 이 자리에 차가 설 수 있나 (가는 쪽 모서리 두 곳을 본다)
+// 이 자리에서 차가 딛고 설 높이.
+// 기둥 꼭대기(topSolidY)를 쓰면 머리 위로 지나가는 나뭇가지·다리 상판·고가 철로가
+// 전부 벽이 된다. 그래서 차 지붕 높이까지만 내려다본다.
+Car.prototype.surfaceAt = function (world, x, z, base) {
+  const bx = Math.floor(x), bz = Math.floor(z);
+  const hi = Math.floor(base + CAR_BODY_H);
+  const lo = Math.max(0, Math.floor(base) - CAR_LOOK_DOWN);
+  for (let y = hi; y >= lo; y--) {
+    if (world.getBlock(bx, y, bz) !== 0) return y + 1;
+  }
+  return null;                               // 발밑이 텅 비었다 (낭떠러지) — 막지 않는다
+};
+
+// 이 자리로 갈 수 있나.
+// 차 밑에서 코 끝까지 훑어 가며 한 걸음에 CAR_CLIMB 넘게 솟는 데가 있으면 벽으로 본다.
+// 앞 모서리 한 곳만 보면 비탈길에서 코앞 땅이 훌쩍 높아 보여 그냥 서 버린다.
+// 조금씩 오르는 언덕은 걸음마다 낮게 오르므로 그대로 타고 넘는다.
+const CAR_PROBE = 4;
 Car.prototype.canStand = function (world, x, z, half, lead) {
   const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
   const nose = (this.type.len / 2 - 0.2) * (lead || 1);
+  // 기준 높이는 새 자리 바로 밑의 땅. this.y 는 비탈에서 한 박자 늦게 따라오므로
+  // 그것만 믿으면 오르막에서 코앞 땅이 훌쩍 높아 보여 그냥 서 버린다.
+  const under = this.surfaceAt(world, x, z, this.y);
+  const base = (under === null) ? this.y : Math.max(this.y, under);
   for (const sw of [-half, half]) {
-    const px = x + s * nose + c * sw, pz = z + c * nose - s * sw;
-    const top = world.topSolidY(Math.floor(px), Math.floor(pz));
-    if (top < 0) continue;
-    // 한 칸까지는 타고 오른다. 그보다 높으면 벽이다.
-    if (top + 1 > this.y + 1.2) return false;
+    let ref = base;
+    for (let i = 1; i <= CAR_PROBE; i++) {
+      const f = (nose * i) / CAR_PROBE;
+      const px = x + s * f + c * sw, pz = z + c * f - s * sw;
+      const surf = this.surfaceAt(world, px, pz, ref);
+      if (surf === null) continue;           // 허공은 막지 않는다
+      if (surf > ref + CAR_CLIMB) return false;
+      if (surf > ref) ref = surf;            // 올라탄 만큼 기준을 올린다
+    }
   }
   return true;
 };
@@ -421,6 +500,16 @@ EntityManager.prototype.updateCars = function (dt, player, game) {
     if (car.driver) {
       // 사람이 몰고 있으면 차선을 따르지 않는다
       car.drive(dt, game.input, this.world);
+      // 벽에 스치는 동안 쇳소리가 난다 (너무 자주 나지 않게 사이를 둔다)
+      if (car.scrape) {
+        car.scrapeCool = (car.scrapeCool || 0) - dt;
+        if (car.scrapeCool <= 0) {
+          game.playSound('break');
+          car.scrapeCool = (car.scrape === 2) ? 0.5 : 0.22;
+        }
+      } else {
+        car.scrapeCool = 0;
+      }
       continue;
     }
     if (car.parked) {

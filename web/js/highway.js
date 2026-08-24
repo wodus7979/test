@@ -12,6 +12,9 @@ const HW_GRID = 96;           // 빠른 조회용 격자 칸 크기
 const HW_LIMIT_KMH = 120;     // 제한 속도
 const HW_SIGN_GAP = 420;      // 안내판 간격
 const HW_RAIL_H = 2;          // 가드레일 높이 (한 칸이면 차가 타고 넘는다)
+// 안내판을 중앙선에서 얼마나 옆에 세우나. 가드레일 바깥쪽 끝(HW_HALF+1.8)보다
+// 더 멀리 두어야 달리는 차가 기둥에 걸리지 않는다.
+const HW_SIGN_OFF = HW_HALF + 4.5;
 
 // 블록/초 → km/h (1블록 = 1m 로 본다)
 function kmh(blocksPerSec) { return blocksPerSec * 3.6; }
@@ -342,8 +345,9 @@ World.prototype.paintHighway = function (c) {
       if (y < 1 || y >= CHUNK_Y - 2) continue;
       const ao = Math.abs(hit.off);
 
-      // 노면 위를 비운다
-      for (let yy = y + 1; yy <= y + 8 && yy < CHUNK_Y; yy++) {
+      // 노면 위를 비운다. 나무 우듬지가 길 위에 남지 않도록 넉넉히 걷어낸다
+      // (예전에는 8칸만 비워 가문비나무 가지가 길 위에 떠 있었다)
+      for (let yy = y + 1; yy <= y + 15 && yy < CHUNK_Y; yy++) {
         c.blocks[idx(lx, yy, lz)] = 0; c.meta[idx(lx, yy, lz)] = 0;
       }
       // 노면
@@ -529,13 +533,15 @@ World.prototype.paintHighwaySigns = function (c) {
     const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
     const nx = tz, nz = -tx;
     const y = Math.round(rec.h[sg.i]);
-    const ox = Math.round(p[0] + nx * (HW_HALF + 2));
-    const oz = Math.round(p[1] + nz * (HW_HALF + 2));
+    // 안내판은 가드레일 바깥에 세운다. 예전에는 중앙선에서 7칸(HW_HALF+2)이라
+    // 반올림하면 기둥이 갓길을 물어 달리던 차가 그대로 걸려 섰다.
+    const ox = Math.round(p[0] + nx * HW_SIGN_OFF);
+    const oz = Math.round(p[1] + nz * HW_SIGN_OFF);
 
-    // 기둥 둘과 판때기
+    // 기둥 둘과 판때기. 기둥은 땅속까지 내려 박아 비탈에서 떠 보이지 않게 한다.
     for (let s = -3; s <= 3; s += 6) {
       const cx2 = Math.round(ox + tx * s), cz2 = Math.round(oz + tz * s);
-      for (let yy = y; yy <= y + 5; yy++) put(cx2, yy, cz2, B.iron_bars);
+      for (let yy = y - 5; yy <= y + 5; yy++) put(cx2, yy, cz2, B.iron_bars);
     }
     for (let s = -4; s <= 4; s++) {
       for (let yy = y + 5; yy <= y + 9; yy++) {
