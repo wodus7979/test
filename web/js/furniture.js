@@ -437,6 +437,38 @@ defFurnTex('dr_blade', function (p, rnd) {
   p.rect(0, 7, 16, 2, '#5b626a');
 });
 defFurnTex('dr_light', function (p, rnd) { p.noise(rnd, '#ffe9a8', 3, 6); });
+// 조종석 안쪽 — 밖에서는 안 보이고 타고 있을 때만 그린다
+defFurnTex('dr_cabin', function (p, rnd) {
+  p.noise(rnd, '#dfe4ea', 4, 4);
+  p.rect(0, 0, 16, 1, '#c2c9d1');
+  p.rect(0, 15, 16, 1, '#c2c9d1');
+});
+defFurnTex('dr_floor', function (p, rnd) {
+  p.noise(rnd, '#4c525a', 5, 3);
+  for (let x = 2; x < 16; x += 4) p.rect(x, 0, 1, 16, '#5c636c');   // 미끄럼 방지 홈
+});
+defFurnTex('dr_seat2', function (p, rnd) {
+  p.noise(rnd, '#26374d', 5, 3);
+  for (let y = 2; y < 16; y += 5) p.rect(0, y, 16, 1, '#1b2838');
+});
+defFurnTex('dr_panel', function (p, rnd) {
+  p.noise(rnd, '#23282f', 4, 3);
+  p.rect(1, 2, 6, 5, '#1d6f9c');          // 왼쪽 화면
+  p.rect(2, 3, 4, 1, '#8fd6f5');
+  p.rect(2, 5, 3, 1, '#8fd6f5');
+  p.rect(9, 2, 5, 5, '#134a2e');          // 오른쪽 화면
+  p.rect(10, 4, 3, 1, '#66d68e');
+  for (let x = 1; x < 15; x += 3) p.rect(x, 10, 2, 2, ['#d8624a', '#d8b34a', '#5ad86e'][(x / 3) & 3] || '#8a9099');
+  p.rect(0, 14, 16, 2, '#31373f');
+});
+defFurnTex('dr_steel', function (p, rnd) {
+  p.noise(rnd, '#aab1b9', 4, 4);
+  p.rect(0, 6, 16, 1, '#8d949c');
+});
+defFurnTex('dr_grip', function (p, rnd) {
+  p.noise(rnd, '#22262b', 4, 3);
+  for (let x = 1; x < 16; x += 3) p.rect(x, 0, 1, 16, '#343a41');   // 미끄럼 방지 돌기
+});
 
 // ── 우주왕복선 ────────────────────────────────────────────────────────
 defFurnTex('sh_body', function (p, rnd) {

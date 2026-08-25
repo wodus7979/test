@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.6';
+const GAME_VERSION = 'v9.7';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -908,7 +908,7 @@ Game.prototype.bindTouch = function () {
 
 // ── 상호작용 ──────────────────────────────────────────────────────────
 Game.prototype.onAttackStart = function () {
-  if (this.player.riding) return;
+  if (this.player.riding || this.player.inDrone) return;
   const p = this.player;
   this.swingTimer = 0.25;
 
@@ -989,7 +989,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain || p.inCar || p.inDigger) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.inDrone) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -1774,7 +1774,7 @@ Game.prototype.updateUseHint = function () {
   }
   if (!label && this.nearestDrone) {
     const dr = this.nearestDrone();
-    if (dr) label = '드론 택시 타기 — ' + dr.nextPad().name + ' 방면';
+    if (dr) label = '드론 택시 조종석에 앉기';
   }
   if (!label && this.nearestShuttle) {
     const sh = this.nearestShuttle();
@@ -2349,7 +2349,9 @@ Game.prototype.update = function (dt) {
   if (this.swingTimer > 0) this.swingTimer -= dt;
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
-  if (p.inDrone && this.input.sneak && !this._sneakPrev) this.exitDrone();
+  // 드론은 날고 있을 때 Shift 가 하강이다. 내려앉았을 때만 내리기가 된다.
+  if (p.inDrone && this.input.sneak && !this._sneakPrev && p.inDrone.landed()) this.exitDrone();
+  else if (p.inDrone) { /* 조종 중 — Shift 는 하강 (fly 가 읽는다) */ }
   else if (p.inShuttle && this.input.sneak && !this._sneakPrev) this.exitShuttle();
   else if (p.inDigger && this.input.sneak && !this._sneakPrev) this.exitDigger();
   else if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();

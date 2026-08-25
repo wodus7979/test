@@ -940,6 +940,32 @@ Renderer.prototype.drawDrones = function (game, world, player, opts) {
     };
     this.emitMesh(body, d.x, d.y, d.z, rot, DS, light, DRONE_OPTS);
 
+    // 조종석 — 타고 있을 때만. 겉껍데기는 밖을 보고 있어 안에서는 안 보인다.
+    if (player.inDrone === d) {
+      this.emitMesh(droneCabinMesh(), d.x, d.y, d.z, rot, DS, light, DRONE_OPTS);
+      // 핸들 — 밑동을 축으로 앞뒤로 기울고, 기둥을 축으로 좌우로 돌아간다
+      const ys = -(d.steer || 0) * 0.55, yp = (d.push || 0) * 0.28;
+      const cs = Math.cos(ys), ss = Math.sin(ys);
+      const cq = Math.cos(yp), sq = Math.sin(yp);
+      const spin = function (lx, ly, lz, out) {
+        const px = lx * cs + lz * ss;
+        let pz = -lx * ss + lz * cs;
+        const py = ly * cq - pz * sq;
+        pz = ly * sq + pz * cq;
+        out[0] = px; out[1] = py; out[2] = pz;
+      };
+      const _t = [0, 0, 0];
+      const yrot = function (lx, ly, lz, out) {
+        spin(lx, ly, lz, _t);
+        rot(_t[0] + DR_YOKE[0], _t[1] + DR_YOKE[1], _t[2] + DR_YOKE[2], out);
+      };
+      const ynrm = function (lx, ly, lz, out) {
+        spin(lx, ly, lz, _t);
+        rot(_t[0], _t[1], _t[2], out);
+      };
+      this.emitMesh(droneYokeMesh(), d.x, d.y, d.z, yrot, DS, light, { nxf: ynrm, glow: { dr_light: 1 } });
+    }
+
     // 링 넷 안에서 도는 날개
     let k = 0;
     for (const sx of [-1, 1]) {
