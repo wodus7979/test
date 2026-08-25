@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.5';
+const GAME_VERSION = 'v9.6';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -1034,6 +1034,12 @@ Game.prototype.onUse = function () {
     }
   }
 
+  // 0-2) 드론 택시 타기 (옥상 헬리패드)
+  if (this.nearestDrone) {
+    const dr = this.nearestDrone();
+    if (dr) { this.enterDrone(dr); return; }
+  }
+
   // 0-3) 우주왕복선 타기 (발사대)
   if (this.nearestShuttle) {
     const sh = this.nearestShuttle();
@@ -1766,6 +1772,10 @@ Game.prototype.updateUseHint = function () {
     const ex = this.nearestDigger();
     if (ex && !ex.driver) label = '포크레인 타기';
   }
+  if (!label && this.nearestDrone) {
+    const dr = this.nearestDrone();
+    if (dr) label = '드론 택시 타기 — ' + dr.nextPad().name + ' 방면';
+  }
   if (!label && this.nearestShuttle) {
     const sh = this.nearestShuttle();
     if (sh && !sh.rider) label = '우주왕복선 타기 (발사)';
@@ -2339,7 +2349,8 @@ Game.prototype.update = function (dt) {
   if (this.swingTimer > 0) this.swingTimer -= dt;
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
-  if (p.inShuttle && this.input.sneak && !this._sneakPrev) this.exitShuttle();
+  if (p.inDrone && this.input.sneak && !this._sneakPrev) this.exitDrone();
+  else if (p.inShuttle && this.input.sneak && !this._sneakPrev) this.exitShuttle();
   else if (p.inDigger && this.input.sneak && !this._sneakPrev) this.exitDigger();
   else if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
@@ -2366,6 +2377,13 @@ Game.prototype.update = function (dt) {
       p.onGround = true; p.fallStart = p.y;
       this.updateDigJob(dt);
     }
+  } else if (p.inDrone) {
+    // 드론 택시 안 — 몸이 좌석에 붙는다 (카메라는 뒤에서 따라간다)
+    const sd = p.inDrone.seatPos();
+    p.x = sd[0]; p.y = sd[1] - PLAYER_EYE; p.z = sd[2];
+    p.vx = p.vy = p.vz = 0;
+    p.onGround = true;
+    p.fallStart = p.y;
   } else if (p.inShuttle) {
     // 우주왕복선 안 — 몸이 조종석에 붙는다 (카메라는 밖에서 기체를 본다)
     const s2 = p.inShuttle.seatPos();
@@ -2416,6 +2434,7 @@ Game.prototype.update = function (dt) {
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
+  if (this.updateDrones) this.updateDrones(dt);           // 드론 택시
   if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
@@ -2535,6 +2554,7 @@ Game.prototype.render = function (dt) {
   opts.under = fx.under;
   // 3인칭 카메라를 먼저 정한다 — 하늘을 카메라 높이로 골라야 하기 때문
   if (p.inShuttle) opts.cam = this.shuttleCamera(p.inShuttle, dt);
+  else if (p.inDrone) opts.cam = this.droneCamera(p.inDrone, dt);
   else if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
   else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
@@ -2572,6 +2592,7 @@ Game.prototype.render = function (dt) {
   if (r.drawSignals) r.drawSignals(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
+  if (r.drawDrones) r.drawDrones(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);

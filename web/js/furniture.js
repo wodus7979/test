@@ -413,6 +413,31 @@ defFurnTex('tr_seat', function (p, rnd) {
   for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#27508a');
 });
 defFurnTex('tr_light', function (p, rnd) { p.noise(rnd, '#fdf7e2', 4, 6); });
+// ── 드론 택시 ─────────────────────────────────────────────────────────
+defFurnTex('dr_shell', function (p, rnd) {
+  p.noise(rnd, '#f0f3f6', 3, 4);
+  p.rect(0, 0, 16, 2, '#cfd5db');
+  p.rect(0, 7, 16, 1, '#2f6fb5');        // 파란 띠
+});
+defFurnTex('dr_dark', function (p, rnd) {
+  p.noise(rnd, '#3b4149', 5, 4);
+  p.rect(0, 6, 16, 2, '#525a63');
+});
+defFurnTex('dr_glass', function (p, rnd) {
+  p.noise(rnd, '#16222e', 4, 3);
+  p.rect(1, 2, 14, 11, '#4b7ba6');
+});
+defFurnTex('dr_duct', function (p, rnd) {
+  p.noise(rnd, '#9aa2ab', 4, 4);
+  p.rect(0, 0, 16, 2, '#767d85');
+  p.rect(0, 14, 16, 2, '#767d85');
+});
+defFurnTex('dr_blade', function (p, rnd) {
+  p.noise(rnd, '#2a2e33', 4, 3);
+  p.rect(0, 7, 16, 2, '#5b626a');
+});
+defFurnTex('dr_light', function (p, rnd) { p.noise(rnd, '#ffe9a8', 3, 6); });
+
 // ── 우주왕복선 ────────────────────────────────────────────────────────
 defFurnTex('sh_body', function (p, rnd) {
   p.noise(rnd, '#eef1f4', 3, 4);

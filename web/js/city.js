@@ -571,6 +571,10 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
   // 이 도시에서 제일 높은 곳 — 비행기가 얼마나 높이 넘어가야 하는지 정한다
   const tipY = gy + top + 2 + (opts.spire ? opts.spire + 2 : 0);
   if (!plan.topY || tipY > plan.topY) plan.topY = tipY;
+  // 옥상 자리를 적어 둔다 — 나중에 여기서 드론 택시 승강장을 고른다
+  if (!plan.roofs) plan.roofs = [];
+  plan.roofs.push({ cx: cx, cz: cz, top: top, hw: lastHw, hd: lastHd,
+    spire: opts.spire || 0 });
   // 1층 로비 — 길 쪽으로 유리문을 낸다
   for (let dx = -2; dx <= 2; dx++) {
     for (let y = 1; y <= 3; y++) {
@@ -1258,6 +1262,76 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   return gate;
 }
 
+// ── 옥상 드론 승강장 ──────────────────────────────────────────────────
+// 제일 높은 건물 몇 개를 골라 옥상에 헬리패드를 그린다.
+// 드론 택시가 이 사이를 오르내린다.
+const PAD_COUNT = 6;         // 도시마다 승강장 수
+const PAD_R = 4;             // 패드 반지름
+const PAD_CLEAR = 6;         // 난간이 이만큼은 떨어져 있어야 로터가 안 스친다
+const PAD_GAP = 60;          // 승강장끼리 최소 거리
+
+function cityHelipads(plan, st) {
+  const roofs = plan.roofs;
+  plan.helipads = [];
+  if (!roofs || !roofs.length) return;
+  const gy = plan.y;
+  const set = function (x, y, z, id, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1);
+  };
+  // 넓고 높은 옥상부터
+  const list = roofs.slice().filter(function (r) {
+    return r.hw >= PAD_CLEAR && r.hd >= PAD_CLEAR && !r.spire;
+  });
+  list.sort(function (a, b) { return b.top - a.top; });
+
+  const picked = [];
+  for (let i = 0; i < list.length && picked.length < PAD_COUNT; i++) {
+    const r = list[i];
+    let ok = true;
+    for (let k = 0; k < picked.length; k++) {
+      if (Math.hypot(picked[k].cx - r.cx, picked[k].cz - r.cz) < PAD_GAP) { ok = false; break; }
+    }
+    if (!ok) continue;
+    picked.push(r);
+  }
+
+  for (let i = 0; i < picked.length; i++) {
+    const r = picked[i];
+    const top = r.top;
+    // 가운데 항공장애등을 걷어내고 그 자리에 패드를 깐다
+    set(r.cx, top + 1, r.cz, 0);
+    set(r.cx, top + 2, r.cz, 0);
+    for (let dz = -PAD_R; dz <= PAD_R; dz++) {
+      for (let dx = -PAD_R; dx <= PAD_R; dx++) {
+        const d = Math.hypot(dx, dz);
+        if (d > PAD_R + 0.4) continue;
+        set(r.cx + dx, top, r.cz + dz,
+          (d > PAD_R - 1) ? B.yellow_concrete : B.black_concrete);
+        set(r.cx + dx, top + 1, r.cz + dz, 0);      // 위를 비운다
+      }
+    }
+    // 가운데 흰 H
+    for (let dz = -2; dz <= 2; dz++) {
+      set(r.cx - 1, top, r.cz + dz, B.white_concrete);
+      set(r.cx + 1, top, r.cz + dz, B.white_concrete);
+    }
+    set(r.cx, top, r.cz, B.white_concrete);
+    // 네 귀퉁이 유도등 — 바닥에 묻는다. 위로 튀어나오면 로터에 걸린다.
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        set(r.cx + sx * (PAD_R - 1), top, r.cz + sz * (PAD_R - 1), B.sea_lantern);
+      }
+    }
+    // 난간 한쪽을 터서 옥상으로 오갈 수 있게 둔다
+    for (let dx = -2; dx <= 2; dx++) set(r.cx + dx, top + 1, r.cz - r.hd, 0);
+
+    plan.helipads.push({
+      x: plan.x + r.cx, y: gy + top + 1, z: plan.z + r.cz,
+      name: (plan.name || '') + ' ' + String.fromCharCode(65 + i) + '동 옥상'
+    });
+  }
+}
+
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────
 function buildCityPlan(world, ap, index) {
   initCityStyles();
@@ -1520,6 +1594,8 @@ function buildCityPlan(world, ap, index) {
   };
 
   citySignals(plan, st);
+  cityHelipads(plan, st);
+
 
   // ── 공원과 밭 ──
   for (let i = 0; i < parks.length; i++) {

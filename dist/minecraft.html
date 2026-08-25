@@ -1077,6 +1077,15 @@ button.tiny {
               막아 준다 (고가 밖으로 떨어지지 않게)</li>
           <li>역 승강장으로는 <b>계단</b>과 <b>에스컬레이터</b>로 올라간다.
               에스컬레이터는 올라서 있기만 하면 알아서 실어 준다</li>
+          <li>도시에서 <b>제일 높고 넓은 옥상 여섯 곳</b>에 <b>드론 승강장</b>이 있다 —
+              검은 원반에 <b>노란 테</b>와 흰 <b>H</b>가 그려져 있고, 네 귀퉁이 유도등이
+              바닥에 묻혀 밤에 빛난다. 옥상 난간은 한쪽을 터 두어 걸어 들어갈 수 있다</li>
+          <li>승강장에 내려앉은 <b>드론 택시</b>에 <b>우클릭</b>하면 탄다 —
+              둥근 덮개 몸통에 팔이 넷, 팔 끝마다 <b>링 안에서 날개가 도는</b> 4발 기체다.
+              <b>내려앉아 있을 때만</b> 타고 내릴 수 있다 (<b>Shift</b> 내리기)</li>
+          <li>드론은 옥상에서 <b>곧게 떠올라</b> 다음 옥상까지 날아가 다시 <b>곧게 내려앉는다</b>.
+              항로 좌우에 걸치는 건물 꼭대기를 모두 훑어 <b>그보다 높은 고도</b>로만 건너가므로
+              빌딩을 뚫고 지나가지 않는다. 기울여 나아가고 선회할 때는 <b>기체가 기운다</b></li>
           <li>공항 안은 의자·소파·카운터·진열장 같은 <b>진짜 가구</b>로 꾸며져 있다 (창작 모드 <b>가구</b> 탭)</li>
           <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다.
               하늘이 두 배로 높아져 <b>고도 150</b>까지 올라갈 수 있다</li>
@@ -3320,6 +3329,31 @@ defFurnTex('tr_seat', function (p, rnd) {
   for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#27508a');
 });
 defFurnTex('tr_light', function (p, rnd) { p.noise(rnd, '#fdf7e2', 4, 6); });
+// ── 드론 택시 ─────────────────────────────────────────────────────────
+defFurnTex('dr_shell', function (p, rnd) {
+  p.noise(rnd, '#f0f3f6', 3, 4);
+  p.rect(0, 0, 16, 2, '#cfd5db');
+  p.rect(0, 7, 16, 1, '#2f6fb5');        // 파란 띠
+});
+defFurnTex('dr_dark', function (p, rnd) {
+  p.noise(rnd, '#3b4149', 5, 4);
+  p.rect(0, 6, 16, 2, '#525a63');
+});
+defFurnTex('dr_glass', function (p, rnd) {
+  p.noise(rnd, '#16222e', 4, 3);
+  p.rect(1, 2, 14, 11, '#4b7ba6');
+});
+defFurnTex('dr_duct', function (p, rnd) {
+  p.noise(rnd, '#9aa2ab', 4, 4);
+  p.rect(0, 0, 16, 2, '#767d85');
+  p.rect(0, 14, 16, 2, '#767d85');
+});
+defFurnTex('dr_blade', function (p, rnd) {
+  p.noise(rnd, '#2a2e33', 4, 3);
+  p.rect(0, 7, 16, 2, '#5b626a');
+});
+defFurnTex('dr_light', function (p, rnd) { p.noise(rnd, '#ffe9a8', 3, 6); });
+
 // ── 우주왕복선 ────────────────────────────────────────────────────────
 defFurnTex('sh_body', function (p, rnd) {
   p.noise(rnd, '#eef1f4', 3, 4);
@@ -10686,6 +10720,10 @@ function cityTower(plan, cx, cz, hw0, hd0, h, st, opts) {
   // 이 도시에서 제일 높은 곳 — 비행기가 얼마나 높이 넘어가야 하는지 정한다
   const tipY = gy + top + 2 + (opts.spire ? opts.spire + 2 : 0);
   if (!plan.topY || tipY > plan.topY) plan.topY = tipY;
+  // 옥상 자리를 적어 둔다 — 나중에 여기서 드론 택시 승강장을 고른다
+  if (!plan.roofs) plan.roofs = [];
+  plan.roofs.push({ cx: cx, cz: cz, top: top, hw: lastHw, hd: lastHd,
+    spire: opts.spire || 0 });
   // 1층 로비 — 길 쪽으로 유리문을 낸다
   for (let dx = -2; dx <= 2; dx++) {
     for (let y = 1; y <= 3; y++) {
@@ -11373,6 +11411,76 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   return gate;
 }
 
+// ── 옥상 드론 승강장 ──────────────────────────────────────────────────
+// 제일 높은 건물 몇 개를 골라 옥상에 헬리패드를 그린다.
+// 드론 택시가 이 사이를 오르내린다.
+const PAD_COUNT = 6;         // 도시마다 승강장 수
+const PAD_R = 4;             // 패드 반지름
+const PAD_CLEAR = 6;         // 난간이 이만큼은 떨어져 있어야 로터가 안 스친다
+const PAD_GAP = 60;          // 승강장끼리 최소 거리
+
+function cityHelipads(plan, st) {
+  const roofs = plan.roofs;
+  plan.helipads = [];
+  if (!roofs || !roofs.length) return;
+  const gy = plan.y;
+  const set = function (x, y, z, id, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, 0, true, run || 1);
+  };
+  // 넓고 높은 옥상부터
+  const list = roofs.slice().filter(function (r) {
+    return r.hw >= PAD_CLEAR && r.hd >= PAD_CLEAR && !r.spire;
+  });
+  list.sort(function (a, b) { return b.top - a.top; });
+
+  const picked = [];
+  for (let i = 0; i < list.length && picked.length < PAD_COUNT; i++) {
+    const r = list[i];
+    let ok = true;
+    for (let k = 0; k < picked.length; k++) {
+      if (Math.hypot(picked[k].cx - r.cx, picked[k].cz - r.cz) < PAD_GAP) { ok = false; break; }
+    }
+    if (!ok) continue;
+    picked.push(r);
+  }
+
+  for (let i = 0; i < picked.length; i++) {
+    const r = picked[i];
+    const top = r.top;
+    // 가운데 항공장애등을 걷어내고 그 자리에 패드를 깐다
+    set(r.cx, top + 1, r.cz, 0);
+    set(r.cx, top + 2, r.cz, 0);
+    for (let dz = -PAD_R; dz <= PAD_R; dz++) {
+      for (let dx = -PAD_R; dx <= PAD_R; dx++) {
+        const d = Math.hypot(dx, dz);
+        if (d > PAD_R + 0.4) continue;
+        set(r.cx + dx, top, r.cz + dz,
+          (d > PAD_R - 1) ? B.yellow_concrete : B.black_concrete);
+        set(r.cx + dx, top + 1, r.cz + dz, 0);      // 위를 비운다
+      }
+    }
+    // 가운데 흰 H
+    for (let dz = -2; dz <= 2; dz++) {
+      set(r.cx - 1, top, r.cz + dz, B.white_concrete);
+      set(r.cx + 1, top, r.cz + dz, B.white_concrete);
+    }
+    set(r.cx, top, r.cz, B.white_concrete);
+    // 네 귀퉁이 유도등 — 바닥에 묻는다. 위로 튀어나오면 로터에 걸린다.
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        set(r.cx + sx * (PAD_R - 1), top, r.cz + sz * (PAD_R - 1), B.sea_lantern);
+      }
+    }
+    // 난간 한쪽을 터서 옥상으로 오갈 수 있게 둔다
+    for (let dx = -2; dx <= 2; dx++) set(r.cx + dx, top + 1, r.cz - r.hd, 0);
+
+    plan.helipads.push({
+      x: plan.x + r.cx, y: gy + top + 1, z: plan.z + r.cz,
+      name: (plan.name || '') + ' ' + String.fromCharCode(65 + i) + '동 옥상'
+    });
+  }
+}
+
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────
 function buildCityPlan(world, ap, index) {
   initCityStyles();
@@ -11635,6 +11743,8 @@ function buildCityPlan(world, ap, index) {
   };
 
   citySignals(plan, st);
+  cityHelipads(plan, st);
+
 
   // ── 공원과 밭 ──
   for (let i = 0; i < parks.length; i++) {
@@ -17239,6 +17349,60 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// ── 드론 택시 ─────────────────────────────────────────────────────────
+const DRONE_OPTS = { glow: { dr_light: 1 } };
+
+Renderer.prototype.drawDrones = function (game, world, player, opts) {
+  const list = game.drones;
+  if (!list || !list.length) return;
+  _geom.reset();
+  const DS = DT_SCALE;
+  const body = droneMesh(), rotor = droneRotorMesh();
+  const d4 = DR_ARM * Math.SQRT1_2;
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
+    const dx = d.x - player.x, dz = d.z - player.z;
+    if (dx * dx + dz * dz > 420 * 420) continue;
+    const R = 9 * DS;
+    if (!this.boxInFrustum(d.x - R, d.y - R, d.z - R, d.x + R, d.y + R, d.z + R)) continue;
+    const bx = Math.floor(d.x), bz = Math.floor(d.z);
+    const by = Math.min(CHUNK_Y - 1, Math.max(0, Math.floor(d.y)));
+    const light = [Math.max(world.getSky(bx, by, bz) / 15, 0.7),
+      world.getBlockLight(bx, by, bz) / 15];
+
+    const cr = Math.cos(d.roll), sr = Math.sin(d.roll);
+    const cp = Math.cos(d.pitch), sp = Math.sin(d.pitch);
+    const cy = Math.cos(d.yaw), sy = Math.sin(d.yaw);
+    const rot = function (lx, ly, lz, out) {
+      const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+      const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
+      out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
+    };
+    this.emitMesh(body, d.x, d.y, d.z, rot, DS, light, DRONE_OPTS);
+
+    // 링 넷 안에서 도는 날개
+    let k = 0;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const a = d.spin + k * 0.7;      // 날개마다 위상을 조금씩 달리한다
+        k++;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const ax = sx * d4, az = sz * d4;
+        const rrot = function (lx, ly, lz, out) {
+          const px = lx * ca - lz * sa, pz = lx * sa + lz * ca;   // Y축 둘레 회전
+          rot(px + ax, ly + 0.95, pz + az, out);
+        };
+        const nrot = function (lx, ly, lz, out) {
+          const px = lx * ca - lz * sa, pz = lx * sa + lz * ca;
+          rot(px, ly, pz, out);
+        };
+        this.emitMesh(rotor, d.x, d.y, d.z, rrot, DS, light, { nxf: nrot });
+      }
+    }
+  }
+  this.flushEntityGeom(opts);
+};
+
 // ── 우주왕복선 ────────────────────────────────────────────────────────
 Renderer.prototype.drawShuttles = function (game, world, player, opts) {
   const map = game.shuttles;
@@ -19029,6 +19193,138 @@ function shuttleMesh(stage) {
   return SHUTTLE_MESHES[k];
 }
 
+// ── 드론 택시 ─────────────────────────────────────────────────────────
+// 둥근 덮개 몸통에 팔 넷이 뻗고, 팔 끝마다 링(덕트) 안에서 날개가 돈다.
+// 여객기와 같은 규약 — +Z 가 앞, +Y 가 위.
+
+// 링(덕트) 하나 — 바깥 통·안쪽 통·위아래 고리
+function droneDuct(m, cx, cy, cz, rOut, rIn, h, n) {
+  const N = n || 12;
+  const ring = function (r, y) {
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      pts.push([cx + r * Math.cos(t), cy + y, cz + r * Math.sin(t)]);
+    }
+    return pts;
+  };
+  const oTop = ring(rOut, h / 2), oBot = ring(rOut, -h / 2);
+  const iTop = ring(rIn, h / 2), iBot = ring(rIn, -h / 2);
+  const tex = function () { return 'dr_duct'; };
+  loft(m, oBot, oTop, tex, false);      // 바깥 벽
+  loft(m, iTop, iBot, tex, false);      // 안쪽 벽 (안에서도 보인다)
+  loft(m, oTop, iTop, tex, false);      // 윗면 고리
+  loft(m, iBot, oBot, tex, false);      // 아랫면 고리
+}
+
+// 팔 하나 — 몸통에서 링까지 뻗는 가는 대
+function droneArm(m, x0, y0, z0, x1, y1, z1, w) {
+  const dx = x1 - x0, dz = z1 - z0;
+  const l = Math.hypot(dx, dz) || 1;
+  const nx = -dz / l * w, nz = dx / l * w;   // 옆으로 벌린 폭
+  const P = function (a, b, c) { return [a, b, c]; };
+  const quads = [
+    // 윗면
+    [P(x0 - nx, y0 + w, z0 - nz), P(x0 + nx, y0 + w, z0 + nz),
+     P(x1 + nx, y1 + w, z1 + nz), P(x1 - nx, y1 + w, z1 - nz)],
+    // 아랫면
+    [P(x0 + nx, y0 - w, z0 + nz), P(x0 - nx, y0 - w, z0 - nz),
+     P(x1 - nx, y1 - w, z1 - nz), P(x1 + nx, y1 - w, z1 + nz)],
+    // 옆면 둘
+    [P(x0 + nx, y0 + w, z0 + nz), P(x0 + nx, y0 - w, z0 + nz),
+     P(x1 + nx, y1 - w, z1 + nz), P(x1 + nx, y1 + w, z1 + nz)],
+    [P(x0 - nx, y0 - w, z0 - nz), P(x0 - nx, y0 + w, z0 - nz),
+     P(x1 - nx, y1 + w, z1 - nz), P(x1 - nx, y1 - w, z1 - nz)]
+  ];
+  for (let i = 0; i < quads.length; i++) {
+    const q = quads[i];
+    m.quad(q[0], q[1], q[2], q[3], 'dr_shell', false);
+  }
+}
+
+const DR_ARM = 4.6;      // 몸통 가운데에서 링 가운데까지
+const DR_ROTOR_R = 1.9;  // 링 안쪽 반지름
+
+function buildDroneMesh() {
+  const m = new Mesh3D();
+
+  // ── 몸통 ── 아래는 납작하고 위로 갈수록 둥근 덮개
+  const body = [
+    [-3.0, 0.9, -0.15, 0.55],
+    [-2.4, 1.7, -0.35, 1.30],
+    [-1.0, 2.1, -0.45, 1.95],
+    [0.8, 2.1, -0.45, 2.05],
+    [2.2, 1.75, -0.40, 1.65],
+    [3.0, 1.05, -0.25, 0.95],
+    [3.4, 0.4, -0.10, 0.45]
+  ];
+  carLoft(m, body, 2.6, function (my, mz) {
+    if (my < -0.05) return 'dr_dark';                       // 바닥
+    if (mz > 0.2 && my > 0.4 && my < 1.7) return 'dr_glass';  // 앞 유리
+    return 'dr_shell';
+  }, 'dr_shell', 14);
+
+  // 착륙 다리 넷
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      m.box(sx * 1.5, -0.55, sz * 1.6, 0.28, 0.9, 0.28, 'dr_dark');
+    }
+    m.box(sx * 1.5, -1.0, 0, 0.34, 0.22, 4.0, 'dr_dark');   // 미끄럼대
+  }
+
+  // ── 팔 넷과 링 넷 ── 대각선 네 방향
+  const d = DR_ARM * Math.SQRT1_2;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const ax = sx * d, az = sz * d;
+      droneArm(m, sx * 1.2, 0.55, sz * 1.2, ax, 0.75, az, 0.34);
+      droneDuct(m, ax, 0.95, az, DR_ROTOR_R + 0.45, DR_ROTOR_R, 0.55, 12);
+      // 링 아래 항법등
+      m.box(ax, 0.5, az + sz * (DR_ROTOR_R + 0.2), 0.3, 0.2, 0.3, 'dr_light');
+    }
+  }
+  return m.build();
+}
+
+// 도는 날개 — 가운데 축에 날 셋. 그릴 때 축 둘레로 돌린다.
+function buildDroneRotorMesh() {
+  const m = new Mesh3D();
+  const R = DR_ROTOR_R - 0.12;
+  // 축
+  const hub = function (y) {
+    const pts = [];
+    for (let i = 0; i < 8; i++) {
+      const t = (i / 8) * Math.PI * 2;
+      pts.push([0.24 * Math.cos(t), y, 0.24 * Math.sin(t)]);
+    }
+    return pts;
+  };
+  loft(m, hub(-0.14), hub(0.14), function () { return 'dr_dark'; }, false);
+  capRing(m, hub(0.14), [0, 0.2, 0], 'dr_dark', false);
+  // 날 셋 — 얇은 판이라 양면으로 그린다
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const w = 0.32;
+    const p = function (r, off, y) {
+      return [ca * r - sa * off, y, sa * r + ca * off];
+    };
+    m.quad(p(0.2, -w, 0), p(R, -w * 0.6, 0.06), p(R, w * 0.6, -0.06), p(0.2, w, 0),
+      'dr_blade', true);
+  }
+  return m.build();
+}
+
+let DRONE_MESH = null, DRONE_ROTOR_MESH = null;
+function droneMesh() {
+  if (!DRONE_MESH) DRONE_MESH = buildDroneMesh();
+  return DRONE_MESH;
+}
+function droneRotorMesh() {
+  if (!DRONE_ROTOR_MESH) DRONE_ROTOR_MESH = buildDroneRotorMesh();
+  return DRONE_ROTOR_MESH;
+}
+
 </script>
 <script>
 /* ==== js/particles.js ==== */
@@ -20745,7 +21041,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.5';
+const GAME_VERSION = 'v9.6';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -21751,6 +22047,12 @@ Game.prototype.onUse = function () {
     }
   }
 
+  // 0-2) 드론 택시 타기 (옥상 헬리패드)
+  if (this.nearestDrone) {
+    const dr = this.nearestDrone();
+    if (dr) { this.enterDrone(dr); return; }
+  }
+
   // 0-3) 우주왕복선 타기 (발사대)
   if (this.nearestShuttle) {
     const sh = this.nearestShuttle();
@@ -22483,6 +22785,10 @@ Game.prototype.updateUseHint = function () {
     const ex = this.nearestDigger();
     if (ex && !ex.driver) label = '포크레인 타기';
   }
+  if (!label && this.nearestDrone) {
+    const dr = this.nearestDrone();
+    if (dr) label = '드론 택시 타기 — ' + dr.nextPad().name + ' 방면';
+  }
   if (!label && this.nearestShuttle) {
     const sh = this.nearestShuttle();
     if (sh && !sh.rider) label = '우주왕복선 타기 (발사)';
@@ -23056,7 +23362,8 @@ Game.prototype.update = function (dt) {
   if (this.swingTimer > 0) this.swingTimer -= dt;
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
-  if (p.inShuttle && this.input.sneak && !this._sneakPrev) this.exitShuttle();
+  if (p.inDrone && this.input.sneak && !this._sneakPrev) this.exitDrone();
+  else if (p.inShuttle && this.input.sneak && !this._sneakPrev) this.exitShuttle();
   else if (p.inDigger && this.input.sneak && !this._sneakPrev) this.exitDigger();
   else if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
@@ -23083,6 +23390,13 @@ Game.prototype.update = function (dt) {
       p.onGround = true; p.fallStart = p.y;
       this.updateDigJob(dt);
     }
+  } else if (p.inDrone) {
+    // 드론 택시 안 — 몸이 좌석에 붙는다 (카메라는 뒤에서 따라간다)
+    const sd = p.inDrone.seatPos();
+    p.x = sd[0]; p.y = sd[1] - PLAYER_EYE; p.z = sd[2];
+    p.vx = p.vy = p.vz = 0;
+    p.onGround = true;
+    p.fallStart = p.y;
   } else if (p.inShuttle) {
     // 우주왕복선 안 — 몸이 조종석에 붙는다 (카메라는 밖에서 기체를 본다)
     const s2 = p.inShuttle.seatPos();
@@ -23133,6 +23447,7 @@ Game.prototype.update = function (dt) {
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
+  if (this.updateDrones) this.updateDrones(dt);           // 드론 택시
   if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
@@ -23252,6 +23567,7 @@ Game.prototype.render = function (dt) {
   opts.under = fx.under;
   // 3인칭 카메라를 먼저 정한다 — 하늘을 카메라 높이로 골라야 하기 때문
   if (p.inShuttle) opts.cam = this.shuttleCamera(p.inShuttle, dt);
+  else if (p.inDrone) opts.cam = this.droneCamera(p.inDrone, dt);
   else if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
   else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
@@ -23289,6 +23605,7 @@ Game.prototype.render = function (dt) {
   if (r.drawSignals) r.drawSignals(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
+  if (r.drawDrones) r.drawDrones(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);
@@ -25411,6 +25728,292 @@ Game.prototype.shuttleCamera = function (sh, dt) {
   c.yaw = Math.atan2(-dx, -dz);
   c.pitch = Math.atan2(dyy, flat);
   c.roll = chase ? sh.roll * 0.35 : 0;
+  return c;
+};
+
+</script>
+<script>
+/* ==== js/drone.js ==== */
+// drone.js - 도시 빌딩 옥상 사이를 오가는 드론 택시.
+// 둥근 덮개 몸통에 팔 넷, 팔 끝마다 링 안에서 날개가 돈다.
+// 옥상 헬리패드에 내려앉아 기다리다가, 곧게 떠올라 다음 옥상으로 날아간다.
+'use strict';
+
+const DT_SCALE = 0.9;          // 모형 배율
+const DT_REST = 1.0;           // 착륙했을 때 바닥에서 띄우는 높이 (다리 높이)
+const DT_WAIT = 9;             // 옥상에서 기다리는 시간(초)
+const DT_CLIMB = 7;            // 오르내리는 속도 (블록/초)
+const DT_CRUISE = 17;          // 순항 속도
+const DT_TURN = 1.3;           // 초당 최대 선회
+const DT_HOVER = 8;            // 도시에서 제일 높은 꼭대기 위로 이만큼 띄워 건너간다
+const DT_LIFT = 6;             // 최소한 출발·도착 옥상보다 이만큼은 높이 난다
+const DT_LANE = 8;             // 항로 좌우 이만큼 안에 있는 건물은 넘어가야 한다
+const DT_ROTOR = 26;           // 날개 회전 속도 (라디안/초)
+const DT_SEAT = [0, 0.9, 0.6]; // 좌석 (모형 좌표)
+const DT_REACH = 9;            // 이 안에 있으면 탈 수 있다
+
+// 카메라 — 기체 뒤 위에서 내려다본다
+const DT_CAM_BACK = 15;
+const DT_CAM_UP = 7;
+const DT_CAM_LERP = 3.0;
+
+function DroneTaxi(world, city, pads, i) {
+  this.world = world;
+  this.city = city;
+  this.pads = pads;
+  this.pi = i % pads.length;              // 지금 있는 승강장
+  this.ni = (this.pi + 1) % pads.length;  // 다음 승강장
+  const p = pads[this.pi];
+  this.x = p.x + 0.5;
+  this.y = p.y + DT_REST;
+  this.z = p.z + 0.5;
+  this.yaw = 0;
+  this.pitch = 0;
+  this.roll = 0;
+  this.spin = Math.random() * Math.PI * 2;
+  this.state = 'wait';        // wait 대기 · up 상승 · cruise 순항 · down 하강
+  this.t = DT_WAIT * Math.random();
+  this.rider = null;
+}
+
+DroneTaxi.prototype.toWorld = function (lx, ly, lz) {
+  lx *= DT_SCALE; ly *= DT_SCALE; lz *= DT_SCALE;
+  const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+  const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+  const y2 = ly * cp + lz * sp, z2 = -ly * sp + lz * cp;
+  return [this.x + lx * cy + z2 * sy, this.y + y2, this.z + -lx * sy + z2 * cy];
+};
+
+DroneTaxi.prototype.seatPos = function () {
+  return this.toWorld(DT_SEAT[0], DT_SEAT[1], DT_SEAT[2]);
+};
+
+DroneTaxi.prototype.pad = function () { return this.pads[this.pi]; };
+DroneTaxi.prototype.nextPad = function () { return this.pads[this.ni]; };
+
+// 옥상에 내려앉아 문이 열려 있나 (탈 수 있는 상태)
+DroneTaxi.prototype.landed = function () { return this.state === 'wait'; };
+
+DroneTaxi.prototype.board = function (player) {
+  if (this.rider) return false;
+  if (!this.landed()) return false;          // 날고 있을 때는 못 탄다
+  this.rider = player;
+  player.inDrone = this;
+  return true;
+};
+
+DroneTaxi.prototype.unboard = function () {
+  const p = this.rider;
+  if (!p) return false;
+  if (!this.landed()) return false;          // 날고 있을 때는 못 내린다
+  const pad = this.pad();
+  // 패드 옆 빈자리로 내려 준다
+  for (const d of [[3, 0], [-3, 0], [0, 3], [0, -3], [4, 4], [-4, -4]]) {
+    const wx = pad.x + 0.5 + d[0], wz = pad.z + 0.5 + d[1];
+    if (p.collides(wx, pad.y, wz)) continue;
+    if (this.world.getBlock(Math.floor(wx), pad.y - 1, Math.floor(wz)) === 0) continue;
+    this.rider = null;
+    p.inDrone = null;
+    p.x = wx; p.y = pad.y; p.z = wz;
+    p.vx = p.vy = p.vz = 0;
+    p.fallStart = p.y;
+    p.unstick();
+    return true;
+  }
+  return false;
+};
+
+// 이 구간의 순항 고도. 두 옥상만 보고 정하면 사이에 있는 더 높은 빌딩을
+// 뚫고 지나가므로, 항로 좌우 DT_LANE 안에 걸치는 옥상 꼭대기를 모두 훑어
+// 그 위로 DT_HOVER 만큼 띄운다. 구간마다 한 번만 재고 적어 둔다.
+DroneTaxi.prototype.routeY = function (from, to) {
+  const key = this.pi + ':' + this.ni;
+  if (this._ry && this._ry.key === key) return this._ry.y;
+  let top = Math.max(from.y, to.y);
+  const roofs = this.city && this.city.roofs;
+  if (roofs) {
+    const gy = this.city.y, ox = this.city.x, oz = this.city.z;
+    const ax = from.x + 0.5, az = from.z + 0.5;
+    const bx = to.x + 0.5, bz = to.z + 0.5;
+    const vx = bx - ax, vz = bz - az;
+    const vv = vx * vx + vz * vz || 1;
+    for (let i = 0; i < roofs.length; i++) {
+      const r = roofs[i];
+      const rx = ox + r.cx, rz = oz + r.cz;
+      // 선분 위에서 가장 가까운 점까지의 거리
+      let t = ((rx - ax) * vx + (rz - az) * vz) / vv;
+      t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(rx - (ax + vx * t), rz - (az + vz * t));
+      if (d > Math.max(r.hw, r.hd) + DT_LANE) continue;
+      // 옥상 난간·장애등·첨탑까지 친 꼭대기
+      const tip = gy + r.top + 2 + (r.spire ? r.spire + 2 : 0);
+      if (tip > top) top = tip;
+    }
+  }
+  const y = Math.max(from.y + DT_LIFT, to.y + DT_LIFT, top + DT_HOVER);
+  this._ry = { key: key, y: y };
+  return y;
+};
+
+DroneTaxi.prototype.update = function (dt, game) {
+  this.t += dt;
+  const s = this.state;
+  // 날개는 늘 돈다 (대기 중에는 느리게)
+  this.spin += DT_ROTOR * (s === 'wait' ? 0.35 : 1) * dt;
+
+  const from = this.pad(), to = this.nextPad();
+  const cruiseY = this.routeY(from, to);
+
+  if (s === 'wait') {
+    this.y += ((from.y + DT_REST) - this.y) * Math.min(1, dt * 4);
+    this.pitch += (0 - this.pitch) * Math.min(1, dt * 3);
+    this.roll += (0 - this.roll) * Math.min(1, dt * 3);
+    if (this.t > DT_WAIT) {
+      this.state = 'up';
+      this.t = 0;
+      if (game.ui && this.rider) {
+        game.ui.toast('드론 택시 출발 — ' + to.name);
+      }
+    }
+    return;
+  }
+
+  if (s === 'up') {
+    // 곧게 떠오른다. 오르면서 다음 목적지 쪽으로 기수를 돌린다.
+    this.y = Math.min(cruiseY, this.y + DT_CLIMB * dt);
+    const want = Math.atan2(to.x + 0.5 - this.x, to.z + 0.5 - this.z);
+    this.steerTo(want, DT_TURN, dt);
+    if (this.y >= cruiseY - 0.05) { this.state = 'cruise'; this.t = 0; }
+    return;
+  }
+
+  if (s === 'cruise') {
+    const tx = to.x + 0.5 - this.x, tz = to.z + 0.5 - this.z;
+    const dist = Math.hypot(tx, tz);
+    const want = Math.atan2(tx, tz);
+    this.steerTo(want, DT_TURN, dt);
+    // 기울여 나아가는 멀티콥터 느낌
+    this.pitch += (-0.16 - this.pitch) * Math.min(1, dt * 2);
+    this.y += (cruiseY - this.y) * Math.min(1, dt * 2);
+    const step = Math.min(DT_CRUISE * dt, dist);
+    this.x += Math.sin(this.yaw) * step;
+    this.z += Math.cos(this.yaw) * step;
+    if (dist < 1.2) { this.state = 'down'; this.t = 0; }
+    return;
+  }
+
+  // ── 하강 ── 패드 바로 위에서 곧게 내려앉는다
+  this.pitch += (0 - this.pitch) * Math.min(1, dt * 2.5);
+  const gx = to.x + 0.5, gz = to.z + 0.5;
+  this.x += (gx - this.x) * Math.min(1, dt * 3);
+  this.z += (gz - this.z) * Math.min(1, dt * 3);
+  const rest = to.y + DT_REST;
+  this.y = Math.max(rest, this.y - DT_CLIMB * dt);
+  if (this.y <= rest + 0.02) {
+    this.y = rest;
+    this.pi = this.ni;
+    this.ni = (this.ni + 1) % this.pads.length;
+    this.state = 'wait';
+    this.t = 0;
+    if (game.playSound) game.playSound('place');
+    if (game.ui && this.rider) game.ui.toast('도착 — ' + to.name + ' (Shift 로 내리기)');
+  }
+};
+
+DroneTaxi.prototype.steerTo = function (want, rate, dt) {
+  let d = want - this.yaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  const step = Math.max(-rate * dt, Math.min(rate * dt, d));
+  this.yaw += step;
+  this.roll += (Math.max(-0.45, Math.min(0.45, -d * 0.7)) - this.roll) * Math.min(1, dt * 2.5);
+};
+
+// ── 게임 쪽 연결 ──────────────────────────────────────────────────────
+const DT_PER_CITY = 2;         // 도시마다 드론 택시 수
+
+Game.prototype.ensureDrones = function () {
+  const w = this.world;
+  if (!w.cities) return null;
+  if (!this.drones) this.drones = [];
+  if (this._droneCities === undefined) this._droneCities = new Set();
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (this._droneCities.has(c.code)) continue;
+    if (!c.helipads || c.helipads.length < 2) continue;
+    this._droneCities.add(c.code);
+    for (let k = 0; k < DT_PER_CITY; k++) {
+      // 승강장을 골고루 나눠 쓰도록 출발 자리를 벌려 둔다
+      const start = Math.floor(k * c.helipads.length / DT_PER_CITY);
+      this.drones.push(new DroneTaxi(w, c, c.helipads, start));
+    }
+  }
+  return this.drones;
+};
+
+Game.prototype.updateDrones = function (dt) {
+  const list = this.ensureDrones();
+  if (!list || !list.length) return;
+  const p = this.player;
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
+    // 멀리 있는 것은 굴리지 않는다 (타고 있으면 언제나 굴린다)
+    if (d.rider !== p && Math.hypot(d.x - p.x, d.z - p.z) > 420) continue;
+    d.update(dt, this);
+  }
+};
+
+Game.prototype.nearestDrone = function () {
+  const list = this.ensureDrones();
+  if (!list) return null;
+  const p = this.player;
+  let best = null, bd = DT_REACH;
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
+    if (d.rider || !d.landed()) continue;
+    const dist = Math.hypot(d.x - p.x, d.z - p.z);
+    if (dist < bd && Math.abs(d.y - p.y) < 4) { bd = dist; best = d; }
+  }
+  return best;
+};
+
+Game.prototype.enterDrone = function (dr) {
+  if (!dr.landed()) { this.ui.toast('드론이 내려앉았을 때만 탈 수 있습니다'); return; }
+  if (!dr.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  this._drCam = null;
+  dr.t = Math.min(dr.t, DT_WAIT - 3);      // 곧 출발한다
+  this.ui.toast('드론 택시 탑승 — ' + dr.nextPad().name + ' 방면 (Shift 내리기)');
+  this.playSound('place');
+};
+
+Game.prototype.exitDrone = function () {
+  const dr = this.player.inDrone;
+  if (!dr) return;
+  if (!dr.unboard()) {
+    this.ui.toast('옥상에 내려앉은 뒤에 내릴 수 있습니다');
+    return;
+  }
+  this.ui.toast('드론 택시에서 내렸습니다');
+};
+
+// 기체 뒤 위에서 내려다보는 카메라
+Game.prototype.droneCamera = function (dr, dt) {
+  const n = [Math.sin(dr.yaw), 0, Math.cos(dr.yaw)];
+  const wx = dr.x - n[0] * DT_CAM_BACK;
+  const wy = dr.y + DT_CAM_UP;
+  const wz = dr.z - n[2] * DT_CAM_BACK;
+  let c = this._drCam;
+  if (!c) c = this._drCam = { eye: [wx, wy, wz], yaw: 0, pitch: 0, roll: 0 };
+  const k = Math.min(1, dt * DT_CAM_LERP);
+  c.eye[0] += (wx - c.eye[0]) * k;
+  c.eye[1] += (wy - c.eye[1]) * k;
+  c.eye[2] += (wz - c.eye[2]) * k;
+  const dx = dr.x - c.eye[0], dy = dr.y - c.eye[1], dz = dr.z - c.eye[2];
+  const flat = Math.hypot(dx, dz) || 0.001;
+  c.yaw = Math.atan2(-dx, -dz);
+  c.pitch = Math.atan2(dy, flat);
+  c.roll = dr.roll * 0.3;
   return c;
 };
 

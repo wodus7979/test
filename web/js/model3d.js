@@ -1140,3 +1140,135 @@ function shuttleMesh(stage) {
   if (!SHUTTLE_MESHES[k]) SHUTTLE_MESHES[k] = buildShuttleMesh(k);
   return SHUTTLE_MESHES[k];
 }
+
+// ── 드론 택시 ─────────────────────────────────────────────────────────
+// 둥근 덮개 몸통에 팔 넷이 뻗고, 팔 끝마다 링(덕트) 안에서 날개가 돈다.
+// 여객기와 같은 규약 — +Z 가 앞, +Y 가 위.
+
+// 링(덕트) 하나 — 바깥 통·안쪽 통·위아래 고리
+function droneDuct(m, cx, cy, cz, rOut, rIn, h, n) {
+  const N = n || 12;
+  const ring = function (r, y) {
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      pts.push([cx + r * Math.cos(t), cy + y, cz + r * Math.sin(t)]);
+    }
+    return pts;
+  };
+  const oTop = ring(rOut, h / 2), oBot = ring(rOut, -h / 2);
+  const iTop = ring(rIn, h / 2), iBot = ring(rIn, -h / 2);
+  const tex = function () { return 'dr_duct'; };
+  loft(m, oBot, oTop, tex, false);      // 바깥 벽
+  loft(m, iTop, iBot, tex, false);      // 안쪽 벽 (안에서도 보인다)
+  loft(m, oTop, iTop, tex, false);      // 윗면 고리
+  loft(m, iBot, oBot, tex, false);      // 아랫면 고리
+}
+
+// 팔 하나 — 몸통에서 링까지 뻗는 가는 대
+function droneArm(m, x0, y0, z0, x1, y1, z1, w) {
+  const dx = x1 - x0, dz = z1 - z0;
+  const l = Math.hypot(dx, dz) || 1;
+  const nx = -dz / l * w, nz = dx / l * w;   // 옆으로 벌린 폭
+  const P = function (a, b, c) { return [a, b, c]; };
+  const quads = [
+    // 윗면
+    [P(x0 - nx, y0 + w, z0 - nz), P(x0 + nx, y0 + w, z0 + nz),
+     P(x1 + nx, y1 + w, z1 + nz), P(x1 - nx, y1 + w, z1 - nz)],
+    // 아랫면
+    [P(x0 + nx, y0 - w, z0 + nz), P(x0 - nx, y0 - w, z0 - nz),
+     P(x1 - nx, y1 - w, z1 - nz), P(x1 + nx, y1 - w, z1 + nz)],
+    // 옆면 둘
+    [P(x0 + nx, y0 + w, z0 + nz), P(x0 + nx, y0 - w, z0 + nz),
+     P(x1 + nx, y1 - w, z1 + nz), P(x1 + nx, y1 + w, z1 + nz)],
+    [P(x0 - nx, y0 - w, z0 - nz), P(x0 - nx, y0 + w, z0 - nz),
+     P(x1 - nx, y1 + w, z1 - nz), P(x1 - nx, y1 - w, z1 - nz)]
+  ];
+  for (let i = 0; i < quads.length; i++) {
+    const q = quads[i];
+    m.quad(q[0], q[1], q[2], q[3], 'dr_shell', false);
+  }
+}
+
+const DR_ARM = 4.6;      // 몸통 가운데에서 링 가운데까지
+const DR_ROTOR_R = 1.9;  // 링 안쪽 반지름
+
+function buildDroneMesh() {
+  const m = new Mesh3D();
+
+  // ── 몸통 ── 아래는 납작하고 위로 갈수록 둥근 덮개
+  const body = [
+    [-3.0, 0.9, -0.15, 0.55],
+    [-2.4, 1.7, -0.35, 1.30],
+    [-1.0, 2.1, -0.45, 1.95],
+    [0.8, 2.1, -0.45, 2.05],
+    [2.2, 1.75, -0.40, 1.65],
+    [3.0, 1.05, -0.25, 0.95],
+    [3.4, 0.4, -0.10, 0.45]
+  ];
+  carLoft(m, body, 2.6, function (my, mz) {
+    if (my < -0.05) return 'dr_dark';                       // 바닥
+    if (mz > 0.2 && my > 0.4 && my < 1.7) return 'dr_glass';  // 앞 유리
+    return 'dr_shell';
+  }, 'dr_shell', 14);
+
+  // 착륙 다리 넷
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      m.box(sx * 1.5, -0.55, sz * 1.6, 0.28, 0.9, 0.28, 'dr_dark');
+    }
+    m.box(sx * 1.5, -1.0, 0, 0.34, 0.22, 4.0, 'dr_dark');   // 미끄럼대
+  }
+
+  // ── 팔 넷과 링 넷 ── 대각선 네 방향
+  const d = DR_ARM * Math.SQRT1_2;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const ax = sx * d, az = sz * d;
+      droneArm(m, sx * 1.2, 0.55, sz * 1.2, ax, 0.75, az, 0.34);
+      droneDuct(m, ax, 0.95, az, DR_ROTOR_R + 0.45, DR_ROTOR_R, 0.55, 12);
+      // 링 아래 항법등
+      m.box(ax, 0.5, az + sz * (DR_ROTOR_R + 0.2), 0.3, 0.2, 0.3, 'dr_light');
+    }
+  }
+  return m.build();
+}
+
+// 도는 날개 — 가운데 축에 날 셋. 그릴 때 축 둘레로 돌린다.
+function buildDroneRotorMesh() {
+  const m = new Mesh3D();
+  const R = DR_ROTOR_R - 0.12;
+  // 축
+  const hub = function (y) {
+    const pts = [];
+    for (let i = 0; i < 8; i++) {
+      const t = (i / 8) * Math.PI * 2;
+      pts.push([0.24 * Math.cos(t), y, 0.24 * Math.sin(t)]);
+    }
+    return pts;
+  };
+  loft(m, hub(-0.14), hub(0.14), function () { return 'dr_dark'; }, false);
+  capRing(m, hub(0.14), [0, 0.2, 0], 'dr_dark', false);
+  // 날 셋 — 얇은 판이라 양면으로 그린다
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const w = 0.32;
+    const p = function (r, off, y) {
+      return [ca * r - sa * off, y, sa * r + ca * off];
+    };
+    m.quad(p(0.2, -w, 0), p(R, -w * 0.6, 0.06), p(R, w * 0.6, -0.06), p(0.2, w, 0),
+      'dr_blade', true);
+  }
+  return m.build();
+}
+
+let DRONE_MESH = null, DRONE_ROTOR_MESH = null;
+function droneMesh() {
+  if (!DRONE_MESH) DRONE_MESH = buildDroneMesh();
+  return DRONE_MESH;
+}
+function droneRotorMesh() {
+  if (!DRONE_ROTOR_MESH) DRONE_ROTOR_MESH = buildDroneRotorMesh();
+  return DRONE_ROTOR_MESH;
+}

@@ -909,6 +909,60 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// ── 드론 택시 ─────────────────────────────────────────────────────────
+const DRONE_OPTS = { glow: { dr_light: 1 } };
+
+Renderer.prototype.drawDrones = function (game, world, player, opts) {
+  const list = game.drones;
+  if (!list || !list.length) return;
+  _geom.reset();
+  const DS = DT_SCALE;
+  const body = droneMesh(), rotor = droneRotorMesh();
+  const d4 = DR_ARM * Math.SQRT1_2;
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
+    const dx = d.x - player.x, dz = d.z - player.z;
+    if (dx * dx + dz * dz > 420 * 420) continue;
+    const R = 9 * DS;
+    if (!this.boxInFrustum(d.x - R, d.y - R, d.z - R, d.x + R, d.y + R, d.z + R)) continue;
+    const bx = Math.floor(d.x), bz = Math.floor(d.z);
+    const by = Math.min(CHUNK_Y - 1, Math.max(0, Math.floor(d.y)));
+    const light = [Math.max(world.getSky(bx, by, bz) / 15, 0.7),
+      world.getBlockLight(bx, by, bz) / 15];
+
+    const cr = Math.cos(d.roll), sr = Math.sin(d.roll);
+    const cp = Math.cos(d.pitch), sp = Math.sin(d.pitch);
+    const cy = Math.cos(d.yaw), sy = Math.sin(d.yaw);
+    const rot = function (lx, ly, lz, out) {
+      const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+      const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
+      out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
+    };
+    this.emitMesh(body, d.x, d.y, d.z, rot, DS, light, DRONE_OPTS);
+
+    // 링 넷 안에서 도는 날개
+    let k = 0;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const a = d.spin + k * 0.7;      // 날개마다 위상을 조금씩 달리한다
+        k++;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const ax = sx * d4, az = sz * d4;
+        const rrot = function (lx, ly, lz, out) {
+          const px = lx * ca - lz * sa, pz = lx * sa + lz * ca;   // Y축 둘레 회전
+          rot(px + ax, ly + 0.95, pz + az, out);
+        };
+        const nrot = function (lx, ly, lz, out) {
+          const px = lx * ca - lz * sa, pz = lx * sa + lz * ca;
+          rot(px, ly, pz, out);
+        };
+        this.emitMesh(rotor, d.x, d.y, d.z, rrot, DS, light, { nxf: nrot });
+      }
+    }
+  }
+  this.flushEntityGeom(opts);
+};
+
 // ── 우주왕복선 ────────────────────────────────────────────────────────
 Renderer.prototype.drawShuttles = function (game, world, player, opts) {
   const map = game.shuttles;
