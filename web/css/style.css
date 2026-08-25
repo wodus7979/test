@@ -809,3 +809,34 @@ button.tiny {
   .char-main { flex-direction: column; align-items: center; }
   .char-opts { width: 100%; }
 }
+
+/* 발사 카운트다운 — 화면 가운데 위에 크게 */
+#countdown {
+  position: fixed;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  display: none;
+  text-align: center;
+  font-family: inherit;
+  color: #fff;
+  text-shadow: 0 0 18px rgba(255, 120, 30, 0.9), 0 2px 6px #000;
+  pointer-events: none;
+  z-index: 40;
+}
+#countdown .num {
+  display: block;
+  font-size: 76px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 2px;
+}
+#countdown .lbl {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  opacity: 0.85;
+  letter-spacing: 3px;
+}
+#countdown.hot .num { color: #ffb347; }
+#countdown.go .num { color: #ff6a2a; font-size: 92px; }

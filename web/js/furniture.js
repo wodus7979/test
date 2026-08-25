@@ -413,6 +413,34 @@ defFurnTex('tr_seat', function (p, rnd) {
   for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#27508a');
 });
 defFurnTex('tr_light', function (p, rnd) { p.noise(rnd, '#fdf7e2', 4, 6); });
+// ── 우주왕복선 ────────────────────────────────────────────────────────
+defFurnTex('sh_body', function (p, rnd) {
+  p.noise(rnd, '#eef1f4', 3, 4);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#dfe3e8');   // 내열 타일 이음매
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#dfe3e8');
+});
+defFurnTex('sh_black', function (p, rnd) {
+  p.noise(rnd, '#232629', 4, 3);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#15181a');
+});
+defFurnTex('sh_tank', function (p, rnd) {
+  p.noise(rnd, '#c1662a', 6, 4);
+  p.rect(0, 0, 16, 2, '#9d4f1e');
+  p.rect(0, 14, 16, 2, '#d47a3c');
+});
+defFurnTex('sh_srb', function (p, rnd) {
+  p.noise(rnd, '#e6e8ea', 4, 4);
+  p.rect(0, 5, 16, 2, '#b9bcc0');      // 분리 이음매
+  p.rect(0, 12, 16, 1, '#b9bcc0');
+});
+defFurnTex('sh_nozzle', function (p, rnd) {
+  p.noise(rnd, '#3a3f45', 5, 4);
+  for (let y = 1; y < 16; y += 3) p.rect(0, y, 16, 1, '#6b727a');
+});
+defFurnTex('sh_glass', function (p, rnd) {
+  p.noise(rnd, '#131c26', 4, 3);
+  p.rect(1, 3, 14, 9, '#3f6488');
+});
 // 객실 안 — 스테인리스 봉과 노란 손잡이
 defFurnTex('tr_pole', function (p, rnd) {
   p.noise(rnd, '#c6ccd2', 4, 5);

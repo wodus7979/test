@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.2';
+const GAME_VERSION = 'v9.3';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -257,6 +257,9 @@ Game.prototype.spawnAtCity = function (code) {
 // 역 계단 옆 에스컬레이터에 올라서면 가만 있어도 승강장까지 실려 올라간다.
 // 발판 한 칸이 한 블록씩 높아지므로 앞으로 밀어 주기만 하면 계단처럼 오른다.
 const ESCALATOR_SPEED = 3.2;
+// 이 높이를 넘으면 하늘이 우주가 된다 (구름보다 한참 위)
+const SPACE_START = 150;
+const SPACE_FADE = 90;
 
 Game.prototype.updateEscalators = function () {
   const p = this.player;
@@ -277,6 +280,41 @@ Game.prototype.updateEscalators = function () {
       return;
     }
   }
+};
+
+// 발사 카운트다운 — 화면 가운데에 큰 숫자
+Game.prototype.updateCountdown = function () {
+  const el = document.getElementById('countdown');
+  if (!el) return;
+  const sh = this.player.inShuttle;
+  if (!sh) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
+  let num = '', lbl = '', cls = '';
+  const left = sh.countLeft();
+  if (left !== null) {
+    num = 'T-' + Math.ceil(left);
+    lbl = (left > SH_IGNITE) ? '발사 준비' : '엔진 점화';
+    cls = (left > SH_IGNITE) ? '' : 'hot';
+  } else if (sh.state === 'lift') {
+    num = Math.round(sh.y - sh.pad.y) + 'm';
+    lbl = '상승 중';
+    cls = 'go';
+  } else if (sh.state === 'space') {
+    num = Math.round(sh.y) + 'm';
+    lbl = '궤도 — ' + Math.max(0, Math.ceil(SH_FLIGHT - sh.flightT)) + '초 뒤 귀환';
+    cls = 'go';
+  } else if (sh.state === 'back' || sh.state === 'final') {
+    num = Math.round(sh.y) + 'm';
+    lbl = '귀환 중 — 공항으로';
+  } else if (sh.state === 'rollout') {
+    num = Math.round(kmh(sh.speed)) + 'km/h';
+    lbl = '활주 중';
+  } else {
+    num = '완료'; lbl = 'Shift 로 내리기';
+  }
+  el.style.display = 'block';
+  if (el.className !== cls) el.className = cls;
+  const html = '<span class="num">' + num + '</span><span class="lbl">' + lbl + '</span>';
+  if (el.innerHTML !== html) el.innerHTML = html;
 };
 
 // 운전 중 계기판 — 속도(km/h)와 다음 도시까지 남은 거리
@@ -995,6 +1033,12 @@ Game.prototype.onUse = function () {
     }
   }
 
+  // 0-3) 우주왕복선 타기 (발사대)
+  if (this.nearestShuttle) {
+    const sh = this.nearestShuttle();
+    if (sh && !sh.rider) { this.enterShuttle(sh); return; }
+  }
+
   // 0-4) 포크레인 타기 (공사장)
   if (this.nearestDigger) {
     const ex = this.nearestDigger();
@@ -1602,6 +1646,10 @@ Game.prototype.updateUseHint = function () {
     const ex = this.nearestDigger();
     if (ex && !ex.driver) label = '포크레인 타기';
   }
+  if (!label && this.nearestShuttle) {
+    const sh = this.nearestShuttle();
+    if (sh && !sh.rider) label = '우주왕복선 타기 (발사)';
+  }
   if (!label) {
     if (el.style.display !== 'none') el.style.display = 'none';
     return;
@@ -2171,7 +2219,8 @@ Game.prototype.update = function (dt) {
   if (this.swingTimer > 0) this.swingTimer -= dt;
 
   // 웅크리기 버튼(모바일)으로도 내릴 수 있게 — 누르는 순간만 본다
-  if (p.inDigger && this.input.sneak && !this._sneakPrev) this.exitDigger();
+  if (p.inShuttle && this.input.sneak && !this._sneakPrev) this.exitShuttle();
+  else if (p.inDigger && this.input.sneak && !this._sneakPrev) this.exitDigger();
   else if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
@@ -2197,6 +2246,13 @@ Game.prototype.update = function (dt) {
       p.onGround = true; p.fallStart = p.y;
       this.updateDigJob(dt);
     }
+  } else if (p.inShuttle) {
+    // 우주왕복선 안 — 몸이 조종석에 붙는다 (카메라는 밖에서 기체를 본다)
+    const s2 = p.inShuttle.seatPos();
+    p.x = s2[0]; p.y = s2[1] - PLAYER_EYE; p.z = s2[2];
+    p.vx = p.vy = p.vz = 0;
+    p.onGround = true;
+    p.fallStart = p.y;
   } else if (p.inCar) {
     // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
     if (p.dead) this.exitCar();
@@ -2239,6 +2295,8 @@ Game.prototype.update = function (dt) {
   if (this.updateSignals) this.updateSignals(dt);
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
+  if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
+  if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
@@ -2355,19 +2413,34 @@ Game.prototype.render = function (dt) {
   opts.night = fx.night;
   opts.sunset = fx.sunset;
   opts.under = fx.under;
-  // 구름 위로 올라가면 성층권 — 별과 오로라
+  // 3인칭 카메라를 먼저 정한다 — 하늘을 카메라 높이로 골라야 하기 때문
+  if (p.inShuttle) opts.cam = this.shuttleCamera(p.inShuttle, dt);
+  else if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
+  else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
+  else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
+
+  // 구름 위로 올라가면 성층권 — 별과 오로라. 더 오르면 우주.
   const camY = (opts.cam ? opts.cam.eye[1] : p.y);
   opts.high = Math.max(0, Math.min(1, (camY - (CLOUD_Y - 8)) / 18));
-  // 오로라는 높이 올라가야 보이고, 밤일수록 진해진다
-  opts.aurora = opts.high * (0.26 + 0.74 * fx.night) * (1 - wet * 0.9);
+  opts.space = Math.max(0, Math.min(1, (camY - SPACE_START) / SPACE_FADE));
+  this._lastSpace = opts.space;
+  // 오로라는 높이 올라가야 보이고, 밤일수록 진해진다. 우주에서는 옅어진다.
+  opts.aurora = opts.high * (0.26 + 0.74 * fx.night) * (1 - wet * 0.9) * (1 - opts.space * 0.8);
+  if (opts.space > 0.01) {
+    // 대기가 옅어지므로 안개도 걷히고 바탕이 까매진다
+    const k = opts.space;
+    opts.fogStart = fogStart * (1 + k * 3);
+    opts.fogEnd = fogEnd * (1 + k * 4);
+    opts.fogColor = mix3(fogColor, [0.004, 0.006, 0.014], k);
+    opts.skyBottom = opts.fogColor;
+    opts.skyTop = mix3(opts.skyTop, [0.004, 0.006, 0.014], k);
+    opts.cloudAlpha *= 1 - k;
+  }
   // 폭발 직후 화면 흔들림
   if (this.shake > 0) {
     opts.shakeX = (Math.random() - 0.5) * this.shake * 0.06;
     opts.shakeY = (Math.random() - 0.5) * this.shake * 0.06;
   }
-  if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
-  else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
-  else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
   r.beginFrame(p, opts);
   r.drawChunks(this.world, p, opts, 'solid');
   r.drawClouds(p, opts);
@@ -2378,6 +2451,7 @@ Game.prototype.render = function (dt) {
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
   if (r.drawSignals) r.drawSignals(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
+  if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
   r.drawBlockEntities(this.entities, this.world, p, opts);

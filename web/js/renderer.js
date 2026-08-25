@@ -447,6 +447,7 @@ Renderer.prototype.beginFrame = function (player, opts) {
   gl.uniform1f(sp.u.uSunset, opts.sunset);
   gl.uniform1f(sp.u.uUnder, opts.under > 0.5 ? 1 : 0);
   gl.uniform1f(sp.u.uHigh, opts.high || 0);
+  gl.uniform1f(sp.u.uSpace, opts.space || 0);
   gl.uniform1f(sp.u.uAurora, opts.aurora || 0);
   gl.uniform1f(sp.u.uTime, opts.time);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -903,6 +904,35 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
     }
   }
 
+  this.flushEntityGeom(opts);
+};
+
+// ── 우주왕복선 ────────────────────────────────────────────────────────
+Renderer.prototype.drawShuttles = function (game, world, player, opts) {
+  const map = game.shuttles;
+  if (!map || !map.size) return;
+  _geom.reset();
+  const self = this;
+  const SS = SH_SCALE;
+  map.forEach(function (sh) {
+    const dx = sh.x - player.x, dz = sh.z - player.z;
+    if (dx * dx + dz * dz > 900 * 900) return;
+    const R = 30 * SS;
+    if (!self.boxInFrustum(sh.x - R, sh.y - R, sh.z - R, sh.x + R, sh.y + R, sh.z + R)) return;
+    const bx = Math.floor(sh.x), bz = Math.floor(sh.z);
+    const by = Math.min(CHUNK_Y - 1, Math.max(0, Math.floor(sh.y)));
+    const sky = (sh.y > CHUNK_Y - 4) ? 1 : world.getSky(bx, by, bz) / 15;
+    const light = [Math.max(sky, 0.8), world.getBlockLight(bx, by, bz) / 15];
+    const cr = Math.cos(sh.roll), sr = Math.sin(sh.roll);
+    const cp = Math.cos(sh.pitch), sp2 = Math.sin(sh.pitch);
+    const cy = Math.cos(sh.yaw), sy = Math.sin(sh.yaw);
+    const rot = function (lx, ly, lz, out) {
+      const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+      const y2 = y1 * cp + lz * sp2, z2 = -y1 * sp2 + lz * cp;
+      out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
+    };
+    self.emitMesh(shuttleMesh(sh.stacked !== false), sh.x, sh.y, sh.z, rot, SS, light, null);
+  });
   this.flushEntityGeom(opts);
 };
 

@@ -28,6 +28,10 @@ const TERM_Z = 13;
 const TERM_H = 15;
 const TOWER_X = 88, TOWER_Z = -34, TOWER_H = 30;
 const STAND_XS = [-60, -36, -12, 12, 36, 60];
+// ── 로켓 발사대 ── 활주로 서쪽 끝, 계류장 바깥에 따로 낸다
+const PAD_X = -134, PAD_Z = 0;
+const PAD_HALF = 13;          // 콘크리트 발사판 반폭
+const PAD_TOWER_H = 40;       // 정비탑 높이
 
 // 활주로 번호와 글자에 쓰는 3×5 도트 글꼴
 const AP_FONT = {
@@ -74,7 +78,8 @@ const AP_FLAT_RECTS = [
   [RW_LEN / 2 + 16, RW_HALF + 8, 0, RW_A_Z],   // 북 활주로
   [RW_LEN / 2 + 16, RW_HALF + 8, 0, RW_B_Z],   // 남 활주로
   [APRON_X + 10, TAXI_Z + TAXI_HALF + 4, 0, 0],// 계류장 + 유도로
-  [14, 14, TOWER_X, TOWER_Z]                   // 관제탑
+  [14, 14, TOWER_X, TOWER_Z],                  // 관제탑
+  [PAD_HALF + 7, PAD_HALF + 7, PAD_X, PAD_Z]   // 로켓 발사대
 ];
 
 // 이 자리의 평탄화 정도 (1 = 완전히 평평, 0 = 원래 지형)
@@ -457,6 +462,82 @@ function apTower(plan) {
   plan.people.push({ x: plan.x + cx + 1.5, y: gy + TOWER_H + 2, z: plan.z + cz + 0.5, job: 'librarian' });
 }
 
+// ── 로켓 발사대 ───────────────────────────────────────────────────────
+// 두꺼운 콘크리트 발사판 가운데에 화염 배출구를 내고,
+// 한쪽에 붉은 철골 정비탑을 세운다.
+function apLaunchPad(plan) {
+  const m = APMAT;
+  const H = PAD_HALF;
+  const set = function (dx, dy, dz, id) {
+    plan.set(plan.x + PAD_X + dx, plan.y + dy, plan.z + PAD_Z + dz, id, 0, true);
+  };
+  // 바닥 — 가장자리는 노란 줄무늬 갑판, 안쪽은 콘크리트
+  for (let dz = -H; dz <= H; dz++) {
+    for (let dx = -H; dx <= H; dx++) {
+      const r = Math.max(Math.abs(dx), Math.abs(dz));
+      set(dx, 0, dz, (r >= H - 1) ? B.yellow_concrete : m.apron);
+      for (let y = 1; y <= 16; y++) set(dx, y, dz, 0);      // 위를 비운다
+    }
+  }
+  // 발사판을 한 단 올린다 (화염 배출구를 낼 두께)
+  for (let dz = -8; dz <= 8; dz++) {
+    for (let dx = -8; dx <= 8; dx++) {
+      for (let y = 1; y <= 4; y++) set(dx, y, dz, m.pave);
+    }
+  }
+  // 화염 배출구 — 가운데를 뚫고 아래로 비스듬히 낸다
+  for (let dz = -3; dz <= 3; dz++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      for (let y = 1; y <= 4; y++) set(dx, y, dz, 0);
+    }
+  }
+  for (let dz = -3; dz <= 3; dz++) {
+    for (let dx = 4; dx <= 12; dx++) set(dx, 1, dz, 0);      // 옆으로 빠지는 도랑
+    set(12, 2, dz, B.red_concrete);
+  }
+  // 네 귀퉁이 고정 클램프
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      for (let y = 5; y <= 7; y++) set(sx * 4, y, sz * 4, B.red_concrete);
+    }
+  }
+  // ── 정비탑 ── 발사판 서쪽에 붙여 세운다
+  const tx = -11;
+  for (let y = 1; y <= PAD_TOWER_H; y++) {
+    for (const dz of [-5, 5]) {
+      set(tx, y, dz, B.red_concrete);
+      set(tx - 4, y, dz, B.red_concrete);
+    }
+    // 가로 버팀대
+    if (y % 4 === 0) {
+      for (let dx = tx - 4; dx <= tx; dx++) {
+        set(dx, y, -5, B.iron_bars); set(dx, y, 5, B.iron_bars);
+      }
+      for (let dz = -5; dz <= 5; dz++) {
+        set(tx, y, dz, B.iron_bars); set(tx - 4, y, dz, B.iron_bars);
+      }
+      // 발사판 쪽으로 뻗은 통로
+      for (let dx = tx + 1; dx <= -1; dx++) set(dx, y, 0, B.yellow_concrete);
+    }
+  }
+  for (let dx = tx - 4; dx <= tx; dx++) {
+    for (let dz = -5; dz <= 5; dz++) set(dx, PAD_TOWER_H + 1, dz, B.yellow_concrete);
+  }
+  // 피뢰침과 항공장애등
+  for (let y = PAD_TOWER_H + 2; y <= PAD_TOWER_H + 8; y++) set(tx - 2, y, 0, B.iron_bars);
+  set(tx - 2, PAD_TOWER_H + 9, 0, m.lamp);
+  for (const dz of [-5, 5]) {
+    for (const dx of [tx, tx - 4]) set(dx, PAD_TOWER_H + 2, dz, m.lamp);
+  }
+  // 발사판 둘레 조명
+  for (const c of [[-H + 1, -H + 1], [H - 1, -H + 1], [-H + 1, H - 1], [H - 1, H - 1]]) {
+    for (let y = 1; y <= 5; y++) set(c[0], y, c[1], B.red_concrete);
+    set(c[0], 6, c[1], m.lamp);
+  }
+  // 바닥 글씨
+  apText(plan, 'LC', PAD_X + 4, PAD_Z, 1, B.black_concrete, true);
+}
+
 function apFence(plan) {
   const m = APMAT;
   for (let x = -AP_X; x <= AP_X; x += 1) {
@@ -516,6 +597,7 @@ function buildAirportPlan(world, def, index) {
   apJetBridges(plan);
   apText(plan, def.code, 0, 10, 4, APMAT.roofDark, false, best.y + TERM_H + 4);
   apTower(plan);
+  apLaunchPad(plan);
   apFence(plan);
 
   // 항법에 쓰는 활주로 정보 (모두 X축 방향)
@@ -524,6 +606,7 @@ function buildAirportPlan(world, def, index) {
     { z: best.z + RW_B_Z, y: best.y, x0: best.x - RW_LEN / 2, x1: best.x + RW_LEN / 2, half: RW_HALF }
   ];
   plan.tower = { x: best.x + TOWER_X, y: best.y + TOWER_H + 7, z: best.z + TOWER_Z };
+  plan.pad = { x: best.x + PAD_X, y: best.y, z: best.z + PAD_Z };
   plan.freeze();
   return plan;
 }

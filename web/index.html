@@ -24,6 +24,7 @@
 <div id="use-hint"></div>
 <div id="nametags"></div>
 <div id="net-hud"></div>
+<div id="countdown"></div>
 <div id="chat-log"></div>
 <input id="chat-input" type="text" maxlength="120" placeholder="하고 싶은 말 (Enter 보내기 · Esc 취소)" autocomplete="off">
 <div id="drive-hud"></div>
@@ -144,6 +145,19 @@
           <li>불꽃·연기는 <b>그림 파일 없이</b> 만든다 — 늘 카메라를 마주 보는 작은 알갱이를
               셰이더가 동그랗게 깎아 불은 더하기로, 연기는 겹쳐서 그린다.
               <b>TNT</b>가 터질 때도 똑같이 피어오른다</li>
+          <li>공항 서쪽에 <b>로켓 발사대</b>가 있다. 붉은 정비탑 옆에 세워 둔
+              <b>우주왕복선</b>에 <b>우클릭</b>하면 탄다 — 주황 외부연료탱크와
+              흰 고체로켓을 단 채 세로로 서 있다</li>
+          <li>타면 <b>T-20 카운트다운</b>이 시작된다. 20초 내내 배출구에서 흰 연기가 오르고,
+              <b>T-6</b>에 엔진이 점화되어 불길이 쏟아지며, <b>0</b>이 되면 발사한다
+              (<b>Shift</b> 로 취소)</li>
+          <li>발사하면 <b>옆에서 기체를 바라보는 시선</b>으로 바뀌고, 우주로 올라가는 동안
+              그 시선을 그대로 지킨다. 올라가다 <b>탱크와 부스터를 떼어 내고</b>
+              궤도선만 남는다</li>
+          <li>구름을 넘어서면 하늘이 <b>새까만 우주</b>가 된다 — 별이 촘촘해지고
+              지평선에만 파란 대기 띠가 남는다</li>
+          <li>발사한 지 <b>1분</b>이 지나면 스스로 궤도를 벗어나 떠났던 <b>공항 활주로</b>에
+              내려앉는다. 엔진에서는 <b>내려오는 동안에도 불과 연기</b>가 계속 나온다</li>
           <li>공항은 세 곳(<b>ICN · GMP · CJU</b>)이고 아주 멀다. 계기판의 <b>관제탑 신호</b>를 따라가면 된다</li>
           <li>목적지까지 <b>500블록</b>이 남으면 <b>자동 착륙 승인 창</b>이 뜬다 — <b>Y</b> 승인, <b>N</b> 취소</li>
           <li>도시 길에는 <b>자동차 아홉 종류</b>(승용차·택시·승합차·버스·트럭·덤프트럭·순찰차·소방차)가
@@ -281,6 +295,7 @@
 <script src="js/excavator.js"></script>
 <script src="js/bus.js"></script>
 <script src="js/avatar.js"></script>
+<script src="js/rocket.js"></script>
 <script src="js/net.js"></script>
 <script src="js/boot.js"></script>
 </body>

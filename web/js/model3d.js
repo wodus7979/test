@@ -36,18 +36,22 @@ Mesh3D.prototype.quad = function (a, b, c, d, tex, two, uv) {
 Mesh3D.prototype.mirror = function (axis, fromQuad) {
   const q0 = fromQuad || 0;
   const n = this.t.length;
+  // 뒤집으면 앞뒤가 바뀌므로 꼭짓점 차례를 거꾸로 돌린다.
+  // 다만 첫 점은 그대로 두고 나머지만 뒤집는다 (0,3,2,1).
+  // 그냥 (3,2,1,0) 으로 돌리면 capRing 이 만든 삼각형(네 번째 점이 세 번째와 같은 것)에서
+  // 첫 두 점이 겹쳐 법선이 0 이 되고, 그 면이 새까맣게 나온다.
+  const ORDER = [0, 3, 2, 1];
   for (let q = q0; q < n; q++) {
-    // 뒤집으면 앞뒤가 바뀌므로 꼭짓점 차례도 거꾸로 돌린다
     const pts = [];
-    for (let c = 3; c >= 0; c--) {
-      const i = (q * 4 + c) * 3;
+    for (let k = 0; k < 4; k++) {
+      const i = (q * 4 + ORDER[k]) * 3;
       const v = [this.p[i], this.p[i + 1], this.p[i + 2]];
       v[axis] = -v[axis];
       pts.push(v);
     }
     const uv = [];
-    for (let c = 3; c >= 0; c--) {
-      const i = (q * 4 + c) * 2;
+    for (let k = 0; k < 4; k++) {
+      const i = (q * 4 + ORDER[k]) * 2;
       uv.push([this.u[i], this.u[i + 1]]);
     }
     this.quad(pts[0], pts[1], pts[2], pts[3], this.t[q], !!this.w[q], uv);
@@ -355,7 +359,9 @@ function buildTrainCarMesh(isFront, isBack) {
       for (let i = 0; i < keep.length; i++) {
         const q = keep[i];
         const pts = [];
-        for (let cc = 3; cc >= 0; cc--) {
+        // 첫 점은 두고 나머지만 뒤집는다 (0,3,2,1).
+        // 그냥 거꾸로 돌리면 capRing 이 만든 삼각형에서 첫 두 점이 겹쳐 법선이 0 이 된다.
+        for (const cc of [0, 3, 2, 1]) {
           const j = (q * 4 + cc) * 3;
           pts.push([m.p[j], m.p[j + 1], -m.p[j + 2]]);
         }
@@ -969,4 +975,141 @@ let TRAIN_INSIDE_MESH = null;
 function trainInsideMesh() {
   if (!TRAIN_INSIDE_MESH) TRAIN_INSIDE_MESH = buildTrainInsideMesh();
   return TRAIN_INSIDE_MESH;
+}
+
+// ── 우주왕복선 ────────────────────────────────────────────────────────
+// 여객기와 같은 규약 — +Z 가 기수, +Y 가 궤도선의 등 쪽.
+// 발사대에서는 이 모형을 피치 90도로 세워 놓는다.
+// 궤도선 하나에 주황 외부연료탱크와 흰 고체로켓 둘을 붙인 한 덩어리다.
+
+// 원뿔 노즐 하나 (엔진). 축은 -Z 쪽으로 벌어진다.
+function shNozzle(m, x, y, z, r0, r1, len, n) {
+  const N = n || 8;
+  const ring = function (rr, zz) {
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      pts.push([x + rr * Math.cos(t), y + rr * Math.sin(t), zz]);
+    }
+    return pts;
+  };
+  const a = ring(r0, z), b = ring(r1, z - len);
+  loft(m, b, a, function () { return 'sh_nozzle'; }, false);
+  capRing(m, a, [x, y, z + 0.1], 'sh_nozzle', false);
+}
+
+// full 이 false 면 궤도선만 만든다 (우주에서 탱크와 부스터를 떼어 낸 뒤 모습).
+function buildShuttleMesh(full) {
+  const m = new Mesh3D();
+
+  if (full) {
+  // ── 외부연료탱크 — 가운데 아래에 붙는 큰 주황 통 ──
+  const tankY = -5.6;
+  const tank = [
+    [-21, 2.6, tankY - 2.6, tankY + 2.6],
+    [-19, 4.0, tankY - 4.0, tankY + 4.0],
+    [12, 4.2, tankY - 4.2, tankY + 4.2],
+    [17, 3.9, tankY - 3.9, tankY + 3.9],
+    [21, 2.9, tankY - 2.9, tankY + 2.9],
+    [24, 1.6, tankY - 1.6, tankY + 1.6],
+    [26, 0.5, tankY - 0.5, tankY + 0.5]
+  ];
+  carLoft(m, tank, 2.0, function () { return 'sh_tank'; }, 'sh_tank', 14);
+
+  // ── 고체로켓 둘 — 탱크 양옆 아래 ──
+  {
+    const q0 = m.t.length;
+    const sy = -9.4;
+    const srb = [
+      [-19, 0.7, sy - 0.7, sy + 0.7],
+      [-17.5, 2.1, sy - 2.1, sy + 2.1],
+      [12, 2.2, sy - 2.2, sy + 2.2],
+      [15, 1.9, sy - 1.9, sy + 1.9],
+      [17.5, 1.1, sy - 1.1, sy + 1.1],
+      [19, 0.3, sy - 0.3, sy + 0.3]
+    ];
+    carLoft(m, srb, 2.0, function () { return 'sh_srb'; }, 'sh_srb', 10);
+    shNozzle(m, 0, sy, -19, 1.5, 2.3, 3.4, 8);
+    m.moveFrom(q0, 5.9, 0, 0);
+    m.mirror(0, q0);
+  }
+  }
+
+  // ── 궤도선 동체 ──
+  const body = [
+    [-20, 1.5, -1.4, 1.6],
+    [-18, 2.7, -2.2, 2.9],
+    [-8, 2.9, -2.4, 3.1],
+    [6, 2.9, -2.4, 3.1],
+    [13, 2.6, -2.1, 2.7],
+    [18, 1.9, -1.5, 2.0],
+    [21, 1.1, -0.9, 1.2],
+    [22.6, 0.35, -0.35, 0.4]
+  ];
+  carLoft(m, body, 3.0, function (my, mz) {
+    if (my < -1.1) return 'sh_black';                          // 배는 검은 내열 타일
+    if (mz > 13.5 && my > 1.2 && my < 2.6) return 'sh_glass';  // 조종석 창
+    return 'sh_body';
+  }, 'sh_body', 14);
+
+  // ── 삼각날개 — 오른쪽을 만들고 거울로 붙인다 ──
+  {
+    const q0 = m.t.length;
+    const wing = [
+      [2.6, -3.5, -1.2, 15.0, 1.5],
+      [5.5, -6.0, -1.1, 13.0, 1.2],
+      [8.5, -9.5, -1.0, 10.0, 0.9],
+      [11.0, -13.5, -0.9, 6.0, 0.6],
+      [12.2, -16.0, -0.85, 3.0, 0.35]
+    ];
+    let prev = null;
+    for (let i = 0; i < wing.length; i++) {
+      const s = wing[i];
+      const ring = airfoil(0, s[0], s[1] + s[3], s[3], s[4], s[2]);
+      if (prev) loft(m, prev, ring, function (my) {
+        return my < -1.0 ? 'sh_black' : 'sh_body';
+      }, false);
+      prev = ring;
+    }
+    capRing(m, prev, [wing[4][0] + 0.3, wing[4][2], wing[4][1] - 1.5], 'sh_body', false);
+    m.mirror(0, q0);
+  }
+
+  // ── 수직꼬리 ──
+  {
+    const fin = [
+      [3.1, -13.5, 8.0, 0.8], [5.6, -14.6, 6.6, 0.62],
+      [8.0, -15.7, 5.2, 0.44], [9.8, -16.6, 3.6, 0.24]
+    ];
+    let prev = null;
+    for (let i = 0; i < fin.length; i++) {
+      const s = fin[i];
+      const ring = airfoil(1, s[0], s[1], s[2], s[3], 0);
+      if (prev) loft(m, prev, ring, function () { return 'sh_body'; }, false);
+      prev = ring;
+    }
+    capRing(m, prev, [0, fin[3][0] + 0.3, fin[3][1] - 1.4], 'sh_body', false);
+  }
+
+  // ── 주엔진 세 대 (궤도선 꼬리) ──
+  shNozzle(m, 0, 1.5, -19.6, 1.0, 1.5, 2.6, 8);
+  shNozzle(m, -1.7, -0.5, -19.6, 0.9, 1.35, 2.4, 8);
+  shNozzle(m, 1.7, -0.5, -19.6, 0.9, 1.35, 2.4, 8);
+  // 궤도선을 탱크에 붙드는 버팀대
+  if (full) {
+    m.box(0, -2.9, 8, 1.2, 1.6, 2.0, 'sh_black');
+    m.box(0, -2.9, -14, 1.4, 1.6, 2.4, 'sh_black');
+  }
+
+  return m.build();
+}
+
+let SHUTTLE_MESH = null, ORBITER_MESH = null;
+function shuttleMesh(full) {
+  if (full === false) {
+    if (!ORBITER_MESH) ORBITER_MESH = buildShuttleMesh(false);
+    return ORBITER_MESH;
+  }
+  if (!SHUTTLE_MESH) SHUTTLE_MESH = buildShuttleMesh(true);
+  return SHUTTLE_MESH;
 }

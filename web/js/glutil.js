@@ -238,6 +238,7 @@ const SKY_FS = [
   'uniform float uSunset;',    // 해가 지평선에 가까울수록 1
   'uniform float uUnder;',     // 물속이면 1 (해·별을 감춘다)
   'uniform float uHigh;',      // 0 지상 ~ 1 성층권 (구름 위)
+  'uniform float uSpace;',     // 0 대기권 ~ 1 우주 (하늘이 새까매진다)
   'uniform float uAurora;',    // 오로라 세기
   'uniform float uTime;',
   'varying vec2 vPos;',
@@ -256,18 +257,25 @@ const SKY_FS = [
   '    vec3 deep = vec3(0.015, 0.025, 0.075) + uTop * 0.10;',
   '    col = mix(col, deep, uHigh * clamp(dir.y * 1.6 + 0.35, 0.0, 1.0));',
   '  }',
+  // 우주 — 하늘이 새까매지고 지평선에만 파란 대기 띠가 남는다
+  '  if (uSpace > 0.001) {',
+  '    float rim = pow(1.0 - clamp(abs(dir.y) * 3.2, 0.0, 1.0), 2.2);',
+  '    vec3 air = vec3(0.10, 0.34, 0.72) * rim * (1.0 - uNight * 0.6);',
+  '    col = mix(col, vec3(0.004, 0.006, 0.014) + air, uSpace);',
+  '  }',
   '  if (uUnder < 0.5) {',
   // 지평선 노을
   '    float horiz = pow(1.0 - clamp(abs(dir.y) * 2.4, 0.0, 1.0), 3.0);',
   '    float toSun = max(dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);',
   '    col += uSunColor * horiz * pow(toSun, 3.0) * uSunset * 0.85;',
   // 별
-  '    float starLit = max(uNight, uHigh);',
+  '    float starLit = max(max(uNight, uHigh), uSpace * 1.6);',
   '    if (starLit > 0.01) {',
   '      vec3 sp = floor(dir * 230.0);',
   '      float h = hash13(sp);',
-  '      float star = smoothstep(0.9975, 0.9995, h) * clamp(dir.y * 2.0, 0.0, 1.0);',
-  '      col += vec3(0.85, 0.9, 1.0) * star * starLit * 1.4;',
+  '      float lo = mix(0.9975, 0.9955, uSpace);',
+  '      float star = smoothstep(lo, 0.9995, h) * clamp(dir.y * 2.0 + uSpace * 1.6, 0.0, 1.0);',
+  '      col += vec3(0.85, 0.9, 1.0) * star * starLit * (1.4 + uSpace * 0.8);',
   '    }',
   // 오로라 — 하늘 위쪽에서 물결치는 초록·보라 커튼
   '    if (uAurora > 0.01 && dir.y > 0.04) {',

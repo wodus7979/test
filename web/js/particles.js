@@ -136,6 +136,78 @@ ParticleFX.prototype.flame = function (x, y, z, r, dt, acc, floorY) {
   return left;
 };
 
+// 발사 전 배기구에서 새어 나오는 흰 수증기 — 불은 없고 연기만 자욱하다.
+ParticleFX.prototype.vent = function (x, y, z, r, dt, acc, floorY) {
+  const want = (acc || 0) + dt * 26;
+  let n = Math.floor(want);
+  const left = want - n;
+  if (n > 10) n = 10;
+  const floor = (floorY === undefined) ? y - 2 : floorY;
+  const d = this._d;
+  for (let i = 0; i < n; i++) {
+    fxDir(d);
+    const ox = (Math.random() * 2 - 1) * r, oz = (Math.random() * 2 - 1) * r;
+    this.add({
+      kind: FX_SMOKE, floor: floor,
+      x: x + ox, y: floor + 0.6, z: z + oz,
+      vx: d[0] * 3.4, vy: 1.2 + Math.random() * 1.4, vz: d[2] * 3.4,
+      s0: 1.4 + Math.random() * 1.0, s1: 7 + Math.random() * 4,
+      age: 0, life: 3.2 + Math.random() * 2.4,
+      hue: 0.52 + Math.random() * 0.16,          // 하얀 수증기
+      drag: 1.0, buoy: 1.4, a0: 0.5
+    });
+  }
+  return left;
+};
+
+// 로켓 화염 — (dx,dy,dz) 쪽으로 내뿜는다. pw 는 세기 0~1.
+ParticleFX.prototype.rocket = function (x, y, z, dx, dy, dz, pw, dt, acc, floorY, spread) {
+  const rate = 40 + 90 * pw;
+  const want = (acc || 0) + dt * rate;
+  let n = Math.floor(want);
+  const left = want - n;
+  if (n > 22) n = 22;
+  const l = Math.hypot(dx, dy, dz) || 1;
+  const ux = dx / l, uy = dy / l, uz = dz / l;
+  const floor = (floorY === undefined) ? -1e9 : floorY;
+  const d = this._d;
+  const jit = spread || 0;
+  for (let i = 0; i < n; i++) {
+    fxDir(d);
+    const smoke = Math.random() < 0.42;
+    const cone = smoke ? 0.5 : 0.22;
+    const sp = (smoke ? 14 : 34) * (0.5 + pw);
+    const vx = (ux + d[0] * cone) * sp;
+    const vy = (uy + d[1] * cone) * sp;
+    const vz = (uz + d[2] * cone) * sp;
+    // 노즐이 여러 개면 조금씩 흩어진 자리에서 나온다
+    const jx = x + (Math.random() * 2 - 1) * jit;
+    const jz = z + (Math.random() * 2 - 1) * jit;
+    if (smoke) {
+      this.add({
+        kind: FX_SMOKE, floor: floor,
+        x: jx, y: y, z: jz, vx: vx, vy: vy, vz: vz,
+        s0: (1.2 + Math.random() * 1.0) * (0.5 + pw),
+        s1: (5 + Math.random() * 4) * (0.4 + pw),
+        age: 0, life: (1.8 + Math.random() * 1.6) * (0.5 + pw),
+        hue: 0.30 + Math.random() * 0.24,        // 회백색 배기 연기
+        drag: 1.5, buoy: 1.0, a0: 0.5
+      });
+    } else {
+      this.add({
+        kind: FX_FIRE, floor: floor,
+        x: jx, y: y, z: jz, vx: vx, vy: vy, vz: vz,
+        s0: (1.1 + Math.random() * 1.0) * (0.5 + pw),
+        s1: (2.6 + Math.random() * 1.8) * (0.5 + pw),
+        age: 0, life: 0.32 + Math.random() * 0.4,
+        hue: Math.random() * 0.28,               // 하얗게 달아오른 불기둥
+        drag: 2.6, buoy: 0, a0: 1
+      });
+    }
+  }
+  return left;
+};
+
 ParticleFX.prototype.update = function (dt) {
   const list = this.list;
   if (!list.length) return;
@@ -169,7 +241,7 @@ ParticleFX.prototype.fill = function (addBuf, alphaBuf, player) {
     const p = list[i];
     const t = p.age / p.life;
     const dx = p.x - player.x, dz = p.z - player.z;
-    if (dx * dx + dz * dz > 260 * 260) continue;
+    if (dx * dx + dz * dz > 420 * 420) continue;
     const size = p.s0 + (p.s1 - p.s0) * t;
     let alpha;
     if (p.kind === FX_SMOKE) {
