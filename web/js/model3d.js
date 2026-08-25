@@ -1266,7 +1266,7 @@ function buildDroneRotorMesh() {
 // ── 조종석 ── 타고 있을 때만 그린다.
 // 겉껍데기는 바깥을 보고 있어서 안에서는 안 보인다. 그래서 안쪽을 보는
 // 판을 따로 붙여 방을 만든다.
-const DR_YOKE = [0, 0.16, 1.30];   // 핸들 밑동 자리 (몸통 좌표)
+const DR_YOKE = [0, 0.34, 1.30];   // 핸들 밑동 자리 (몸통 좌표)
 
 // 법선이 ref 쪽(객실 안)을 향하도록 뒤집어 붙인다
 function inPanel(m, a, b, c, d, tex, ref) {
@@ -1283,32 +1283,36 @@ function inPanel(m, a, b, c, d, tex, ref) {
 function buildDroneCabinMesh() {
   const m = new Mesh3D();
   const C = [0, 0.9, 0];            // 객실 한가운데 (법선 방향을 정할 때 쓴다)
-  const HX = 1.45, Z0 = -2.0, Z1 = 2.05, YF = 0.02, YC = 1.70;
+  const HX = 1.45, Z0 = -2.0, Z1 = 2.05, YF = 0.02, YC = 1.95;
 
   // 바닥
   inPanel(m, [-HX, YF, Z0], [HX, YF, Z0], [HX, YF, Z1], [-HX, YF, Z1], 'dr_floor', C);
-  // 천장 (앞유리까지는 덮지 않는다)
-  inPanel(m, [-HX, YC, Z0], [HX, YC, Z0], [HX, YC, 1.45], [-HX, YC, 1.45], 'dr_cabin', C);
+  // 천장 (앞유리까지는 덮지 않는다). 뒤쪽은 덮개를 따라 낮아진다 —
+  // 평평하게 높이 달면 껍데기 밖으로 삐져나온다.
+  const YB = 1.45;                  // 뒷머리 쪽 천장 높이
+  inPanel(m, [-HX, YB, Z0], [HX, YB, Z0], [HX, YC, -0.6], [-HX, YC, -0.6], 'dr_cabin', C);
+  inPanel(m, [-HX, YC, -0.6], [HX, YC, -0.6], [HX, YC, 1.45], [-HX, YC, 1.45], 'dr_cabin', C);
   // 뒷벽
-  inPanel(m, [-HX, YF, Z0], [HX, YF, Z0], [HX, YC, Z0], [-HX, YC, Z0], 'dr_cabin', C);
-  // 옆벽 — 앞쪽은 창으로 터 둔다
+  inPanel(m, [-HX, YF, Z0], [HX, YF, Z0], [HX, YB, Z0], [-HX, YB, Z0], 'dr_cabin', C);
+  // 옆벽 — 앞쪽은 창으로 터 둔다. 윗선은 천장 기울기를 따라간다.
   for (const sx of [-1, 1]) {
-    inPanel(m, [sx * HX, YF, Z0], [sx * HX, YF, 0.3], [sx * HX, YC, 0.3], [sx * HX, YC, Z0],
+    inPanel(m, [sx * HX, YF, Z0], [sx * HX, YF, 0.3], [sx * HX, YC, 0.3], [sx * HX, YB, Z0],
       'dr_cabin', C);
   }
   // 천장등
   m.box(0, YC - 0.05, 0.2, 0.7, 0.07, 0.7, 'dr_light');
 
-  // 좌석 — 앉는 판·등받이·머리받이·팔걸이
-  m.box(0, 0.30, 0.42, 1.05, 0.16, 0.95, 'dr_seat2');
-  m.box(0, 0.85, -0.10, 1.05, 0.95, 0.18, 'dr_seat2');
-  m.box(0, 1.42, -0.10, 0.50, 0.26, 0.16, 'dr_seat2');
-  for (const sx of [-1, 1]) m.box(sx * 0.60, 0.52, 0.42, 0.13, 0.11, 0.66, 'dr_dark');
+  // 좌석 — 앉는 판·등받이·머리받이·팔걸이. 눈높이 1.25 에 맞춰 높였다.
+  m.box(0, 0.52, 0.42, 1.05, 0.16, 0.95, 'dr_seat2');
+  m.box(0, 1.05, -0.10, 1.05, 0.90, 0.18, 'dr_seat2');
+  m.box(0, 1.52, -0.10, 0.50, 0.22, 0.16, 'dr_seat2');
+  for (const sx of [-1, 1]) m.box(sx * 0.60, 0.74, 0.42, 0.13, 0.11, 0.66, 'dr_dark');
+  m.box(0, 0.26, 0.42, 0.80, 0.36, 0.60, 'dr_dark');     // 좌석 받침대
 
   // 계기판 — 앞유리 아래를 가로지른다. 조종사 쪽 면에 화면과 표시등이 있다.
-  // 눈높이(0.9)보다 낮게 둔다. 높으면 앞이 안 보인다.
-  m.box(0, 0.48, 1.78, 2.40, 0.44, 0.40, 'dr_panel');
-  m.box(0, 0.74, 1.70, 2.40, 0.09, 0.56, 'dr_dark');     // 햇빛 가리개
+  // 눈높이보다 한참 낮게 둔다. 높으면 앞이 안 보인다.
+  m.box(0, 0.62, 1.78, 2.40, 0.44, 0.40, 'dr_panel');
+  m.box(0, 0.88, 1.70, 2.40, 0.09, 0.56, 'dr_dark');     // 햇빛 가리개
   // 발판
   m.box(0, 0.08, 1.35, 1.10, 0.10, 0.50, 'dr_dark');
   return m.build();
