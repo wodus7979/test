@@ -28,10 +28,16 @@ const TERM_Z = 13;
 const TERM_H = 15;
 const TOWER_X = 88, TOWER_Z = -34, TOWER_H = 30;
 const STAND_XS = [-60, -36, -12, 12, 36, 60];
-// ── 로켓 발사대 ── 활주로 서쪽 끝, 계류장 바깥에 따로 낸다
-const PAD_X = -134, PAD_Z = 0;
+// ── 로켓 발사대 ──
+// 예전에는 활주로 서쪽 끝(중앙선 위)에 두었는데, 공항철도가 중앙선을 따라
+// 도시로 빠져나가는 자리라 발사대와 철로가 겹쳤다.
+// 그래서 활주로 바깥쪽(남쪽)으로 옮겨 철로·활주로 어디와도 닿지 않게 했다.
+const PAD_X = -60, PAD_Z = -78;
 const PAD_HALF = 13;          // 콘크리트 발사판 반폭
 const PAD_TOWER_H = 40;       // 정비탑 높이
+// 청크를 칠할 범위 — 발사대가 부지 밖으로 조금 나가므로 그만큼 넓힌다
+const AP_PAINT_X = Math.max(AP_X + AP_MARGIN + 16, Math.abs(PAD_X) + PAD_HALF + 26);
+const AP_PAINT_Z = Math.max(AP_Z + AP_MARGIN + 16, Math.abs(PAD_Z) + PAD_HALF + 26);
 
 // 활주로 번호와 글자에 쓰는 3×5 도트 글꼴
 const AP_FONT = {
@@ -650,8 +656,8 @@ World.prototype.paintAirport = function (c) {
   for (let n = 0; n < list.length; n++) {
     const p = list[n];
     // 부지에서 아주 먼 청크는 건너뛴다
-    if (Math.abs(bx + 8 - p.x) > AP_X + AP_MARGIN + 16) continue;
-    if (Math.abs(bz + 8 - p.z) > AP_Z + AP_MARGIN + 16) continue;
+    if (Math.abs(bx + 8 - p.x) > AP_PAINT_X) continue;
+    if (Math.abs(bz + 8 - p.z) > AP_PAINT_Z) continue;
     touched = true;
 
     // 1) 땅 고르기

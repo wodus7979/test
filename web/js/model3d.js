@@ -998,13 +998,12 @@ function shNozzle(m, x, y, z, r0, r1, len, n) {
   capRing(m, a, [x, y, z + 0.1], 'sh_nozzle', false);
 }
 
-// full 이 false 면 궤도선만 만든다 (우주에서 탱크와 부스터를 떼어 낸 뒤 모습).
-function buildShuttleMesh(full) {
-  const m = new Mesh3D();
+// 부품을 따로 만들어 두고 필요한 것만 골라 붙인다.
+// 분리하면 떨어져 나간 탱크·부스터를 따로 그려야 하기 때문이다.
 
-  if (full) {
-  // ── 외부연료탱크 — 가운데 아래에 붙는 큰 주황 통 ──
-  const tankY = -5.6;
+// 외부연료탱크 — 가운데 아래에 붙는 큰 주황 통
+function shAddTank(m, dy) {
+  const tankY = (dy === undefined ? -5.6 : dy);
   const tank = [
     [-21, 2.6, tankY - 2.6, tankY + 2.6],
     [-19, 4.0, tankY - 4.0, tankY + 4.0],
@@ -1015,27 +1014,25 @@ function buildShuttleMesh(full) {
     [26, 0.5, tankY - 0.5, tankY + 0.5]
   ];
   carLoft(m, tank, 2.0, function () { return 'sh_tank'; }, 'sh_tank', 14);
+}
 
-  // ── 고체로켓 둘 — 탱크 양옆 아래 ──
-  {
-    const q0 = m.t.length;
-    const sy = -9.4;
-    const srb = [
-      [-19, 0.7, sy - 0.7, sy + 0.7],
-      [-17.5, 2.1, sy - 2.1, sy + 2.1],
-      [12, 2.2, sy - 2.2, sy + 2.2],
-      [15, 1.9, sy - 1.9, sy + 1.9],
-      [17.5, 1.1, sy - 1.1, sy + 1.1],
-      [19, 0.3, sy - 0.3, sy + 0.3]
-    ];
-    carLoft(m, srb, 2.0, function () { return 'sh_srb'; }, 'sh_srb', 10);
-    shNozzle(m, 0, sy, -19, 1.5, 2.3, 3.4, 8);
-    m.moveFrom(q0, 5.9, 0, 0);
-    m.mirror(0, q0);
-  }
-  }
+// 고체로켓 한 짝 (x = 0 자리에 만든다)
+function shAddSrb(m, dy) {
+  const sy = (dy === undefined ? -9.4 : dy);
+  const srb = [
+    [-19, 0.7, sy - 0.7, sy + 0.7],
+    [-17.5, 2.1, sy - 2.1, sy + 2.1],
+    [12, 2.2, sy - 2.2, sy + 2.2],
+    [15, 1.9, sy - 1.9, sy + 1.9],
+    [17.5, 1.1, sy - 1.1, sy + 1.1],
+    [19, 0.3, sy - 0.3, sy + 0.3]
+  ];
+  carLoft(m, srb, 2.0, function () { return 'sh_srb'; }, 'sh_srb', 10);
+  shNozzle(m, 0, sy, -19, 1.5, 2.3, 3.4, 8);
+}
 
-  // ── 궤도선 동체 ──
+// 궤도선 — 동체·날개·꼬리·주엔진
+function shAddOrbiter(m) {
   const body = [
     [-20, 1.5, -1.4, 1.6],
     [-18, 2.7, -2.2, 2.9],
@@ -1052,7 +1049,7 @@ function buildShuttleMesh(full) {
     return 'sh_body';
   }, 'sh_body', 14);
 
-  // ── 삼각날개 — 오른쪽을 만들고 거울로 붙인다 ──
+  // 삼각날개 — 오른쪽을 만들고 거울로 붙인다
   {
     const q0 = m.t.length;
     const wing = [
@@ -1064,8 +1061,8 @@ function buildShuttleMesh(full) {
     ];
     let prev = null;
     for (let i = 0; i < wing.length; i++) {
-      const s = wing[i];
-      const ring = airfoil(0, s[0], s[1] + s[3], s[3], s[4], s[2]);
+      const sw = wing[i];
+      const ring = airfoil(0, sw[0], sw[1] + sw[3], sw[3], sw[4], sw[2]);
       if (prev) loft(m, prev, ring, function (my) {
         return my < -1.0 ? 'sh_black' : 'sh_body';
       }, false);
@@ -1075,7 +1072,7 @@ function buildShuttleMesh(full) {
     m.mirror(0, q0);
   }
 
-  // ── 수직꼬리 ──
+  // 수직꼬리
   {
     const fin = [
       [3.1, -13.5, 8.0, 0.8], [5.6, -14.6, 6.6, 0.62],
@@ -1083,33 +1080,63 @@ function buildShuttleMesh(full) {
     ];
     let prev = null;
     for (let i = 0; i < fin.length; i++) {
-      const s = fin[i];
-      const ring = airfoil(1, s[0], s[1], s[2], s[3], 0);
+      const sf = fin[i];
+      const ring = airfoil(1, sf[0], sf[1], sf[2], sf[3], 0);
       if (prev) loft(m, prev, ring, function () { return 'sh_body'; }, false);
       prev = ring;
     }
     capRing(m, prev, [0, fin[3][0] + 0.3, fin[3][1] - 1.4], 'sh_body', false);
   }
 
-  // ── 주엔진 세 대 (궤도선 꼬리) ──
+  // 주엔진 세 대
   shNozzle(m, 0, 1.5, -19.6, 1.0, 1.5, 2.6, 8);
   shNozzle(m, -1.7, -0.5, -19.6, 0.9, 1.35, 2.4, 8);
   shNozzle(m, 1.7, -0.5, -19.6, 0.9, 1.35, 2.4, 8);
-  // 궤도선을 탱크에 붙드는 버팀대
-  if (full) {
+}
+
+// stage 0 = 완전체, 1 = 부스터 뗀 뒤, 2 = 궤도선만
+function buildShuttleMesh(stage) {
+  const m = new Mesh3D();
+  if (stage < 2) shAddTank(m);
+  if (stage < 1) {
+    const q0 = m.t.length;
+    shAddSrb(m);
+    m.moveFrom(q0, 5.9, 0, 0);
+    m.mirror(0, q0);
+  }
+  shAddOrbiter(m);
+  if (stage < 2) {
+    // 궤도선을 탱크에 붙드는 버팀대
     m.box(0, -2.9, 8, 1.2, 1.6, 2.0, 'sh_black');
     m.box(0, -2.9, -14, 1.4, 1.6, 2.4, 'sh_black');
   }
-
   return m.build();
 }
 
-let SHUTTLE_MESH = null, ORBITER_MESH = null;
-function shuttleMesh(full) {
-  if (full === false) {
-    if (!ORBITER_MESH) ORBITER_MESH = buildShuttleMesh(false);
-    return ORBITER_MESH;
-  }
-  if (!SHUTTLE_MESH) SHUTTLE_MESH = buildShuttleMesh(true);
-  return SHUTTLE_MESH;
+// 떨어져 나간 부품 — 저마다 따로 굴러떨어진다
+function buildSrbPartMesh() {
+  const m = new Mesh3D();
+  shAddSrb(m, 0);
+  return m.build();
+}
+function buildTankPartMesh() {
+  const m = new Mesh3D();
+  shAddTank(m, 0);
+  return m.build();
+}
+let SRB_PART_MESH = null, TANK_PART_MESH = null;
+function srbPartMesh() {
+  if (!SRB_PART_MESH) SRB_PART_MESH = buildSrbPartMesh();
+  return SRB_PART_MESH;
+}
+function tankPartMesh() {
+  if (!TANK_PART_MESH) TANK_PART_MESH = buildTankPartMesh();
+  return TANK_PART_MESH;
+}
+
+const SHUTTLE_MESHES = [null, null, null];
+function shuttleMesh(stage) {
+  const k = Math.max(0, Math.min(2, stage | 0));
+  if (!SHUTTLE_MESHES[k]) SHUTTLE_MESHES[k] = buildShuttleMesh(k);
+  return SHUTTLE_MESHES[k];
 }

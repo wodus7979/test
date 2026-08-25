@@ -841,6 +841,8 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
 Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   const list = mgr.planes;
   if (!list || !list.length) return;
+  // 우주에 올라가면 여객기는 보이지 않는다 (한참 아래 대기권을 난다)
+  if ((opts.space || 0) > 0.45) return;
   const gl = this.gl;
   _geom.reset();
 
@@ -931,7 +933,22 @@ Renderer.prototype.drawShuttles = function (game, world, player, opts) {
       const y2 = y1 * cp + lz * sp2, z2 = -y1 * sp2 + lz * cp;
       out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
     };
-    self.emitMesh(shuttleMesh(sh.stacked !== false), sh.x, sh.y, sh.z, rot, SS, light, null);
+    self.emitMesh(shuttleMesh(sh.stage || 0), sh.x, sh.y, sh.z, rot, SS, light, null);
+
+    // 떨어져 나간 탱크·고체로켓
+    for (let k = 0; k < sh.parts.length; k++) {
+      const q = sh.parts[k];
+      const qr = Math.cos(q.roll), qs = Math.sin(q.roll);
+      const qp = Math.cos(q.pitch), qsp = Math.sin(q.pitch);
+      const qy = Math.cos(q.yaw), qsy = Math.sin(q.yaw);
+      const prot = function (lx, ly, lz, out) {
+        const x1 = lx * qr - ly * qs, y1 = lx * qs + ly * qr;
+        const y2 = y1 * qp + lz * qsp, z2 = -y1 * qsp + lz * qp;
+        out[0] = x1 * qy + z2 * qsy; out[1] = y2; out[2] = -x1 * qsy + z2 * qy;
+      };
+      self.emitMesh(q.kind === 'tank' ? tankPartMesh() : srbPartMesh(),
+        q.x, q.y, q.z, prot, SS, light, null);
+    }
   });
   this.flushEntityGeom(opts);
 };

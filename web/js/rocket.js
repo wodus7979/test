@@ -15,16 +15,27 @@ const SH_IGNITE = 6;            // 이때부터 엔진 점화 — 연기가 확 
 const SH_FLIGHT = 60;           // 발사 뒤 이만큼 지나면 귀환을 시작한다(초)
 const SH_SPACE_Y = 260;         // 이 높이부터 우주로 친다
 const SH_CEIL = 430;            // 올라가는 한계
-const SH_THRUST = 11;           // 상승 가속 (블록/초²)
-const SH_MAX_UP = 44;           // 최고 상승 속도
+const SH_THRUST = 8;            // 상승 가속 (블록/초²)
+const SH_MAX_UP = 32;           // 최고 상승 속도
 const SH_GLIDE = 58;            // 활공 속도
 const SH_SEAT = [0, 2.2, 6.0];  // 조종석 (모형 좌표)
+// 분리는 시간이 아니라 높이로 잰다 — 상승 속도가 바뀌어도 차례가 지켜진다
+const SH_SRB_ALT = 55;          // 발사대에서 이만큼 오르면 고체로켓을 뗀다
+const SH_TANK_ALT = 150;        // 이만큼 오르면 외부연료탱크를 뗀다
+const SH_PART_KEEP = 26;        // 떨어져 나간 부품이 남아 있는 시간(초)
+// 우주에서 손으로 몰 때
+const SH_FLY_ACC = 22;          // 밟았을 때 붙는 가속
+const SH_FLY_MAX = 70;          // 최고 속도
+const SH_FLY_TURN = 0.9;        // 초당 최대 선회
+const SH_FLY_CEIL = 620;        // 이 위로는 못 올라간다
 
 // 카메라 — 옆에서 기체를 바라본다 (세로로 선 모습이 다 보이게)
 const SH_CAM_SIDE = 34;         // 옆으로 떨어진 거리
 const SH_CAM_BACK = 16;
 const SH_CAM_UP = 10;
 const SH_CAM_LERP = 2.4;
+const SH_CAM_CHASE = 26;        // 우주에서 기체 뒤로 떨어진 거리
+const SH_CAM_CHASE_UP = 7;
 
 function Shuttle(world, pad, airport) {
   this.world = world;
@@ -44,7 +55,9 @@ function Shuttle(world, pad, airport) {
   this.rider = null;
   this.fxAcc = 0;
   this.lastCall = -1;
-  this.stacked = true;   // 탱크·부스터가 아직 붙어 있나
+  this.stage = 0;        // 0 완전체 · 1 부스터 뗀 뒤 · 2 궤도선만
+  this.free = false;     // 우주에서 손으로 모는 중인가
+  this.parts = [];       // 떨어져 나간 부품들
 };
 
 // 기수 방향 (여객기와 같은 규약)
@@ -102,7 +115,7 @@ Shuttle.prototype.reset = function () {
   this.yaw = 0; this.pitch = Math.PI / 2; this.roll = 0;
   this.vy = 0; this.speed = 0;
   this.state = 'pad'; this.t = 0; this.flightT = 0; this.lastCall = -1;
-  this.stacked = true;
+  this.stage = 0; this.free = false; this.parts.length = 0;
 };
 
 // 남은 카운트다운 (초). 세고 있지 않으면 null
@@ -114,6 +127,7 @@ Shuttle.prototype.update = function (dt, game) {
   this.t += dt;
   const fx = game.fx;
   const s = this.state;
+  if (this.parts.length) this.updateParts(dt, game);
 
   if (s === 'pad') return;
 
@@ -123,9 +137,9 @@ Shuttle.prototype.update = function (dt, game) {
     const n = Math.ceil(left);
     if (n !== this.lastCall && n >= 0) {
       this.lastCall = n;
+      if (n <= 10) game.playCountBeep(n);     // 마지막 10초는 매초 삐
       if (n === 20 || n === 10 || n <= 5) {
         game.ui.toast(n > 0 ? ('T-' + n) : '발사!');
-        game.playSound(n > 0 ? 'place' : 'boom');
       }
     }
     // 20초 내내 연기가 오른다. 점화 뒤에는 불까지 뿜는다.
@@ -156,28 +170,44 @@ Shuttle.prototype.update = function (dt, game) {
     // 올라갈수록 아주 조금씩 기울인다 (중력 선회)
     this.pitch = Math.max(1.16, Math.PI / 2 - (this.y - this.pad.y) * 0.0011);
     game.shake = Math.max(game.shake, 1.4 * Math.max(0, 1 - this.flightT / 12));
+    // 단계별 분리 — 고체로켓 먼저, 그다음 외부연료탱크
+    const alt = this.y - this.pad.y;
+    if (this.stage === 0 && alt > SH_SRB_ALT) this.separate(1, game);
+    if (this.stage === 1 && alt > SH_TANK_ALT) this.separate(2, game);
     if (this.y > SH_SPACE_Y || this.flightT > 40) {
+      if (this.stage < 2) this.separate(2, game);
       this.state = 'space';
-      // 탱크와 고체로켓을 떼어 낸다 — 이제 궤도선만 난다
-      if (this.stacked) {
-        this.stacked = false;
-        const e2 = this.enginePos();
-        fx.burst(e2[0], e2[1], e2[2], 5, -1e9);
-        game.playSound('boom');
-        game.shake = Math.max(game.shake, 1.6);
-        game.ui.toast('부스터 분리 — 궤도선만 남았습니다');
-      }
+      this.free = true;
+      this.vy = Math.min(this.vy, 12);
+      game.ui.toast('궤도 진입 — 이제 자유 비행입니다. W 가속 · S 감속 · 마우스로 조종');
     }
   } else if (s === 'space') {
-    // ── 우주 ── 천천히 올라가다 멎는다
-    this.vy = Math.max(6, this.vy - SH_THRUST * 0.5 * dt);
-    this.y = Math.min(SH_CEIL, this.y + this.vy * dt);
-    this.pitch += (0.62 - this.pitch) * Math.min(1, dt * 0.35);
-    // 아주 느리게 돌며 지구를 내려다본다
-    this.yaw += dt * 0.06;
+    // ── 우주 ── 손으로 몬다 (조종하지 않으면 그대로 미끄러진다)
+    const rider = this.rider;
+    const input = game.input;
+    if (rider) {
+      if (input.forward) this.speed = Math.min(SH_FLY_MAX, this.speed + SH_FLY_ACC * dt);
+      else if (input.back) this.speed = Math.max(0, this.speed - SH_FLY_ACC * dt);
+      // 마우스로 기수를 돌린다 (여객기와 같은 방식)
+      let wantYaw = rider.yaw;
+      if (input.left) wantYaw -= 0.5;
+      if (input.right) wantYaw += 0.5;
+      const wantPitch = Math.max(-1.2, Math.min(1.2, rider.pitch));
+      this.steerTo(wantYaw, SH_FLY_TURN, dt);
+      this.pitch += Math.max(-SH_FLY_TURN * dt, Math.min(SH_FLY_TURN * dt, wantPitch - this.pitch));
+    }
+    // 진공이라 관성으로 나아간다
+    const n = this.nose();
+    this.x += n[0] * this.speed * dt;
+    this.y += n[1] * this.speed * dt + this.vy * dt;
+    this.z += n[2] * this.speed * dt;
+    this.vy *= Math.max(0, 1 - dt * 0.6);
+    // 대기권 아래로는 못 내려가고, 너무 높이도 못 오른다
+    this.y = Math.max(SH_SPACE_Y - 40, Math.min(SH_FLY_CEIL, this.y));
     if (this.flightT > SH_FLIGHT) {
       this.state = 'back';
-      game.ui.toast('궤도 이탈 — 공항으로 내려갑니다');
+      this.free = false;
+      game.ui.toast('궤도 이탈 — 공항으로 자동 착륙합니다');
     }
   } else if (s === 'back' || s === 'final') {
     // ── 귀환 ──
@@ -244,6 +274,69 @@ Shuttle.prototype.update = function (dt, game) {
   }
 };
 
+// 지금 엔진이 얼마나 세게 우는가 (0 = 조용함)
+Shuttle.prototype.soundLevel = function () {
+  const s = this.state;
+  if (s === 'count') return (SH_COUNT - this.t <= SH_IGNITE) ? 0.5 : 0;
+  if (s === 'lift') return 1;
+  if (s === 'space') return 0.28 + 0.4 * Math.min(1, this.speed / SH_FLY_MAX);
+  if (s === 'back' || s === 'final') return 0.22;
+  return 0;
+};
+
+// 단계 분리 — 떨어져 나간 부품을 실제로 날려 보낸다
+Shuttle.prototype.separate = function (toStage, game) {
+  if (this.stage >= toStage) return;
+  const fx = game.fx;
+  const made = [];
+  if (this.stage === 0 && toStage >= 1) {
+    // 고체로켓 두 짝이 옆으로 벌어지며 떨어져 나간다
+    for (const sx of [-1, 1]) {
+      const w = this.toWorld(sx * 5.9, -9.4, -3);
+      made.push({ kind: 'srb', x: w[0], y: w[1], z: w[2],
+        yaw: this.yaw, pitch: this.pitch, roll: 0,
+        vx: sx * 9, vy: this.vy * 0.7, vz: 0,
+        spin: sx * 1.1, t: 0 });
+    }
+    game.ui.toast('고체로켓 분리');
+  }
+  if (toStage >= 2 && this.stage <= 1) {
+    const w = this.toWorld(0, -5.6, -2);
+    made.push({ kind: 'tank', x: w[0], y: w[1], z: w[2],
+      yaw: this.yaw, pitch: this.pitch, roll: 0,
+      vx: 0, vy: this.vy * 0.5, vz: -6,
+      spin: 0.5, t: 0 });
+    if (this.stage === 1) game.ui.toast('외부연료탱크 분리 — 궤도선만 남았습니다');
+  }
+  for (let i = 0; i < made.length; i++) {
+    this.parts.push(made[i]);
+    fx.burst(made[i].x, made[i].y, made[i].z, 3.5, -1e9);
+  }
+  if (made.length) {
+    game.playSound('boom');
+    game.shake = Math.max(game.shake, 1.4);
+  }
+  this.stage = toStage;
+};
+
+// 떨어져 나간 부품 — 뒤로 처지며 구르다 사라진다
+Shuttle.prototype.updateParts = function (dt, game) {
+  const list = this.parts;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const q = list[i];
+    q.t += dt;
+    q.vy -= 9.5 * dt;                       // 중력에 끌려 떨어진다
+    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+    q.roll += q.spin * dt;
+    q.pitch -= dt * 0.35;                   // 기수가 처진다
+    // 꼬리에서 연기가 새어 나온다
+    if (game.fx && q.t < 8) {
+      q.acc = game.fx.rocket(q.x, q.y, q.z, 0, 1, 0, 0.12, dt, q.acc || 0, -1e9, 1.5);
+    }
+    if (q.t > SH_PART_KEEP || q.y < 0) list.splice(i, 1);
+  }
+};
+
 // 원하는 방향으로 조금씩 튼다
 Shuttle.prototype.steerTo = function (want, rate, dt) {
   let d = want - this.yaw;
@@ -285,10 +378,20 @@ Game.prototype.updateShuttles = function (dt) {
   const map = this.ensureShuttles();
   if (!map) return;
   const self = this;
+  const p = this.player;
+  let loud = 0;
   map.forEach(function (sh) {
-    if (sh.state === 'pad' && !sh.rider) return;     // 가만히 서 있을 뿐
+    if (sh.state === 'pad' && !sh.rider && !sh.parts.length) return;   // 가만히 서 있을 뿐
     sh.update(dt, self);
+    // 멀리 있는 발사는 작게 들린다. 타고 있으면 그대로 다 들린다.
+    let far = 1;
+    if (p.inShuttle !== sh) {
+      const d = Math.hypot(sh.x - p.x, sh.y - p.y, sh.z - p.z);
+      far = Math.max(0, Math.min(1, (420 - d) / 300));
+    }
+    loud = Math.max(loud, sh.soundLevel() * far);
   });
+  if (this.setRocketSound) this.setRocketSound(loud);
 };
 
 Game.prototype.nearestShuttle = function () {
@@ -332,17 +435,32 @@ Game.prototype.exitShuttle = function () {
   this.ui.toast('우주왕복선에서 내렸습니다');
 };
 
-// 옆에서 기체를 바라보는 카메라. 발사 전에도 발사 뒤에도 같은 시선을 지킨다.
+// 카메라.
+// 발사 전과 상승 중에는 옆에서 세로로 선 기체를 바라본다.
+// 우주에 들면 손으로 몰 수 있으므로 여객기처럼 기체 뒤에서 따라간다.
 Game.prototype.shuttleCamera = function (sh, dt) {
-  // 기체 옆·뒤·위로 떨어진 자리
+  const chase = (sh.state === 'space' || sh.state === 'back' ||
+    sh.state === 'final' || sh.state === 'rollout' || sh.state === 'done');
   const cy = Math.cos(sh.yaw), sy = Math.sin(sh.yaw);
-  const ox = SH_CAM_SIDE, oz = -SH_CAM_BACK;
-  const wx = sh.x + ox * cy + oz * sy;
-  const wz = sh.z + -ox * sy + oz * cy;
-  const wy = sh.y + SH_CAM_UP;
+  let wx, wy, wz;
+  if (chase) {
+    // 기수 뒤·위 — 여객기 3인칭과 같은 자리
+    const n = sh.nose();
+    wx = sh.x - n[0] * SH_CAM_CHASE;
+    wy = sh.y - n[1] * SH_CAM_CHASE + SH_CAM_CHASE_UP;
+    wz = sh.z - n[2] * SH_CAM_CHASE;
+  } else {
+    const ox = SH_CAM_SIDE, oz = -SH_CAM_BACK;
+    wx = sh.x + ox * cy + oz * sy;
+    wz = sh.z + -ox * sy + oz * cy;
+    wy = sh.y + SH_CAM_UP;
+  }
   let c = this._shCam;
-  if (!c) { c = this._shCam = { eye: [wx, wy, wz], yaw: 0, pitch: 0, roll: 0 }; }
-  const k = Math.min(1, dt * SH_CAM_LERP);
+  if (!c || this._shChase !== chase) {
+    c = this._shCam = { eye: [wx, wy, wz], yaw: 0, pitch: 0, roll: 0 };
+    this._shChase = chase;
+  }
+  const k = Math.min(1, dt * (chase ? SH_CAM_LERP * 2 : SH_CAM_LERP));
   c.eye[0] += (wx - c.eye[0]) * k;
   c.eye[1] += (wy - c.eye[1]) * k;
   c.eye[2] += (wz - c.eye[2]) * k;
@@ -351,6 +469,6 @@ Game.prototype.shuttleCamera = function (sh, dt) {
   const flat = Math.hypot(dx, dz) || 0.001;
   c.yaw = Math.atan2(-dx, -dz);
   c.pitch = Math.atan2(dyy, flat);
-  c.roll = 0;
+  c.roll = chase ? sh.roll * 0.35 : 0;
   return c;
 };

@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.3';
+const GAME_VERSION = 'v9.4';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -295,18 +295,19 @@ Game.prototype.updateCountdown = function () {
     lbl = (left > SH_IGNITE) ? '발사 준비' : '엔진 점화';
     cls = (left > SH_IGNITE) ? '' : 'hot';
   } else if (sh.state === 'lift') {
-    num = Math.round(sh.y - sh.pad.y) + 'm';
-    lbl = '상승 중';
+    num = '상승';
+    lbl = ['고체로켓 분리 대기', '외부연료탱크 분리 대기', '궤도 진입 중'][sh.stage] || '';
     cls = 'go';
   } else if (sh.state === 'space') {
-    num = Math.round(sh.y) + 'm';
-    lbl = '궤도 — ' + Math.max(0, Math.ceil(SH_FLIGHT - sh.flightT)) + '초 뒤 귀환';
+    num = '자유 비행';
+    lbl = 'W 가속 · S 감속 · 마우스 조종 — ' +
+      Math.max(0, Math.ceil(SH_FLIGHT - sh.flightT)) + '초 뒤 귀환';
     cls = 'go';
   } else if (sh.state === 'back' || sh.state === 'final') {
-    num = Math.round(sh.y) + 'm';
-    lbl = '귀환 중 — 공항으로';
+    num = '귀환';
+    lbl = '공항으로 자동 착륙합니다';
   } else if (sh.state === 'rollout') {
-    num = Math.round(kmh(sh.speed)) + 'km/h';
+    num = '착륙';
     lbl = '활주 중';
   } else {
     num = '완료'; lbl = 'Shift 로 내리기';
@@ -1583,6 +1584,86 @@ Game.prototype.playSound = function (kind) {
     o.connect(g); g.connect(ctx.destination);
     o.start(now); o.stop(now + dur + 0.01);
   } catch (err) { /* 소리는 없어도 그만 */ }
+};
+
+// ── 발사 소리 ─────────────────────────────────────────────────────────
+// 로켓 굉음 — 하얀 잡음을 낮게 걸러 우르릉거리게 만들고, 그 아래에
+// 아주 낮은 사인파를 깔아 배를 울리는 저음을 낸다. 세기만 바꿔 계속 쓴다.
+Game.prototype.setRocketSound = function (level) {
+  try {
+    if (level < 0.01 && !this.rocketGain) return;
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (!this.rocketGain) {
+      // 2초짜리 잡음을 만들어 돌린다
+      const len = Math.floor(ctx.sampleRate * 2);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        // 갈색 잡음 — 하얀 잡음보다 낮고 묵직하다
+        last = (last + (Math.random() * 2 - 1) * 0.06) * 0.985;
+        d[i] = last * 6;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.7;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(lp); lp.connect(g); g.connect(ctx.destination);
+      src.start();
+      // 배를 울리는 저음
+      const osc = ctx.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = 34;
+      const og = ctx.createGain();
+      og.gain.value = 0;
+      osc.connect(og); og.connect(ctx.destination);
+      osc.start();
+      this.rocketGain = g; this.rocketSub = og; this.rocketLp = lp;
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const v = Math.max(0, Math.min(1, level));
+    this.rocketGain.gain.setTargetAtTime(v * 0.34, now, 0.12);
+    this.rocketSub.gain.setTargetAtTime(v * 0.14, now, 0.12);
+    // 세게 뿜을수록 높은 소리까지 열린다
+    this.rocketLp.frequency.setTargetAtTime(220 + v * 900, now, 0.2);
+  } catch (err) { /* 소리는 없어도 그만 */ }
+};
+
+// 카운트다운 삐 소리 — 0 에서는 낮고 길게 울린다
+Game.prototype.playCountBeep = function (n) {
+  try {
+    if (!this.audio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.audio = new AC();
+    }
+    const ctx = this.audio;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square';
+    if (n > 0) {
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.05, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(now); o.stop(now + 0.14);
+    } else {
+      o.frequency.setValueAtTime(440, now);
+      o.frequency.exponentialRampToValueAtTime(110, now + 0.9);
+      g.gain.setValueAtTime(0.07, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(now); o.stop(now + 1.0);
+    }
+  } catch (err) { /* 무시 */ }
 };
 
 // 빗소리 — 하얀 잡음을 한 번 만들어 계속 돌리고 크기만 바꾼다
