@@ -47,9 +47,12 @@ function trainCarParts(P, zc, isFront, isBack) {
     }
     box(X, 0.34, -L / 2 + 0.3, 0.24, 1.6, 0.6, 'tr_body');
     box(X, 0.34, L / 2 - 0.3, 0.24, 1.6, 0.6, 'tr_body');
-    // 출입문 두 짝 (닫혀 있다)
+    // 출입문 — 두 짝이 양옆으로 미끄러져 열린다
     for (const dz of [-5.2, 5.2]) {
-      box(X + s * 0.03, -0.05, dz, 0.16, 2.7, 2.4, 'tr_door');
+      for (const h of [-1, 1]) {
+        P.push({ x: X + s * 0.03, y: -0.05, z: zc + dz + h * 0.6,
+          w: 0.16, h: 2.7, d: 1.2, tex: 'tr_door', door: h });
+      }
     }
     // 치마 (대차를 가린다)
     box(s * (HW - 0.06), -2.02, 0, 0.2, 0.72, L - 0.6, 'tr_skirt');
@@ -174,6 +177,7 @@ function Train(world, route, s, dir) {
   this.dwell = 3;
   this.rider = null;
   this.wheelAngle = 0;
+  this.doorT = 0;             // 0 닫힘 ~ 1 열림
   const p = route.at(s);
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
   const o = this.trackOffset(p.yaw);
@@ -215,6 +219,10 @@ Train.prototype.update = function (dt) {
     const step = TRAIN_CROSS * dt;
     this.tk = (Math.abs(d2) <= step) ? this.track : this.tk + Math.sign(d2) * step;
   }
+
+  // 문은 스르르 열리고 닫힌다
+  const doorWant = this.doorsOpen() ? 1 : 0;
+  this.doorT += Math.max(-dt * 1.6, Math.min(dt * 1.6, doorWant - this.doorT));
 
   const p = r.at(this.s);
   this.y = r.y + TRAIN_RIDE;
@@ -282,6 +290,11 @@ Train.prototype.seatPos = function () {
   return this.toWorld(0, TRAIN_FLOOR_TOP + 1.62, 0);
 };
 
+// 문이 열려 있나 — 역에 서서 정차하는 동안만 열린다
+Train.prototype.doorsOpen = function () {
+  return this.speed < 0.4 && this.dwell > 0 && !!this.atStation();
+};
+
 // 지금 어느 역에 서 있나
 Train.prototype.atStation = function () {
   for (let i = 0; i < this.route.stations.length; i++) {
@@ -320,46 +333,39 @@ Train.prototype.board = function (player) {
 };
 
 // 내릴 자리를 골라 세운다.
-// 예전에는 늘 오른쪽 5칸·승강장 바닥 높이에 내려 놓았는데,
-// 바닥 블록 높이를 그대로 써서 몸이 승강장 안에 박혔고,
-// 선로에 따라서는 유리벽 바깥(고가 밖)에 떨어뜨리기도 했다.
+// 탈 때와 마찬가지로 승강장으로만 내린다 — 역에 서서 문이 열렸을 때만 열린다.
+// 예전에는 선로 위나 고가 한복판에도 내려 주어 떨어져 죽거나 몸이 박혔다.
 Train.prototype.unboard = function () {
   const p = this.rider;
-  if (!p) return;
-  this.rider = null;
-  p.onTrain = null;
-  const w = this.world;
-  const zc = p.trainZ || 0;
-  const ry = this.route.y;
-  // 양옆으로 가까운 데부터 — 승강장이 있는 쪽이 먼저 걸린다
-  const offs = [3.4, -3.4, 4.6, -4.6, 2.6, -2.6, 5.8, -5.8];
-  let best = null;
-  for (let i = 0; i < offs.length; i++) {
-    const wp = this.toWorld(offs[i], 0, zc);
-    const bx = Math.floor(wp[0]), bz = Math.floor(wp[2]);
-    // 승강장 바닥은 철로와 같은 높이다. 그 위(발 닿는 자리)를 찾는다.
-    for (let dy = 1; dy >= -1; dy--) {
-      const y = ry + dy + 1;
-      if (w.getBlock(bx, y - 1, bz) === 0) continue;      // 발밑이 비었으면 안 된다
-      if (p.collides(wp[0], y, wp[2])) continue;          // 몸이 들어가야 한다
-      best = [wp[0], y, wp[2]];
-      break;
+  if (!p) return false;
+  const st = this.atStation();
+  if (!st || !this.doorsOpen() || st.platformY === undefined) return false;
+
+  // 역 기준 좌표 — a 는 선로 방향, d 는 가로 방향
+  const along0 = st.faceX ? (this.x - st.x) : (this.z - st.z);
+  const half = (st.half || 34) - 2;
+  const along = Math.max(-half, Math.min(half, along0 + (p.trainZ || 0)));
+  const carD = st.faceX ? (this.z - st.z) : (this.x - st.x);
+  const sides = (carD >= 0) ? [1, -1] : [-1, 1];   // 가까운 승강장부터
+  const y = st.platformY;
+  for (let i = 0; i < sides.length; i++) {
+    for (const dd of [6.5, 7.5, 8.5, 5.5]) {
+      const d = sides[i] * dd;
+      const wx = st.faceX ? (st.x + along) : (st.x + d);
+      const wz = st.faceX ? (st.z + d) : (st.z + along);
+      if (p.collides(wx, y, wz)) continue;
+      if (this.world.getBlock(Math.floor(wx), y - 1, Math.floor(wz)) === 0) continue;
+      this.rider = null;
+      p.onTrain = null;
+      p.x = wx; p.y = y; p.z = wz;
+      p.trainX = p.trainZ = 0;
+      p.vx = p.vy = p.vz = 0;
+      p.fallStart = y;
+      p.unstick();
+      return true;
     }
-    if (best) break;
   }
-  if (!best) {
-    // 설 자리가 없다 — 달리는 중이거나 고가 한복판이다.
-    // 여기서 내려 주면 상판 밖으로 떨어져 죽는다. 그냥 태워 둔다.
-    this.rider = p;
-    p.onTrain = this;
-    return false;
-  }
-  p.x = best[0]; p.y = best[1]; p.z = best[2];
-  p.trainX = p.trainZ = 0;
-  p.vx = p.vy = p.vz = 0;
-  p.fallStart = p.y;
-  p.unstick();
-  return true;
+  return false;
 };
 
 // 타고 있는 동안 — 객실 안을 걸어 다닐 수 있다.

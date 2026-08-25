@@ -1018,8 +1018,10 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
           continue;
         }
         const bh = b.h;
+        // 출입문 두 짝은 열린 만큼 양옆으로 미끄러진다
+        const dOff = b.door ? b.door * (t.doorT || 0) * 1.15 : 0;
         const transform = function (px, py, pz, out) {
-          rot(px + b.x, py - bh / 2 + b.y, pz + b.z, out);
+          rot(px + b.x, py - bh / 2 + b.y, pz + b.z + dOff, out);
         };
         emitBox(_geom, po.x, po.y, po.z, b.w, bh, b.d, b.tex, b.front, transform, light);
       }

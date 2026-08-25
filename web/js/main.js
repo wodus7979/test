@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.4';
+const GAME_VERSION = 'v9.5';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -1138,7 +1138,42 @@ Game.prototype.exitPlane = function () {
 };
 
 // ── 열차 ──────────────────────────────────────────────────────────────
+// 내가 승강장 위에 서 있나. 그렇다면 그 역을 돌려준다.
+// 선로 위나 지상에서는 탈 수 없다 — 승강장에서만 문으로 들어간다.
+Game.prototype.onPlatform = function () {
+  const w = this.world;
+  if (!w.cities) return null;
+  const p = this.player;
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.stations) continue;
+    for (let k = 0; k < c.stations.length; k++) {
+      const st = c.stations[k];
+      if (st.platformY === undefined) continue;
+      if (Math.abs(p.y - st.platformY) > 2.5) continue;
+      // 역 기준 좌표로 옮긴다 (a = 선로 방향, d = 가로 방향)
+      const a = st.faceX ? (p.x - st.x) : (p.z - st.z);
+      const d = st.faceX ? (p.z - st.z) : (p.x - st.x);
+      if (Math.abs(a) > (st.half || 34) + 1) continue;
+      const ad = Math.abs(d);
+      if (ad < ST_TRACK + 0.4 || ad > ST_EDGE + 1) continue;
+      return { station: st, side: d > 0 ? 1 : -1 };
+    }
+  }
+  return null;
+};
+
 Game.prototype.enterTrain = function (train) {
+  // 승강장에서, 열차가 서서 문이 열렸을 때만 탈 수 있다
+  if (!this.onPlatform()) {
+    this.ui.toast('승강장에서만 탈 수 있습니다 — 계단이나 에스컬레이터로 올라오세요');
+    return;
+  }
+  if (!train.doorsOpen()) {
+    this.ui.toast('열차가 역에 서서 문이 열렸을 때만 탈 수 있습니다');
+    return;
+  }
   if (!train.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
   const next = train.nextStation();
   this.ui.toast('열차 탑승 — ' + (next ? next.name + ' 방면' : '') + ' · 객실 안을 걸어 다닐 수 있습니다 (Shift 내리기)');
@@ -1152,7 +1187,7 @@ Game.prototype.exitTrain = function () {
   if (!t) return;
   // 승강장이 없는 자리에서는 내려 주지 않는다 (고가 밖으로 떨어진다)
   if (!t.unboard()) {
-    this.ui.toast('여기서는 내릴 수 없습니다 — 역에 서면 내리세요');
+    this.ui.toast('열차가 역에 서서 문이 열려야 내릴 수 있습니다');
     return;
   }
   this.ui.toast('열차에서 내렸습니다');
@@ -1716,7 +1751,11 @@ Game.prototype.updateUseHint = function () {
   }
   if (!label && em.pickTrain) {
     const h = em.pickTrain(eye[0], eye[1], eye[2], look[0], look[1], look[2], 8);
-    if (h) label = '열차 타기';
+    if (h) {
+      if (!this.onPlatform()) label = '승강장에서만 탈 수 있습니다';
+      else if (!h.train.doorsOpen()) label = '문이 열리기를 기다리세요';
+      else label = '열차 타기';
+    }
   }
   if (!label && em.pickCar) {
     let h = em.pickCar(eye[0], eye[1], eye[2], look[0], look[1], look[2], 7);
