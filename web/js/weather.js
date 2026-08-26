@@ -212,7 +212,9 @@ Weather.prototype.visuals = function (player, camY) {
     snow: snow,
     flash: this.flash,
     // 머리 위가 뚫려 있어야 입자가 보인다 (동굴·실내에서는 사라진다)
-    sky: this.world.getSky(Math.floor(player.x), Math.floor(player.y + 1.6), Math.floor(player.z))
+    sky: this.world.getSky(Math.floor(player.x), Math.floor(player.y + 1.6), Math.floor(player.z)),
+    // 유리 지붕·역사 안처럼 빛은 들어와도 비는 못 들어오는 곳
+    roofed: this.world.sheltered(player.x, player.y + 1.6, player.z)
   };
 };
 
@@ -235,6 +237,19 @@ World.prototype.isCold = function (x, z, h) {
 };
 
 // 그 기둥에서 가장 높은 "실체가 있는" 블록의 y (없으면 -1)
+// 머리 위에 지붕이 있나. 하늘빛만 보면 유리벽을 통해 빛이 새어 들어와
+// 역 안에서도 비가 내리는 것으로 나온다. 그래서 실제로 위를 훑어본다.
+const SHELTER_UP = 14;      // 이만큼 위까지 본다 (역 지붕은 머리 위 네 칸쯤)
+World.prototype.sheltered = function (x, y, z) {
+  const bx = Math.floor(x), bz = Math.floor(z);
+  const y0 = Math.floor(y) + 1;
+  const y1 = Math.min(CHUNK_Y - 1, y0 + SHELTER_UP);
+  for (let yy = y0; yy <= y1; yy++) {
+    if (this.getBlock(bx, yy, bz)) return true;
+  }
+  return false;
+};
+
 World.prototype.topSolidY = function (x, z) {
   const c = this.chunkAt(x, z);
   if (!c || !c.generated) return -1;

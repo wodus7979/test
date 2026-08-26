@@ -1352,3 +1352,89 @@ function droneRotorMesh() {
   if (!DRONE_ROTOR_MESH) DRONE_ROTOR_MESH = buildDroneRotorMesh();
   return DRONE_ROTOR_MESH;
 }
+
+// ── 객실 승객 ─────────────────────────────────────────────────────────
+// 앉은 사람과 선 사람 두 자세. 옷·머리 색만 바꿔 몇 사람 만들어 둔다.
+// 앉은 사람은 방석 윗면이 원점(y=0), 등이 z=0. 선 사람은 발밑이 원점.
+// 둘 다 제 앞이 +Z 다.
+const PP_KIT = [
+  { top: 'pp_top1', hair: 'pp_hair', skin: 'pp_skin', pants: 'pp_pants' },
+  { top: 'pp_top2', hair: 'pp_hair2', skin: 'pp_skin2', pants: 'pp_pants2' },
+  { top: 'pp_top3', hair: 'pp_hair3', skin: 'pp_skin', pants: 'pp_pants' },
+  { top: 'pp_top4', hair: 'pp_hair', skin: 'pp_skin2', pants: 'pp_pants2' }
+];
+
+function buildRiderMesh(seated, k) {
+  const m = new Mesh3D();
+  const T = k.top, H = k.hair, S = k.skin, P = k.pants;
+  if (seated) {
+    for (const sx of [-1, 1]) {
+      m.box(sx * 0.11, 0.09, 0.24, 0.20, 0.18, 0.50, P);        // 허벅지
+      m.box(sx * 0.11, -0.19, 0.47, 0.18, 0.56, 0.18, P);       // 정강이
+      m.box(sx * 0.11, -0.51, 0.53, 0.20, 0.10, 0.30, 'pp_shoe');
+      m.box(sx * 0.27, 0.42, 0.02, 0.14, 0.50, 0.16, T);        // 팔
+      m.box(sx * 0.27, 0.15, 0.16, 0.13, 0.13, 0.20, S);        // 손 — 무릎 위
+    }
+    m.box(0, 0.45, -0.02, 0.44, 0.66, 0.24, T);                 // 몸통
+    m.box(0, 0.83, -0.02, 0.24, 0.12, 0.20, S);                 // 목
+    m.box(0, 0.99, 0.01, 0.30, 0.28, 0.28, S);                  // 머리
+    m.box(0, 1.09, -0.01, 0.32, 0.14, 0.30, H);                 // 머리카락
+    return m.build();
+  }
+  for (const sx of [-1, 1]) {
+    m.box(sx * 0.11, 0.44, 0, 0.20, 0.88, 0.22, P);             // 다리
+    m.box(sx * 0.11, 0.05, 0.05, 0.22, 0.10, 0.30, 'pp_shoe');
+  }
+  m.box(0, 1.20, 0, 0.44, 0.64, 0.26, T);                       // 몸통
+  // 한 손은 손잡이를 잡고, 한 손은 내린다
+  m.box(0.27, 1.52, 0.02, 0.14, 0.76, 0.15, T);
+  m.box(0.27, 1.94, 0.02, 0.13, 0.12, 0.15, S);                 // 잡은 손
+  m.box(-0.27, 1.18, 0.03, 0.14, 0.58, 0.15, T);
+  m.box(-0.27, 0.85, 0.05, 0.13, 0.12, 0.16, S);
+  m.box(0, 1.58, 0, 0.24, 0.12, 0.20, S);                       // 목
+  m.box(0, 1.78, 0.01, 0.30, 0.28, 0.28, S);                    // 머리
+  m.box(0, 1.88, -0.01, 0.32, 0.14, 0.30, H);                   // 머리카락
+  return m.build();
+}
+
+const RIDER_MESH = {};
+function riderMesh(seated, v) {
+  const key = (seated ? 's' : 'u') + (v % PP_KIT.length);
+  if (!RIDER_MESH[key]) RIDER_MESH[key] = buildRiderMesh(seated, PP_KIT[v % PP_KIT.length]);
+  return RIDER_MESH[key];
+}
+
+// 량마다 누가 어디에 앉고 서 있나. 량 번호로 정해 두어 늘 같은 자리에 있다.
+const PP_SEAT_Z = [-3.2, -1.6, 0, 1.6, 3.2, 7.5, -7.5];
+const PP_SEAT_X = 1.38;      // 등이 닿는 자리
+const PP_SEAT_Y = -0.86;     // 방석 윗면
+const PP_STAND = [
+  [0.95, -5.2], [-0.95, -5.2], [0.95, 5.2], [-0.95, 5.2], [0.95, 1.7], [-0.95, -1.7]
+];
+const TRAIN_RIDERS = {};
+function trainRiders(ci) {
+  if (TRAIN_RIDERS[ci]) return TRAIN_RIDERS[ci];
+  const list = [];
+  // 량마다 다른 사람이 타도록 씨를 섞는다
+  let seed = (ci + 1) * 2654435761 >>> 0;
+  const next = function () {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < PP_SEAT_Z.length; i++) {
+      if (next() < 0.34) continue;                 // 빈자리도 있어야 자연스럽다
+      const yaw = -s * Math.PI / 2;                // 통로 쪽을 본다
+      list.push({ x: s * PP_SEAT_X, y: PP_SEAT_Y, z: PP_SEAT_Z[i],
+        c: Math.cos(yaw), s: Math.sin(yaw), seated: true, v: Math.floor(next() * 97) });
+    }
+  }
+  for (let i = 0; i < PP_STAND.length; i++) {
+    if (next() < 0.45) continue;
+    const yaw = (PP_STAND[i][0] > 0 ? -1 : 1) * Math.PI / 2 + (next() - 0.5) * 0.7;
+    list.push({ x: PP_STAND[i][0], y: TRAIN_FLOOR_TOP, z: PP_STAND[i][1],
+      c: Math.cos(yaw), s: Math.sin(yaw), seated: false, v: Math.floor(next() * 97) });
+  }
+  TRAIN_RIDERS[ci] = list;
+  return list;
+}

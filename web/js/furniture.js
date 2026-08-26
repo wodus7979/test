@@ -516,6 +516,32 @@ defFurnTex('tr_strap', function (p, rnd) {
     }
   }
 });
+// ── 객실 승객 ──
+defFurnTex('pp_skin', function (p, rnd) { p.noise(rnd, '#e8bb96', 3, 4); });
+defFurnTex('pp_skin2', function (p, rnd) { p.noise(rnd, '#a9764f', 3, 4); });
+defFurnTex('pp_hair', function (p, rnd) { p.noise(rnd, '#2b2119', 4, 3); });
+defFurnTex('pp_hair2', function (p, rnd) { p.noise(rnd, '#6b4a2c', 4, 3); });
+defFurnTex('pp_hair3', function (p, rnd) { p.noise(rnd, '#8d8d92', 4, 3); });
+defFurnTex('pp_top1', function (p, rnd) {
+  p.noise(rnd, '#3f6ea8', 4, 3);
+  p.rect(0, 11, 16, 1, '#31578a');
+});
+defFurnTex('pp_top2', function (p, rnd) {
+  p.noise(rnd, '#a24a44', 4, 3);
+  p.rect(7, 0, 2, 16, '#8c3a35');
+});
+defFurnTex('pp_top3', function (p, rnd) {
+  p.noise(rnd, '#3d7a52', 4, 3);
+  p.rect(0, 5, 16, 1, '#2f6041');
+});
+defFurnTex('pp_top4', function (p, rnd) {
+  p.noise(rnd, '#d8d2c6', 4, 4);
+  p.rect(0, 9, 16, 1, '#bdb6a8');
+});
+defFurnTex('pp_pants', function (p, rnd) { p.noise(rnd, '#3a4250', 4, 3); });
+defFurnTex('pp_pants2', function (p, rnd) { p.noise(rnd, '#5a4636', 4, 3); });
+defFurnTex('pp_shoe', function (p, rnd) { p.noise(rnd, '#23262b', 3, 3); });
+
 defFurnTex('tr_seatback', function (p, rnd) {
   p.noise(rnd, '#27508a', 6, 3);
   for (let x = 0; x < 16; x += 5) p.rect(x, 0, 1, 16, '#1f4373');

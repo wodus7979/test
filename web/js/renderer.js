@@ -1072,6 +1072,20 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
       // 객실 안 — 둥근 천장·긴의자·손잡이봉·조명. 가까이 왔을 때만 그린다.
       if (showInner) {
         this.emitMesh(trainInsideMesh(), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+        // 객실 안 사람들 — 긴의자에 앉거나 손잡이를 잡고 서 있다
+        const ppl = trainRiders(ci);
+        for (let q = 0; q < ppl.length; q++) {
+          const r = ppl[q];
+          const place = function (lx, ly, lz, out) {
+            const px = lx * r.c + lz * r.s, pz = -lx * r.s + lz * r.c;
+            rot(px + r.x, ly + r.y, pz + r.z, out);
+          };
+          const nrm = function (lx, ly, lz, out) {
+            rot(lx * r.c + lz * r.s, ly, -lx * r.s + lz * r.c, out);
+          };
+          this.emitMesh(riderMesh(r.seated, r.v), po.x, po.y, po.z, place, 1, light,
+            { nxf: nrm });
+        }
       }
 
       const parts = TRAIN_CAR_PARTS[ci];

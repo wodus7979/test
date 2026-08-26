@@ -1002,6 +1002,10 @@ button.tiny {
               한동안 따라온다</li>
           <li>구름을 넘어서면 하늘이 <b>새까만 우주</b>가 된다 — 별이 촘촘해지고
               지평선에만 파란 대기 띠가 남는다. 우주에서는 여객기가 보이지 않는다</li>
+          <li>우주에 다다르면 <b>지구·달·화성</b>이 뜬다 — 파란 바다와 초록 대륙에
+              흰 구름이 감긴 큰 지구, 검은 바다 자국이 있는 잿빛 달, 작고 붉은 화성이다.
+              해가 비치는 쪽만 밝아 <b>초승달처럼 그늘이 진다</b>.
+              <b>해</b>도 대기가 없어 번짐이 걷히고 또렷한 원반이 된다</li>
           <li>궤도에 들면 <b>자유 비행</b>이다 — 시선이 여객기처럼 기체 뒤로 옮겨 가고,
               <b>W</b> 가속 · <b>S</b> 감속 · <b>마우스</b>로 직접 몰 수 있다</li>
           <li>발사한 지 <b>1분</b>이 지나면 스스로 궤도를 벗어나 떠났던 <b>공항 활주로</b>에
@@ -1075,8 +1079,16 @@ button.tiny {
               가까운 빈 자리를 찾아 옮겨 준다. 탈것에서 내릴 때도 같은 판정을 거친다</li>
           <li>열차는 <b>역에 섰을 때만 내릴 수 있다</b>. 달리는 중에 내리려 하면
               막아 준다 (고가 밖으로 떨어지지 않게)</li>
-          <li>역 승강장으로는 <b>계단</b>과 <b>에스컬레이터</b>로 올라간다.
+          <li>역 승강장으로는 <b>계단</b>과 <b>에스컬레이터</b>로 올라간다 —
+              공항 역·도심 역 모두 <b>양쪽에 한 벌씩</b> 있고, 다 올라오면
+              유리벽에 낸 <b>출입구</b>로 그대로 승강장에 들어선다.
               에스컬레이터는 올라서 있기만 하면 알아서 실어 준다</li>
+          <li>역 안에서는 <b>비도 눈도 맞지 않는다</b> — 지붕이 있으면
+              하늘빛이 들어와도 날씨는 들이치지 않고, 빗소리도 잦아든다.
+              열차·자동차·드론 안도 마찬가지다</li>
+          <li>객실에는 <b>사람들이 타고 있다</b> — 긴의자에 앉은 사람과
+              <b>손잡이를 잡고 선 사람</b>이 섞여 있고, 옷과 머리 색이 저마다 다르다.
+              량마다 다른 사람이 타며 빈자리도 있다</li>
           <li>도시에서 <b>제일 높고 넓은 옥상 여섯 곳</b>에 <b>드론 승강장</b>이 있다 —
               검은 원반에 <b>노란 테</b>와 흰 <b>H</b>가 그려져 있고, 네 귀퉁이 유도등이
               바닥에 묻혀 밤에 빛난다. 옥상 난간은 한쪽을 터 두어 걸어 들어갈 수 있다</li>
@@ -3443,6 +3455,32 @@ defFurnTex('tr_strap', function (p, rnd) {
     }
   }
 });
+// ── 객실 승객 ──
+defFurnTex('pp_skin', function (p, rnd) { p.noise(rnd, '#e8bb96', 3, 4); });
+defFurnTex('pp_skin2', function (p, rnd) { p.noise(rnd, '#a9764f', 3, 4); });
+defFurnTex('pp_hair', function (p, rnd) { p.noise(rnd, '#2b2119', 4, 3); });
+defFurnTex('pp_hair2', function (p, rnd) { p.noise(rnd, '#6b4a2c', 4, 3); });
+defFurnTex('pp_hair3', function (p, rnd) { p.noise(rnd, '#8d8d92', 4, 3); });
+defFurnTex('pp_top1', function (p, rnd) {
+  p.noise(rnd, '#3f6ea8', 4, 3);
+  p.rect(0, 11, 16, 1, '#31578a');
+});
+defFurnTex('pp_top2', function (p, rnd) {
+  p.noise(rnd, '#a24a44', 4, 3);
+  p.rect(7, 0, 2, 16, '#8c3a35');
+});
+defFurnTex('pp_top3', function (p, rnd) {
+  p.noise(rnd, '#3d7a52', 4, 3);
+  p.rect(0, 5, 16, 1, '#2f6041');
+});
+defFurnTex('pp_top4', function (p, rnd) {
+  p.noise(rnd, '#d8d2c6', 4, 4);
+  p.rect(0, 9, 16, 1, '#bdb6a8');
+});
+defFurnTex('pp_pants', function (p, rnd) { p.noise(rnd, '#3a4250', 4, 3); });
+defFurnTex('pp_pants2', function (p, rnd) { p.noise(rnd, '#5a4636', 4, 3); });
+defFurnTex('pp_shoe', function (p, rnd) { p.noise(rnd, '#23262b', 3, 3); });
+
 defFurnTex('tr_seatback', function (p, rnd) {
   p.noise(rnd, '#27508a', 6, 3);
   for (let x = 0; x < 16; x += 5) p.rect(x, 0, 1, 16, '#1f4373');
@@ -6942,6 +6980,37 @@ const SKY_FS = [
   '  p *= 17.0;',
   '  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));',
   '}',
+  // 부드러운 3차원 잡음 — 천체 표면 무늬에 쓴다
+  'float vnoise(vec3 p) {',
+  '  vec3 i = floor(p), f = fract(p);',
+  '  f = f * f * (3.0 - 2.0 * f);',
+  '  float a = mix(hash13(i + vec3(0.0, 0.0, 0.0)), hash13(i + vec3(1.0, 0.0, 0.0)), f.x);',
+  '  float b = mix(hash13(i + vec3(0.0, 1.0, 0.0)), hash13(i + vec3(1.0, 1.0, 0.0)), f.x);',
+  '  float c = mix(hash13(i + vec3(0.0, 0.0, 1.0)), hash13(i + vec3(1.0, 0.0, 1.0)), f.x);',
+  '  float d = mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x);',
+  '  return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);',
+  '}',
+  // 우주에서 보이는 천체 하나. rgb 는 색, a 는 화면을 덮는 정도.
+  // ang = 각반지름, freq = 무늬 결의 촘촘함, night = 그림자 지는 정도.
+  'vec4 orb(vec3 dir, vec3 bd, float ang, vec3 c1, vec3 c2, float freq, float night) {',
+  '  float d = dot(dir, bd);',
+  '  float cr = cos(ang);',
+  '  if (d < cr) return vec4(0.0);',
+  '  vec3 up = abs(bd.y) > 0.9 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);',
+  '  vec3 tx = normalize(cross(up, bd));',
+  '  vec3 ty = cross(bd, tx);',
+  '  float sr = max(sin(ang), 0.0001);',
+  '  float u = dot(dir, tx) / sr, v = dot(dir, ty) / sr;',
+  '  float rr = clamp(u * u + v * v, 0.0, 1.0);',
+  '  vec3 n = normalize(tx * u + ty * v + bd * sqrt(max(0.0, 1.0 - rr)));',
+  '  float m = vnoise(n * freq) * 0.62 + vnoise(n * freq * 2.3) * 0.38;',
+  '  vec3 col = mix(c1, c2, smoothstep(0.40, 0.60, m));',
+  // 해가 비치는 쪽만 밝다 (초승달처럼 그늘이 진다)
+  '  float lam = clamp(dot(n, uSunDir) * 1.25 + 0.30, 0.0, 1.0);',
+  '  col *= mix(1.0, 0.10 + 0.90 * lam, night);',
+  '  float a = 1.0 - smoothstep(0.960, 1.0, rr);',
+  '  return vec4(col, a);',
+  '}',
   'void main() {',
   '  vec4 far = uInvVP * vec4(vPos, 1.0, 1.0);',
   '  vec3 dir = normalize(far.xyz / far.w - uCamPos);',
@@ -6972,6 +7041,21 @@ const SKY_FS = [
   '      float star = smoothstep(lo, 0.9995, h) * clamp(dir.y * 2.0 + uSpace * 1.6, 0.0, 1.0);',
   '      col += vec3(0.85, 0.9, 1.0) * star * starLit * (1.4 + uSpace * 0.8);',
   '    }',
+  // 우주에 다다르면 지구·달·화성이 뜬다
+  '    if (uSpace > 0.02) {',
+  '      vec4 e = orb(dir, normalize(vec3(-0.62, 0.20, 0.76)), 0.40,',
+  '                   vec3(0.06, 0.26, 0.60), vec3(0.18, 0.44, 0.20), 3.2, 1.0);',
+  '      vec4 cl = orb(dir, normalize(vec3(-0.62, 0.20, 0.76)), 0.40,',
+  '                   vec3(0.0), vec3(1.0, 1.0, 1.0), 6.5, 1.0);',
+  '      e.rgb = mix(e.rgb, cl.rgb, cl.a * 0.55);',
+  '      vec4 mo = orb(dir, normalize(vec3(0.74, 0.42, -0.53)), 0.085,',
+  '                    vec3(0.72, 0.72, 0.76), vec3(0.40, 0.40, 0.45), 5.0, 1.0);',
+  '      vec4 ma = orb(dir, normalize(vec3(0.30, 0.56, 0.77)), 0.042,',
+  '                    vec3(0.76, 0.36, 0.18), vec3(0.50, 0.22, 0.12), 6.0, 1.0);',
+  '      col = mix(col, e.rgb, e.a * uSpace);',
+  '      col = mix(col, mo.rgb, mo.a * uSpace);',
+  '      col = mix(col, ma.rgb, ma.a * uSpace);',
+  '    }',
   // 오로라 — 하늘 위쪽에서 물결치는 초록·보라 커튼
   '    if (uAurora > 0.01 && dir.y > 0.04) {',
   '      float u = atan(dir.z, dir.x);',
@@ -6990,9 +7074,11 @@ const SKY_FS = [
   '    }',
   // 해
   '    float sd = dot(dir, uSunDir);',
-  '    float disc = smoothstep(0.9990, 0.99955, sd);',
-  '    float glow = pow(max(sd, 0.0), 260.0) * 0.55 + pow(max(sd, 0.0), 9.0) * 0.09;',
-  '    col += uSunColor * (disc * 1.6 + glow);',
+  // 우주에서는 대기가 없어 번짐이 걷히고 원반이 또렷해진다
+  '    float disc = smoothstep(mix(0.9990, 0.99955, uSpace), mix(0.99955, 0.99975, uSpace), sd);',
+  '    float glow = (pow(max(sd, 0.0), 260.0) * 0.55 + pow(max(sd, 0.0), 9.0) * 0.09)',
+  '               * (1.0 - uSpace * 0.75);',
+  '    col += uSunColor * (disc * (1.6 + uSpace * 1.4) + glow);',
   // 달
   '    float md = dot(dir, -uSunDir);',
   '    float mdisc = smoothstep(0.9980, 0.9990, md);',
@@ -9403,7 +9489,9 @@ Weather.prototype.visuals = function (player, camY) {
     snow: snow,
     flash: this.flash,
     // 머리 위가 뚫려 있어야 입자가 보인다 (동굴·실내에서는 사라진다)
-    sky: this.world.getSky(Math.floor(player.x), Math.floor(player.y + 1.6), Math.floor(player.z))
+    sky: this.world.getSky(Math.floor(player.x), Math.floor(player.y + 1.6), Math.floor(player.z)),
+    // 유리 지붕·역사 안처럼 빛은 들어와도 비는 못 들어오는 곳
+    roofed: this.world.sheltered(player.x, player.y + 1.6, player.z)
   };
 };
 
@@ -9426,6 +9514,19 @@ World.prototype.isCold = function (x, z, h) {
 };
 
 // 그 기둥에서 가장 높은 "실체가 있는" 블록의 y (없으면 -1)
+// 머리 위에 지붕이 있나. 하늘빛만 보면 유리벽을 통해 빛이 새어 들어와
+// 역 안에서도 비가 내리는 것으로 나온다. 그래서 실제로 위를 훑어본다.
+const SHELTER_UP = 14;      // 이만큼 위까지 본다 (역 지붕은 머리 위 네 칸쯤)
+World.prototype.sheltered = function (x, y, z) {
+  const bx = Math.floor(x), bz = Math.floor(z);
+  const y0 = Math.floor(y) + 1;
+  const y1 = Math.min(CHUNK_Y - 1, y0 + SHELTER_UP);
+  for (let yy = y0; yy <= y1; yy++) {
+    if (this.getBlock(bx, yy, bz)) return true;
+  }
+  return false;
+};
+
 World.prototype.topSolidY = function (x, z) {
   const c = this.chunkAt(x, z);
   if (!c || !c.generated) return -1;
@@ -11366,7 +11467,11 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   // 물러나므로, 승강장 높이(ry-gy)만큼 길어진다.
   const rise = ry - gy;
   // u = 승강장을 따라가는 축, v = 승강장에서 바깥으로 나가는 축
-  const at = function (u, v, y, id, meta, run) {
+  // 부르는 쪽은 모두 (u, y, v) 차례로 넘긴다.
+  // 예전에는 (u, v, y) 로 받아서 계단 디딤판·난간·조명이 죄다 엉뚱한 자리
+  // (땅속) 로 들어갔고, 눈에 보이던 계단은 밑을 채운 기둥뿐이라
+  // 맨 윗단이 한 칸 모자랐다.
+  const at = function (u, y, v, id, meta, run) {
     const x = faceX ? cx + u : cx + v;
     const z = faceX ? cz + v : cz + u;
     set(x, y, z, id, meta, run);
@@ -11407,6 +11512,24 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
       if (k >= 0 && k % 2 === 0) {
         at(ESC_U + 1, top, v, bid('iron_block', 'light_gray_concrete'));
         at(ESC_U + 2, top, v, bid('iron_block', 'light_gray_concrete'));
+      }
+    }
+
+    // ── 유리벽에 출입구를 낸다 ──
+    // 계단을 다 올라오면 승강장 유리벽에 막힌다. 계단·에스컬레이터 폭만큼
+    // 벽을 터서 그대로 걸어 들어가게 한다.
+    for (const u0 of [STAIR_U, ESC_U]) {
+      for (let w = -1; w <= WIDE; w++) {
+        const u = u0 + w;
+        at(u, ry + 1, side * ST_WALL, st.plaza);          // 문턱
+        for (let y = ry + 2; y <= ry + 5; y++) at(u, y, side * ST_WALL, 0);
+        at(u, ry + 6, side * ST_WALL, st.trim);           // 문 위 인방
+        // 승강장 안쪽 한 줄도 걸리적거리지 않게 비운다
+        for (let y = ry + 2; y <= ry + 5; y++) at(u, y, side * (ST_WALL - 1), 0);
+      }
+      // 출입구 양옆 기둥
+      for (const w of [-2, WIDE + 1]) {
+        for (let y = ry + 2; y <= ry + 6; y++) at(u0 + w, y, side * ST_WALL, st.trim);
       }
     }
 
@@ -17555,6 +17678,20 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
       // 객실 안 — 둥근 천장·긴의자·손잡이봉·조명. 가까이 왔을 때만 그린다.
       if (showInner) {
         this.emitMesh(trainInsideMesh(), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+        // 객실 안 사람들 — 긴의자에 앉거나 손잡이를 잡고 서 있다
+        const ppl = trainRiders(ci);
+        for (let q = 0; q < ppl.length; q++) {
+          const r = ppl[q];
+          const place = function (lx, ly, lz, out) {
+            const px = lx * r.c + lz * r.s, pz = -lx * r.s + lz * r.c;
+            rot(px + r.x, ly + r.y, pz + r.z, out);
+          };
+          const nrm = function (lx, ly, lz, out) {
+            rot(lx * r.c + lz * r.s, ly, -lx * r.s + lz * r.c, out);
+          };
+          this.emitMesh(riderMesh(r.seated, r.v), po.x, po.y, po.z, place, 1, light,
+            { nxf: nrm });
+        }
       }
 
       const parts = TRAIN_CAR_PARTS[ci];
@@ -19474,6 +19611,92 @@ function droneRotorMesh() {
   return DRONE_ROTOR_MESH;
 }
 
+// ── 객실 승객 ─────────────────────────────────────────────────────────
+// 앉은 사람과 선 사람 두 자세. 옷·머리 색만 바꿔 몇 사람 만들어 둔다.
+// 앉은 사람은 방석 윗면이 원점(y=0), 등이 z=0. 선 사람은 발밑이 원점.
+// 둘 다 제 앞이 +Z 다.
+const PP_KIT = [
+  { top: 'pp_top1', hair: 'pp_hair', skin: 'pp_skin', pants: 'pp_pants' },
+  { top: 'pp_top2', hair: 'pp_hair2', skin: 'pp_skin2', pants: 'pp_pants2' },
+  { top: 'pp_top3', hair: 'pp_hair3', skin: 'pp_skin', pants: 'pp_pants' },
+  { top: 'pp_top4', hair: 'pp_hair', skin: 'pp_skin2', pants: 'pp_pants2' }
+];
+
+function buildRiderMesh(seated, k) {
+  const m = new Mesh3D();
+  const T = k.top, H = k.hair, S = k.skin, P = k.pants;
+  if (seated) {
+    for (const sx of [-1, 1]) {
+      m.box(sx * 0.11, 0.09, 0.24, 0.20, 0.18, 0.50, P);        // 허벅지
+      m.box(sx * 0.11, -0.19, 0.47, 0.18, 0.56, 0.18, P);       // 정강이
+      m.box(sx * 0.11, -0.51, 0.53, 0.20, 0.10, 0.30, 'pp_shoe');
+      m.box(sx * 0.27, 0.42, 0.02, 0.14, 0.50, 0.16, T);        // 팔
+      m.box(sx * 0.27, 0.15, 0.16, 0.13, 0.13, 0.20, S);        // 손 — 무릎 위
+    }
+    m.box(0, 0.45, -0.02, 0.44, 0.66, 0.24, T);                 // 몸통
+    m.box(0, 0.83, -0.02, 0.24, 0.12, 0.20, S);                 // 목
+    m.box(0, 0.99, 0.01, 0.30, 0.28, 0.28, S);                  // 머리
+    m.box(0, 1.09, -0.01, 0.32, 0.14, 0.30, H);                 // 머리카락
+    return m.build();
+  }
+  for (const sx of [-1, 1]) {
+    m.box(sx * 0.11, 0.44, 0, 0.20, 0.88, 0.22, P);             // 다리
+    m.box(sx * 0.11, 0.05, 0.05, 0.22, 0.10, 0.30, 'pp_shoe');
+  }
+  m.box(0, 1.20, 0, 0.44, 0.64, 0.26, T);                       // 몸통
+  // 한 손은 손잡이를 잡고, 한 손은 내린다
+  m.box(0.27, 1.52, 0.02, 0.14, 0.76, 0.15, T);
+  m.box(0.27, 1.94, 0.02, 0.13, 0.12, 0.15, S);                 // 잡은 손
+  m.box(-0.27, 1.18, 0.03, 0.14, 0.58, 0.15, T);
+  m.box(-0.27, 0.85, 0.05, 0.13, 0.12, 0.16, S);
+  m.box(0, 1.58, 0, 0.24, 0.12, 0.20, S);                       // 목
+  m.box(0, 1.78, 0.01, 0.30, 0.28, 0.28, S);                    // 머리
+  m.box(0, 1.88, -0.01, 0.32, 0.14, 0.30, H);                   // 머리카락
+  return m.build();
+}
+
+const RIDER_MESH = {};
+function riderMesh(seated, v) {
+  const key = (seated ? 's' : 'u') + (v % PP_KIT.length);
+  if (!RIDER_MESH[key]) RIDER_MESH[key] = buildRiderMesh(seated, PP_KIT[v % PP_KIT.length]);
+  return RIDER_MESH[key];
+}
+
+// 량마다 누가 어디에 앉고 서 있나. 량 번호로 정해 두어 늘 같은 자리에 있다.
+const PP_SEAT_Z = [-3.2, -1.6, 0, 1.6, 3.2, 7.5, -7.5];
+const PP_SEAT_X = 1.38;      // 등이 닿는 자리
+const PP_SEAT_Y = -0.86;     // 방석 윗면
+const PP_STAND = [
+  [0.95, -5.2], [-0.95, -5.2], [0.95, 5.2], [-0.95, 5.2], [0.95, 1.7], [-0.95, -1.7]
+];
+const TRAIN_RIDERS = {};
+function trainRiders(ci) {
+  if (TRAIN_RIDERS[ci]) return TRAIN_RIDERS[ci];
+  const list = [];
+  // 량마다 다른 사람이 타도록 씨를 섞는다
+  let seed = (ci + 1) * 2654435761 >>> 0;
+  const next = function () {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < PP_SEAT_Z.length; i++) {
+      if (next() < 0.34) continue;                 // 빈자리도 있어야 자연스럽다
+      const yaw = -s * Math.PI / 2;                // 통로 쪽을 본다
+      list.push({ x: s * PP_SEAT_X, y: PP_SEAT_Y, z: PP_SEAT_Z[i],
+        c: Math.cos(yaw), s: Math.sin(yaw), seated: true, v: Math.floor(next() * 97) });
+    }
+  }
+  for (let i = 0; i < PP_STAND.length; i++) {
+    if (next() < 0.45) continue;
+    const yaw = (PP_STAND[i][0] > 0 ? -1 : 1) * Math.PI / 2 + (next() - 0.5) * 0.7;
+    list.push({ x: PP_STAND[i][0], y: TRAIN_FLOOR_TOP, z: PP_STAND[i][1],
+      c: Math.cos(yaw), s: Math.sin(yaw), seated: false, v: Math.floor(next() * 97) });
+  }
+  TRAIN_RIDERS[ci] = list;
+  return list;
+}
+
 </script>
 <script>
 /* ==== js/particles.js ==== */
@@ -21190,7 +21413,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.8';
+const GAME_VERSION = 'v9.9';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -23582,7 +23805,10 @@ Game.prototype.update = function (dt) {
   this.weather.update(dt, p);
   // 구름 위에서는 빗소리도 들리지 않는다
   const wy = p.riding ? p.riding.y : p.y;
-  this.setRainSound(this.weather.strength * this.weather.skyFade(wy) *
+  // 지붕 아래(역사 안·객실 안)에서는 빗소리도 잦아든다
+  const shelter = (p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle ||
+    this.world.sheltered(p.x, p.y + 1.6, p.z)) ? 0.18 : 1;
+  this.setRainSound(this.weather.strength * this.weather.skyFade(wy) * shelter *
     (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
   this.world.updateFluids(dt);
   this.entities.update(dt, p, daylight);
@@ -23693,8 +23919,8 @@ Game.prototype.render = function (dt) {
 
   // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다.
   // 열차·자동차·조종석은 블록이 아니라 하늘이 뚫린 것으로 나오므로 따로 막는다.
-  const inside = !!(p.onTrain || p.inCar || p.riding);
-  const skyOpen = inside ? 0 : Math.max(0, Math.min(1, (wv.sky - 1) / 5));
+  const inside = !!(p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle || p.inDigger);
+  const skyOpen = (inside || wv.roofed) ? 0 : Math.max(0, Math.min(1, (wv.sky - 1) / 5));
   opts.weather = (wet > 0.02 && skyOpen > 0.01 && !p.headInWater) ? {
     count: RAIN_PARTICLES,
     snow: wv.snow,

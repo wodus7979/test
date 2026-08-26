@@ -1174,7 +1174,11 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   // 물러나므로, 승강장 높이(ry-gy)만큼 길어진다.
   const rise = ry - gy;
   // u = 승강장을 따라가는 축, v = 승강장에서 바깥으로 나가는 축
-  const at = function (u, v, y, id, meta, run) {
+  // 부르는 쪽은 모두 (u, y, v) 차례로 넘긴다.
+  // 예전에는 (u, v, y) 로 받아서 계단 디딤판·난간·조명이 죄다 엉뚱한 자리
+  // (땅속) 로 들어갔고, 눈에 보이던 계단은 밑을 채운 기둥뿐이라
+  // 맨 윗단이 한 칸 모자랐다.
+  const at = function (u, y, v, id, meta, run) {
     const x = faceX ? cx + u : cx + v;
     const z = faceX ? cz + v : cz + u;
     set(x, y, z, id, meta, run);
@@ -1215,6 +1219,24 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
       if (k >= 0 && k % 2 === 0) {
         at(ESC_U + 1, top, v, bid('iron_block', 'light_gray_concrete'));
         at(ESC_U + 2, top, v, bid('iron_block', 'light_gray_concrete'));
+      }
+    }
+
+    // ── 유리벽에 출입구를 낸다 ──
+    // 계단을 다 올라오면 승강장 유리벽에 막힌다. 계단·에스컬레이터 폭만큼
+    // 벽을 터서 그대로 걸어 들어가게 한다.
+    for (const u0 of [STAIR_U, ESC_U]) {
+      for (let w = -1; w <= WIDE; w++) {
+        const u = u0 + w;
+        at(u, ry + 1, side * ST_WALL, st.plaza);          // 문턱
+        for (let y = ry + 2; y <= ry + 5; y++) at(u, y, side * ST_WALL, 0);
+        at(u, ry + 6, side * ST_WALL, st.trim);           // 문 위 인방
+        // 승강장 안쪽 한 줄도 걸리적거리지 않게 비운다
+        for (let y = ry + 2; y <= ry + 5; y++) at(u, y, side * (ST_WALL - 1), 0);
+      }
+      // 출입구 양옆 기둥
+      for (const w of [-2, WIDE + 1]) {
+        for (let y = ry + 2; y <= ry + 6; y++) at(u0 + w, y, side * ST_WALL, st.trim);
       }
     }
 

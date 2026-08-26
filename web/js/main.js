@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.8';
+const GAME_VERSION = 'v9.9';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -2420,7 +2420,10 @@ Game.prototype.update = function (dt) {
   this.weather.update(dt, p);
   // 구름 위에서는 빗소리도 들리지 않는다
   const wy = p.riding ? p.riding.y : p.y;
-  this.setRainSound(this.weather.strength * this.weather.skyFade(wy) *
+  // 지붕 아래(역사 안·객실 안)에서는 빗소리도 잦아든다
+  const shelter = (p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle ||
+    this.world.sheltered(p.x, p.y + 1.6, p.z)) ? 0.18 : 1;
+  this.setRainSound(this.weather.strength * this.weather.skyFade(wy) * shelter *
     (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
   this.world.updateFluids(dt);
   this.entities.update(dt, p, daylight);
@@ -2531,8 +2534,8 @@ Game.prototype.render = function (dt) {
 
   // 비·눈 입자 — 머리 위가 막혀 있으면 보이지 않는다.
   // 열차·자동차·조종석은 블록이 아니라 하늘이 뚫린 것으로 나오므로 따로 막는다.
-  const inside = !!(p.onTrain || p.inCar || p.riding);
-  const skyOpen = inside ? 0 : Math.max(0, Math.min(1, (wv.sky - 1) / 5));
+  const inside = !!(p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle || p.inDigger);
+  const skyOpen = (inside || wv.roofed) ? 0 : Math.max(0, Math.min(1, (wv.sky - 1) / 5));
   opts.weather = (wet > 0.02 && skyOpen > 0.01 && !p.headInWater) ? {
     count: RAIN_PARTICLES,
     snow: wv.snow,
