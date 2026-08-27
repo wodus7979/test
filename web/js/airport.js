@@ -636,6 +636,25 @@ World.prototype.airport = function () {
   return a.length ? a[0] : null;
 };
 
+// ── 공항 부지 판정 ────────────────────────────────────────────────────
+// 울타리 안쪽은 짐승이 들어오면 안 되는 자리다.
+// pad 를 주면 그만큼 넓게 본다 (생성을 막을 때는 넉넉히 잡는다).
+World.prototype.airportAt = function (x, z, pad) {
+  const list = this.airports ? this.airports() : null;
+  if (!list || !list.length) return null;
+  const m = pad || 0;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    if (Math.abs(x - p.x) <= AP_X + m && Math.abs(z - p.z) <= AP_Z + m) return p;
+  }
+  return null;
+};
+
+// 터미널 건물 안인가 (여기 갇힌 짐승은 스스로 못 나온다)
+World.prototype.inTerminal = function (ap, x, z) {
+  return Math.abs(x - ap.x) <= TERM_X + 2 && Math.abs(z - ap.z) <= TERM_Z + 3;
+};
+
 World.prototype.nearestAirport = function (x, z) {
   const list = this.airports();
   let best = null, bd = Infinity;

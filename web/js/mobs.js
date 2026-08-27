@@ -3,6 +3,12 @@
 
 const MOB_GRAVITY = 26;
 
+// ── 공항에는 짐승이 들어오지 못한다 ──
+const AP_KEEP_OUT = 4;      // 울타리에서 안쪽으로 이만큼까지 쫓아낸다
+const AP_FLEE = 1.7;        // 나갈 때는 걸음이 빨라진다
+const AP_STUCK = 8;         // 이만큼 못 나가면 울타리 밖으로 옮겨 준다
+const AP_SEEN = 26;         // 이보다 가까이서 보고 있으면 걸어 나가게 둔다
+
 // 몸통 부위: [x, y, z, 폭, 높이, 깊이, 텍스처, 앞면텍스처]
 // 좌표는 발밑 중앙(0, 0, 0) 기준, 단위는 블록(1 = 16픽셀)
 const S = 1 / 16;
@@ -157,6 +163,42 @@ Entity.prototype.move = function (dx, dy, dz) {
   }
 };
 
+// 공항 울타리 안이면 밖으로 나가는 방향을 준다.
+// 울타리는 두 칸이라 짐승이 뛰어넘지 못하므로, 한참 못 나가거나 터미널 안에
+// 갇혔거나 아무도 안 보고 있으면 울타리 밖으로 옮겨 준다.
+Entity.prototype.escapeAirport = function (dt, player) {
+  const w = this.world;
+  if (!w.airportAt) return null;
+  const ap = w.airportAt(this.x, this.z, AP_KEEP_OUT);
+  if (!ap) { this.apStuck = 0; return null; }
+  this.apStuck = (this.apStuck || 0) + dt;
+
+  const dx = this.x - ap.x, dz = this.z - ap.z;
+  const sx = dx >= 0 ? 1 : -1, sz = dz >= 0 ? 1 : -1;
+  // 어느 울타리가 더 가까운가 (부지가 X 로 길어 대개 Z 쪽이 가깝다)
+  const outX = (AP_X + AP_KEEP_OUT) - Math.abs(dx);
+  const outZ = (AP_Z + AP_KEEP_OUT) - Math.abs(dz);
+  const useZ = outZ <= outX;
+
+  const watched = player &&
+    Math.hypot(this.x - player.x, this.z - player.z) < AP_SEEN;
+  if (w.inTerminal(ap, this.x, this.z) || this.apStuck > AP_STUCK || !watched) {
+    const tx = useZ ? this.x : ap.x + sx * (AP_X + 7);
+    const tz = useZ ? ap.z + sz * (AP_Z + 7) : this.z;
+    const ty = w.topSolidY(Math.floor(tx), Math.floor(tz));
+    if (ty > 0) {
+      this.x = Math.floor(tx) + 0.5;
+      this.z = Math.floor(tz) + 0.5;
+      this.y = ty;
+      this.vx = this.vy = this.vz = 0;
+    }
+    this.apStuck = 0;
+    return null;
+  }
+  // 제일 가까운 울타리 쪽으로 곧장 걸어 나간다
+  return useZ ? Math.atan2(0, sz) : Math.atan2(sx, 0);
+};
+
 Entity.prototype.update = function (dt, player, mgr) {
   if (this.dead) return;
   this.age += dt;
@@ -170,6 +212,9 @@ Entity.prototype.update = function (dt, player, mgr) {
 
   let wantMove = false;
   let speed = d.speed;
+  // 공항 울타리 안에 들어온 짐승은 밖으로 몰아낸다.
+  // 마을 주민·골렘·공항 직원(brain 이 있는 몹)은 제자리에 둔다.
+  const flee = d.brain ? null : this.escapeAirport(dt, player);
 
   if (d.brain && typeof MOB_BRAINS !== 'undefined' && MOB_BRAINS[d.brain]) {
     // 주민·골렘처럼 따로 두뇌가 있는 몹
@@ -204,6 +249,9 @@ Entity.prototype.update = function (dt, player, mgr) {
       wantMove = true; speed *= 1.6;
     }
   }
+
+  // 나가는 길이 정해졌으면 그쪽이 먼저다
+  if (flee !== null) { this.targetYaw = flee; wantMove = true; speed *= AP_FLEE; }
 
   // 부드러운 회전
   let diff = this.targetYaw - this.yaw;
@@ -373,6 +421,8 @@ EntityManager.prototype.trySpawn = function (player) {
     const z = Math.floor(player.z + Math.sin(ang) * dist);
     const c = w.chunkAt(x, z);
     if (!c || !c.generated || !c.decorated) continue;
+    // 공항 부지에는 짐승이 생기지 않는다 (울타리를 넘어 나가지 못한다)
+    if (w.airportAt && w.airportAt(x, z, 8)) continue;
 
     // 지표 찾기
     let y = -1;

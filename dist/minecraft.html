@@ -1110,6 +1110,11 @@ button.tiny {
               다시 <b>곧게 내려앉는다</b>. 항로 좌우에 걸치는 건물 꼭대기를 모두 훑어
               <b>그보다 높은 고도</b>로만 건너가므로 빌딩을 뚫고 지나가지 않는다</li>
           <li>공항 안은 의자·소파·카운터·진열장 같은 <b>진짜 가구</b>로 꾸며져 있다 (창작 모드 <b>가구</b> 탭)</li>
+          <li>공항 <b>울타리 안에는 짐승이 들어오지 않는다</b> — 부지에서는 아예
+              생기지 않고, 어쩌다 들어온 놈은 제일 가까운 울타리 쪽으로 걸어 나간다.
+              울타리는 두 칸이라 넘지 못하므로, 오래 못 나가거나 터미널 안에 갇혔거나
+              아무도 보고 있지 않으면 울타리 밖 땅으로 옮겨 준다.
+              <b>공항 직원과 마을 주민은 그대로</b> 둔다</li>
           <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다.
               하늘이 두 배로 높아져 <b>고도 150</b>까지 올라갈 수 있다</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
@@ -10225,6 +10230,25 @@ World.prototype.airport = function () {
   return a.length ? a[0] : null;
 };
 
+// ── 공항 부지 판정 ────────────────────────────────────────────────────
+// 울타리 안쪽은 짐승이 들어오면 안 되는 자리다.
+// pad 를 주면 그만큼 넓게 본다 (생성을 막을 때는 넉넉히 잡는다).
+World.prototype.airportAt = function (x, z, pad) {
+  const list = this.airports ? this.airports() : null;
+  if (!list || !list.length) return null;
+  const m = pad || 0;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    if (Math.abs(x - p.x) <= AP_X + m && Math.abs(z - p.z) <= AP_Z + m) return p;
+  }
+  return null;
+};
+
+// 터미널 건물 안인가 (여기 갇힌 짐승은 스스로 못 나온다)
+World.prototype.inTerminal = function (ap, x, z) {
+  return Math.abs(x - ap.x) <= TERM_X + 2 && Math.abs(z - ap.z) <= TERM_Z + 3;
+};
+
 World.prototype.nearestAirport = function (x, z) {
   const list = this.airports();
   let best = null, bd = Infinity;
@@ -12992,6 +13016,12 @@ Player.prototype.pick = function (maxDist) {
 
 const MOB_GRAVITY = 26;
 
+// ── 공항에는 짐승이 들어오지 못한다 ──
+const AP_KEEP_OUT = 4;      // 울타리에서 안쪽으로 이만큼까지 쫓아낸다
+const AP_FLEE = 1.7;        // 나갈 때는 걸음이 빨라진다
+const AP_STUCK = 8;         // 이만큼 못 나가면 울타리 밖으로 옮겨 준다
+const AP_SEEN = 26;         // 이보다 가까이서 보고 있으면 걸어 나가게 둔다
+
 // 몸통 부위: [x, y, z, 폭, 높이, 깊이, 텍스처, 앞면텍스처]
 // 좌표는 발밑 중앙(0, 0, 0) 기준, 단위는 블록(1 = 16픽셀)
 const S = 1 / 16;
@@ -13146,6 +13176,42 @@ Entity.prototype.move = function (dx, dy, dz) {
   }
 };
 
+// 공항 울타리 안이면 밖으로 나가는 방향을 준다.
+// 울타리는 두 칸이라 짐승이 뛰어넘지 못하므로, 한참 못 나가거나 터미널 안에
+// 갇혔거나 아무도 안 보고 있으면 울타리 밖으로 옮겨 준다.
+Entity.prototype.escapeAirport = function (dt, player) {
+  const w = this.world;
+  if (!w.airportAt) return null;
+  const ap = w.airportAt(this.x, this.z, AP_KEEP_OUT);
+  if (!ap) { this.apStuck = 0; return null; }
+  this.apStuck = (this.apStuck || 0) + dt;
+
+  const dx = this.x - ap.x, dz = this.z - ap.z;
+  const sx = dx >= 0 ? 1 : -1, sz = dz >= 0 ? 1 : -1;
+  // 어느 울타리가 더 가까운가 (부지가 X 로 길어 대개 Z 쪽이 가깝다)
+  const outX = (AP_X + AP_KEEP_OUT) - Math.abs(dx);
+  const outZ = (AP_Z + AP_KEEP_OUT) - Math.abs(dz);
+  const useZ = outZ <= outX;
+
+  const watched = player &&
+    Math.hypot(this.x - player.x, this.z - player.z) < AP_SEEN;
+  if (w.inTerminal(ap, this.x, this.z) || this.apStuck > AP_STUCK || !watched) {
+    const tx = useZ ? this.x : ap.x + sx * (AP_X + 7);
+    const tz = useZ ? ap.z + sz * (AP_Z + 7) : this.z;
+    const ty = w.topSolidY(Math.floor(tx), Math.floor(tz));
+    if (ty > 0) {
+      this.x = Math.floor(tx) + 0.5;
+      this.z = Math.floor(tz) + 0.5;
+      this.y = ty;
+      this.vx = this.vy = this.vz = 0;
+    }
+    this.apStuck = 0;
+    return null;
+  }
+  // 제일 가까운 울타리 쪽으로 곧장 걸어 나간다
+  return useZ ? Math.atan2(0, sz) : Math.atan2(sx, 0);
+};
+
 Entity.prototype.update = function (dt, player, mgr) {
   if (this.dead) return;
   this.age += dt;
@@ -13159,6 +13225,9 @@ Entity.prototype.update = function (dt, player, mgr) {
 
   let wantMove = false;
   let speed = d.speed;
+  // 공항 울타리 안에 들어온 짐승은 밖으로 몰아낸다.
+  // 마을 주민·골렘·공항 직원(brain 이 있는 몹)은 제자리에 둔다.
+  const flee = d.brain ? null : this.escapeAirport(dt, player);
 
   if (d.brain && typeof MOB_BRAINS !== 'undefined' && MOB_BRAINS[d.brain]) {
     // 주민·골렘처럼 따로 두뇌가 있는 몹
@@ -13193,6 +13262,9 @@ Entity.prototype.update = function (dt, player, mgr) {
       wantMove = true; speed *= 1.6;
     }
   }
+
+  // 나가는 길이 정해졌으면 그쪽이 먼저다
+  if (flee !== null) { this.targetYaw = flee; wantMove = true; speed *= AP_FLEE; }
 
   // 부드러운 회전
   let diff = this.targetYaw - this.yaw;
@@ -13362,6 +13434,8 @@ EntityManager.prototype.trySpawn = function (player) {
     const z = Math.floor(player.z + Math.sin(ang) * dist);
     const c = w.chunkAt(x, z);
     if (!c || !c.generated || !c.decorated) continue;
+    // 공항 부지에는 짐승이 생기지 않는다 (울타리를 넘어 나가지 못한다)
+    if (w.airportAt && w.airportAt(x, z, 8)) continue;
 
     // 지표 찾기
     let y = -1;
@@ -21413,7 +21487,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.9';
+const GAME_VERSION = 'v9.10';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
