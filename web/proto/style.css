@@ -1,0 +1,71 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #0e1013; color: #e8e6e1;
+  font-family: 'Pretendard', -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+}
+#stage { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+#stage:active { cursor: grabbing; }
+#gl { width: 100%; height: 100%; display: block; }
+
+/* 가르는 선 */
+#divider {
+  position: absolute; top: 0; bottom: 0; left: 50%;
+  width: 3px; margin-left: -1.5px;
+  background: rgba(255,255,255,.85);
+  box-shadow: 0 0 10px rgba(0,0,0,.6);
+  cursor: ew-resize; touch-action: none;
+}
+#divider::before, #divider::after {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-size: 11px; font-weight: 700; letter-spacing: .4px;
+  padding: 5px 9px; border-radius: 5px; white-space: nowrap;
+  background: rgba(10,12,15,.82); border: 1px solid rgba(255,255,255,.18);
+}
+#divider::before { content: '◀ 지금 방식'; right: 12px; }
+#divider::after  { content: '새 방식 ▶'; left: 12px; }
+#divider .grip {
+  position: absolute; top: 50%; left: -8px;
+  width: 19px; height: 46px; margin-top: -23px;
+  border-radius: 4px; background: rgba(255,255,255,.85);
+}
+
+/* 조작판 */
+#panel {
+  position: absolute; left: 14px; top: 14px;
+  width: 268px; padding: 13px 15px 14px;
+  border-radius: 10px;
+  background: rgba(12,14,18,.86);
+  border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(6px);
+  font-size: 12.5px; line-height: 1.55;
+}
+#panel h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: -.2px; }
+#panel .sub { margin: 0 0 11px; font-size: 11.5px; opacity: .6; }
+#panel h2 {
+  margin: 12px 0 6px; font-size: 11px; opacity: .55;
+  text-transform: uppercase; letter-spacing: .8px; font-weight: 700;
+}
+#panel label { display: flex; align-items: center; gap: 7px; padding: 2px 0; cursor: pointer; }
+#panel input[type=checkbox] { accent-color: #ffb35c; width: 14px; height: 14px; }
+#panel input[type=range] { width: 100%; accent-color: #ffb35c; margin: 2px 0 4px; }
+#panel .row { display: flex; justify-content: space-between; opacity: .78; }
+#panel .row b { font-weight: 600; opacity: 1; }
+#panel .hint { margin-top: 10px; font-size: 11px; opacity: .5; line-height: 1.5; }
+#panel .ok { color: #8fe0a0; }
+#panel .bad { color: #ff8f7a; }
+#note { margin-top: 8px; font-size: 11.5px; }
+#gpu { font-size: 11px; opacity: .8; }
+@media (max-width: 720px) {
+  #panel { width: calc(100% - 28px); font-size: 12px; }
+}
+
+#views { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 2px; }
+#views button {
+  flex: 1 1 auto; padding: 5px 8px;
+  font: inherit; font-size: 11.5px;
+  color: #e8e6e1; background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.16); border-radius: 5px;
+  cursor: pointer;
+}
+#views button:hover { background: rgba(255,179,92,.20); border-color: rgba(255,179,92,.5); }

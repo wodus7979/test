@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>WebCraft 화질 프로토타입 — 지금 방식 vs PBR</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="divider"><i class="grip"></i></div>
+</div>
+
+<div id="panel">
+  <h1>화질 프로토타입</h1>
+  <p class="sub">같은 복셀 장면 · 왼쪽은 지금 게임 방식, 오른쪽은 PBR</p>
+
+  <h2>오른쪽에 켜는 것</h2>
+  <label><input type="checkbox" id="shadow"> 그림자 (2048² 섀도우 맵, 3×3 PCF)</label>
+  <label><input type="checkbox" id="ssao"> SSAO (화면 공간 가림)</label>
+  <label><input type="checkbox" id="normal"> 노멀 맵 (표면 요철)</label>
+  <label><input type="checkbox" id="bloom"> 블룸</label>
+  <label><input type="checkbox" id="tone"> ACES 톤매핑 + 감마</label>
+
+  <h2>자리 (숫자키)</h2>
+  <div id="views"></div>
+
+  <h2>장면</h2>
+  <label><input type="checkbox" id="spin"> 저절로 돌기</label>
+  <div class="row"><span>시각</span><b id="hourv">15:12</b></div>
+  <input type="range" id="hour" min="5.5" max="18.5" step="0.05">
+  <div class="row"><span>노출</span></div>
+  <input type="range" id="exposure" min="0.4" max="2.4" step="0.02">
+
+  <h2>정보</h2>
+  <div class="row"><span>삼각형</span><b id="tris">–</b></div>
+  <div class="row"><span>재질</span><b id="mats">–</b></div>
+  <div class="row"><span>FPS</span><b id="fps">–</b></div>
+  <div class="row"><span>WebGPU</span></div>
+  <div id="gpu">확인 중…</div>
+  <div class="hint" id="build"></div>
+  <div class="hint">끌어서 시점 돌리기 · 휠로 확대 · 가운데 선을 끌어 비교</div>
+  <div id="note"></div>
+</div>
+
+<script src="js/gl.js"></script>
+<script src="js/mats.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/shaders.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
