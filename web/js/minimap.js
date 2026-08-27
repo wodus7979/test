@@ -181,6 +181,26 @@ Minimap.prototype.draw = function () {
     ctx.fillText(ct.name, m[0], m[1] - 7);
   }
 
+  // ── 레스토랑 ── 주황 마름모로 따로 찍는다 (찾기 쉽게)
+  for (let i = 0; i < cities.length; i++) {
+    const rs = cities[i].restaurant;
+    if (!rs) continue;
+    let m = toMap(rs.x, rs.z);
+    const dxm = m[0] - half, dzm = m[1] - half;
+    const dd = Math.hypot(dxm, dzm);
+    if (dd > half - 10) { const k = (half - 10) / dd; m = [half + dxm * k, half + dzm * k]; }
+    ctx.fillStyle = '#ff8a5c';
+    ctx.strokeStyle = 'rgba(0,0,0,.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(m[0], m[1] - 4.5);
+    ctx.lineTo(m[0] + 4.5, m[1]);
+    ctx.lineTo(m[0], m[1] + 4.5);
+    ctx.lineTo(m[0] - 4.5, m[1]);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
+
   // ── 버스 정거장 (버스를 몰 때만) ──
   const inBus = g.player.inCar && g.player.inCar.type.key === 'bus';
   if (inBus && w.cities) {
@@ -424,6 +444,10 @@ WorldMap.prototype.draw = function () {
       if (c.stations) c.stations.forEach(function (st) {
         marks.push({ x: st.x, z: st.z, kr: '', c: '#c8a2ff', r: 3, sq: true });
       });
+      if (c.restaurant) {
+        marks.push({ x: c.restaurant.x, z: c.restaurant.z,
+          kr: '레스토랑', c: '#ff8a5c', r: 5, sq: true });
+      }
     });
   }
   // 철로

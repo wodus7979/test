@@ -1360,6 +1360,86 @@ function cityHelipads(plan, st) {
 const RS_H = 6;              // 실내 높이
 const RS_MIN = 5;            // 이만큼 넓은 빌딩이라야 들어간다
 
+// 옥상 간판 — 네 면에 포크와 나이프를 그린 상자를 올린다.
+// 밤에는 빛나고, 꼭대기에 등을 달아 멀리서도 눈에 띈다.
+const RS_MARK = [
+  '.X.X.....X.',
+  '.X.X....XX.',
+  '.X.X....XX.',
+  '.XXX....XX.',
+  '..X.....XX.',
+  '..X......X.',
+  '..X......X.',
+  '..X......X.',
+  '..X......X.',
+  '..X......X.',
+  '...........'
+];
+
+function restaurantRoofSign(plan, r, st) {
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  const cx = r.cx, cz = r.cz, top = r.top;
+  const W = RS_MARK[0].length, H = RS_MARK.length;
+  const half = (W - 1) / 2;                       // 5
+  const lit = bid('sea_lantern');
+  const back = bid('red_concrete');
+  const frame = bid('black_concrete');
+
+  // 간판이 설 자리를 치운다 (항공 장애등·난간이 걸린다)
+  for (let dz = -half - 1; dz <= half + 1; dz++) {
+    for (let dx = -half - 1; dx <= half + 1; dx++) {
+      set(cx + dx, top + 1, cz + dz, 0, 0, H + 4);
+    }
+  }
+  // 받침대
+  for (let dz = -half - 1; dz <= half + 1; dz++) {
+    for (let dx = -half - 1; dx <= half + 1; dx++) {
+      set(cx + dx, top + 1, cz + dz, frame);
+    }
+  }
+  // 네 면에 무늬를 그린다. 면마다 바깥에서 봤을 때 바로 읽히게 방향을 맞춘다.
+  const y0 = top + 2;
+  for (let row = 0; row < H; row++) {
+    const line = RS_MARK[row];
+    const y = y0 + (H - 1 - row);
+    for (let col = 0; col < W; col++) {
+      const on = line[col] === 'X';
+      const id = on ? lit : back;
+      const a = col - half;
+      // -Z 면 (앞) — 왼쪽에서 오른쪽이 +X
+      set(cx + a, y, cz - half - 1, id);
+      // +Z 면 (뒤) — 뒤에서 보면 좌우가 뒤집힌다
+      set(cx - a, y, cz + half + 1, id);
+      // -X 면 (왼쪽)
+      set(cx - half - 1, y, cz - a, id);
+      // +X 면 (오른쪽)
+      set(cx + half + 1, y, cz + a, id);
+    }
+  }
+  // 모서리 기둥과 테두리
+  const yTop = y0 + H;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      set(cx + sx * (half + 1), top + 2, cz + sz * (half + 1), frame, 0, H);
+    }
+  }
+  for (let dz = -half - 1; dz <= half + 1; dz++) {
+    for (let dx = -half - 1; dx <= half + 1; dx++) {
+      const edge = Math.abs(dx) === half + 1 || Math.abs(dz) === half + 1;
+      set(cx + dx, yTop, cz + dz, edge ? frame : back);
+    }
+  }
+  // 꼭대기 등 — 밤에 멀리서도 보인다
+  set(cx, yTop + 1, cz, lit);
+  set(cx, yTop + 2, cz, bid('glowstone'));
+  for (const d of [[-half - 1, 0], [half + 1, 0], [0, -half - 1], [0, half + 1]]) {
+    set(cx + d[0], yTop + 1, cz + d[1], lit);
+  }
+}
+
 function cityRestaurant(plan, st) {
   const roofs = plan.roofs;
   if (!roofs || !roofs.length) return;
@@ -1368,10 +1448,17 @@ function cityRestaurant(plan, st) {
     plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
   };
   // 제일 넓은 빌딩을 고른다 (같으면 도심에 가까운 쪽)
+  // 옥상 승강장으로 이미 쓰는 빌딩은 피한다 (간판이 패드를 덮어쓴다)
+  const taken = {};
+  const pads = plan.helipads || [];
+  for (let i = 0; i < pads.length; i++) {
+    taken[(pads[i].x - plan.x) + ',' + (pads[i].z - plan.z)] = 1;
+  }
   let pick = null;
   for (let i = 0; i < roofs.length; i++) {
     const r = roofs[i];
     if (r.hw < RS_MIN || r.hd < RS_MIN) continue;
+    if (taken[r.cx + ',' + r.cz]) continue;
     const area = Math.min(r.hw, r.hd) * 1000 - Math.hypot(r.cx, r.cz);
     if (!pick || area > pick.area) pick = { r: r, area: area };
   }
@@ -1484,8 +1571,12 @@ function cityRestaurant(plan, st) {
     put++;
   }
 
+  // 7) 옥상 간판 — 멀리서도 어느 빌딩인지 알아보게
+  restaurantRoofSign(plan, r, st);
+
   plan.restaurant = {
     name: (plan.name || '') + ' 레스토랑',
+    roof: { x: plan.x + cx, y: gy + r.top + 1, z: plan.z + cz, top: r.top },
     x: plan.x + cx, y: gy + 1, z: plan.z + cz,
     hw: ix, hd: iz,
     // 문 앞(밖)과 문 안쪽 — 찍고 들어갈 때 쓴다
