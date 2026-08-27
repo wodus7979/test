@@ -840,3 +840,87 @@ button.tiny {
 }
 #countdown.hot .num { color: #ffb347; }
 #countdown.go .num { color: #ff6a2a; font-size: 92px; }
+
+/* ── 레스토랑 ─────────────────────────────────────────────────────── */
+/* 손님 머리 위 말풍선 — 월드 좌표를 화면으로 옮겨 띄운다 */
+.rest-bubble {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 7px 13px;
+  border-radius: 12px;
+  background: rgba(250, 248, 242, .95);
+  color: #23262b;
+  border: 2px solid rgba(140, 31, 36, .85);
+  font-size: 14px; font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .35);
+}
+.rest-bubble::after {
+  content: '';
+  position: absolute; left: 50%; bottom: -9px;
+  margin-left: -7px;
+  border: 7px solid transparent;
+  border-top-color: rgba(140, 31, 36, .85);
+}
+
+/* 요리 게임 판 */
+.cook-panel {
+  position: absolute; left: 50%; bottom: 116px;
+  transform: translateX(-50%);
+  width: min(440px, 84vw);
+  padding: 14px 18px 12px;
+  border-radius: 10px;
+  background: rgba(20, 22, 26, .90);
+  border: 2px solid rgba(200, 150, 60, .7);
+  color: #f2ede2;
+  text-align: center;
+  pointer-events: none;
+}
+.cook-panel h3 { margin: 0 0 4px; font-size: 17px; color: #f0c85a; }
+.cook-panel .step { margin: 0 0 10px; font-size: 13px; opacity: .92; }
+.cook-panel .hint { margin: 8px 0 0; font-size: 12px; opacity: .65; }
+.cook-panel .pips { margin: 4px 0 0; font-size: 16px; letter-spacing: 6px; color: #8fd6a0; }
+.cook-panel .bar {
+  position: relative;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .10);
+  border: 1px solid rgba(255, 255, 255, .22);
+  overflow: hidden;
+}
+.cook-panel .zone {
+  position: absolute; top: 0; bottom: 0;
+  transform: translateX(-50%);
+  background: rgba(110, 200, 120, .55);
+  border-left: 1px solid rgba(160, 240, 170, .8);
+  border-right: 1px solid rgba(160, 240, 170, .8);
+}
+.cook-panel .mark {
+  position: absolute; top: -2px; bottom: -2px;
+  width: 4px; margin-left: -2px;
+  background: #ffd24a;
+  box-shadow: 0 0 8px rgba(255, 210, 74, .9);
+}
+@media (max-width: 720px) {
+  .cook-panel { bottom: 190px; padding: 10px 12px 9px; }
+  .cook-panel h3 { font-size: 14px; }
+  .cook-panel .step { font-size: 11px; }
+}
+
+/* 들고 있는 음식 · 밀린 주문 */
+.rest-carry {
+  position: absolute; left: 50%; top: 52px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: rgba(28, 24, 18, .82);
+  border: 1px solid rgba(240, 200, 90, .55);
+  color: #f5e9cf;
+  font-size: 13px; font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+@media (max-width: 720px) {
+  .rest-carry { top: 120px; font-size: 11px; padding: 4px 10px; }
+}

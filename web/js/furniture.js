@@ -120,6 +120,60 @@ defFurnTex('f_belt', function (p, rnd) {
 });
 defFurnTex('f_rope', function (p, rnd) { p.noise(rnd, '#8a1f28', 6, 2); });
 
+// ── 레스토랑 ──
+defFurnTex('r_tile', function (p, rnd) {
+  p.noise(rnd, '#e9e4da', 3, 4);
+  for (let y = 0; y < 16; y += 8) for (let x = 0; x < 16; x += 8)
+    if (((x + y) / 8) % 2 === 0) p.rect(x, y, 8, 8, '#3a3f47');
+});
+defFurnTex('r_cloth', function (p, rnd) {
+  p.noise(rnd, '#f4f1ea', 3, 4);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#c9433c');
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#c9433c');
+});
+defFurnTex('r_steel', function (p, rnd) {
+  p.noise(rnd, '#b9c0c8', 4, 4);
+  p.rect(0, 7, 16, 1, '#9aa2ab');
+});
+defFurnTex('r_stovetop', function (p, rnd) {
+  p.noise(rnd, '#2a2d33', 4, 3);
+  p.rect(4, 4, 8, 8, '#8a3a1c');
+});
+defFurnTex('r_pot', function (p, rnd) {
+  p.noise(rnd, '#8e959d', 4, 4);
+  p.rect(0, 11, 16, 2, '#6d747c');
+});
+defFurnTex('r_brick', function (p, rnd) {
+  p.noise(rnd, '#9c5b45', 5, 4);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#7d4634');
+});
+defFurnTex('r_ovenfire', function (p, rnd) {
+  p.noise(rnd, '#e87a2a', 4, 6);
+  p.rect(2, 2, 12, 6, '#ffd24a');
+});
+defFurnTex('r_grill', function (p, rnd) {
+  p.noise(rnd, '#3a3d43', 4, 3);
+  p.rect(0, 6, 16, 3, '#b8431f');
+});
+defFurnTex('r_grillbar', function (p, rnd) {
+  p.fill('#22252a');
+  for (let x = 1; x < 16; x += 3) p.rect(x, 0, 1, 16, '#5a616a');
+});
+defFurnTex('r_sign', function (p, rnd) {
+  p.fill('#8c1f24');
+  p.rect(1, 1, 14, 14, '#b8272d');
+  p.rect(3, 5, 10, 2, '#f6e6c8');
+  p.rect(3, 9, 7, 2, '#f6e6c8');
+  p.rect(3, 3, 3, 1, '#f0c85a');
+});
+defFurnTex('r_menu', function (p, rnd) {
+  p.fill('#2b2f36');
+  p.rect(2, 2, 12, 12, '#f4efe2');
+  p.rect(4, 4, 8, 1, '#8c1f24');
+  p.rect(4, 7, 6, 1, '#3a3f47');
+  p.rect(4, 10, 7, 1, '#3a3f47');
+});
+
 // ── 가구 등록 헬퍼 ────────────────────────────────────────────────────
 function defFurn(name, kr, boxes, opts) {
   opts = opts || {};
@@ -364,6 +418,36 @@ defFurn('potted_fern', '작은 화분', [
   box(5.5, 6, 5.5, 10.5, 7, 10.5, 'f_soil'),
   box(3, 6, 3, 13, 13, 13, 'f_leaf')
 ], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.5 });
+
+// ── 레스토랑 주방 ─────────────────────────────────────────────────────
+defFurn('pasta_pot', '파스타 화구', [
+  box(0, 0, 0, 16, 9, 16, 'r_steel'),
+  box(1, 9, 1, 15, 10, 15, 'r_stovetop'),
+  box(4, 10, 4, 12, 15, 12, 'r_pot'),
+  box(3, 15, 3, 13, 16, 13, 'r_pot')
+], { tex: 'r_steel', tool: TOOL_PICKAXE, light: 4 });
+
+defFurn('pizza_oven', '피자 화덕', [
+  box(0, 0, 0, 16, 14, 16, 'r_brick'),
+  box(3, 5, 13, 13, 11, 16, 'r_ovenfire'),
+  box(2, 14, 2, 14, 16, 14, 'r_brick')
+], { tex: 'r_brick', tool: TOOL_PICKAXE, light: 9 });
+
+defFurn('steak_grill', '스테이크 그릴', [
+  box(0, 0, 0, 16, 8, 16, 'r_steel'),
+  box(1, 8, 1, 15, 10, 15, 'r_grill'),
+  box(2, 10, 2, 14, 11, 14, 'r_grillbar'),
+  box(13, 11, 2, 15, 16, 4, 'r_steel')
+], { tex: 'r_steel', tool: TOOL_PICKAXE, light: 5 });
+
+defFurn('restaurant_sign', '레스토랑 간판', [
+  box(0, 1, 13, 16, 15, 16, 'r_sign')
+], { tex: 'r_sign', light: 10, solid: false });
+
+defFurn('menu_board', '메뉴판', [
+  box(1, 2, 14, 15, 14, 16, 'r_menu')
+], { tex: 'r_menu', solid: false });
+
 
 // ── 전동차 표면 (train.js 가 쓰는 엔티티 텍스처) ──────────────────────
 // 코레일 전동차처럼 은백색 차체에 파랑·청록 띠를 두른다.

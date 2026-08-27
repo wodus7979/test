@@ -201,6 +201,8 @@ const VILLAGER_HOME_R = 26;   // 집에서 이만큼 벗어나지 않는다
 const VILLAGER_FLEE_R = 9;    // 몬스터가 이 안에 오면 도망
 
 MOB_BRAINS.villager = function (e, dt, player, mgr) {
+  // 레스토랑 손님은 자리에 앉아 있다 (restaurant.js 가 두뇌를 준다)
+  if (e.diner && MOB_BRAINS.diner) return MOB_BRAINS.diner(e, dt, player, mgr);
   const d = e.def;
   let speed = d.speed, move = false;
 

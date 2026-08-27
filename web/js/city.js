@@ -1354,6 +1354,148 @@ function cityHelipads(plan, st) {
   }
 }
 
+// ── 레스토랑 ──────────────────────────────────────────────────────────
+// 도시 빌딩 하나의 1층을 통째로 비워 식당으로 꾸민다.
+// 앞쪽은 식탁 다섯 개가 있는 홀, 카운터 너머는 주방이다.
+const RS_H = 6;              // 실내 높이
+const RS_MIN = 5;            // 이만큼 넓은 빌딩이라야 들어간다
+
+function cityRestaurant(plan, st) {
+  const roofs = plan.roofs;
+  if (!roofs || !roofs.length) return;
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  // 제일 넓은 빌딩을 고른다 (같으면 도심에 가까운 쪽)
+  let pick = null;
+  for (let i = 0; i < roofs.length; i++) {
+    const r = roofs[i];
+    if (r.hw < RS_MIN || r.hd < RS_MIN) continue;
+    const area = Math.min(r.hw, r.hd) * 1000 - Math.hypot(r.cx, r.cz);
+    if (!pick || area > pick.area) pick = { r: r, area: area };
+  }
+  if (!pick) return;
+  const r = pick.r, cx = r.cx, cz = r.cz;
+  const ix = r.hw - 1, iz = r.hd - 1;      // 실내 반폭·반깊이
+
+  // 1) 1층을 비우고 바닥·천장을 깐다
+  for (let dz = -iz; dz <= iz; dz++) {
+    for (let dx = -ix; dx <= ix; dx++) {
+      // 흑백 바둑판 바닥
+      set(cx + dx, 0, cz + dz,
+        (((dx + 64) + (dz + 64)) & 1) ? B.black_concrete : B.white_concrete);
+      set(cx + dx, 1, cz + dz, 0, 0, RS_H);
+      set(cx + dx, 1 + RS_H, cz + dz, st.trim);
+    }
+  }
+  // 벽 안쪽을 한 겹 발라 마감한다
+  for (let dz = -iz - 1; dz <= iz + 1; dz++) {
+    for (let dx = -ix - 1; dx <= ix + 1; dx++) {
+      if (Math.abs(dx) <= ix && Math.abs(dz) <= iz) continue;
+      for (let y = 1; y <= RS_H; y++) set(cx + dx, y, cz + dz, st.wall || st.trim);
+    }
+  }
+  // 천장 조명
+  for (let dz = -iz + 2; dz <= iz - 2; dz += 4) {
+    for (let dx = -ix + 2; dx <= ix - 2; dx += 4) {
+      set(cx + dx, RS_H, cz + dz, B.ceiling_panel);
+    }
+  }
+
+  // 2) 앞 유리와 출입문 — 앞은 -Z 쪽
+  const wz = -iz - 1;
+  for (let dx = -ix; dx <= ix; dx++) {
+    for (let y = 2; y <= 4; y++) set(cx + dx, y, cz + wz, B.glass_pane);
+  }
+  const doorX = ix - 1;                     // 구석에 낸다 (식탁을 막지 않게)
+  for (const dx of [doorX, doorX + 1]) {
+    for (let y = 1; y <= 3; y++) set(cx + dx, y, cz + wz, 0);
+  }
+  set(cx + doorX, 5, cz + wz, B.restaurant_sign, 2);
+  set(cx + doorX + 1, 5, cz + wz, B.restaurant_sign, 2);
+  // 안에서 보이는 메뉴판
+  set(cx - ix, 3, cz + 1, B.menu_board, 1);
+
+  // 3) 식탁 다섯 개 — 앞줄 셋, 뒷줄 둘
+  // 넓으면 앞줄 셋·뒷줄 둘, 좁으면 한 줄로 다섯.
+  // 좁은 쪽은 짝수 자리에만 놓아 출입구 칸(홀수)이 막히지 않게 한다.
+  const spots = (iz >= 5)
+    ? [{ x: -(ix - 1), z: -4 }, { x: 0, z: -4 }, { x: ix - 1, z: -4 },
+      { x: -(ix - 2), z: -1 }, { x: ix - 2, z: -1 }]
+    : [-4, -2, 0, 2, 4].map(function (v) {
+      return { x: Math.round(v * ix / 4), z: -(iz - 1) };
+    });
+  plan.restTables = [];
+  const used = {};                                       // 이미 무엇이 놓인 칸
+  const mark = function (dx, dz) { used[dx + ',' + dz] = 1; };
+  for (let i = 0; i < spots.length; i++) {
+    const t = spots[i];
+    set(cx + t.x, 1, cz + t.z, B.round_table);
+    mark(t.x, t.z);
+    // 의자 둘 — 식탁을 사이에 두고 마주 본다
+    set(cx + t.x, 1, cz + t.z - 1, B.walnut_chair, 0);   // +Z 를 본다
+    set(cx + t.x, 1, cz + t.z + 1, B.walnut_chair, 2);   // -Z 를 본다
+    mark(t.x, t.z - 1); mark(t.x, t.z + 1);
+    // 손님은 +Z 쪽 의자에 앉아 식탁을 바라본다.
+    // 좌판이 반 칸 높이라 그만큼 올려 앉히고, 등받이에 파묻히지 않게
+    // 식탁 쪽으로 조금 당겨 둔다.
+    plan.restTables.push({
+      x: plan.x + cx + t.x, y: gy + 1, z: plan.z + cz + t.z,
+      sx: plan.x + cx + t.x, sz: plan.z + cz + t.z + 1, sy: gy + 1.62,
+      soff: -0.18, yaw: Math.PI, no: i + 1
+    });
+  }
+
+  // 4) 카운터 — 홀과 주방을 가른다 (한쪽은 트여 있어 드나든다)
+  const passX = ix - 2;
+  for (let dx = -ix; dx <= ix; dx++) {
+    if (dx >= passX) continue;
+    set(cx + dx, 1, cz + 1, B.white_counter, 0);
+  }
+
+  // 5) 주방 — 화구·화덕·그릴
+  const kz = iz - 1;
+  const st3 = [[-3, 'pasta_pot'], [0, 'pizza_oven'], [3, 'steak_grill']];
+  plan.restStations = [];
+  for (let i = 0; i < st3.length; i++) {
+    const sx = Math.max(-ix, Math.min(ix, st3[i][0]));
+    set(cx + sx, 1, cz + kz, B[st3[i][1]], 2);        // -Z(홀) 를 본다
+    plan.restStations.push({
+      dish: ['pasta', 'pizza', 'steak'][i],
+      x: plan.x + cx + sx, y: gy + 1, z: plan.z + cz + kz
+    });
+  }
+  // 주방 벽 수납장과 선반
+  for (let dx = -ix; dx <= ix; dx += 2) {
+    if (Math.abs(dx - (-3)) < 2 || Math.abs(dx) < 2 || Math.abs(dx - 3) < 2) continue;
+    set(cx + dx, 1, cz + kz, B.white_cabinet, 2);
+  }
+  for (let dx = -ix + 1; dx <= ix - 1; dx += 3) set(cx + dx, 4, cz + iz, B.wall_shelf, 2);
+
+  // 6) 화분 — 빈 구석에만 놓는다 (의자를 덮어쓰면 앉을 자리가 사라진다)
+  const corners = [[-ix, -iz], [ix, -iz], [-ix, -iz + 1], [ix, -iz + 1]];
+  let put = 0;
+  for (let i = 0; i < corners.length && put < 2; i++) {
+    const c = corners[i];
+    if (used[c[0] + ',' + c[1]]) continue;
+    set(cx + c[0], 1, cz + c[1], B.potted_tree);
+    used[c[0] + ',' + c[1]] = 1;
+    put++;
+  }
+
+  plan.restaurant = {
+    name: (plan.name || '') + ' 레스토랑',
+    x: plan.x + cx, y: gy + 1, z: plan.z + cz,
+    hw: ix, hd: iz,
+    // 문 앞(밖)과 문 안쪽 — 찍고 들어갈 때 쓴다
+    out: { x: plan.x + cx + doorX + 0.5, y: gy + 1, z: plan.z + cz + wz - 2.5 },
+    in: { x: plan.x + cx + doorX + 0.5, y: gy + 1, z: plan.z + cz + wz + 1.5 },
+    tables: plan.restTables,
+    stations: plan.restStations
+  };
+}
+
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────
 function buildCityPlan(world, ap, index) {
   initCityStyles();
@@ -1617,6 +1759,7 @@ function buildCityPlan(world, ap, index) {
 
   citySignals(plan, st);
   cityHelipads(plan, st);
+  cityRestaurant(plan, st);
 
 
   // ── 공원과 밭 ──

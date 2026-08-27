@@ -851,6 +851,90 @@ button.tiny {
 #countdown.hot .num { color: #ffb347; }
 #countdown.go .num { color: #ff6a2a; font-size: 92px; }
 
+/* ── 레스토랑 ─────────────────────────────────────────────────────── */
+/* 손님 머리 위 말풍선 — 월드 좌표를 화면으로 옮겨 띄운다 */
+.rest-bubble {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 7px 13px;
+  border-radius: 12px;
+  background: rgba(250, 248, 242, .95);
+  color: #23262b;
+  border: 2px solid rgba(140, 31, 36, .85);
+  font-size: 14px; font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .35);
+}
+.rest-bubble::after {
+  content: '';
+  position: absolute; left: 50%; bottom: -9px;
+  margin-left: -7px;
+  border: 7px solid transparent;
+  border-top-color: rgba(140, 31, 36, .85);
+}
+
+/* 요리 게임 판 */
+.cook-panel {
+  position: absolute; left: 50%; bottom: 116px;
+  transform: translateX(-50%);
+  width: min(440px, 84vw);
+  padding: 14px 18px 12px;
+  border-radius: 10px;
+  background: rgba(20, 22, 26, .90);
+  border: 2px solid rgba(200, 150, 60, .7);
+  color: #f2ede2;
+  text-align: center;
+  pointer-events: none;
+}
+.cook-panel h3 { margin: 0 0 4px; font-size: 17px; color: #f0c85a; }
+.cook-panel .step { margin: 0 0 10px; font-size: 13px; opacity: .92; }
+.cook-panel .hint { margin: 8px 0 0; font-size: 12px; opacity: .65; }
+.cook-panel .pips { margin: 4px 0 0; font-size: 16px; letter-spacing: 6px; color: #8fd6a0; }
+.cook-panel .bar {
+  position: relative;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .10);
+  border: 1px solid rgba(255, 255, 255, .22);
+  overflow: hidden;
+}
+.cook-panel .zone {
+  position: absolute; top: 0; bottom: 0;
+  transform: translateX(-50%);
+  background: rgba(110, 200, 120, .55);
+  border-left: 1px solid rgba(160, 240, 170, .8);
+  border-right: 1px solid rgba(160, 240, 170, .8);
+}
+.cook-panel .mark {
+  position: absolute; top: -2px; bottom: -2px;
+  width: 4px; margin-left: -2px;
+  background: #ffd24a;
+  box-shadow: 0 0 8px rgba(255, 210, 74, .9);
+}
+@media (max-width: 720px) {
+  .cook-panel { bottom: 190px; padding: 10px 12px 9px; }
+  .cook-panel h3 { font-size: 14px; }
+  .cook-panel .step { font-size: 11px; }
+}
+
+/* 들고 있는 음식 · 밀린 주문 */
+.rest-carry {
+  position: absolute; left: 50%; top: 52px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: rgba(28, 24, 18, .82);
+  border: 1px solid rgba(240, 200, 90, .55);
+  color: #f5e9cf;
+  font-size: 13px; font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+@media (max-width: 720px) {
+  .rest-carry { top: 120px; font-size: 11px; padding: 4px 10px; }
+}
+
 </style>
 </head>
 <body>
@@ -1110,6 +1194,26 @@ button.tiny {
               다시 <b>곧게 내려앉는다</b>. 항로 좌우에 걸치는 건물 꼭대기를 모두 훑어
               <b>그보다 높은 고도</b>로만 건너가므로 빌딩을 뚫고 지나가지 않는다</li>
           <li>공항 안은 의자·소파·카운터·진열장 같은 <b>진짜 가구</b>로 꾸며져 있다 (창작 모드 <b>가구</b> 탭)</li>
+          <li>도시마다 <b>레스토랑</b>이 하나씩 있다 — 제일 넓은 빌딩 1층을 통째로
+              쓰며, 앞은 통유리에 붉은 <b>간판</b>이 걸려 있다. 간판 앞에서 <b>우클릭</b>하면
+              들어간다 (그냥 걸어 들어가도 된다)</li>
+          <li>안에는 <b>식탁 다섯 개</b>가 있고 주민 손님이 자리마다 앉아 있다.
+              손님에게 <b>우클릭</b>하면 <b>말풍선</b>으로
+              "<b>파스타</b> / <b>피자</b> / <b>스테이크</b> 먹고 싶어요" 하고 주문한다
+              (무엇을 시킬지는 손님마다 다르다)</li>
+          <li>주방에는 <b>파스타 화구·피자 화덕·스테이크 그릴</b>이 있다.
+              주문에 맞는 조리대에 <b>우클릭</b>하면 요리가 시작된다 —
+              막대가 오가는 동안 <b>Space</b> 로 초록 표적에 맞추면 된다
+              (ESC 로 그만두기)</li>
+          <li>요리마다 단계가 다르다 — <b>파스타</b>는 두 단계(면 삶기·소스 볶기),
+              <b>피자</b>는 세 단계(도우·토핑·화덕), <b>스테이크</b>는 세 단계에
+              표적이 제일 좁다. 표적 한가운데에 맞출수록 <b>보통 → 훌륭 → 완벽</b>이 되고,
+              두 번 빗나가면 태워서 처음부터 다시 해야 한다</li>
+          <li>완성한 음식을 들고 <b>주문한 손님</b>에게 <b>우클릭</b>하면 서빙된다 —
+              파스타 120원, 피자 150원, 스테이크 180원을 번다.
+              화면 위에 <b>들고 있는 음식과 갈 식탁</b>, 밀린 주문이 늘 떠 있다</li>
+          <li>손님은 다 먹으면 나가고 잠시 뒤 새 손님이 앉는다.
+              너무 오래 기다리게 하면 그냥 나가 버린다</li>
           <li>공항 <b>울타리 안에는 짐승이 들어오지 않는다</b> — 부지에서는 아예
               생기지 않고, 어쩌다 들어온 놈은 제일 가까운 울타리 쪽으로 걸어 나간다.
               울타리는 두 칸이라 넘지 못하므로, 오래 못 나가거나 터미널 안에 갇혔거나
@@ -3064,6 +3168,60 @@ defFurnTex('f_belt', function (p, rnd) {
 });
 defFurnTex('f_rope', function (p, rnd) { p.noise(rnd, '#8a1f28', 6, 2); });
 
+// ── 레스토랑 ──
+defFurnTex('r_tile', function (p, rnd) {
+  p.noise(rnd, '#e9e4da', 3, 4);
+  for (let y = 0; y < 16; y += 8) for (let x = 0; x < 16; x += 8)
+    if (((x + y) / 8) % 2 === 0) p.rect(x, y, 8, 8, '#3a3f47');
+});
+defFurnTex('r_cloth', function (p, rnd) {
+  p.noise(rnd, '#f4f1ea', 3, 4);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#c9433c');
+  for (let x = 0; x < 16; x += 4) p.rect(x, 0, 1, 16, '#c9433c');
+});
+defFurnTex('r_steel', function (p, rnd) {
+  p.noise(rnd, '#b9c0c8', 4, 4);
+  p.rect(0, 7, 16, 1, '#9aa2ab');
+});
+defFurnTex('r_stovetop', function (p, rnd) {
+  p.noise(rnd, '#2a2d33', 4, 3);
+  p.rect(4, 4, 8, 8, '#8a3a1c');
+});
+defFurnTex('r_pot', function (p, rnd) {
+  p.noise(rnd, '#8e959d', 4, 4);
+  p.rect(0, 11, 16, 2, '#6d747c');
+});
+defFurnTex('r_brick', function (p, rnd) {
+  p.noise(rnd, '#9c5b45', 5, 4);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#7d4634');
+});
+defFurnTex('r_ovenfire', function (p, rnd) {
+  p.noise(rnd, '#e87a2a', 4, 6);
+  p.rect(2, 2, 12, 6, '#ffd24a');
+});
+defFurnTex('r_grill', function (p, rnd) {
+  p.noise(rnd, '#3a3d43', 4, 3);
+  p.rect(0, 6, 16, 3, '#b8431f');
+});
+defFurnTex('r_grillbar', function (p, rnd) {
+  p.fill('#22252a');
+  for (let x = 1; x < 16; x += 3) p.rect(x, 0, 1, 16, '#5a616a');
+});
+defFurnTex('r_sign', function (p, rnd) {
+  p.fill('#8c1f24');
+  p.rect(1, 1, 14, 14, '#b8272d');
+  p.rect(3, 5, 10, 2, '#f6e6c8');
+  p.rect(3, 9, 7, 2, '#f6e6c8');
+  p.rect(3, 3, 3, 1, '#f0c85a');
+});
+defFurnTex('r_menu', function (p, rnd) {
+  p.fill('#2b2f36');
+  p.rect(2, 2, 12, 12, '#f4efe2');
+  p.rect(4, 4, 8, 1, '#8c1f24');
+  p.rect(4, 7, 6, 1, '#3a3f47');
+  p.rect(4, 10, 7, 1, '#3a3f47');
+});
+
 // ── 가구 등록 헬퍼 ────────────────────────────────────────────────────
 function defFurn(name, kr, boxes, opts) {
   opts = opts || {};
@@ -3308,6 +3466,36 @@ defFurn('potted_fern', '작은 화분', [
   box(5.5, 6, 5.5, 10.5, 7, 10.5, 'f_soil'),
   box(3, 6, 3, 13, 13, 13, 'f_leaf')
 ], { tex: 'f_leaf', facing: false, tool: TOOL_NONE, hardness: 0.5 });
+
+// ── 레스토랑 주방 ─────────────────────────────────────────────────────
+defFurn('pasta_pot', '파스타 화구', [
+  box(0, 0, 0, 16, 9, 16, 'r_steel'),
+  box(1, 9, 1, 15, 10, 15, 'r_stovetop'),
+  box(4, 10, 4, 12, 15, 12, 'r_pot'),
+  box(3, 15, 3, 13, 16, 13, 'r_pot')
+], { tex: 'r_steel', tool: TOOL_PICKAXE, light: 4 });
+
+defFurn('pizza_oven', '피자 화덕', [
+  box(0, 0, 0, 16, 14, 16, 'r_brick'),
+  box(3, 5, 13, 13, 11, 16, 'r_ovenfire'),
+  box(2, 14, 2, 14, 16, 14, 'r_brick')
+], { tex: 'r_brick', tool: TOOL_PICKAXE, light: 9 });
+
+defFurn('steak_grill', '스테이크 그릴', [
+  box(0, 0, 0, 16, 8, 16, 'r_steel'),
+  box(1, 8, 1, 15, 10, 15, 'r_grill'),
+  box(2, 10, 2, 14, 11, 14, 'r_grillbar'),
+  box(13, 11, 2, 15, 16, 4, 'r_steel')
+], { tex: 'r_steel', tool: TOOL_PICKAXE, light: 5 });
+
+defFurn('restaurant_sign', '레스토랑 간판', [
+  box(0, 1, 13, 16, 15, 16, 'r_sign')
+], { tex: 'r_sign', light: 10, solid: false });
+
+defFurn('menu_board', '메뉴판', [
+  box(1, 2, 14, 15, 14, 16, 'r_menu')
+], { tex: 'r_menu', solid: false });
+
 
 // ── 전동차 표면 (train.js 가 쓰는 엔티티 텍스처) ──────────────────────
 // 코레일 전동차처럼 은백색 차체에 파랑·청록 띠를 두른다.
@@ -11671,6 +11859,148 @@ function cityHelipads(plan, st) {
   }
 }
 
+// ── 레스토랑 ──────────────────────────────────────────────────────────
+// 도시 빌딩 하나의 1층을 통째로 비워 식당으로 꾸민다.
+// 앞쪽은 식탁 다섯 개가 있는 홀, 카운터 너머는 주방이다.
+const RS_H = 6;              // 실내 높이
+const RS_MIN = 5;            // 이만큼 넓은 빌딩이라야 들어간다
+
+function cityRestaurant(plan, st) {
+  const roofs = plan.roofs;
+  if (!roofs || !roofs.length) return;
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  // 제일 넓은 빌딩을 고른다 (같으면 도심에 가까운 쪽)
+  let pick = null;
+  for (let i = 0; i < roofs.length; i++) {
+    const r = roofs[i];
+    if (r.hw < RS_MIN || r.hd < RS_MIN) continue;
+    const area = Math.min(r.hw, r.hd) * 1000 - Math.hypot(r.cx, r.cz);
+    if (!pick || area > pick.area) pick = { r: r, area: area };
+  }
+  if (!pick) return;
+  const r = pick.r, cx = r.cx, cz = r.cz;
+  const ix = r.hw - 1, iz = r.hd - 1;      // 실내 반폭·반깊이
+
+  // 1) 1층을 비우고 바닥·천장을 깐다
+  for (let dz = -iz; dz <= iz; dz++) {
+    for (let dx = -ix; dx <= ix; dx++) {
+      // 흑백 바둑판 바닥
+      set(cx + dx, 0, cz + dz,
+        (((dx + 64) + (dz + 64)) & 1) ? B.black_concrete : B.white_concrete);
+      set(cx + dx, 1, cz + dz, 0, 0, RS_H);
+      set(cx + dx, 1 + RS_H, cz + dz, st.trim);
+    }
+  }
+  // 벽 안쪽을 한 겹 발라 마감한다
+  for (let dz = -iz - 1; dz <= iz + 1; dz++) {
+    for (let dx = -ix - 1; dx <= ix + 1; dx++) {
+      if (Math.abs(dx) <= ix && Math.abs(dz) <= iz) continue;
+      for (let y = 1; y <= RS_H; y++) set(cx + dx, y, cz + dz, st.wall || st.trim);
+    }
+  }
+  // 천장 조명
+  for (let dz = -iz + 2; dz <= iz - 2; dz += 4) {
+    for (let dx = -ix + 2; dx <= ix - 2; dx += 4) {
+      set(cx + dx, RS_H, cz + dz, B.ceiling_panel);
+    }
+  }
+
+  // 2) 앞 유리와 출입문 — 앞은 -Z 쪽
+  const wz = -iz - 1;
+  for (let dx = -ix; dx <= ix; dx++) {
+    for (let y = 2; y <= 4; y++) set(cx + dx, y, cz + wz, B.glass_pane);
+  }
+  const doorX = ix - 1;                     // 구석에 낸다 (식탁을 막지 않게)
+  for (const dx of [doorX, doorX + 1]) {
+    for (let y = 1; y <= 3; y++) set(cx + dx, y, cz + wz, 0);
+  }
+  set(cx + doorX, 5, cz + wz, B.restaurant_sign, 2);
+  set(cx + doorX + 1, 5, cz + wz, B.restaurant_sign, 2);
+  // 안에서 보이는 메뉴판
+  set(cx - ix, 3, cz + 1, B.menu_board, 1);
+
+  // 3) 식탁 다섯 개 — 앞줄 셋, 뒷줄 둘
+  // 넓으면 앞줄 셋·뒷줄 둘, 좁으면 한 줄로 다섯.
+  // 좁은 쪽은 짝수 자리에만 놓아 출입구 칸(홀수)이 막히지 않게 한다.
+  const spots = (iz >= 5)
+    ? [{ x: -(ix - 1), z: -4 }, { x: 0, z: -4 }, { x: ix - 1, z: -4 },
+      { x: -(ix - 2), z: -1 }, { x: ix - 2, z: -1 }]
+    : [-4, -2, 0, 2, 4].map(function (v) {
+      return { x: Math.round(v * ix / 4), z: -(iz - 1) };
+    });
+  plan.restTables = [];
+  const used = {};                                       // 이미 무엇이 놓인 칸
+  const mark = function (dx, dz) { used[dx + ',' + dz] = 1; };
+  for (let i = 0; i < spots.length; i++) {
+    const t = spots[i];
+    set(cx + t.x, 1, cz + t.z, B.round_table);
+    mark(t.x, t.z);
+    // 의자 둘 — 식탁을 사이에 두고 마주 본다
+    set(cx + t.x, 1, cz + t.z - 1, B.walnut_chair, 0);   // +Z 를 본다
+    set(cx + t.x, 1, cz + t.z + 1, B.walnut_chair, 2);   // -Z 를 본다
+    mark(t.x, t.z - 1); mark(t.x, t.z + 1);
+    // 손님은 +Z 쪽 의자에 앉아 식탁을 바라본다.
+    // 좌판이 반 칸 높이라 그만큼 올려 앉히고, 등받이에 파묻히지 않게
+    // 식탁 쪽으로 조금 당겨 둔다.
+    plan.restTables.push({
+      x: plan.x + cx + t.x, y: gy + 1, z: plan.z + cz + t.z,
+      sx: plan.x + cx + t.x, sz: plan.z + cz + t.z + 1, sy: gy + 1.62,
+      soff: -0.18, yaw: Math.PI, no: i + 1
+    });
+  }
+
+  // 4) 카운터 — 홀과 주방을 가른다 (한쪽은 트여 있어 드나든다)
+  const passX = ix - 2;
+  for (let dx = -ix; dx <= ix; dx++) {
+    if (dx >= passX) continue;
+    set(cx + dx, 1, cz + 1, B.white_counter, 0);
+  }
+
+  // 5) 주방 — 화구·화덕·그릴
+  const kz = iz - 1;
+  const st3 = [[-3, 'pasta_pot'], [0, 'pizza_oven'], [3, 'steak_grill']];
+  plan.restStations = [];
+  for (let i = 0; i < st3.length; i++) {
+    const sx = Math.max(-ix, Math.min(ix, st3[i][0]));
+    set(cx + sx, 1, cz + kz, B[st3[i][1]], 2);        // -Z(홀) 를 본다
+    plan.restStations.push({
+      dish: ['pasta', 'pizza', 'steak'][i],
+      x: plan.x + cx + sx, y: gy + 1, z: plan.z + cz + kz
+    });
+  }
+  // 주방 벽 수납장과 선반
+  for (let dx = -ix; dx <= ix; dx += 2) {
+    if (Math.abs(dx - (-3)) < 2 || Math.abs(dx) < 2 || Math.abs(dx - 3) < 2) continue;
+    set(cx + dx, 1, cz + kz, B.white_cabinet, 2);
+  }
+  for (let dx = -ix + 1; dx <= ix - 1; dx += 3) set(cx + dx, 4, cz + iz, B.wall_shelf, 2);
+
+  // 6) 화분 — 빈 구석에만 놓는다 (의자를 덮어쓰면 앉을 자리가 사라진다)
+  const corners = [[-ix, -iz], [ix, -iz], [-ix, -iz + 1], [ix, -iz + 1]];
+  let put = 0;
+  for (let i = 0; i < corners.length && put < 2; i++) {
+    const c = corners[i];
+    if (used[c[0] + ',' + c[1]]) continue;
+    set(cx + c[0], 1, cz + c[1], B.potted_tree);
+    used[c[0] + ',' + c[1]] = 1;
+    put++;
+  }
+
+  plan.restaurant = {
+    name: (plan.name || '') + ' 레스토랑',
+    x: plan.x + cx, y: gy + 1, z: plan.z + cz,
+    hw: ix, hd: iz,
+    // 문 앞(밖)과 문 안쪽 — 찍고 들어갈 때 쓴다
+    out: { x: plan.x + cx + doorX + 0.5, y: gy + 1, z: plan.z + cz + wz - 2.5 },
+    in: { x: plan.x + cx + doorX + 0.5, y: gy + 1, z: plan.z + cz + wz + 1.5 },
+    tables: plan.restTables,
+    stations: plan.restStations
+  };
+}
+
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────
 function buildCityPlan(world, ap, index) {
   initCityStyles();
@@ -11934,6 +12264,7 @@ function buildCityPlan(world, ap, index) {
 
   citySignals(plan, st);
   cityHelipads(plan, st);
+  cityRestaurant(plan, st);
 
 
   // ── 공원과 밭 ──
@@ -15684,6 +16015,8 @@ const VILLAGER_HOME_R = 26;   // 집에서 이만큼 벗어나지 않는다
 const VILLAGER_FLEE_R = 9;    // 몬스터가 이 안에 오면 도망
 
 MOB_BRAINS.villager = function (e, dt, player, mgr) {
+  // 레스토랑 손님은 자리에 앉아 있다 (restaurant.js 가 두뇌를 준다)
+  if (e.diner && MOB_BRAINS.diner) return MOB_BRAINS.diner(e, dt, player, mgr);
   const d = e.def;
   let speed = d.speed, move = false;
 
@@ -21487,7 +21820,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.10';
+const GAME_VERSION = 'v9.11';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -22037,6 +22370,17 @@ Game.prototype.bindInput = function () {
       e.preventDefault();
       return;
     }
+    // 요리 중에는 Space 가 "맞추기" 다
+    if (self.cook && e.code === 'Space') {
+      if (!e.repeat) self.cookHit();
+      e.preventDefault();
+      return;
+    }
+    if (self.cook && e.code === 'Escape') {
+      self.cancelCooking();
+      e.preventDefault();
+      return;
+    }
     const act = keyMap[e.code];
     if (act) {
       // 스페이스 두 번 = 비행 전환 (창작 모드)
@@ -22509,6 +22853,16 @@ Game.prototype.onUse = function () {
   if (this.nearestDigger) {
     const ex = this.nearestDigger();
     if (ex && !ex.driver) { this.enterDigger(ex); return; }
+  }
+
+  // 0-0) 레스토랑 — 손님 주문받기·서빙, 조리대, 출입문
+  if (this.nearestDiner) {
+    const guest = this.nearestDiner();
+    if (guest) { this.tapDiner(guest); return; }
+    const stn = this.nearestStation();
+    if (stn) { this.startCooking(stn); return; }
+    const door = this.restaurantDoor();
+    if (door) { this.enterRestaurant(door); return; }
   }
 
   // 0-1) 주민과 거래 — 블록보다 앞에 있을 때만
@@ -23203,7 +23557,7 @@ Game.prototype.updateUseHint = function () {
   const el = document.getElementById('use-hint');
   if (!el) return;
   const p = this.player;
-  if (this.ui.open || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger) {
+  if (this.ui.open || this.cook || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger) {
     if (el.style.display !== 'none') el.style.display = 'none';
     return;
   }
@@ -23230,6 +23584,24 @@ Game.prototype.updateUseHint = function () {
   if (!label && this.nearestDigger) {
     const ex = this.nearestDigger();
     if (ex && !ex.driver) label = '포크레인 타기';
+  }
+  if (!label && this.nearestDiner) {
+    const g = this.nearestDiner();
+    if (g) {
+      label = g.table.served ? (g.table.no + '번 식탁 — 식사 중')
+        : (this.carryDish && this.carryTable === g.table)
+          ? (g.table.no + '번 식탁에 ' + DISHES[this.carryDish].kr + ' 내주기')
+          : g.table.told ? (g.table.no + '번 식탁 주문 다시 듣기')
+            : (g.table.no + '번 식탁 주문 받기');
+    }
+    if (!label) {
+      const st = this.nearestStation();
+      if (st) label = DISHES[st.station.dish].station + ' 에서 요리하기';
+    }
+    if (!label) {
+      const d = this.restaurantDoor();
+      if (d) label = d.name + ' 들어가기';
+    }
   }
   if (!label && this.nearestDrone) {
     const dr = this.nearestDrone();
@@ -23899,6 +24271,7 @@ Game.prototype.update = function (dt) {
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
   if (this.updateDrones) this.updateDrones(dt);           // 드론 택시
+  if (this.updateRestaurants) this.updateRestaurants(dt); // 레스토랑
   if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
@@ -26690,6 +27063,491 @@ Game.prototype.droneCamera = function (dr, dt) {
   c.pitch = Math.atan2(dy, flat);
   c.roll = dr.roll * 0.3;
   return c;
+};
+
+</script>
+  <script>
+/* ==== js/restaurant.js ==== */
+// restaurant.js - 도시 빌딩 1층 레스토랑.
+// 손님(주민)이 식탁에 앉아 주문하고, 주방에서 요리해 가져다 준다.
+'use strict';
+
+// ── 차림표 ────────────────────────────────────────────────────────────
+const DISHES = {
+  pasta: {
+    kr: '파스타', price: 120, station: '파스타 화구',
+    // 단계마다 [이름, 막대가 오가는 빠르기, 표적 반폭(0~1)]
+    steps: [['면 삶기 — 알덴테에 맞춰 건지기', 0.85, 0.13],
+      ['소스 볶기 — 눌어붙기 직전에 불 끄기', 1.10, 0.11]]
+  },
+  pizza: {
+    kr: '피자', price: 150, station: '피자 화덕',
+    steps: [['도우 펴기 — 고르게', 0.75, 0.14],
+      ['토핑 올리기 — 가운데 맞추기', 1.05, 0.11],
+      ['화덕에 굽기 — 가장자리가 탈 때 꺼내기', 1.35, 0.09]]
+  },
+  steak: {
+    kr: '스테이크', price: 180, station: '스테이크 그릴',
+    steps: [['앞면 굽기 — 겉만 바싹', 1.15, 0.11],
+      ['뒤집기 — 육즙이 오를 때', 1.45, 0.085],
+      ['레스팅 — 썰기 좋게 재우기', 0.90, 0.13]]
+  }
+};
+const DISH_KEYS = ['pasta', 'pizza', 'steak'];
+
+const RS_REACH = 4.5;        // 이 안에서 손님·화구를 잡는다
+const RS_ENTER_R = 7;        // 문에서 이 안이면 들어갈 수 있다
+const RS_SEATS = 5;          // 식탁 수
+const RS_GUEST_MIN = 2;      // 한 번에 앉아 있는 손님 수
+const RS_GUEST_MAX = 5;
+const RS_EAT = 12;           // 음식을 받고 이만큼 먹다가 나간다
+const RS_REFILL = 8;         // 자리가 비고 이만큼 뒤 새 손님
+const RS_PATIENCE = 240;     // 이만큼 기다리면 그냥 나간다
+
+// ── 손님 두뇌 ── 자리에 앉아 움직이지 않는다
+MOB_BRAINS.diner = function (e, dt, player, mgr) {
+  e.targetYaw = e.sitYaw || 0;
+  return { move: false, speed: 0 };
+};
+
+// ── 가게 하나 ─────────────────────────────────────────────────────────
+function Restaurant(world, city, def) {
+  this.world = world;
+  this.city = city;
+  this.def = def;
+  this.name = def.name;
+  this.tables = def.tables.map(function (t) {
+    return { no: t.no, x: t.x + 0.5, y: t.y, z: t.z + 0.5,
+      sx: t.sx + 0.5, sz: t.sz + 0.5 + (t.soff || 0),
+      sy: (t.sy !== undefined ? t.sy : t.y), yaw: t.yaw,
+      guest: null, dish: null, told: false, served: false, t: 0, wait: 0 };
+  });
+  this.stations = def.stations;
+  this.spawned = false;
+}
+
+Restaurant.prototype.inside = function (x, z) {
+  return Math.abs(x - this.def.x) <= this.def.hw + 1 &&
+    Math.abs(z - this.def.z) <= this.def.hd + 1;
+};
+
+// 자리 하나에 손님을 앉힌다
+Restaurant.prototype.seat = function (table, game) {
+  const key = Object.keys(MOB_TYPES).filter(function (k) {
+    return MOB_TYPES[k].brain === 'villager';
+  });
+  if (!key.length) return false;
+  const type = key[(Math.random() * key.length) | 0];
+  const e = game.entities.spawnMob(type, table.sx, table.sy, table.sz);
+  if (!e) return false;
+  e.diner = true;                       // 두뇌를 손님 것으로 바꾼다
+  e.sitYaw = table.yaw;
+  e.yaw = e.targetYaw = table.yaw;
+  e.restTable = table;
+  table.guest = e;
+  table.dish = DISH_KEYS[(Math.random() * DISH_KEYS.length) | 0];
+  table.told = false;
+  table.served = false;
+  table.t = 0;
+  table.wait = 0;
+  return true;
+};
+
+Restaurant.prototype.clear = function (table) {
+  if (table.guest) { table.guest.dead = true; table.guest.despawned = true; }
+  table.guest = null;
+  table.dish = null;
+  table.told = false;
+  table.served = false;
+  table.t = 0;
+  table.wait = 0;
+};
+
+Restaurant.prototype.update = function (dt, game) {
+  const p = game.player;
+  const near = this.inside(p.x, p.z) ||
+    Math.hypot(p.x - this.def.x, p.z - this.def.z) < 48;
+  if (!near) {
+    // 손님이 남아 있으면 정리한다 (멀리서 계속 굴릴 이유가 없다)
+    if (this.spawned) {
+      for (let i = 0; i < this.tables.length; i++) this.clear(this.tables[i]);
+      this.spawned = false;
+    }
+    return;
+  }
+  if (!this.spawned) {
+    this.spawned = true;
+    const n = RS_GUEST_MIN + ((Math.random() * (RS_GUEST_MAX - RS_GUEST_MIN + 1)) | 0);
+    const order = this.tables.slice().sort(function () { return Math.random() - 0.5; });
+    for (let i = 0; i < n && i < order.length; i++) this.seat(order[i], game);
+    return;
+  }
+  for (let i = 0; i < this.tables.length; i++) {
+    const t = this.tables[i];
+    if (!t.guest) {
+      t.wait += dt;
+      if (t.wait > RS_REFILL) this.seat(t, game);
+      continue;
+    }
+    if (t.guest.dead) { this.clear(t); continue; }
+    // 자리에 붙잡아 둔다 (밀려나거나 의자 밑으로 가라앉지 않게)
+    t.guest.x = t.sx; t.guest.z = t.sz; t.guest.y = t.sy;
+    t.guest.vx = t.guest.vy = t.guest.vz = 0;
+    t.guest.onGround = true;
+    t.t += dt;
+    if (t.served) {
+      if (t.t > RS_EAT) this.clear(t);
+    } else if (t.t > RS_PATIENCE) {
+      if (game.ui) game.ui.toast(t.no + '번 식탁 손님이 그냥 나갔습니다');
+      this.clear(t);
+    }
+  }
+};
+
+// ── 게임 쪽 연결 ──────────────────────────────────────────────────────
+Game.prototype.ensureRestaurants = function () {
+  const w = this.world;
+  if (!w.cities) return null;
+  if (!this.restaurants) this.restaurants = [];
+  if (!this._restCities) this._restCities = new Set();
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (this._restCities.has(c.code)) continue;
+    if (!c.restaurant) continue;
+    this._restCities.add(c.code);
+    this.restaurants.push(new Restaurant(w, c, c.restaurant));
+  }
+  return this.restaurants;
+};
+
+Game.prototype.updateRestaurants = function (dt) {
+  const list = this.ensureRestaurants();
+  if (!list) return;
+  for (let i = 0; i < list.length; i++) list[i].update(dt, this);
+  if (this.cook) this.cookTick(dt);
+  this.drawOrderBubble();
+  this.drawCarryChip();
+};
+
+// 들고 있는 음식과 갈 곳을 늘 보여 준다 (어디 갖다 줄지 잊지 않게)
+Game.prototype.drawCarryChip = function () {
+  let el = this._carryEl;
+  if (!el) {
+    el = this._carryEl = document.createElement('div');
+    el.className = 'rest-carry';
+    el.style.display = 'none';
+    (this.ui && this.ui.el.root ? this.ui.el.root : document.body).appendChild(el);
+  }
+  // 주문만 받아 둔 것도 알려 준다
+  let text = null;
+  if (this.carryDish && this.carryTable) {
+    text = '들고 있음 · ' + DISHES[this.carryDish].kr +
+      ' (' + this.cookGrade + ') → ' + this.carryTable.no + '번 식탁';
+  } else {
+    const r = this.restaurantHere();
+    if (r) {
+      const wait = r.tables.filter(function (t) {
+        return t.guest && !t.guest.dead && t.told && !t.served;
+      });
+      if (wait.length) {
+        text = '주문 ' + wait.map(function (t) {
+          return t.no + '번 ' + DISHES[t.dish].kr;
+        }).join(' · ');
+      }
+    }
+  }
+  if (!text) { el.style.display = 'none'; return; }
+  el.textContent = text;
+  el.style.display = 'block';
+};
+
+// 지금 서 있는 가게 (없으면 null)
+Game.prototype.restaurantHere = function () {
+  const list = this.ensureRestaurants();
+  if (!list) return null;
+  const p = this.player;
+  for (let i = 0; i < list.length; i++) if (list[i].inside(p.x, p.z)) return list[i];
+  return null;
+};
+
+// 문 앞에 서 있나 (찍고 들어갈 수 있는 상태)
+Game.prototype.restaurantDoor = function () {
+  const list = this.ensureRestaurants();
+  if (!list) return null;
+  const p = this.player;
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i];
+    if (r.inside(p.x, p.z)) continue;
+    const o = r.def.out;
+    if (Math.hypot(p.x - o.x, p.z - o.z) < RS_ENTER_R &&
+        Math.abs(p.y - o.y) < 5) return r;
+  }
+  return null;
+};
+
+Game.prototype.enterRestaurant = function (r) {
+  const p = this.player;
+  const s = r.def.in;
+  p.x = s.x; p.y = s.y; p.z = s.z;
+  p.vx = p.vy = p.vz = 0;
+  p.fallStart = p.y;
+  if (p.unstick) p.unstick();
+  this.ui.toast(r.name + ' — 어서 오세요. 손님에게 우클릭해 주문을 받으세요');
+  this.playSound('place');
+};
+
+// 겨눈 손님 (앉아 있는 주민)
+Game.prototype.nearestDiner = function () {
+  const r = this.restaurantHere();
+  if (!r) return null;
+  const p = this.player;
+  const e = p.eyePos(), d = p.lookDir();
+  let best = null, bd = RS_REACH;
+  for (let i = 0; i < r.tables.length; i++) {
+    const t = r.tables[i];
+    if (!t.guest || t.guest.dead) continue;
+    const dx = t.sx - e[0], dy = (t.sy + 1.0) - e[1], dz = t.sz - e[2];
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist > bd) continue;
+    // 대충 그쪽을 보고 있어야 한다
+    const dot = (dx * d[0] + dy * d[1] + dz * d[2]) / (dist || 1);
+    if (dot < 0.55) continue;
+    bd = dist; best = { rest: r, table: t };
+  }
+  return best;
+};
+
+// 겨눈 조리대
+Game.prototype.nearestStation = function () {
+  const r = this.restaurantHere();
+  if (!r) return null;
+  const p = this.player;
+  const e = p.eyePos(), d = p.lookDir();
+  let best = null, bd = RS_REACH;
+  for (let i = 0; i < r.stations.length; i++) {
+    const s = r.stations[i];
+    const dx = s.x + 0.5 - e[0], dy = s.y + 0.5 - e[1], dz = s.z + 0.5 - e[2];
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist > bd) continue;
+    const dot = (dx * d[0] + dy * d[1] + dz * d[2]) / (dist || 1);
+    if (dot < 0.5) continue;
+    bd = dist; best = { rest: r, station: s };
+  }
+  return best;
+};
+
+// 손님을 찍었을 때 — 주문 받기 · 음식 내주기
+Game.prototype.tapDiner = function (hitDiner) {
+  const t = hitDiner.table;
+  if (t.served) { this.ui.toast(t.no + '번 식탁 — 맛있게 드시는 중입니다'); return; }
+  // 들고 있는 음식이 이 손님 것이면 내준다
+  if (this.carryDish && this.carryTable === t) {
+    t.served = true;
+    t.t = 0;
+    this.carryDish = null;
+    this.carryTable = null;
+    const price = DISHES[t.dish].price;
+    this.money = (this.money || 0) + price;
+    this.bubble(t, '잘 먹겠습니다! 고마워요');
+    this.ui.toast(t.no + '번 식탁 ' + DISHES[t.dish].kr + ' 서빙 완료 — ' +
+      price + '원 (모은 돈 ' + this.money + '원)');
+    this.playSound('eat');
+    return;
+  }
+  if (this.carryDish) {
+    this.ui.toast('이 음식은 ' + (this.carryTable ? this.carryTable.no + '번' : '다른') +
+      ' 식탁 것입니다');
+    return;
+  }
+  const kr = DISHES[t.dish].kr;
+  if (!t.told) {
+    t.told = true;
+    this.bubble(t, kr + ' 먹고 싶어요');
+    this.ui.toast('주문 접수 — ' + t.no + '번 식탁 ' + kr +
+      ' · 주방 ' + DISHES[t.dish].station + '에서 요리하세요');
+    this.playSound('place');
+  } else {
+    this.bubble(t, kr + ' 아직인가요?');
+  }
+  this.orderTable = t;
+};
+
+// ── 말풍선 ────────────────────────────────────────────────────────────
+Game.prototype.bubble = function (table, text) {
+  this._bubble = { table: table, text: text, t: 0 };
+};
+
+Game.prototype.drawOrderBubble = function () {
+  let el = this._bubbleEl;
+  if (!el) {
+    el = this._bubbleEl = document.createElement('div');
+    el.className = 'rest-bubble';
+    el.style.display = 'none';
+    (this.ui && this.ui.el.root ? this.ui.el.root : document.body).appendChild(el);
+  }
+  const b = this._bubble;
+  if (!b || !b.table.guest || b.table.guest.dead) { el.style.display = 'none'; return; }
+  b.t += 1 / 60;
+  if (b.t > 5) { this._bubble = null; el.style.display = 'none'; return; }
+  const pt = this.projectToScreen(b.table.sx, b.table.sy + 2.3, b.table.sz);
+  if (!pt) { el.style.display = 'none'; return; }
+  el.textContent = b.text;
+  el.style.display = 'block';
+  el.style.left = Math.round(pt[0]) + 'px';
+  el.style.top = Math.round(pt[1]) + 'px';
+};
+
+// 월드 한 점을 화면 좌표로. 뒤에 있으면 null.
+Game.prototype.projectToScreen = function (x, y, z) {
+  const r = this.renderer;
+  if (!r || !r.viewProj) return null;
+  const m = r.viewProj;
+  const cw = x * m[0] + y * m[4] + z * m[8] + m[12];
+  const cy = x * m[1] + y * m[5] + z * m[9] + m[13];
+  const cwv = x * m[3] + y * m[7] + z * m[11] + m[15];
+  if (cwv <= 0.0001) return null;
+  const cvs = r.canvas || (r.gl && r.gl.canvas);
+  const W = cvs ? cvs.clientWidth : window.innerWidth;
+  const H = cvs ? cvs.clientHeight : window.innerHeight;
+  return [(cw / cwv * 0.5 + 0.5) * W, (0.5 - cy / cwv * 0.5) * H];
+};
+
+// ── 요리 게임 ─────────────────────────────────────────────────────────
+Game.prototype.startCooking = function (hitStation) {
+  const s = hitStation.station;
+  if (this.cook) return;
+  if (this.carryDish) { this.ui.toast('이미 ' + DISHES[this.carryDish].kr + ' 를 들고 있습니다'); return; }
+  // 이 조리대에 해당하는 주문을 찾는다
+  const r = hitStation.rest;
+  let table = null;
+  for (let i = 0; i < r.tables.length; i++) {
+    const t = r.tables[i];
+    if (t.guest && !t.guest.dead && t.told && !t.served && t.dish === s.dish) { table = t; break; }
+  }
+  if (!table) {
+    this.ui.toast(DISHES[s.dish].kr + ' 주문이 없습니다 — 손님에게 먼저 주문을 받으세요');
+    return;
+  }
+  this.cook = {
+    dish: s.dish, table: table, step: 0, pos: 0, dir: 1,
+    score: 0, hits: [], done: false, endT: 0
+  };
+  this.cookTarget();
+  this.buildCookUI();
+  this.ui.toast(DISHES[s.dish].kr + ' 요리 시작 — Space 로 맞추세요 (ESC 취소)');
+};
+
+Game.prototype.cookTarget = function () {
+  const c = this.cook;
+  const st = DISHES[c.dish].steps[c.step];
+  // 표적을 가운데 30~70% 사이 아무 데나 둔다
+  c.half = st[2];
+  c.speed = st[1];
+  c.center = 0.30 + Math.random() * 0.40;
+  c.label = st[0];
+  c.pos = 0;
+  c.dir = 1;
+};
+
+Game.prototype.cookTick = function (dt) {
+  const c = this.cook;
+  if (c.done) {
+    c.endT += dt;
+    if (c.endT > 1.2) this.finishCooking();
+    this.drawCookUI();
+    return;
+  }
+  c.pos += c.dir * c.speed * dt;
+  if (c.pos > 1) { c.pos = 1; c.dir = -1; }
+  if (c.pos < 0) { c.pos = 0; c.dir = 1; }
+  this.drawCookUI();
+};
+
+// Space 를 눌렀을 때
+Game.prototype.cookHit = function () {
+  const c = this.cook;
+  if (!c || c.done) return;
+  const off = Math.abs(c.pos - c.center);
+  const good = off <= c.half;
+  // 표적 한가운데일수록 점수가 높다
+  const s = good ? Math.max(0, 1 - off / c.half) : 0;
+  c.hits.push({ good: good, s: s, pos: c.pos, center: c.center, half: c.half });
+  c.score += s;
+  this.playSound(good ? 'place' : 'break');
+  c.step++;
+  if (c.step >= DISHES[c.dish].steps.length) { c.done = true; c.endT = 0; }
+  else this.cookTarget();
+};
+
+Game.prototype.finishCooking = function () {
+  const c = this.cook;
+  const n = DISHES[c.dish].steps.length;
+  const avg = c.score / n;
+  const missed = c.hits.filter(function (h) { return !h.good; }).length;
+  this.cook = null;
+  this.closeCookUI();
+  if (missed >= 2 || avg < 0.12) {
+    this.ui.toast(DISHES[c.dish].kr + ' 실패 — 태웠습니다. 다시 해 보세요');
+    this.playSound('break');
+    return;
+  }
+  const grade = avg > 0.72 ? '완벽' : avg > 0.42 ? '훌륭' : '보통';
+  this.carryDish = c.dish;
+  this.carryTable = c.table;
+  this.cookGrade = grade;
+  this.ui.toast(DISHES[c.dish].kr + ' 완성 (' + grade + ') — ' +
+    c.table.no + '번 식탁에 가져다 주세요');
+  this.playSound('eat');
+};
+
+Game.prototype.cancelCooking = function () {
+  if (!this.cook) return;
+  this.cook = null;
+  this.closeCookUI();
+  this.ui.toast('요리를 그만두었습니다');
+};
+
+// ── 요리 화면 ─────────────────────────────────────────────────────────
+Game.prototype.buildCookUI = function () {
+  let el = this._cookEl;
+  if (!el) {
+    el = this._cookEl = document.createElement('div');
+    el.className = 'cook-panel';
+    el.innerHTML =
+      '<h3></h3><p class="step"></p>' +
+      '<div class="bar"><i class="zone"></i><b class="mark"></b></div>' +
+      '<p class="hint">Space 로 맞추기 · ESC 취소</p><p class="pips"></p>';
+    (this.ui && this.ui.el.root ? this.ui.el.root : document.body).appendChild(el);
+    this._cookParts = {
+      h: el.querySelector('h3'), step: el.querySelector('.step'),
+      zone: el.querySelector('.zone'), mark: el.querySelector('.mark'),
+      pips: el.querySelector('.pips')
+    };
+  }
+  el.style.display = 'block';
+};
+
+Game.prototype.drawCookUI = function () {
+  const c = this.cook, q = this._cookParts;
+  if (!c || !q) return;
+  const d = DISHES[c.dish];
+  q.h.textContent = d.kr + ' — ' + c.table.no + '번 식탁';
+  q.step.textContent = c.done ? '접시에 담는 중...'
+    : (c.step + 1) + '/' + d.steps.length + '  ' + c.label;
+  q.zone.style.left = ((c.center - c.half) * 100) + '%';
+  q.zone.style.width = (c.half * 200) + '%';
+  q.mark.style.left = (c.pos * 100) + '%';
+  let pips = '';
+  for (let i = 0; i < d.steps.length; i++) {
+    const h = c.hits[i];
+    pips += h ? (h.good ? (h.s > 0.6 ? '◆' : '◇') : '✕') : '·';
+  }
+  q.pips.textContent = pips;
+};
+
+Game.prototype.closeCookUI = function () {
+  if (this._cookEl) this._cookEl.style.display = 'none';
 };
 
 </script>

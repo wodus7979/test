@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.10';
+const GAME_VERSION = 'v9.11';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -578,6 +578,17 @@ Game.prototype.bindInput = function () {
       e.preventDefault();
       return;
     }
+    // 요리 중에는 Space 가 "맞추기" 다
+    if (self.cook && e.code === 'Space') {
+      if (!e.repeat) self.cookHit();
+      e.preventDefault();
+      return;
+    }
+    if (self.cook && e.code === 'Escape') {
+      self.cancelCooking();
+      e.preventDefault();
+      return;
+    }
     const act = keyMap[e.code];
     if (act) {
       // 스페이스 두 번 = 비행 전환 (창작 모드)
@@ -1050,6 +1061,16 @@ Game.prototype.onUse = function () {
   if (this.nearestDigger) {
     const ex = this.nearestDigger();
     if (ex && !ex.driver) { this.enterDigger(ex); return; }
+  }
+
+  // 0-0) 레스토랑 — 손님 주문받기·서빙, 조리대, 출입문
+  if (this.nearestDiner) {
+    const guest = this.nearestDiner();
+    if (guest) { this.tapDiner(guest); return; }
+    const stn = this.nearestStation();
+    if (stn) { this.startCooking(stn); return; }
+    const door = this.restaurantDoor();
+    if (door) { this.enterRestaurant(door); return; }
   }
 
   // 0-1) 주민과 거래 — 블록보다 앞에 있을 때만
@@ -1744,7 +1765,7 @@ Game.prototype.updateUseHint = function () {
   const el = document.getElementById('use-hint');
   if (!el) return;
   const p = this.player;
-  if (this.ui.open || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger) {
+  if (this.ui.open || this.cook || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger) {
     if (el.style.display !== 'none') el.style.display = 'none';
     return;
   }
@@ -1771,6 +1792,24 @@ Game.prototype.updateUseHint = function () {
   if (!label && this.nearestDigger) {
     const ex = this.nearestDigger();
     if (ex && !ex.driver) label = '포크레인 타기';
+  }
+  if (!label && this.nearestDiner) {
+    const g = this.nearestDiner();
+    if (g) {
+      label = g.table.served ? (g.table.no + '번 식탁 — 식사 중')
+        : (this.carryDish && this.carryTable === g.table)
+          ? (g.table.no + '번 식탁에 ' + DISHES[this.carryDish].kr + ' 내주기')
+          : g.table.told ? (g.table.no + '번 식탁 주문 다시 듣기')
+            : (g.table.no + '번 식탁 주문 받기');
+    }
+    if (!label) {
+      const st = this.nearestStation();
+      if (st) label = DISHES[st.station.dish].station + ' 에서 요리하기';
+    }
+    if (!label) {
+      const d = this.restaurantDoor();
+      if (d) label = d.name + ' 들어가기';
+    }
   }
   if (!label && this.nearestDrone) {
     const dr = this.nearestDrone();
@@ -2440,6 +2479,7 @@ Game.prototype.update = function (dt) {
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
   if (this.updateDrones) this.updateDrones(dt);           // 드론 택시
+  if (this.updateRestaurants) this.updateRestaurants(dt); // 레스토랑
   if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
