@@ -190,6 +190,8 @@
     titleEl.style.display = 'flex';
     const l = document.getElementById('loading');
     if (l) l.classList.remove('show');
+    const wb = document.getElementById('btn-warp');
+    if (wb) wb.style.display = 'none';
   }
 
   const loadingEl = document.getElementById('loading');
@@ -199,6 +201,9 @@
     errEl.textContent = '';
     titleEl.style.display = 'none';
     loadingEl.classList.add('show');
+    // 지도 밑 "도시로" 버튼은 놀기 시작할 때부터 보인다
+    const warpBtn = document.getElementById('btn-warp');
+    if (warpBtn) warpBtn.style.display = 'block';
 
     // 텍스처/아이콘 1200여 장을 만드는 동안 로딩 화면을 보여준다
     requestAnimationFrame(function () { requestAnimationFrame(function () {

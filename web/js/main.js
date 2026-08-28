@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.0';
+const GAME_VERSION = 'v10.1';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -260,6 +260,145 @@ Game.prototype.spawnAtCity = function (code) {
     if (w.getBlock(Math.floor(p.x), y - 1, Math.floor(p.z)) !== 0) { p.y = y; break; }
   }
   return { x: c.spawn.x, z: c.spawn.z, name: c.name, code: c.code };
+};
+
+// ── 도시로 돌아가기 ───────────────────────────────────────────────────
+// 지도가 넓어서 한번 멀리 나가면 걸어 돌아오기가 벅차다.
+// 지도 밑 버튼(또는 B)을 누르면 도시 목록이 뜨고, 고르면 그 광장으로 옮겨 간다.
+
+// 방위 여덟 갈래 — 어느 쪽에 있는지 한눈에 보이게
+const WARP_DIRS = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
+
+function warpBearing(dx, dz) {
+  // 세계 좌표에서 -z 가 북쪽이다
+  let a = Math.atan2(dx, -dz);
+  if (a < 0) a += Math.PI * 2;
+  return WARP_DIRS[Math.round(a / (Math.PI * 2) * 8) % 8];
+}
+
+// 갈 수 있는 곳 목록 — 가까운 데부터
+Game.prototype.warpTargets = function () {
+  const w = this.world;
+  if (!w.cities) return [];
+  const p = this.player;
+  const out = [];
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.spawn) continue;
+    const dx = c.spawn.x - p.x, dz = c.spawn.z - p.z;
+    const d = Math.hypot(dx, dz);
+    out.push({
+      code: c.code, name: c.name, dist: Math.round(d),
+      dir: warpBearing(dx, dz), here: d < 90
+    });
+  }
+  out.sort(function (a, b) { return a.dist - b.dist; });
+  return out;
+};
+
+// 지금 옮겨 갈 수 있는 상태인가. 안 되면 까닭을 돌려준다.
+Game.prototype.warpBlocked = function () {
+  const p = this.player;
+  if (p.dead) return '쓰러져 있는 동안에는 옮겨 갈 수 없습니다';
+  if (p.riding || p.onTrain || p.inCar || p.inDrone || p.inShuttle || p.inDigger) {
+    return '타고 있는 것에서 내린 뒤에 눌러 주세요';
+  }
+  if (this.cook) return '요리를 마친 뒤에 눌러 주세요';
+  return null;
+};
+
+// 도시 광장으로 옮긴다. 잠자리(부활 자리)는 건드리지 않는다.
+Game.prototype.warpToCity = function (code) {
+  const why = this.warpBlocked();
+  if (why) { this.ui.toast(why); return false; }
+  const p = this.player;
+  const sx = p.spawnX, sy = p.spawnY, sz = p.spawnZ;
+  const self = this;
+  const fade = document.getElementById('warp-fade');
+
+  const go = function () {
+    const r = self.spawnAtCity(code);
+    // spawnAtCity 는 시작할 때 쓰는 것이라 잠자리까지 옮긴다 — 여기서는 되돌린다
+    if (sx !== undefined) { p.spawnX = sx; p.spawnY = sy; p.spawnZ = sz; }
+    if (!r) { self.ui.toast('그 도시를 찾지 못했습니다'); return; }
+    p.flying = p.flying && p.creative;
+    self.ui.toast(r.name + ' 광장에 내렸습니다');
+    if (fade) setTimeout(function () { fade.classList.remove('on'); }, 30);
+  };
+
+  this.closeWarp();
+  if (!fade) { go(); return true; }
+  // 잠깐 어둡게 덮었다가 옮긴다 — 청크가 자라는 게 덜 튄다
+  fade.classList.add('on');
+  setTimeout(go, 300);
+  return true;
+};
+
+Game.prototype.buildWarpList = function () {
+  const box = document.getElementById('warp-list');
+  if (!box) return;
+  box.innerHTML = '';
+  const list = this.warpTargets();
+  const self = this;
+  if (!list.length) {
+    const d = document.createElement('div');
+    d.className = 'wp-note';
+    d.textContent = '아직 도시를 찾지 못했습니다';
+    box.appendChild(d);
+    return;
+  }
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wp-row' + (t.here ? ' here' : '');
+    const name = document.createElement('span');
+    name.className = 'wp-name';
+    name.textContent = t.name;
+    const code = document.createElement('span');
+    code.className = 'wp-code';
+    code.textContent = t.code;
+    const dist = document.createElement('span');
+    dist.className = 'wp-dist';
+    dist.textContent = t.here ? '여기' : (t.dist + '블록 ' + t.dir);
+    b.appendChild(name); b.appendChild(code); b.appendChild(dist);
+    if (!t.here) {
+      b.addEventListener('click', function () { self.warpToCity(t.code); });
+    }
+    box.appendChild(b);
+  }
+  const why = this.warpBlocked();
+  if (why) {
+    const d = document.createElement('div');
+    d.className = 'wp-note';
+    d.textContent = why;
+    box.appendChild(d);
+  }
+};
+
+Game.prototype.openWarp = function () {
+  const panel = document.getElementById('warp-panel');
+  if (!panel) return;
+  this.buildWarpList();
+  panel.style.display = 'block';
+  const b = document.getElementById('btn-warp');
+  if (b) b.classList.add('on');
+  this.warpOpen = true;
+  if (document.pointerLockElement) document.exitPointerLock();
+};
+
+Game.prototype.closeWarp = function () {
+  const panel = document.getElementById('warp-panel');
+  if (panel) panel.style.display = 'none';
+  const b = document.getElementById('btn-warp');
+  if (b) b.classList.remove('on');
+  this.warpOpen = false;
+};
+
+Game.prototype.toggleWarp = function () {
+  if (this.warpOpen) this.closeWarp();
+  else this.openWarp();
 };
 
 // ── 에스컬레이터 ──────────────────────────────────────────────────────
@@ -643,7 +782,8 @@ Game.prototype.bindInput = function () {
         if (self.player.inDigger) { self.input.curlOut = true; e.preventDefault(); }
         break;
       case 'Escape':
-        if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
+        if (self.warpOpen) self.closeWarp();
+        else if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
         else if (self.ui.open) self.ui.closeScreen();
         else self.exitPointerLock();
         break;
@@ -730,6 +870,12 @@ Game.prototype.bindInput = function () {
         self.ui.toast('그림체: ' + (self.settings.toon ? '애니' : '기본'));
         break;
       }
+      case 'KeyB': {
+        // 도시로 돌아가기 — 지도가 넓어서 걸어 돌아오기 벅차다
+        if (self.ui.open || self.player.dead) break;
+        self.toggleWarp();
+        break;
+      }
       case 'KeyL': {
         // 화질 돌려 가며 켜기 (물리 기반 조명 · 그림자 · 구석 그늘)
         if (!self.renderer.gl2) {
@@ -775,6 +921,8 @@ Game.prototype.bindInput = function () {
   // 마우스
   canvas.addEventListener('mousedown', function (e) {
     if (self.ui.open) return;
+    // 도시 목록을 열어 둔 채 화면을 누르면 목록을 접고 다시 조준으로 돌아간다
+    if (self.warpOpen) { self.closeWarp(); }
     if (!self.isPointerLocked()) { self.requestPointerLock(); return; }
     if (e.button === 0) { self.input.attack = true; self.onAttackStart(); }
     if (e.button === 2) { self.input.use = true; self.onUse(); self.useHeld = 0.25; }
@@ -950,6 +1098,21 @@ Game.prototype.bindTouch = function () {
     if (self.chatOpen) self.closeChat();
     else if (self.openChat) self.openChat();
   });
+
+  // 도시로 돌아가기 — 지도 밑 버튼 (누를 수 있어야 하니 click 으로 단다)
+  const warp = document.getElementById('btn-warp');
+  if (warp) {
+    warp.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      self.toggleWarp();
+    });
+  }
+  const panel = document.getElementById('warp-panel');
+  if (panel) {
+    // 패널 안을 눌러도 화면(캐닝·설치)으로 넘어가지 않게 막는다
+    panel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    panel.addEventListener('touchstart', function (e) { e.stopPropagation(); });
+  }
 };
 
 // ── 상호작용 ──────────────────────────────────────────────────────────
