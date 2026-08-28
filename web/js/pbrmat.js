@@ -6,6 +6,13 @@
 
 // [이름 규칙, 거칠기, 금속, 결 깊이]
 const PBR_RULES = [
+  // 요트가 먼저다 — 아래 금속 규칙의 'hull' 에 흰 젤코트 선체가 걸려
+  // 배 전체가 브러시드 스틸이 되어 버렸다 (금속은 확산광이 없어 잿빛이 된다)
+  [/^yt_(hull|boot)/, 0.13, 0.00, 0.30],      // 반들반들한 젤코트
+  [/^yt_(gold|rail|mast)/, 0.24, 0.90, 0.45], // 금장식·스테인리스
+  [/^yt_sail/, 0.86, 0.00, 0.55],             // 캔버스 돛
+  [/^yt_deck/, 0.52, 0.00, 1.00],             // 티크 갑판
+  [/^yt_cush/, 0.92, 0.00, 0.70],             // 쿠션
   [/glass|ice|window|pane|water|crystal|diamond/, 0.10, 0.00, 0.25],
   [/iron|steel|metal|anvil|chain|rail|gold|copper|silver|alum|chrome|engine|turbine|blade|prop|hull|jet/, 0.34, 0.88, 0.55],
   [/lamp|lantern|light|glow|neon|torch|fire|lava|magma|screen|led/, 0.45, 0.10, 0.40],

@@ -1212,6 +1212,59 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// ── 럭셔리 요트 ───────────────────────────────────────────────────────
+const YACHT_OPTS = { glow: { yt_light: 1, yt_navR: 1, yt_navG: 1 } };
+
+Renderer.prototype.drawYachts = function (game, world, player, opts) {
+  const list = game.yachts;
+  if (!list || !list.length) return;
+  _geom.reset();
+  let any = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const y = list[i];
+    const dx = y.x - player.x, dz = y.z - player.z;
+    if (dx * dx + dz * dz > 620 * 620) continue;
+    if (!this.boxInFrustum(y.x - 12, y.y - 2, y.z - 12, y.x + 12, y.y + 15, y.z + 12)) continue;
+    any++;
+
+    const bx = Math.floor(y.x), bz = Math.floor(y.z);
+    const by = Math.min(CHUNK_Y - 1, Math.floor(y.y) + 2);
+    // 바다 한복판이라 하늘이 늘 열려 있다
+    const light = [Math.max(0.9, world.getSky(bx, by, bz) / 15), world.getBlockLight(bx, by, bz) / 15];
+
+    const cr = Math.cos(y.roll), sr = Math.sin(y.roll);
+    const cp = Math.cos(y.pitch), sp = Math.sin(y.pitch);
+    const cy = Math.cos(y.yaw), sy = Math.sin(y.yaw);
+    // 기울기 → 앞뒤 → 방향 차례 (비행기와 같은 규약)
+    const rot = function (lx, ly, lz, out) {
+      const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+      const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
+      out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
+    };
+    this.emitMesh(yachtMesh(), y.x, y.y, y.z, rot, 1, light, YACHT_OPTS);
+
+    // 돛 — 돛대를 축으로 붐 각도만큼 돌린 뒤 배 자세를 얹는다.
+    // 축이 원점이 아니라 자리 옮김이 섞이므로 법선용 변환을 따로 준다.
+    const cb = Math.cos(y.boom), sb = Math.sin(y.boom);
+    const sailRot = function (lx, ly, lz, out) {
+      const rz = lz - YT_MAST_Z;
+      const x1 = lx * cb + rz * sb;
+      const z1 = -lx * sb + rz * cb + YT_MAST_Z;
+      rot(x1, ly, z1, out);
+    };
+    const sailNrm = function (lx, ly, lz, out) {
+      const x1 = lx * cb + lz * sb;
+      const z1 = -lx * sb + lz * cb;
+      rot(x1, ly, z1, out);
+    };
+    this.emitMesh(yachtSailMesh(), y.x, y.y, y.z, sailRot, 1, light, { nxf: sailNrm });
+  }
+
+  if (!any || !_geom.inn) return;
+  this.flushEntityGeom(opts);
+};
+
 // ── 드론 택시 ─────────────────────────────────────────────────────────
 const DRONE_OPTS = { glow: { dr_light: 1 } };
 

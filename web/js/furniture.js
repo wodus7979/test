@@ -774,3 +774,58 @@ defFurnTex('car_fire', function (p, rnd) {
   p.noise(rnd, '#c22f26', 5, 4);
   p.rect(0, 10, 16, 2, '#f0f2f4');
 });
+
+// ── 럭셔리 요트 ───────────────────────────────────────────────────────
+// 흰 선체에 금색 띠, 티크 갑판, 짙은 통유리, 캔버스 돛.
+defFurnTex('yt_hull', function (p, rnd) {
+  p.noise(rnd, '#f1f4f7', 3, 5);
+  p.rect(0, 5, 16, 1, '#e4e9ee');          // 옆으로 흐르는 광택 띠
+  p.rect(0, 6, 16, 1, '#fbfdff');
+});
+defFurnTex('yt_boot', function (p, rnd) {
+  p.noise(rnd, '#16233a', 4, 4);
+  p.rect(0, 0, 16, 1, '#22344f');
+});
+defFurnTex('yt_gold', function (p, rnd) {
+  p.noise(rnd, '#cfa244', 5, 4);
+  p.rect(0, 5, 16, 2, '#f0d489');          // 볕이 닿는 줄
+  p.rect(0, 11, 16, 1, '#9d7728');
+});
+defFurnTex('yt_deck', function (p, rnd) {
+  p.noise(rnd, '#c08c4d', 6, 4);
+  for (let x = 0; x < 16; x += 3) p.rect(x, 0, 1, 16, '#3a2a18');   // 코킹 줄눈
+  p.speckle(rnd, '#a97a3f', 8, 1);
+});
+defFurnTex('yt_glass', function (p, rnd) {
+  p.noise(rnd, '#1b2a3b', 3, 4);
+  for (let i = 0; i < 16; i++) {                                    // 비스듬한 반사
+    const x = i, y = 15 - i;
+    if (y >= 0 && y < 16) { p.set(x, y, '#4d7a9e'); }
+  }
+  p.rect(0, 0, 16, 1, '#0f1a26');
+  p.rect(0, 15, 16, 1, '#0f1a26');
+});
+defFurnTex('yt_sail', function (p, rnd) {
+  p.noise(rnd, '#f4f2ea', 3, 5);
+  for (let x = 3; x < 16; x += 5) p.rect(x, 0, 1, 16, '#e2ded1');   // 이어 붙인 자국
+  p.rect(0, 14, 16, 1, '#d9d4c4');
+});
+defFurnTex('yt_mast', function (p, rnd) {
+  p.noise(rnd, '#c6ccd2', 4, 4);
+  p.rect(6, 0, 1, 16, '#a9b0b7');
+});
+defFurnTex('yt_rail', function (p, rnd) {
+  p.noise(rnd, '#dde3e9', 3, 5);
+  p.rect(0, 7, 16, 1, '#f6f9fb');
+});
+defFurnTex('yt_cush', function (p, rnd) {
+  p.noise(rnd, '#e9dfc8', 4, 4);
+  for (let y = 3; y < 16; y += 6) p.rect(0, y, 16, 1, '#d6c8a9');   // 누빔 자국
+});
+defFurnTex('yt_teakwall', function (p, rnd) {
+  p.noise(rnd, '#7a5230', 5, 4);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#5e3d22');
+});
+defFurnTex('yt_light', function (p, rnd) { p.noise(rnd, '#ffe9b4', 3, 6); });
+defFurnTex('yt_navR', function (p, rnd) { p.noise(rnd, '#ff5f4c', 3, 6); });
+defFurnTex('yt_navG', function (p, rnd) { p.noise(rnd, '#4fe07f', 3, 6); });

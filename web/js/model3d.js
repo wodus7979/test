@@ -1438,3 +1438,208 @@ function trainRiders(ci) {
   TRAIN_RIDERS[ci] = list;
   return list;
 }
+
+// ── 럭셔리 요트 ───────────────────────────────────────────────────────
+// 축: +Z 가 뱃머리, +X 가 우현, y=0 이 수면(흘수선).
+const YT_L = 19, YT_W = 5.2;
+const YT_MAST_Z = -0.6;      // 돛대가 선 자리 (돛이 이 축으로 돈다)
+
+// 두 점 사이를 잇는 가늘어지는 기둥 (돛대·붐·난간 기둥·크레인).
+// 고리 점 차례를 u×v = 축 이 되게 잡으면 법선이 바깥을 향한다.
+function taperPole(m, a, b, r0, r1, n, tex) {
+  let dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+  const len = Math.hypot(dx, dy, dz) || 1;
+  dx /= len; dy /= len; dz /= len;
+  // 축과 어긋나는 아무 방향에서 기준틀을 만든다
+  const up = Math.abs(dy) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+  let ux = up[1] * dz - up[2] * dy, uy = up[2] * dx - up[0] * dz, uz = up[0] * dy - up[1] * dx;
+  const ul = Math.hypot(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul;
+  const vx = dy * uz - dz * uy, vy = dz * ux - dx * uz, vz = dx * uy - dy * ux;
+  const ring = function (c, r) {
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / n * Math.PI * 2, ct = Math.cos(t) * r, st = Math.sin(t) * r;
+      pts.push([c[0] + ux * ct + vx * st, c[1] + uy * ct + vy * st, c[2] + uz * ct + vz * st]);
+    }
+    return pts;
+  };
+  const A = ring(a, r0), B = ring(b, r1);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    m.quad(A[i], A[j], B[j], B[i], tex, false);
+  }
+}
+
+// 위를 보는 평면 띠 (갑판). 차례는 상자의 윗면과 같게 잡는다.
+function deckStrip(m, sec, y, inset, tex) {
+  for (let i = 0; i + 1 < sec.length; i++) {
+    const a = sec[i], b = sec[i + 1];
+    const wa = a[1] * inset, wb = b[1] * inset;
+    m.quad([-wa, y, a[0]], [wa, y, a[0]], [wb, y, b[0]], [-wb, y, b[0]], tex, false);
+  }
+}
+
+function buildYachtMesh() {
+  const m = new Mesh3D();
+  const HL = YT_L / 2, HW = YT_W / 2;
+
+  // 1) 선체 — 아래는 짙은 남색, 흘수선에 금색 띠, 위는 흰색
+  const hull = [
+    [-HL, 2.16, -0.52, 1.30],
+    [-HL + 0.7, 2.44, -0.72, 1.32],
+    [-6.6, 2.58, -0.96, 1.36],
+    [-3.2, 2.60, -1.10, 1.40],
+    [0.4, 2.57, -1.10, 1.46],
+    [3.6, 2.40, -1.04, 1.54],
+    [6.2, 2.02, -0.88, 1.66],
+    [8.0, 1.42, -0.64, 1.78],
+    [9.0, 0.74, -0.38, 1.90],
+    [HL, 0.20, -0.14, 1.98]
+  ];
+  carLoft(m, hull, 3.2, function (my) {
+    if (my < -0.03) return 'yt_boot';
+    if (my < 0.20) return 'yt_gold';
+    return 'yt_hull';
+  }, 'yt_hull', 14);
+
+  // 2) 티크 갑판과 선미 물놀이 발판
+  deckStrip(m, hull, 1.44, 0.86, 'yt_deck');
+  m.box(0, 0.10, -HL - 0.75, 3.4, 0.18, 1.6, 'yt_deck');           // 스윔 플랫폼
+  m.box(0, 0.62, -HL - 0.02, 3.0, 1.10, 0.16, 'yt_hull');          // 선미판
+  taperPole(m, [-1.6, 0.20, -HL - 1.5], [1.6, 0.20, -HL - 1.5], 0.05, 0.05, 6, 'yt_gold');
+
+  // 3) 선실 — 통유리 띠를 두른 흰 상부
+  const sup = [
+    [-6.7, 2.06, 1.42, 2.98],
+    [-5.0, 2.24, 1.42, 3.14],
+    [-1.2, 2.24, 1.46, 3.24],
+    [2.2, 2.02, 1.50, 3.18],
+    [3.7, 1.48, 1.54, 2.96]
+  ];
+  carLoft(m, sup, 4.2, function (my) {
+    return (my > 1.98 && my < 2.76) ? 'yt_glass' : 'yt_hull';
+  }, 'yt_hull', 14);
+  deckStrip(m, sup, 3.24, 0.90, 'yt_hull');
+
+  // 4) 플라이브리지 — 위층 조타석
+  const fly = [
+    [-4.4, 1.66, 3.22, 3.56],
+    [-2.6, 1.80, 3.22, 3.64],
+    [0.8, 1.68, 3.24, 3.60],
+    [2.0, 1.24, 3.26, 3.44]
+  ];
+  carLoft(m, fly, 4.0, function () { return 'yt_hull'; }, 'yt_hull', 12);
+  deckStrip(m, fly, 3.62, 0.92, 'yt_deck');
+  // 앞유리 — 뒤로 누운 판
+  m.quad([-1.55, 3.62, 1.75], [1.55, 3.62, 1.75], [1.30, 4.42, 1.05], [-1.30, 4.42, 1.05],
+    'yt_glass', true);
+  // 조타 콘솔과 의자
+  m.box(0, 3.95, 1.20, 1.9, 0.62, 0.42, 'yt_teakwall');
+  m.box(0, 4.28, 1.16, 1.5, 0.10, 0.34, 'yt_glass');
+  taperPole(m, [0, 3.62, 0.10], [0, 4.06, 0.10], 0.10, 0.10, 6, 'yt_mast');
+  m.box(0, 4.16, 0.10, 1.0, 0.22, 0.72, 'yt_cush');
+  m.box(0, 4.55, -0.18, 1.0, 0.60, 0.16, 'yt_cush');
+  // 조타륜
+  taperPole(m, [0, 4.34, 1.02], [0, 4.34, 0.86], 0.30, 0.30, 10, 'yt_gold');
+
+  // 5) 돛대와 붐 (돛은 따로 그린다 — 바람 따라 움직인다)
+  const MZ = YT_MAST_Z;
+  taperPole(m, [0, 3.60, MZ], [0, 13.2, MZ - 1.5], 0.20, 0.09, 10, 'yt_mast');
+  taperPole(m, [0, 4.60, MZ - 0.05], [0, 4.42, MZ - 6.8], 0.13, 0.09, 8, 'yt_mast');
+  // 버팀줄
+  taperPole(m, [0, 12.4, MZ - 1.38], [0, 2.0, 8.2], 0.035, 0.035, 4, 'yt_rail');
+  for (const s of [-1, 1]) {
+    taperPole(m, [0, 12.4, MZ - 1.38], [s * 2.2, 1.50, MZ + 0.4], 0.035, 0.035, 4, 'yt_rail');
+  }
+  m.box(0, 13.35, MZ - 1.52, 0.20, 0.22, 0.20, 'yt_light');        // 돛대 등
+
+  // 6) 레이더와 안테나
+  m.box(0, 4.20, -3.4, 0.70, 0.30, 0.70, 'yt_hull');
+  taperPole(m, [0, 3.62, -3.4], [0, 4.06, -3.4], 0.08, 0.08, 6, 'yt_mast');
+
+  // 7) 난간 — 뱃머리와 옆 갑판을 두르는 스테인리스
+  const railZ = [8.6, 7.4, 6.0, 4.6, 3.2, -6.9, -8.0, -9.0];
+  for (const z of railZ) {
+    const w = yachtBeamAt(hull, z) * 0.86;
+    for (const s of [-1, 1]) {
+      taperPole(m, [s * w, 1.44, z], [s * w, 2.30, z], 0.05, 0.05, 6, 'yt_rail');
+    }
+  }
+  for (let i = 0; i + 1 < railZ.length; i++) {
+    const z0 = railZ[i], z1 = railZ[i + 1];
+    if (z0 > 3 && z1 < -6) continue;                                // 선실 구간은 건너뛴다
+    const w0 = yachtBeamAt(hull, z0) * 0.86, w1 = yachtBeamAt(hull, z1) * 0.86;
+    for (const s of [-1, 1]) {
+      taperPole(m, [s * w0, 2.28, z0], [s * w1, 2.28, z1], 0.045, 0.045, 6, 'yt_gold');
+    }
+  }
+
+  // 8) 뱃머리 일광욕 자리와 선미 라운지
+  m.box(0, 1.62, 6.2, 3.1, 0.34, 2.6, 'yt_cush');
+  m.box(0, 1.88, 4.9, 3.1, 0.44, 0.34, 'yt_cush');
+  m.box(0, 1.60, -8.0, 2.4, 0.30, 1.5, 'yt_cush');
+  m.box(0, 1.86, -8.9, 2.4, 0.42, 0.30, 'yt_cush');
+  m.box(0, 1.72, -6.4, 1.5, 0.10, 0.9, 'yt_teakwall');             // 낮은 탁자
+  taperPole(m, [0, 1.44, -6.4], [0, 1.68, -6.4], 0.09, 0.09, 6, 'yt_gold');
+
+  // 9) 항해등과 갑판등
+  m.box(-2.0, 1.72, 7.6, 0.18, 0.20, 0.18, 'yt_navR');             // 좌현 붉은등
+  m.box(2.0, 1.72, 7.6, 0.18, 0.20, 0.18, 'yt_navG');              // 우현 초록등
+  m.box(0, 1.72, -HL - 0.1, 0.18, 0.20, 0.18, 'yt_light');
+  for (const z of [5.0, 2.0, -3.0, -6.0]) {
+    for (const s of [-1, 1]) {
+      m.box(s * yachtBeamAt(hull, z) * 0.9, 1.34, z, 0.12, 0.10, 0.30, 'yt_light');
+    }
+  }
+  // 금색 닻
+  m.box(0, 1.20, HL - 0.35, 0.30, 0.44, 0.28, 'yt_gold');
+  return m.build();
+}
+
+// 선체 단면 목록에서 그 z 자리의 반폭을 뽑아 쓴다 (난간·등을 뱃전에 맞추려고)
+function yachtBeamAt(hull, z) {
+  for (let i = 0; i + 1 < hull.length; i++) {
+    const a = hull[i], b = hull[i + 1];
+    if (z >= a[0] && z <= b[0]) {
+      const t = (z - a[0]) / (b[0] - a[0] || 1);
+      return a[1] + (b[1] - a[1]) * t;
+    }
+  }
+  return hull[Math.max(0, hull.length - 1)][1];
+}
+
+// 큰 돛 하나. 돛대 밑동이 원점이고, 붐 각도는 그리는 쪽에서 돌린다.
+// 삼각형 돛을 격자로 나눠 배가 불룩하게 부풀린다.
+function buildYachtSailMesh() {
+  const m = new Mesh3D();
+  const MZ = YT_MAST_Z;
+  const tack = [0, 4.66, MZ - 0.15];            // 돛대 밑
+  const head = [0, 12.9, MZ - 1.44];            // 돛대 꼭대기
+  const clew = [0, 4.48, MZ - 6.6];             // 붐 끝
+  const NU = 7, NV = 9, BULGE = 0.95;
+  const at = function (s, t) {
+    // s: 밑(0) → 꼭대기(1) · t: 돛대(0) → 뒷자락(1)
+    const lx = tack[0] + (head[0] - tack[0]) * s;
+    const ly = tack[1] + (head[1] - tack[1]) * s;
+    const lz = tack[2] + (head[2] - tack[2]) * s;
+    const ex = clew[0] + (head[0] - clew[0]) * s;
+    const ey = clew[1] + (head[1] - clew[1]) * s;
+    const ez = clew[2] + (head[2] - clew[2]) * s;
+    const x = lx + (ex - lx) * t, y = ly + (ey - ly) * t, z = lz + (ez - lz) * t;
+    const bulge = Math.sin(Math.PI * t) * Math.sin(Math.PI * Math.min(1, s * 0.92)) * BULGE;
+    return [x + bulge, y, z];
+  };
+  for (let i = 0; i < NV; i++) {
+    const s0 = i / NV, s1 = (i + 1) / NV;
+    for (let j = 0; j < NU; j++) {
+      const t0 = j / NU, t1 = (j + 1) / NU;
+      const a = at(s0, t0), b = at(s0, t1), c = at(s1, t1), d = at(s1, t0);
+      m.quad(a, b, c, d, 'yt_sail', true);
+    }
+  }
+  return m.build();
+}
+
+let _yachtMesh = null, _yachtSail = null;
+function yachtMesh() { return _yachtMesh || (_yachtMesh = buildYachtMesh()); }
+function yachtSailMesh() { return _yachtSail || (_yachtSail = buildYachtSailMesh()); }

@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.3';
+const GAME_VERSION = 'v10.4';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -301,7 +301,7 @@ Game.prototype.warpTargets = function () {
 Game.prototype.warpBlocked = function () {
   const p = this.player;
   if (p.dead) return '쓰러져 있는 동안에는 옮겨 갈 수 없습니다';
-  if (p.riding || p.onTrain || p.inCar || p.inDrone || p.inShuttle || p.inDigger) {
+  if (p.riding || p.onTrain || p.inCar || p.inDrone || p.inShuttle || p.inDigger || p.inYacht) {
     return '타고 있는 것에서 내린 뒤에 눌러 주세요';
   }
   if (this.cook) return '요리를 마친 뒤에 눌러 주세요';
@@ -1205,7 +1205,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.inDrone) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.inDrone || p.inYacht) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -1254,6 +1254,12 @@ Game.prototype.onUse = function () {
   if (this.nearestDrone) {
     const dr = this.nearestDrone();
     if (dr) { this.enterDrone(dr); return; }
+  }
+
+  // 0-2b) 요트 타기 (바다)
+  if (this.nearestYacht) {
+    const yt = this.nearestYacht();
+    if (yt) { this.enterYacht(yt); return; }
   }
 
   // 0-3) 우주왕복선 타기 (발사대)
@@ -2016,6 +2022,10 @@ Game.prototype.updateUseHint = function () {
       if (d) label = d.name + ' 들어가기';
     }
   }
+  if (!label && this.nearestYacht) {
+    const yt = this.nearestYacht();
+    if (yt) label = '요트 조타석에 오르기';
+  }
   if (!label && this.nearestDrone) {
     const dr = this.nearestDrone();
     if (dr) label = '드론 택시 조종석에 앉기';
@@ -2601,6 +2611,7 @@ Game.prototype.update = function (dt) {
   else if (p.riding && this.input.sneak && !this._sneakPrev) this.exitPlane();
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
+  else if (p.inYacht && this.input.sneak && !this._sneakPrev) this.exitYacht();
   this._sneakPrev = this.input.sneak;
 
   if (p.riding) {
@@ -2637,6 +2648,9 @@ Game.prototype.update = function (dt) {
     p.vx = p.vy = p.vz = 0;
     p.onGround = true;
     p.fallStart = p.y;
+  } else if (p.inYacht) {
+    // 요트 조타석 — 몸은 요트가 붙잡는다 (updateYachts 가 자리를 정한다)
+    if (p.dead) this.exitYacht();
   } else if (p.inCar) {
     // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
     if (p.dead) this.exitCar();
@@ -2683,6 +2697,7 @@ Game.prototype.update = function (dt) {
   if (this.ensureDiggers) this.ensureDiggers();   // 공사장 굴착기·덤프트럭을 미리 세워 둔다
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
+  if (this.updateYachts) this.updateYachts(dt);           // 바다 요트
   if (this.updateDrones) this.updateDrones(dt);           // 드론 택시
   if (this.updateRestaurants) this.updateRestaurants(dt); // 레스토랑
   if (this.updateCountdown) this.updateCountdown();
@@ -2871,6 +2886,7 @@ Game.prototype.render = function (dt) {
   else if (p.inDrone) opts.cam = this.droneCamera(p.inDrone, dt);
   else if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
+  else if (p.inYacht) opts.cam = this.yachtCamera(p.inYacht, dt);
   else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
 
   // 구름 위로 올라가면 성층권 — 별과 오로라. 더 오르면 우주.
@@ -2907,6 +2923,7 @@ Game.prototype.render = function (dt) {
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
   if (r.drawSmoothWays) r.drawSmoothWays(this, this.world, p, opts);   // 굽은 길 잇기
+  if (r.drawYachts) r.drawYachts(this, this.world, p, opts);
   if (r.drawDrones) r.drawDrones(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
