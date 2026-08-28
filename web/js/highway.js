@@ -25,6 +25,35 @@ function blocksPerSecFromKmh(v) { return v / 3.6; }
 const LAKE_R = 150;           // 물가 반지름
 const LAKE_MARGIN = 60;       // 원래 지형으로 이어 붙이는 띠
 const LAKE_DEPTH = 14;        // 수면 아래 깊이
+const LAKE_BANK = 3;          // 물가 둔덕이 수면보다 높은 만큼
+const LAKE_BANK_T = 0.30;     // 띠의 이만큼 되는 곳이 둔덕 마루
+const LAKE_RIM_DROP = 3;      // 수면은 테두리 땅보다 이만큼 낮게 잡는다
+
+// 호수 바닥 높이. 가운데는 접시처럼 깊고, 물가를 지나면 둔덕으로 한 번 솟았다가
+// 원래 땅으로 이어진다.
+//
+// 둔덕이 핵심이다. 예전에는 바닥을 원래 땅으로 그냥 이어 붙이면서 수면만
+// 해수면+6 으로 못박아 두었다 — 그러니 언저리 땅이 해수면 높이인 곳에서는
+// 호수가 주변보다 여섯 칸 솟은 물벽이 됐다.
+function lakeBed(d, natH, surf) {
+  if (d <= LAKE_R) {
+    const u = d / LAKE_R;                       // 0 가운데 ~ 1 물가
+    return surf - 1 - LAKE_DEPTH * (1 - u * u);
+  }
+  const t = (d - LAKE_R) / LAKE_MARGIN;
+  const bank = surf + LAKE_BANK;
+  if (t < LAKE_BANK_T) {
+    const u = t / LAKE_BANK_T;
+    return (surf - 1) + (bank - (surf - 1)) * (u * u * (3 - 2 * u));
+  }
+  const u = (t - LAKE_BANK_T) / (1 - LAKE_BANK_T);
+  const s = u * u * (3 - 2 * u);
+  // 둔덕보다 낮은 땅으로 이어질 때는 깎지 않고 메우기만 한다
+  return bank + (natH - bank) * s;
+}
+
+// 물이 담기는 자리 — 둔덕 마루 안쪽까지만
+function lakeWet(d) { return d <= LAKE_R + LAKE_MARGIN * LAKE_BANK_T; }
 
 function lakeWeight(dx, dz) {
   const d = Math.hypot(dx, dz);
@@ -32,6 +61,22 @@ function lakeWeight(dx, dz) {
   if (d >= LAKE_R + LAKE_MARGIN) return 0;
   const t = (d - LAKE_R) / LAKE_MARGIN;
   return 1 - t * t * (3 - 2 * t);
+}
+
+// 테두리(물가 바깥 고리) 땅 높이를 재서 가운데값과 제일 낮은 값을 돌려준다.
+// 가운데값으로 수면을 잡는다 — 골짜기 하나가 최저값을 끌어내려도 호수가
+// 통째로 주저앉지 않게.
+function lakeRim(world, x, z) {
+  const hs = [];
+  for (let r = LAKE_R + 6; r <= LAKE_R + LAKE_MARGIN; r += 18) {
+    const n = 72;
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      hs.push(world.heightAt(Math.round(x + Math.cos(a) * r), Math.round(z + Math.sin(a) * r)));
+    }
+  }
+  hs.sort(function (a, b) { return a - b; });
+  return { mid: hs[hs.length >> 1], lo: hs[0] };
 }
 
 // ── 길 만들기 ─────────────────────────────────────────────────────────
@@ -98,7 +143,7 @@ Highway.prototype.build = function () {
   const mx = (a0.x + b0.x) / 2, mz = (a0.z + b0.z) / 2;
   let dx = b0.x - a0.x, dz = b0.z - a0.z;
   const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-  this.lake = { x: Math.round(mx), z: Math.round(mz), y: SEA_LEVEL + 6 };
+  this.lake = this.pickLake(mx, mz, dx, dz, dl);
 
   for (let k = 0; k < links.length; k++) {
     const A = order[links[k][0]], B = order[links[k][1]];
@@ -166,6 +211,30 @@ Highway.prototype.build = function () {
     this.makeBridge(pi, rec);
     this.makeSigns(pi, rec);
   }
+};
+
+// 호수를 앉힐 자리를 고른다. 두 도시 사이 한가운데를 크게 벗어나지 않는 선에서
+// 몇 군데를 재 보고, 테두리가 제일 높은 곳(= 물이 잘 담기는 곳)을 쓴다.
+// 수면은 그 테두리보다 낮게 잡되, 바다보다 낮출 수는 없다.
+Highway.prototype.pickLake = function (mx, mz, ux, uz, ul) {
+  const nx = uz, nz = -ux;                    // 두 도시를 잇는 선의 직각 방향
+  const span = Math.min(ul * 0.22, 700);
+  let best = null;
+  for (let a = -2; a <= 2; a++) {
+    for (let b = -2; b <= 2; b++) {
+      const x = Math.round(mx + ux * (a * span * 0.5) + nx * (b * span * 0.5));
+      const z = Math.round(mz + uz * (a * span * 0.5) + nz * (b * span * 0.5));
+      const rim = lakeRim(this.world, x, z);
+      // 가운데값을 우선하고, 같으면 최저값이 높은 쪽
+      const score = rim.mid * 10 + rim.lo;
+      if (!best || score > best.score) best = { x: x, z: z, rim: rim, score: score };
+    }
+  }
+  if (!best) return null;
+  // 수면: 테두리보다 낮게. 바다와 같은 높이까지는 내려갈 수 있다 —
+  // 그러면 바다와 만나도 이음매가 안 보인다.
+  const y = Math.max(SEA_LEVEL, Math.min(best.rim.mid - LAKE_RIM_DROP, SEA_LEVEL + 22));
+  return { x: best.x, z: best.z, y: y, rim: best.rim.mid };
 };
 
 // 실제로 만들어질 땅 높이 — 도시 근처는 도시 지면으로 눌린다.
@@ -317,17 +386,29 @@ World.prototype.paintHighway = function (c) {
     for (let lz = 0; lz < CHUNK_Z; lz++) {
       for (let lx = 0; lx < CHUNK_X; lx++) {
         const wx = bx + lx, wz = bz + lz;
-        const wgt = lakeWeight(wx - lk.x, wz - lk.z);
-        if (wgt <= 0) continue;
+        const d = Math.hypot(wx - lk.x, wz - lk.z);
+        if (d >= LAKE_R + LAKE_MARGIN) continue;
         const nat = this.heightAt(wx, wz);
-        const bed = Math.round(nat + ((lk.y - LAKE_DEPTH) - nat) * wgt);
-        for (let y = bed + 1; y < CHUNK_Y; y++) {
+        const bed = Math.round(lakeBed(d, nat, lk.y));
+        if (bed === nat && bed >= lk.y) continue;      // 손댈 것이 없다
+        const wet = lakeWet(d);
+        // 위를 비운다. 물이 찰 자리와, 바다보다 낮은 자리는 물로 채운다 —
+        // 마른 구덩이를 파 놓으면 그게 바로 물벽으로 보인다.
+        const top = Math.max(lk.y, nat, bed) + 10;
+        for (let y = bed + 1; y <= top && y < CHUNK_Y; y++) {
           const j = idx(lx, y, lz);
-          c.blocks[j] = (y <= lk.y) ? B.water : 0;
+          const fill = (wet && y <= lk.y) || y <= SEA_LEVEL;
+          c.blocks[j] = fill ? B.water : 0;
           c.meta[j] = 0;
         }
         if (bed >= 1 && bed < CHUNK_Y) {
-          c.blocks[idx(lx, bed, lz)] = (wgt > 0.35) ? B.sand : B.grass_block;
+          c.blocks[idx(lx, bed, lz)] = (bed < lk.y) ? B.sand : B.grass_block;
+          c.meta[idx(lx, bed, lz)] = 0;
+          // 깎아 내린 자리는 밑이 뚫려 있을 수 있으니 흙을 조금 받쳐 둔다
+          for (let y = bed - 1; y > bed - 4 && y > 0; y--) {
+            const j = idx(lx, y, lz);
+            if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.dirt;
+          }
         }
       }
     }

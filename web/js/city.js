@@ -1935,7 +1935,9 @@ World.prototype.paintCity = function (c) {
           const nat = this.heightAt(wx, wz);
           const target = Math.round(nat + (p.y - nat) * wgt);
           for (let y = target + 1; y <= target + CITY_CLEAR_H && y < CHUNK_Y; y++) {
-            c.blocks[idx(lx, y, lz)] = 0;
+            // 바다보다 낮은 자리는 물을 도로 채운다. 그냥 비우면 도시 언저리
+            // 바닷속에 마른 구덩이가 파여서, 옆의 바닷물이 벽처럼 서 보인다.
+            c.blocks[idx(lx, y, lz)] = (y <= SEA_LEVEL) ? B.water : 0;
             c.meta[idx(lx, y, lz)] = 0;
           }
           if (target >= 1 && target < CHUNK_Y) c.blocks[idx(lx, target, lz)] = p.style.grass;
