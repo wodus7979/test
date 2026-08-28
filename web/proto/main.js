@@ -1,7 +1,15 @@
 // main.js - 화면을 좌우로 갈라 같은 장면을 두 방식으로 보여 준다.
 'use strict';
 
+const MODES = [
+  { key: 'old', kr: '지금 방식' },
+  { key: 'pbr', kr: 'PBR' },
+  { key: 'toon', kr: '애니 그림체' }
+];
+
 const opt = {
+  left: 'old', right: 'toon',
+  outline: true, bands: 4, sat: 1.30,
   shadow: true, ssao: true, normal: true, bloom: true, tone: true,
   exposure: 1.15, bloomAmt: 0.55, bloomThresh: 0.9,
   aoRadius: 1.1, aoStrength: 0.95,
@@ -65,11 +73,28 @@ function sunFor(hour) {
   const ambUp = [a[0] + (lum - a[0]) * k, a[1] + (lum - a[1]) * k, a[2] + (lum - a[2]) * k];
   // 땅에서 튀어 오르는 빛 — 아래를 보는 면이 새까매지지 않게
   const ambDn = toLinear([0.36, 0.34, 0.31], 0.10 + 0.24 * day);
+  // 애니 그림체가 쓰는 색 — 화면 색 자리에서 바로 칠한다
+  const tSun = 1 - Math.pow(1 - up, 1.4);
+  const lightTint = [
+    1.02 + warm * 0.26, 0.99 - warm * 0.02, 0.92 - warm * 0.18
+  ];
+  const shadeTint = [
+    0.56 + 0.10 * tSun, 0.60 + 0.10 * tSun, 0.84 + 0.06 * tSun
+  ];
+  const rimCol = [0.62 + warm * 0.30, 0.74, 0.96];
+  // 하늘도 그림처럼 — 위는 진하게, 아래는 옅게
+  const skyUpT = [0.30 + 0.10 * day - warm * 0.05, 0.52 + 0.14 * day,
+    0.82 + 0.10 * day];
+  const skyDnT = [0.72 + warm * 0.22, 0.82 - warm * 0.06, 0.92 - warm * 0.20];
+  const inkCol = [0.13, 0.14, 0.20];
   return {
     dir: d, day: day,
     skyUp: skyUp, skyDn: skyDn, sunCol: sunCol,
     sunColL: sunColL, skyUpL: skyUpL, skyDnL: skyDnL,
-    ambUp: ambUp, ambDn: ambDn
+    ambUp: ambUp, ambDn: ambDn,
+    lightTint: lightTint, shadeTint: shadeTint, rimCol: rimCol,
+    skyUpT: skyUpT, skyDnT: skyDnT, inkCol: inkCol,
+    sunColT: [1.0 + warm * 0.20, 0.97, 0.88 - warm * 0.16]
   };
 }
 
@@ -102,16 +127,23 @@ function frame(ts) {
   const oPbr = Object.assign({}, opt, {
     sunCol: S.sunColL, skyUp: S.skyUpL, skyDn: S.skyDnL, day: S.day,
     ambUp: S.ambUp, ambDn: S.ambDn,
-    fogA: 170, fogB: 460, fogCol: S.skyDnL
+    fogA: 170, fogB: 460, fogCol: S.skyDnL, inkCol: S.inkCol, time: ts * 0.001
   });
+  // 애니 그림체 — 화면 색 자리에서 칠한다
+  const oToon = Object.assign({}, opt, {
+    sunCol: S.sunColT, skyUp: S.skyUpT, skyDn: S.skyDnT, day: S.day,
+    lightTint: S.lightTint, shadeTint: S.shadeTint, rimCol: S.rimCol,
+    inkCol: S.inkCol, fogA: 140, fogB: 420, fogCol: S.skyDnT,
+    time: ts * 0.001
+  });
+  const conf = { old: oOld, pbr: oPbr, toon: oToon };
 
   const cut = Math.round(pw * opt.split);
-  // 왼쪽 — 예전 방식 / 오른쪽 — 새 방식.
   // 가위질은 렌더러가 마지막 합치기에서만 쓴다.
   app.cut = [0, 0, cut, ph];
-  app.render('old', oOld);
+  app.render(opt.left, conf[opt.left]);
   app.cut = [cut, 0, pw - cut, ph];
-  app.render('pbr', oPbr);
+  app.render(opt.right, conf[opt.right]);
   app.cut = null;
 
   stats.n++;
@@ -223,6 +255,33 @@ function bindUI() {
     if (n >= 1 && n <= VIEWS.length) setView(n - 1);
   });
 
+  // 좌우에 무엇을 놓을지
+  const label = function () {
+    const L = MODES.find(function (m) { return m.key === opt.left; }).kr;
+    const R = MODES.find(function (m) { return m.key === opt.right; }).kr;
+    bar.style.setProperty('--l', '"◀ ' + L + '"');
+    bar.style.setProperty('--r', '"' + R + ' ▶"');
+  };
+  ['left', 'right'].forEach(function (side) {
+    const box = document.getElementById('mode-' + side);
+    MODES.forEach(function (m) {
+      const b = document.createElement('button');
+      b.textContent = m.kr;
+      b.dataset.key = m.key;
+      b.addEventListener('click', function () {
+        opt[side] = m.key;
+        Array.prototype.forEach.call(box.children, function (c) {
+          c.classList.toggle('on', c.dataset.key === m.key);
+        });
+        label();
+      });
+      if (m.key === opt[side]) b.classList.add('on');
+      box.appendChild(b);
+    });
+  });
+  label();
+
+  bind('outline', 'outline');
   bind('shadow', 'shadow'); bind('ssao', 'ssao'); bind('normal', 'normal');
   bind('bloom', 'bloom'); bind('tone', 'tone'); bind('spin', 'spin');
 
@@ -239,6 +298,19 @@ function bindUI() {
   const exp = document.getElementById('exposure');
   exp.value = opt.exposure;
   exp.addEventListener('input', function () { opt.exposure = parseFloat(exp.value); });
+
+  const bands = document.getElementById('bands');
+  const bandsv = document.getElementById('bandsv');
+  bands.value = opt.bands;
+  const showBands = function () { bandsv.textContent = (opt.bands < 2.5 ? '2단' : '4단'); };
+  bands.addEventListener('input', function () {
+    opt.bands = parseFloat(bands.value); showBands();
+  });
+  showBands();
+
+  const sat = document.getElementById('sat');
+  sat.value = opt.sat;
+  sat.addEventListener('input', function () { opt.sat = parseFloat(sat.value); });
 }
 
 window.addEventListener('load', boot);

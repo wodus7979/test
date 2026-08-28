@@ -29,8 +29,9 @@ html, body {
   padding: 5px 9px; border-radius: 5px; white-space: nowrap;
   background: rgba(10,12,15,.82); border: 1px solid rgba(255,255,255,.18);
 }
-#divider::before { content: '◀ 지금 방식'; right: 12px; }
-#divider::after  { content: '새 방식 ▶'; left: 12px; }
+#divider { --l: '◀ 지금 방식'; --r: '새 방식 ▶'; }
+#divider::before { content: var(--l); right: 12px; }
+#divider::after  { content: var(--r); left: 12px; }
 #divider .grip {
   position: absolute; top: 50%; left: -8px;
   width: 19px; height: 46px; margin-top: -23px;
@@ -77,6 +78,19 @@ html, body {
 }
 #views button:hover { background: rgba(255,179,92,.20); border-color: rgba(255,179,92,.5); }
 
+.modes { display: flex; gap: 5px; margin: 2px 0 4px; }
+.modes button {
+  flex: 1 1 0; padding: 6px 4px;
+  font: inherit; font-size: 11.5px;
+  color: #cfccc5; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.14); border-radius: 5px;
+  cursor: pointer; white-space: nowrap;
+}
+.modes button:hover { background: rgba(255,255,255,.13); }
+.modes button.on {
+  color: #1b1a17; background: #ffb35c; border-color: #ffb35c; font-weight: 700;
+}
+
 </style>
 </head>
 <body>
@@ -87,9 +101,21 @@ html, body {
 
 <div id="panel">
   <h1>화질 프로토타입</h1>
-  <p class="sub">같은 복셀 장면 · 왼쪽은 지금 게임 방식, 오른쪽은 PBR</p>
+  <p class="sub">같은 복셀 장면을 세 가지 방식으로 — 좌우에 무엇을 놓을지 고르세요</p>
 
-  <h2>오른쪽에 켜는 것</h2>
+  <h2>왼쪽 화면</h2>
+  <div class="modes" id="mode-left"></div>
+  <h2>오른쪽 화면</h2>
+  <div class="modes" id="mode-right"></div>
+
+  <h2>애니 그림체</h2>
+  <label><input type="checkbox" id="outline"> 외곽선 (깊이·법선 경계)</label>
+  <div class="row"><span>명암 단수</span><b id="bandsv">4단</b></div>
+  <input type="range" id="bands" min="2" max="4" step="2">
+  <div class="row"><span>색 진하기</span></div>
+  <input type="range" id="sat" min="1.0" max="1.8" step="0.02">
+
+  <h2>PBR 에 켜는 것</h2>
   <label><input type="checkbox" id="shadow"> 그림자 (2048² 섀도우 맵, 3×3 PCF)</label>
   <label><input type="checkbox" id="ssao"> SSAO (화면 공간 가림)</label>
   <label><input type="checkbox" id="normal"> 노멀 맵 (표면 요철)</label>
@@ -953,6 +979,102 @@ void main(){
   oCol = vec4(col, 1.0);
 }`;
 
+// ── 애니 그림체 ── 명암을 몇 단으로 뚝뚝 끊고, 그늘은 차갑게 빛은 따뜻하게.
+// 계산은 화면 색(sRGB) 자리에서 한다 — 물감을 칠하듯 값을 다루려고.
+const TOON_FS = S_HEAD + `
+in vec3 vPos; in vec3 vNor; in vec2 vUV; in float vMat; in float vAO;
+uniform sampler2DArray uAlb;
+uniform sampler2DArray uNrm;
+uniform sampler2DArray uOrm;
+uniform sampler2DShadow uShadow;
+uniform mat4 uLightVP;
+uniform vec3 uCam; uniform vec3 uSun;
+uniform vec3 uLightTint; uniform vec3 uShadeTint; uniform vec3 uRimCol;
+uniform vec3 uFogCol; uniform float uFogA; uniform float uFogB;
+uniform float uEmit[24];
+uniform float uShadowOn; uniform float uNormalOn; uniform float uBands;
+uniform float uSat;
+layout(location=0) out vec4 oCol;
+
+mat3 tbnFor(vec3 n){
+  vec3 t, b;
+  if (abs(n.y) > 0.5) { t = vec3(1,0,0); b = vec3(0,0,1); }
+  else if (abs(n.x) > 0.5) { t = vec3(0,0,1); b = vec3(0,1,0); }
+  else { t = vec3(1,0,0); b = vec3(0,1,0); }
+  return mat3(t, b, n);
+}
+
+float shadowAt(vec3 p, float nl){
+  vec4 lp = uLightVP * vec4(p, 1.0);
+  vec3 q = lp.xyz / lp.w * 0.5 + 0.5;
+  if (q.x<0.0||q.x>1.0||q.y<0.0||q.y>1.0||q.z>1.0) return 1.0;
+  float bias = mix(0.0018, 0.0005, nl);
+  float s = 0.0;
+  vec2 texel = vec2(1.0/2048.0);
+  for (int y=-1;y<=1;y++)
+    for (int x=-1;x<=1;x++)
+      s += texture(uShadow, vec3(q.xy + vec2(float(x),float(y))*texel, q.z - bias));
+  return s / 9.0;
+}
+
+void main(){
+  int mi = int(vMat + 0.5);
+  // 물감 색 — 텍스처는 선형으로 들어오니 화면 색으로 되돌린다
+  vec3 paint = pow(texture(uAlb, vec3(vUV, vMat)).rgb, vec3(1.0/2.2));
+  float rough = clamp(texture(uOrm, vec3(vUV, vMat)).g, 0.03, 1.0);
+
+  vec3 n = normalize(vNor);
+  if (uNormalOn > 0.5) {
+    vec3 tn = texture(uNrm, vec3(vUV, vMat)).rgb * 2.0 - 1.0;
+    // 결은 살짝만 — 너무 넣으면 그림체가 지저분해진다
+    n = normalize(tbnFor(n) * mix(vec3(0.0,0.0,1.0), tn, 0.45));
+  }
+  vec3 v = normalize(uCam - vPos);
+  float nv = max(dot(n, v), 1e-4);
+  float ndl = dot(n, uSun);
+  float sh = (uShadowOn > 0.5) ? shadowAt(vPos, max(ndl,0.0)) : 1.0;
+  float lightv = max(ndl, 0.0) * sh;
+
+  // 모서리 가림을 살짝 섞어 두면 구석이 눌린다 (선을 안 그려도 형태가 산다)
+  float ao = mix(0.80, 1.0, vAO);
+
+  // 명암 단 나누기 — 경계는 한두 픽셀만 부드럽게
+  float b1 = smoothstep(0.015, 0.075, lightv);
+  float b2 = smoothstep(0.50, 0.56, lightv);
+  float b3 = smoothstep(0.86, 0.90, lightv);
+  float lv = 0.53 + 0.26 * b1 + 0.15 * b2 + 0.07 * b3;
+  if (uBands < 2.5) lv = 0.56 + 0.44 * b1;              // 두 단만 쓸 때
+
+  // 그늘은 푸르게, 볕은 따뜻하게
+  vec3 tint = mix(uShadeTint, uLightTint, b1);
+  vec3 col = paint * tint * lv * ao;
+
+  // 하이라이트 — 번지지 않는 또렷한 점
+  vec3 h = normalize(uSun + v);
+  float sp = pow(max(dot(n, h), 0.0), mix(8.0, 90.0, 1.0 - rough));
+  col += vec3(1.0) * smoothstep(0.55, 0.62, sp) * (1.0 - rough) * 0.45 * b1;
+
+  // 림 라이트 — 가장자리를 하늘빛이 살짝 훑는다.
+  // 세게 주면 잉크선을 덮어 버리고 '빛나는 테두리' 처럼 보인다.
+  float rim = pow(1.0 - nv, 4.5);
+  col += uRimCol * rim * 0.20 * mix(0.30, 1.0, b1);
+
+  col += paint * uEmit[mi] * 0.55;
+
+  // 색을 조금 더 진하게
+  float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
+  col = mix(vec3(l), col, uSat);
+
+  // 안개도 단으로 — 멀수록 하늘색으로 물든다
+  float d = length(vPos - uCam);
+  float f = clamp((d - uFogA) / max(1.0, uFogB - uFogA), 0.0, 1.0);
+  f = floor(f * 4.0 + 0.5) / 4.0;
+  col = mix(col, uFogCol, f * 0.85);
+
+  // 합치기 단계가 감마를 씌우므로 되돌려 넘긴다
+  oCol = vec4(pow(max(col, 0.0), vec3(2.2)), 1.0);
+}`;
+
 // ── SSAO ──
 const POST_VS = S_HEAD + `
 layout(location=0) in vec2 aPos;
@@ -1049,11 +1171,37 @@ void main(){
 const COMP_FS = S_HEAD + `
 in vec2 vT;
 uniform sampler2D uHdr; uniform sampler2D uBloom;
+uniform sampler2D uDepth; uniform sampler2D uNormal;
 uniform float uBloomAmt; uniform float uExposure; uniform float uTone;
+uniform float uOutline; uniform vec2 uPix; uniform vec3 uInkCol;
+uniform float uVignette;
 out vec4 o;
 // ACES 근사
 vec3 aces(vec3 x){
   return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0);
+}
+// 깊이와 법선이 꺾이는 자리를 찾아 선을 긋는다
+// 복셀 세상은 블록 모서리가 죄다 90도라, 법선이 꺾이는 곳을 다 그으면
+// 온 화면이 모눈종이가 된다. 그래서 실루엣(깊이가 뚝 끊기는 자리) 을 굵게 긋고,
+// 접힌 모서리는 아주 옅게만 얹는다.
+float inkAt(vec2 uv){
+  float d0 = texture(uDepth, uv).r;
+  if (d0 >= 0.9999) return 0.0;
+  vec3 n0 = texture(uNormal, uv).xyz * 2.0 - 1.0;
+  float dEdge = 0.0, nEdge = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.7853981;
+    vec2 off = vec2(cos(a), sin(a)) * 1.6;
+    vec2 su = uv + off * uPix;
+    float d1 = texture(uDepth, su).r;
+    vec3 n1 = texture(uNormal, su).xyz * 2.0 - 1.0;
+    // 가까울수록 깊이 차가 커 보이므로 거리로 나눠 고르게 만든다
+    dEdge = max(dEdge, abs(d1 - d0) / max(1.0 - d0, 1e-4));
+    nEdge = max(nEdge, 1.0 - dot(n0, n1));
+  }
+  float sil = smoothstep(0.0035, 0.0130, dEdge);
+  float crease = smoothstep(0.80, 1.25, nEdge) * 0.30;
+  return clamp(sil + crease, 0.0, 1.0);
 }
 void main(){
   vec3 c = texture(uHdr, vT).rgb;
@@ -1061,9 +1209,9 @@ void main(){
   c *= uExposure;
   if (uTone > 0.5) c = aces(c);
   c = pow(max(c, 0.0), vec3(1.0/2.2));
-  // 아주 옅은 비네트
+  if (uOutline > 0.5) c = mix(c, uInkCol, inkAt(vT) * 0.92);
   vec2 d = vT - 0.5;
-  c *= 1.0 - dot(d,d)*0.35;
+  c *= 1.0 - dot(d,d) * uVignette;
   o = vec4(c, 1.0);
 }`;
 
@@ -1080,13 +1228,44 @@ in vec2 vT;
 uniform mat4 uInvVP; uniform vec3 uCam;
 uniform vec3 uSun; uniform vec3 uSunCol;
 uniform vec3 uSkyUp; uniform vec3 uSkyDn;
-uniform float uPbr;
+uniform float uPbr; uniform float uToon; uniform float uTime;
 out vec4 o;
+float h21(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+float vn2(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(h21(i), h21(i+vec2(1,0)), f.x),
+             mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y);
+}
+float fbm2(vec2 p){
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { v += vn2(p) * a; p *= 2.03; a *= 0.5; }
+  return v;
+}
 void main(){
   vec4 f = uInvVP * vec4(vT*2.0-1.0, 1.0, 1.0);
   vec3 d = normalize(f.xyz/f.w - uCam);
   vec3 c = mix(uSkyDn, uSkyUp, pow(clamp(d.y*0.5+0.5,0.0,1.0), 0.75));
-  if (uPbr > 0.5) {
+  if (uToon > 0.5) {
+    // 하늘을 몇 겹으로 딱 나눈다
+    float t = clamp(d.y*0.5+0.5, 0.0, 1.0);
+    float q = floor(smoothstep(0.42, 0.86, t) * 3.0 + 0.5) / 3.0;
+    c = mix(uSkyDn, uSkyUp, q);
+    // 해 — 큰 원반 하나
+    float sd = dot(d, uSun);
+    c = mix(c, uSunCol * 1.35, smoothstep(0.9975, 0.9987, sd));
+    c += uSunCol * pow(max(sd, 0.0), 24.0) * 0.20;
+    // 구름 — 잡음을 문턱으로 잘라 뭉게뭉게. 두 겹으로 그림자까지.
+    if (d.y > 0.02) {
+      vec2 pp = d.xz / d.y * 0.55 + vec2(uTime * 0.010, uTime * 0.004);
+      float n = fbm2(pp * 1.5);
+      float body = smoothstep(0.52, 0.58, n);
+      float lit  = smoothstep(0.62, 0.68, n);
+      float fade = smoothstep(0.02, 0.16, d.y);
+      vec3 cl = mix(vec3(0.80, 0.83, 0.92), vec3(1.02, 1.00, 0.96), lit);
+      c = mix(c, cl, body * fade * 0.92);
+    }
+  } else if (uPbr > 0.5) {
     float sd = max(dot(d, uSun), 0.0);
     c += uSunCol * (smoothstep(0.9985,0.9995,sd)*3.0 + pow(sd,180.0)*0.6 + pow(sd,8.0)*0.05);
     float hz = pow(1.0-clamp(abs(d.y)*2.2,0.0,1.0), 3.0);
@@ -1119,6 +1298,7 @@ function Proto(canvas) {
   this.prog = {
     old: glProgram(gl, SCENE_VS, OLD_FS, '예전'),
     pbr: glProgram(gl, SCENE_VS, PBR_FS, 'PBR'),
+    toon: glProgram(gl, SCENE_VS, TOON_FS, '애니'),
     pre: glProgram(gl, SCENE_VS, PRE_FS, '깊이·노멀'),
     shadow: glProgram(gl, SHADOW_VS, SHADOW_FS, '그림자'),
     ssao: glProgram(gl, POST_VS, SSAO_FS, 'SSAO'),
@@ -1246,8 +1426,12 @@ Proto.prototype.post = function (prog, target, setup) {
 Proto.prototype.render = function (mode, opt) {
   const gl = this.gl, W = this.size[0], H = this.size[1];
   const sunCol = opt.sunCol, skyUp = opt.skyUp, skyDn = opt.skyDn;
+  const lit = (mode !== 'old');
+  // 애니 그림체도 그림자를 쓰고, 외곽선을 그리려면 깊이·법선이 필요하다
+  const needShadow = lit && opt.shadow;
+  const needPre = (mode === 'pbr' && opt.ssao) || (mode === 'toon' && opt.outline);
 
-  if (mode === 'pbr' && opt.shadow) {
+  if (needShadow) {
     // 1) 그림자 지도
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadow.fbo);
     gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
@@ -1264,7 +1448,7 @@ Proto.prototype.render = function (mode, opt) {
     gl.cullFace(gl.BACK);
   }
 
-  if (mode === 'pbr' && opt.ssao) {
+  if (needPre) {
     // 2) 깊이·노멀
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.targets.pre.fbo);
     gl.viewport(0, 0, W, H);
@@ -1277,8 +1461,9 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniformMatrix4fv(p.u.uVP, false, self.mVP);
       gl.uniformMatrix4fv(p.u.uView, false, self.mView);
     });
-    // 3) SSAO 와 흐리기
+    // 3) SSAO 와 흐리기 (PBR 에서만 — 애니는 깊이·법선만 쓴다)
     const t = this.targets, s = this;
+    if (mode === 'pbr' && opt.ssao) {
     this.post(this.prog.ssao, t.ao, function (p) {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t.pre.depth);
       gl.uniform1i(p.u.uDepth, 0);
@@ -1300,6 +1485,7 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniform1i(p.u.uTex, 0);
       gl.uniform2f(p.u.uDir, 0, 1.5 / H);
     });
+    }
   }
 
   // 4) 본 그림
@@ -1321,6 +1507,8 @@ Proto.prototype.render = function (mode, opt) {
     gl.uniform3fv(p.u.uSkyUp, skyUp);
     gl.uniform3fv(p.u.uSkyDn, skyDn);
     gl.uniform1f(p.u.uPbr, mode === 'pbr' ? 1 : 0);
+    gl.uniform1f(p.u.uToon, mode === 'toon' ? 1 : 0);
+    gl.uniform1f(p.u.uTime, opt.time || 0);
   });
   gl.depthMask(true);
   gl.enable(gl.DEPTH_TEST);
@@ -1338,6 +1526,32 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniform1f(p.u.uFogA, opt.fogA);
       gl.uniform1f(p.u.uFogB, opt.fogB);
       gl.uniform1f(p.u.uDay, opt.day);
+    });
+  } else if (mode === 'toon') {
+    this.drawGeom(this.prog.toon, function (p) {
+      gl.uniformMatrix4fv(p.u.uVP, false, s.mVP);
+      gl.uniformMatrix4fv(p.u.uLightVP, false, s.mLightVP);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, s.texAlb);
+      gl.uniform1i(p.u.uAlb, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D_ARRAY, s.texNrm);
+      gl.uniform1i(p.u.uNrm, 1);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D_ARRAY, s.texOrm);
+      gl.uniform1i(p.u.uOrm, 2);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, s.shadow.depth);
+      gl.uniform1i(p.u.uShadow, 3);
+      gl.uniform3fv(p.u.uCam, s.eye);
+      gl.uniform3fv(p.u.uSun, s.sun);
+      gl.uniform3fv(p.u.uLightTint, opt.lightTint);
+      gl.uniform3fv(p.u.uShadeTint, opt.shadeTint);
+      gl.uniform3fv(p.u.uRimCol, opt.rimCol);
+      gl.uniform3fv(p.u.uFogCol, opt.fogCol);
+      gl.uniform1f(p.u.uFogA, opt.fogA);
+      gl.uniform1f(p.u.uFogB, opt.fogB);
+      gl.uniform1fv(p.u.uEmit, s.emit);
+      gl.uniform1f(p.u.uShadowOn, opt.shadow ? 1 : 0);
+      gl.uniform1f(p.u.uNormalOn, opt.normal ? 1 : 0);
+      gl.uniform1f(p.u.uBands, opt.bands);
+      gl.uniform1f(p.u.uSat, opt.sat);
     });
   } else {
     this.drawGeom(this.prog.pbr, function (p) {
@@ -1399,15 +1613,26 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniform2f(p.u.uDir, 0, 1.6 / t.b0.h);
     });
   }
+  const ink = (mode === 'toon' && opt.outline);
   this.post(this.prog.comp, null, function (p) {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t.hdr.tex[0]);
     gl.uniform1i(p.u.uHdr, 0);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, opt.bloom ? t.b0.tex[0] : s.blackTex());
     gl.uniform1i(p.u.uBloom, 1);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, ink ? t.pre.depth : s.whiteTex());
+    gl.uniform1i(p.u.uDepth, 2);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, ink ? t.pre.tex[0] : s.whiteTex());
+    gl.uniform1i(p.u.uNormal, 3);
     gl.uniform1f(p.u.uBloomAmt, opt.bloom ? opt.bloomAmt : 0);
-    gl.uniform1f(p.u.uExposure, opt.exposure);
-    gl.uniform1f(p.u.uTone, opt.tone ? 1 : 0);
+    gl.uniform1f(p.u.uExposure, mode === 'toon' ? 1.0 : opt.exposure);
+    gl.uniform1f(p.u.uTone, (mode === 'pbr' && opt.tone) ? 1 : 0);
+    gl.uniform1f(p.u.uOutline, ink ? 1 : 0);
+    gl.uniform2f(p.u.uPix, 1 / W, 1 / H);
+    gl.uniform3fv(p.u.uInkCol, opt.inkCol);
+    gl.uniform1f(p.u.uVignette, mode === 'toon' ? 0.14 : 0.35);
   });
 };
 
@@ -1441,7 +1666,15 @@ Proto.prototype.blackTex = function () {
 // main.js - 화면을 좌우로 갈라 같은 장면을 두 방식으로 보여 준다.
 'use strict';
 
+const MODES = [
+  { key: 'old', kr: '지금 방식' },
+  { key: 'pbr', kr: 'PBR' },
+  { key: 'toon', kr: '애니 그림체' }
+];
+
 const opt = {
+  left: 'old', right: 'toon',
+  outline: true, bands: 4, sat: 1.30,
   shadow: true, ssao: true, normal: true, bloom: true, tone: true,
   exposure: 1.15, bloomAmt: 0.55, bloomThresh: 0.9,
   aoRadius: 1.1, aoStrength: 0.95,
@@ -1505,11 +1738,28 @@ function sunFor(hour) {
   const ambUp = [a[0] + (lum - a[0]) * k, a[1] + (lum - a[1]) * k, a[2] + (lum - a[2]) * k];
   // 땅에서 튀어 오르는 빛 — 아래를 보는 면이 새까매지지 않게
   const ambDn = toLinear([0.36, 0.34, 0.31], 0.10 + 0.24 * day);
+  // 애니 그림체가 쓰는 색 — 화면 색 자리에서 바로 칠한다
+  const tSun = 1 - Math.pow(1 - up, 1.4);
+  const lightTint = [
+    1.02 + warm * 0.26, 0.99 - warm * 0.02, 0.92 - warm * 0.18
+  ];
+  const shadeTint = [
+    0.56 + 0.10 * tSun, 0.60 + 0.10 * tSun, 0.84 + 0.06 * tSun
+  ];
+  const rimCol = [0.62 + warm * 0.30, 0.74, 0.96];
+  // 하늘도 그림처럼 — 위는 진하게, 아래는 옅게
+  const skyUpT = [0.30 + 0.10 * day - warm * 0.05, 0.52 + 0.14 * day,
+    0.82 + 0.10 * day];
+  const skyDnT = [0.72 + warm * 0.22, 0.82 - warm * 0.06, 0.92 - warm * 0.20];
+  const inkCol = [0.13, 0.14, 0.20];
   return {
     dir: d, day: day,
     skyUp: skyUp, skyDn: skyDn, sunCol: sunCol,
     sunColL: sunColL, skyUpL: skyUpL, skyDnL: skyDnL,
-    ambUp: ambUp, ambDn: ambDn
+    ambUp: ambUp, ambDn: ambDn,
+    lightTint: lightTint, shadeTint: shadeTint, rimCol: rimCol,
+    skyUpT: skyUpT, skyDnT: skyDnT, inkCol: inkCol,
+    sunColT: [1.0 + warm * 0.20, 0.97, 0.88 - warm * 0.16]
   };
 }
 
@@ -1542,16 +1792,23 @@ function frame(ts) {
   const oPbr = Object.assign({}, opt, {
     sunCol: S.sunColL, skyUp: S.skyUpL, skyDn: S.skyDnL, day: S.day,
     ambUp: S.ambUp, ambDn: S.ambDn,
-    fogA: 170, fogB: 460, fogCol: S.skyDnL
+    fogA: 170, fogB: 460, fogCol: S.skyDnL, inkCol: S.inkCol, time: ts * 0.001
   });
+  // 애니 그림체 — 화면 색 자리에서 칠한다
+  const oToon = Object.assign({}, opt, {
+    sunCol: S.sunColT, skyUp: S.skyUpT, skyDn: S.skyDnT, day: S.day,
+    lightTint: S.lightTint, shadeTint: S.shadeTint, rimCol: S.rimCol,
+    inkCol: S.inkCol, fogA: 140, fogB: 420, fogCol: S.skyDnT,
+    time: ts * 0.001
+  });
+  const conf = { old: oOld, pbr: oPbr, toon: oToon };
 
   const cut = Math.round(pw * opt.split);
-  // 왼쪽 — 예전 방식 / 오른쪽 — 새 방식.
   // 가위질은 렌더러가 마지막 합치기에서만 쓴다.
   app.cut = [0, 0, cut, ph];
-  app.render('old', oOld);
+  app.render(opt.left, conf[opt.left]);
   app.cut = [cut, 0, pw - cut, ph];
-  app.render('pbr', oPbr);
+  app.render(opt.right, conf[opt.right]);
   app.cut = null;
 
   stats.n++;
@@ -1663,6 +1920,33 @@ function bindUI() {
     if (n >= 1 && n <= VIEWS.length) setView(n - 1);
   });
 
+  // 좌우에 무엇을 놓을지
+  const label = function () {
+    const L = MODES.find(function (m) { return m.key === opt.left; }).kr;
+    const R = MODES.find(function (m) { return m.key === opt.right; }).kr;
+    bar.style.setProperty('--l', '"◀ ' + L + '"');
+    bar.style.setProperty('--r', '"' + R + ' ▶"');
+  };
+  ['left', 'right'].forEach(function (side) {
+    const box = document.getElementById('mode-' + side);
+    MODES.forEach(function (m) {
+      const b = document.createElement('button');
+      b.textContent = m.kr;
+      b.dataset.key = m.key;
+      b.addEventListener('click', function () {
+        opt[side] = m.key;
+        Array.prototype.forEach.call(box.children, function (c) {
+          c.classList.toggle('on', c.dataset.key === m.key);
+        });
+        label();
+      });
+      if (m.key === opt[side]) b.classList.add('on');
+      box.appendChild(b);
+    });
+  });
+  label();
+
+  bind('outline', 'outline');
   bind('shadow', 'shadow'); bind('ssao', 'ssao'); bind('normal', 'normal');
   bind('bloom', 'bloom'); bind('tone', 'tone'); bind('spin', 'spin');
 
@@ -1679,6 +1963,19 @@ function bindUI() {
   const exp = document.getElementById('exposure');
   exp.value = opt.exposure;
   exp.addEventListener('input', function () { opt.exposure = parseFloat(exp.value); });
+
+  const bands = document.getElementById('bands');
+  const bandsv = document.getElementById('bandsv');
+  bands.value = opt.bands;
+  const showBands = function () { bandsv.textContent = (opt.bands < 2.5 ? '2단' : '4단'); };
+  bands.addEventListener('input', function () {
+    opt.bands = parseFloat(bands.value); showBands();
+  });
+  showBands();
+
+  const sat = document.getElementById('sat');
+  sat.value = opt.sat;
+  sat.addEventListener('input', function () { opt.sat = parseFloat(sat.value); });
 }
 
 window.addEventListener('load', boot);

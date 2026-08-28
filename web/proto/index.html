@@ -14,9 +14,21 @@
 
 <div id="panel">
   <h1>화질 프로토타입</h1>
-  <p class="sub">같은 복셀 장면 · 왼쪽은 지금 게임 방식, 오른쪽은 PBR</p>
+  <p class="sub">같은 복셀 장면을 세 가지 방식으로 — 좌우에 무엇을 놓을지 고르세요</p>
 
-  <h2>오른쪽에 켜는 것</h2>
+  <h2>왼쪽 화면</h2>
+  <div class="modes" id="mode-left"></div>
+  <h2>오른쪽 화면</h2>
+  <div class="modes" id="mode-right"></div>
+
+  <h2>애니 그림체</h2>
+  <label><input type="checkbox" id="outline"> 외곽선 (깊이·법선 경계)</label>
+  <div class="row"><span>명암 단수</span><b id="bandsv">4단</b></div>
+  <input type="range" id="bands" min="2" max="4" step="2">
+  <div class="row"><span>색 진하기</span></div>
+  <input type="range" id="sat" min="1.0" max="1.8" step="0.02">
+
+  <h2>PBR 에 켜는 것</h2>
   <label><input type="checkbox" id="shadow"> 그림자 (2048² 섀도우 맵, 3×3 PCF)</label>
   <label><input type="checkbox" id="ssao"> SSAO (화면 공간 가림)</label>
   <label><input type="checkbox" id="normal"> 노멀 맵 (표면 요철)</label>

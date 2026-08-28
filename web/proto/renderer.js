@@ -20,6 +20,7 @@ function Proto(canvas) {
   this.prog = {
     old: glProgram(gl, SCENE_VS, OLD_FS, '예전'),
     pbr: glProgram(gl, SCENE_VS, PBR_FS, 'PBR'),
+    toon: glProgram(gl, SCENE_VS, TOON_FS, '애니'),
     pre: glProgram(gl, SCENE_VS, PRE_FS, '깊이·노멀'),
     shadow: glProgram(gl, SHADOW_VS, SHADOW_FS, '그림자'),
     ssao: glProgram(gl, POST_VS, SSAO_FS, 'SSAO'),
@@ -147,8 +148,12 @@ Proto.prototype.post = function (prog, target, setup) {
 Proto.prototype.render = function (mode, opt) {
   const gl = this.gl, W = this.size[0], H = this.size[1];
   const sunCol = opt.sunCol, skyUp = opt.skyUp, skyDn = opt.skyDn;
+  const lit = (mode !== 'old');
+  // 애니 그림체도 그림자를 쓰고, 외곽선을 그리려면 깊이·법선이 필요하다
+  const needShadow = lit && opt.shadow;
+  const needPre = (mode === 'pbr' && opt.ssao) || (mode === 'toon' && opt.outline);
 
-  if (mode === 'pbr' && opt.shadow) {
+  if (needShadow) {
     // 1) 그림자 지도
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadow.fbo);
     gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
@@ -165,7 +170,7 @@ Proto.prototype.render = function (mode, opt) {
     gl.cullFace(gl.BACK);
   }
 
-  if (mode === 'pbr' && opt.ssao) {
+  if (needPre) {
     // 2) 깊이·노멀
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.targets.pre.fbo);
     gl.viewport(0, 0, W, H);
@@ -178,8 +183,9 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniformMatrix4fv(p.u.uVP, false, self.mVP);
       gl.uniformMatrix4fv(p.u.uView, false, self.mView);
     });
-    // 3) SSAO 와 흐리기
+    // 3) SSAO 와 흐리기 (PBR 에서만 — 애니는 깊이·법선만 쓴다)
     const t = this.targets, s = this;
+    if (mode === 'pbr' && opt.ssao) {
     this.post(this.prog.ssao, t.ao, function (p) {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t.pre.depth);
       gl.uniform1i(p.u.uDepth, 0);
@@ -201,6 +207,7 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniform1i(p.u.uTex, 0);
       gl.uniform2f(p.u.uDir, 0, 1.5 / H);
     });
+    }
   }
 
   // 4) 본 그림
@@ -222,6 +229,8 @@ Proto.prototype.render = function (mode, opt) {
     gl.uniform3fv(p.u.uSkyUp, skyUp);
     gl.uniform3fv(p.u.uSkyDn, skyDn);
     gl.uniform1f(p.u.uPbr, mode === 'pbr' ? 1 : 0);
+    gl.uniform1f(p.u.uToon, mode === 'toon' ? 1 : 0);
+    gl.uniform1f(p.u.uTime, opt.time || 0);
   });
   gl.depthMask(true);
   gl.enable(gl.DEPTH_TEST);
@@ -239,6 +248,32 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniform1f(p.u.uFogA, opt.fogA);
       gl.uniform1f(p.u.uFogB, opt.fogB);
       gl.uniform1f(p.u.uDay, opt.day);
+    });
+  } else if (mode === 'toon') {
+    this.drawGeom(this.prog.toon, function (p) {
+      gl.uniformMatrix4fv(p.u.uVP, false, s.mVP);
+      gl.uniformMatrix4fv(p.u.uLightVP, false, s.mLightVP);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, s.texAlb);
+      gl.uniform1i(p.u.uAlb, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D_ARRAY, s.texNrm);
+      gl.uniform1i(p.u.uNrm, 1);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D_ARRAY, s.texOrm);
+      gl.uniform1i(p.u.uOrm, 2);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, s.shadow.depth);
+      gl.uniform1i(p.u.uShadow, 3);
+      gl.uniform3fv(p.u.uCam, s.eye);
+      gl.uniform3fv(p.u.uSun, s.sun);
+      gl.uniform3fv(p.u.uLightTint, opt.lightTint);
+      gl.uniform3fv(p.u.uShadeTint, opt.shadeTint);
+      gl.uniform3fv(p.u.uRimCol, opt.rimCol);
+      gl.uniform3fv(p.u.uFogCol, opt.fogCol);
+      gl.uniform1f(p.u.uFogA, opt.fogA);
+      gl.uniform1f(p.u.uFogB, opt.fogB);
+      gl.uniform1fv(p.u.uEmit, s.emit);
+      gl.uniform1f(p.u.uShadowOn, opt.shadow ? 1 : 0);
+      gl.uniform1f(p.u.uNormalOn, opt.normal ? 1 : 0);
+      gl.uniform1f(p.u.uBands, opt.bands);
+      gl.uniform1f(p.u.uSat, opt.sat);
     });
   } else {
     this.drawGeom(this.prog.pbr, function (p) {
@@ -300,15 +335,26 @@ Proto.prototype.render = function (mode, opt) {
       gl.uniform2f(p.u.uDir, 0, 1.6 / t.b0.h);
     });
   }
+  const ink = (mode === 'toon' && opt.outline);
   this.post(this.prog.comp, null, function (p) {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t.hdr.tex[0]);
     gl.uniform1i(p.u.uHdr, 0);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, opt.bloom ? t.b0.tex[0] : s.blackTex());
     gl.uniform1i(p.u.uBloom, 1);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, ink ? t.pre.depth : s.whiteTex());
+    gl.uniform1i(p.u.uDepth, 2);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, ink ? t.pre.tex[0] : s.whiteTex());
+    gl.uniform1i(p.u.uNormal, 3);
     gl.uniform1f(p.u.uBloomAmt, opt.bloom ? opt.bloomAmt : 0);
-    gl.uniform1f(p.u.uExposure, opt.exposure);
-    gl.uniform1f(p.u.uTone, opt.tone ? 1 : 0);
+    gl.uniform1f(p.u.uExposure, mode === 'toon' ? 1.0 : opt.exposure);
+    gl.uniform1f(p.u.uTone, (mode === 'pbr' && opt.tone) ? 1 : 0);
+    gl.uniform1f(p.u.uOutline, ink ? 1 : 0);
+    gl.uniform2f(p.u.uPix, 1 / W, 1 / H);
+    gl.uniform3fv(p.u.uInkCol, opt.inkCol);
+    gl.uniform1f(p.u.uVignette, mode === 'toon' ? 0.14 : 0.35);
   });
 };
 
