@@ -1883,7 +1883,8 @@ function buildCityPlan(world, ap, index) {
   const ridePts = [[apStX, apStZ]];
   for (let i = 0; i < railPath.length; i += 5) ridePts.push([railPath[i][0], railPath[i][1]]);
   ridePts.push([cityStX, cityStZ]);
-  plan.rail = { y: railY + 1, pts: ridePts };
+  // 매끄러운 곡선 띠를 덧그릴 때 쓰려고 촘촘한 원본 길도 남겨 둔다
+  plan.rail = { y: railY + 1, pts: ridePts, full: railPath };
   // platformY = 승강장 바닥에 발이 닿는 높이, half = 승강장 길이 반쪽
   plan.stations = [
     { x: apStX, z: apStZ, y: railY + 1, platformY: railY + 2, faceX: true, half: 34,

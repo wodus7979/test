@@ -120,6 +120,22 @@ defFurnTex('f_belt', function (p, rnd) {
 });
 defFurnTex('f_rope', function (p, rnd) { p.noise(rnd, '#8a1f28', 6, 2); });
 
+// ── 굽은 길 덮개 ──
+defFurnTex('sw_rail', function (p, rnd) {
+  p.noise(rnd, '#8a6a4a', 4, 4);
+  p.rect(0, 6, 16, 4, '#a98456');
+});
+defFurnTex('sw_tie', function (p, rnd) {
+  p.noise(rnd, '#4a3a2a', 5, 3);
+  for (let x = 0; x < 16; x += 5) p.rect(x, 0, 1, 16, '#3b2e21');
+});
+defFurnTex('sw_asphalt', function (p, rnd) {
+  p.noise(rnd, '#33363c', 5, 4);
+  p.rect(0, 11, 16, 1, '#3b3f45');
+});
+defFurnTex('sw_line', function (p, rnd) { p.noise(rnd, '#e6e3da', 3, 4); });
+defFurnTex('sw_center', function (p, rnd) { p.noise(rnd, '#dcb63c', 3, 4); });
+
 // ── 레스토랑 ──
 defFurnTex('r_tile', function (p, rnd) {
   p.noise(rnd, '#e9e4da', 3, 4);

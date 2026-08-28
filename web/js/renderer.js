@@ -920,6 +920,44 @@ Renderer.prototype.drawPlanes = function (mgr, world, player, opts) {
 // ── 드론 택시 ─────────────────────────────────────────────────────────
 const DRONE_OPTS = { glow: { dr_light: 1 } };
 
+// 굽은 길을 매끄럽게 — 블록 위에 덧그린 띠
+Renderer.prototype.drawSmoothWays = function (game, world, player, opts) {
+  if (!game.ensureSmoothWays) return;
+  const ways = game.ensureSmoothWays();
+  if (!ways) return;
+  _geom.reset();
+  const ident = function (lx, ly, lz, out) { out[0] = lx; out[1] = ly; out[2] = lz; };
+  const self = this;
+  let drawn = 0;
+
+  const run = function (segs) {
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      const dx = s.cx - player.x, dz = s.cz - player.z;
+      const dd = dx * dx + dz * dz;
+      // 멀리 간 조각은 만들어 둔 것을 버린다 (오래 돌아다녀도 메모리가 안 는다)
+      if (dd > (SW_KEEP + s.r) * (SW_KEEP + s.r)) { s.mesh = null; continue; }
+      if (dd > (SW_DRAW + s.r) * (SW_DRAW + s.r)) continue;
+      // 아직 안 만들어진 땅 위에는 그리지 않는다 (허공에 띠만 떠 보인다)
+      const c = world.chunkAt(Math.floor(s.cx), Math.floor(s.cz));
+      if (!c || !c.generated) continue;
+      const y = s.y || 0;
+      if (!self.boxInFrustum(s.cx - s.r, y - 4, s.cz - s.r,
+        s.cx + s.r, y + 6, s.cz + s.r)) continue;
+      if (!s.mesh) s.mesh = s.make(s.i0, s.i1);
+      const bx = Math.floor(s.cx), bz = Math.floor(s.cz);
+      const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, Math.floor(y) + 2), bz) / 15;
+      const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, Math.floor(y) + 1), bz) / 15;
+      self.emitMesh(s.mesh, 0, 0, 0, ident, 1, [Math.max(sky, 0.35), blk]);
+      drawn++;
+    }
+  };
+  run(ways.rail);
+  run(ways.road);
+  if (!drawn || !_geom.vn) return;
+  this.flushEntityGeom(opts);
+};
+
 Renderer.prototype.drawDrones = function (game, world, player, opts) {
   const list = game.drones;
   if (!list || !list.length) return;

@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.13';
+const GAME_VERSION = 'v9.14';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -2684,6 +2684,7 @@ Game.prototype.render = function (dt) {
   if (r.drawSignals) r.drawSignals(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
+  if (r.drawSmoothWays) r.drawSmoothWays(this, this.world, p, opts);   // 굽은 길 잇기
   if (r.drawDrones) r.drawDrones(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
