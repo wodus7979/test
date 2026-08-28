@@ -1313,6 +1313,9 @@ body.touch #btn-warp b { display: none; }
           <li>완성한 음식을 들고 <b>주문한 손님</b>에게 <b>우클릭</b>하면 서빙된다 —
               파스타 120원, 피자 150원, 스테이크 180원을 번다.
               화면 위에 <b>들고 있는 음식과 갈 식탁</b>, 밀린 주문이 늘 떠 있다</li>
+          <li>손님은 <b>의자에 걸터앉는다</b> — 좌판 높이에 엉덩이를 맞추고 다리를
+              식탁 밑으로 접는다. 몹마다 다리 길이가 달라서 그 몹의 엉덩이 높이를
+              재서 그만큼 내려앉힌다</li>
           <li>손님은 다 먹으면 나가고 잠시 뒤 새 손님이 앉는다.
               너무 오래 기다리게 하면 그냥 나가 버린다</li>
           <li>공항 <b>울타리 안에는 짐승이 들어오지 않는다</b> — 부지에서는 아예
@@ -18555,7 +18558,7 @@ Renderer.prototype.beginFrame = function (player, opts) {
 
   // 해 쪽에서 본 깊이를 먼저 찍는다 (본 그림보다 앞서야 한다)
   if (this.gl2 && this.pbrLevel >= 2) this.shadowPass(opts.world, player, opts);
-  else this.shadowReady = false;
+  else { this.shadowReady = false; if (this.gl2) this.resetCasters(); }
 
   // 후처리를 쓰면 화면 대신 텍스처에 그린다
   this.postOn = this.post.begin(this.canvas.width, this.canvas.height);
@@ -18846,6 +18849,9 @@ Renderer.prototype.drawChunks = function (world, player, opts, pass) {
   gl.uniformMatrix4fv(p.u.uModel, false, this.model);
 
   if (pass === 'water') {
+    // 반투명이라 섞어 그리는데, 법선 장까지 섞이면 SSAO·외곽선이 엉뚱한 값을 본다.
+    // 물은 깊이도 안 쓰니(depthMask false) 색만 그린다.
+    this.setMRT(false);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
@@ -19126,6 +19132,22 @@ Renderer.prototype.flushEntityGeom = function (opts, countTris) {
   this.addCasters(buf);
 };
 
+// 앉을 때 넓적다리와 팔이 접히는 각도 (라디안)
+const SIT_LEG = -1.40;      // 80도 — 거의 수평, 발끝만 살짝 내린다
+const SIT_ARM = -0.55;      // 팔은 조금만 — 식탁에 얹은 듯이
+
+// 다리가 달린 몹의 엉덩이 높이. 앉힐 때 이만큼 내려앉아야 좌판에 걸터앉는다.
+function mobHipY(def) {
+  let hip = 0;
+  for (let i = 0; i < def.parts.length; i++) {
+    const p = def.parts[i];
+    if (p.leg === undefined) continue;
+    const top = p.y + p.h;
+    if (top > hip) hip = top;
+  }
+  return hip;
+}
+
 Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
   const gl = this.gl;
   _geom.reset();
@@ -19143,13 +19165,22 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
 
     const cosY = Math.cos(m.yaw), sinY = Math.sin(m.yaw);
     const swing = Math.sin(m.limbSwing) * (m.moving || m.def.hostile ? 0.7 : 0);
+    // 앉은 자세 — 넓적다리를 엉덩이에서 앞으로 접는다 (식당 손님).
+    // 모형은 제 자리에서 +Z 를 앞으로 삼으므로 음수로 돌리면 앞으로 뻗는다.
+    const sitting = !!m.sitting;
 
     for (let pi = 0; pi < m.def.parts.length; pi++) {
       const part = m.def.parts[pi];
       let angle = 0;
       let pivotY = part.y;
-      if (part.leg !== undefined) { angle = swing * (part.leg ? -1 : 1); pivotY = part.y + part.h; }
-      if (part.arm !== undefined) { angle = m.def.hostile ? -1.5 : swing * 0.6; pivotY = part.y + part.h; }
+      if (part.leg !== undefined) {
+        angle = sitting ? SIT_LEG : swing * (part.leg ? -1 : 1);
+        pivotY = part.y + part.h;
+      }
+      if (part.arm !== undefined) {
+        angle = sitting ? SIT_ARM : (m.def.hostile ? -1.5 : swing * 0.6);
+        pivotY = part.y + part.h;
+      }
       const ca = Math.cos(angle), sa = Math.sin(angle);
 
       const transform = function (px, py, pz, out) {
@@ -23208,7 +23239,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.1';
+const GAME_VERSION = 'v10.2';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -23498,13 +23529,20 @@ Game.prototype.warpToCity = function (code) {
   const fade = document.getElementById('warp-fade');
 
   const go = function () {
-    const r = self.spawnAtCity(code);
-    // spawnAtCity 는 시작할 때 쓰는 것이라 잠자리까지 옮긴다 — 여기서는 되돌린다
-    if (sx !== undefined) { p.spawnX = sx; p.spawnY = sy; p.spawnZ = sz; }
-    if (!r) { self.ui.toast('그 도시를 찾지 못했습니다'); return; }
-    p.flying = p.flying && p.creative;
-    self.ui.toast(r.name + ' 광장에 내렸습니다');
-    if (fade) setTimeout(function () { fade.classList.remove('on'); }, 30);
+    // 무슨 일이 있어도 덮개는 걷는다 — 안 걷으면 화면이 까맣게 굳는다
+    try {
+      const r = self.spawnAtCity(code);
+      // spawnAtCity 는 시작할 때 쓰는 것이라 잠자리까지 옮긴다 — 여기서는 되돌린다
+      if (sx !== undefined) { p.spawnX = sx; p.spawnY = sy; p.spawnZ = sz; }
+      if (!r) { self.ui.toast('그 도시를 찾지 못했습니다'); return; }
+      p.flying = p.flying && p.creative;
+      self.ui.toast(r.name + ' 광장에 내렸습니다');
+    } catch (e) {
+      console.warn('도시로 옮기지 못했습니다', e);
+      self.ui.toast('옮겨 가지 못했습니다');
+    } finally {
+      if (fade) setTimeout(function () { fade.classList.remove('on'); }, 30);
+    }
   };
 
   this.closeWarp();
@@ -28792,9 +28830,17 @@ Restaurant.prototype.seat = function (table, game) {
   });
   if (!key.length) return false;
   const type = key[(Math.random() * key.length) | 0];
+  // table.sy 는 좌판 윗면이다. 서 있는 몹은 발이 기준점이라 그대로 놓으면
+  // 의자 위에 올라선 꼴이 된다 — 엉덩이 높이만큼 내려앉혀야 걸터앉는다.
+  const drop = mobHipY(MOB_TYPES[type]);
+  // 앉은 자리는 바닥 블록 속이라 거기서 바로 불러내면 거부당할 수 있다.
+  // 좌판 위에 불러낸 뒤 내려앉힌다.
   const e = game.entities.spawnMob(type, table.sx, table.sy, table.sz);
   if (!e) return false;
+  e.y = table.sy - drop;
   e.diner = true;                       // 두뇌를 손님 것으로 바꾼다
+  e.sitting = true;                     // 그리는 쪽에서 다리를 접는다
+  e.sitDrop = drop;
   e.sitYaw = table.yaw;
   e.yaw = e.targetYaw = table.yaw;
   e.restTable = table;
@@ -28845,7 +28891,8 @@ Restaurant.prototype.update = function (dt, game) {
     }
     if (t.guest.dead) { this.clear(t); continue; }
     // 자리에 붙잡아 둔다 (밀려나거나 의자 밑으로 가라앉지 않게)
-    t.guest.x = t.sx; t.guest.z = t.sz; t.guest.y = t.sy;
+    t.guest.x = t.sx; t.guest.z = t.sz;
+    t.guest.y = t.sy - (t.guest.sitDrop || 0);
     t.guest.vx = t.guest.vy = t.guest.vz = 0;
     t.guest.onGround = true;
     t.t += dt;
@@ -28961,7 +29008,7 @@ Game.prototype.nearestDiner = function () {
   for (let i = 0; i < r.tables.length; i++) {
     const t = r.tables[i];
     if (!t.guest || t.guest.dead) continue;
-    const dx = t.sx - e[0], dy = (t.sy + 1.0) - e[1], dz = t.sz - e[2];
+    const dx = t.sx - e[0], dy = (t.sy + 0.55) - e[1], dz = t.sz - e[2];
     const dist = Math.hypot(dx, dy, dz);
     if (dist > bd) continue;
     // 대충 그쪽을 보고 있어야 한다
@@ -29044,7 +29091,7 @@ Game.prototype.drawOrderBubble = function () {
   if (!b || !b.table.guest || b.table.guest.dead) { el.style.display = 'none'; return; }
   b.t += 1 / 60;
   if (b.t > 5) { this._bubble = null; el.style.display = 'none'; return; }
-  const pt = this.projectToScreen(b.table.sx, b.table.sy + 2.3, b.table.sz);
+  const pt = this.projectToScreen(b.table.sx, b.table.sy + 1.65, b.table.sz);
   if (!pt) { el.style.display = 'none'; return; }
   el.textContent = b.text;
   el.style.display = 'block';

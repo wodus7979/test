@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.1';
+const GAME_VERSION = 'v10.2';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -318,13 +318,20 @@ Game.prototype.warpToCity = function (code) {
   const fade = document.getElementById('warp-fade');
 
   const go = function () {
-    const r = self.spawnAtCity(code);
-    // spawnAtCity 는 시작할 때 쓰는 것이라 잠자리까지 옮긴다 — 여기서는 되돌린다
-    if (sx !== undefined) { p.spawnX = sx; p.spawnY = sy; p.spawnZ = sz; }
-    if (!r) { self.ui.toast('그 도시를 찾지 못했습니다'); return; }
-    p.flying = p.flying && p.creative;
-    self.ui.toast(r.name + ' 광장에 내렸습니다');
-    if (fade) setTimeout(function () { fade.classList.remove('on'); }, 30);
+    // 무슨 일이 있어도 덮개는 걷는다 — 안 걷으면 화면이 까맣게 굳는다
+    try {
+      const r = self.spawnAtCity(code);
+      // spawnAtCity 는 시작할 때 쓰는 것이라 잠자리까지 옮긴다 — 여기서는 되돌린다
+      if (sx !== undefined) { p.spawnX = sx; p.spawnY = sy; p.spawnZ = sz; }
+      if (!r) { self.ui.toast('그 도시를 찾지 못했습니다'); return; }
+      p.flying = p.flying && p.creative;
+      self.ui.toast(r.name + ' 광장에 내렸습니다');
+    } catch (e) {
+      console.warn('도시로 옮기지 못했습니다', e);
+      self.ui.toast('옮겨 가지 못했습니다');
+    } finally {
+      if (fade) setTimeout(function () { fade.classList.remove('on'); }, 30);
+    }
   };
 
   this.closeWarp();

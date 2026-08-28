@@ -68,9 +68,17 @@ Restaurant.prototype.seat = function (table, game) {
   });
   if (!key.length) return false;
   const type = key[(Math.random() * key.length) | 0];
+  // table.sy 는 좌판 윗면이다. 서 있는 몹은 발이 기준점이라 그대로 놓으면
+  // 의자 위에 올라선 꼴이 된다 — 엉덩이 높이만큼 내려앉혀야 걸터앉는다.
+  const drop = mobHipY(MOB_TYPES[type]);
+  // 앉은 자리는 바닥 블록 속이라 거기서 바로 불러내면 거부당할 수 있다.
+  // 좌판 위에 불러낸 뒤 내려앉힌다.
   const e = game.entities.spawnMob(type, table.sx, table.sy, table.sz);
   if (!e) return false;
+  e.y = table.sy - drop;
   e.diner = true;                       // 두뇌를 손님 것으로 바꾼다
+  e.sitting = true;                     // 그리는 쪽에서 다리를 접는다
+  e.sitDrop = drop;
   e.sitYaw = table.yaw;
   e.yaw = e.targetYaw = table.yaw;
   e.restTable = table;
@@ -121,7 +129,8 @@ Restaurant.prototype.update = function (dt, game) {
     }
     if (t.guest.dead) { this.clear(t); continue; }
     // 자리에 붙잡아 둔다 (밀려나거나 의자 밑으로 가라앉지 않게)
-    t.guest.x = t.sx; t.guest.z = t.sz; t.guest.y = t.sy;
+    t.guest.x = t.sx; t.guest.z = t.sz;
+    t.guest.y = t.sy - (t.guest.sitDrop || 0);
     t.guest.vx = t.guest.vy = t.guest.vz = 0;
     t.guest.onGround = true;
     t.t += dt;
@@ -237,7 +246,7 @@ Game.prototype.nearestDiner = function () {
   for (let i = 0; i < r.tables.length; i++) {
     const t = r.tables[i];
     if (!t.guest || t.guest.dead) continue;
-    const dx = t.sx - e[0], dy = (t.sy + 1.0) - e[1], dz = t.sz - e[2];
+    const dx = t.sx - e[0], dy = (t.sy + 0.55) - e[1], dz = t.sz - e[2];
     const dist = Math.hypot(dx, dy, dz);
     if (dist > bd) continue;
     // 대충 그쪽을 보고 있어야 한다
@@ -320,7 +329,7 @@ Game.prototype.drawOrderBubble = function () {
   if (!b || !b.table.guest || b.table.guest.dead) { el.style.display = 'none'; return; }
   b.t += 1 / 60;
   if (b.t > 5) { this._bubble = null; el.style.display = 'none'; return; }
-  const pt = this.projectToScreen(b.table.sx, b.table.sy + 2.3, b.table.sz);
+  const pt = this.projectToScreen(b.table.sx, b.table.sy + 1.65, b.table.sz);
   if (!pt) { el.style.display = 'none'; return; }
   el.textContent = b.text;
   el.style.display = 'block';

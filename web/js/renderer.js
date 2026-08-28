@@ -493,7 +493,7 @@ Renderer.prototype.beginFrame = function (player, opts) {
 
   // 해 쪽에서 본 깊이를 먼저 찍는다 (본 그림보다 앞서야 한다)
   if (this.gl2 && this.pbrLevel >= 2) this.shadowPass(opts.world, player, opts);
-  else this.shadowReady = false;
+  else { this.shadowReady = false; if (this.gl2) this.resetCasters(); }
 
   // 후처리를 쓰면 화면 대신 텍스처에 그린다
   this.postOn = this.post.begin(this.canvas.width, this.canvas.height);
@@ -784,6 +784,9 @@ Renderer.prototype.drawChunks = function (world, player, opts, pass) {
   gl.uniformMatrix4fv(p.u.uModel, false, this.model);
 
   if (pass === 'water') {
+    // 반투명이라 섞어 그리는데, 법선 장까지 섞이면 SSAO·외곽선이 엉뚱한 값을 본다.
+    // 물은 깊이도 안 쓰니(depthMask false) 색만 그린다.
+    this.setMRT(false);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
@@ -1064,6 +1067,22 @@ Renderer.prototype.flushEntityGeom = function (opts, countTris) {
   this.addCasters(buf);
 };
 
+// 앉을 때 넓적다리와 팔이 접히는 각도 (라디안)
+const SIT_LEG = -1.40;      // 80도 — 거의 수평, 발끝만 살짝 내린다
+const SIT_ARM = -0.55;      // 팔은 조금만 — 식탁에 얹은 듯이
+
+// 다리가 달린 몹의 엉덩이 높이. 앉힐 때 이만큼 내려앉아야 좌판에 걸터앉는다.
+function mobHipY(def) {
+  let hip = 0;
+  for (let i = 0; i < def.parts.length; i++) {
+    const p = def.parts[i];
+    if (p.leg === undefined) continue;
+    const top = p.y + p.h;
+    if (top > hip) hip = top;
+  }
+  return hip;
+}
+
 Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
   const gl = this.gl;
   _geom.reset();
@@ -1081,13 +1100,22 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
 
     const cosY = Math.cos(m.yaw), sinY = Math.sin(m.yaw);
     const swing = Math.sin(m.limbSwing) * (m.moving || m.def.hostile ? 0.7 : 0);
+    // 앉은 자세 — 넓적다리를 엉덩이에서 앞으로 접는다 (식당 손님).
+    // 모형은 제 자리에서 +Z 를 앞으로 삼으므로 음수로 돌리면 앞으로 뻗는다.
+    const sitting = !!m.sitting;
 
     for (let pi = 0; pi < m.def.parts.length; pi++) {
       const part = m.def.parts[pi];
       let angle = 0;
       let pivotY = part.y;
-      if (part.leg !== undefined) { angle = swing * (part.leg ? -1 : 1); pivotY = part.y + part.h; }
-      if (part.arm !== undefined) { angle = m.def.hostile ? -1.5 : swing * 0.6; pivotY = part.y + part.h; }
+      if (part.leg !== undefined) {
+        angle = sitting ? SIT_LEG : swing * (part.leg ? -1 : 1);
+        pivotY = part.y + part.h;
+      }
+      if (part.arm !== undefined) {
+        angle = sitting ? SIT_ARM : (m.def.hostile ? -1.5 : swing * 0.6);
+        pivotY = part.y + part.h;
+      }
       const ca = Math.cos(angle), sa = Math.sin(angle);
 
       const transform = function (px, py, pz, out) {
