@@ -62,6 +62,8 @@ const COMPOSITE_FS = [
   'uniform float uTime;',
   // ── 애니 외곽선 ──
   'uniform sampler2D uDepth;',
+  'uniform sampler2D uAOTex;',
+  'uniform float uAoAmt;',      // 0 없음 ~ 1 그대로
   'uniform float uInk;',        // 0 없음 · 세기
   'uniform vec2 uPix;',
   'uniform vec3 uInkColor;',
@@ -88,6 +90,8 @@ const COMPOSITE_FS = [
   '  } else {',
   '    col = texture2D(uScene, uv).rgb;',
   '  }',
+  // 화면에서 잰 구석 그늘. 본 그림을 한 번 더 그리지 않으려고 여기서 곱한다.
+  '  if (uAoAmt > 0.0) col *= mix(1.0, texture2D(uAOTex, vUV).r, uAoAmt);',
   '  if (uBloomAmt > 0.0) col += texture2D(uBloom, uv).rgb * uBloomAmt;',
   '  if (uRays > 0.0) {',
   // 해 방향으로 밝은 부분을 끌어당겨 빛줄기를 만든다
@@ -191,16 +195,22 @@ function freeFBO(gl, f) {
 }
 
 // ── 후처리 ────────────────────────────────────────────────────────────
-function PostFX(gl) {
+function PostFX(gl, gl2, hdr) {
   this.gl = gl;
+  this.gl2 = !!gl2;          // WebGL2 이면 부동소수 화면 · 법선 한 장 · SSAO 를 쓸 수 있다
+  this.hdr = !!hdr;          // 부동소수 렌더 타깃이 되는가
+  this.ssaoOn = false;       // 렌더러가 화질 단계에 따라 켠다
   this.ok = false;
   this.level = SHADER_DEFAULT;
   this.active = false;
   this.w = 0; this.h = 0;
+  this.color = null; this.normal = null; this.depthTex = null; this.sceneFB = null;
+  this.ao = null; this.aoBlur = null;
   try {
     this.brightProg = createProgram(gl, POST_VS, BRIGHT_FS, ['aPos']);
     this.blurProg = createProgram(gl, POST_VS, BLUR_FS, ['aPos']);
     this.compProg = createProgram(gl, POST_VS, COMPOSITE_FS, ['aPos']);
+    if (this.gl2) this.ssaoProg = createProgram(gl, POST_VS, SSAO_FS, ['aPos']);
     this.quad = makeBuffer(gl, gl.ARRAY_BUFFER,
       new Float32Array([-1, -1, 3, -1, -1, 3]));
     this.ok = true;
@@ -218,9 +228,14 @@ PostFX.prototype.setLevel = function (n) {
 
 PostFX.prototype.release = function () {
   const gl = this.gl;
-  freeFBO(gl, this.scene); freeFBO(gl, this.half);
+  if (this.target) { freeTarget(gl, this.target); this.target = null; }
+  else freeFBO(gl, this.scene);
+  freeFBO(gl, this.half);
   freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
+  if (this.ao) { freeTarget(gl, this.ao); this.ao = null; }
+  if (this.aoBlur) { freeTarget(gl, this.aoBlur); this.aoBlur = null; }
   this.scene = this.half = this.blurA = this.blurB = null;
+  this.color = this.normal = this.depthTex = this.sceneFB = null;
   this.w = this.h = 0;
 };
 
@@ -230,8 +245,36 @@ PostFX.prototype.ensure = function (w, h) {
   if (this.scene && this.w === w && this.h === h) return true;
   this.release();
   const gl = this.gl;
-  this.scene = makeFBO(gl, w, h, true);
-  if (!this.scene) { this.ok = false; return false; }
+  if (this.gl2) {
+    // 색 한 장 + 세계 법선 한 장 + 읽을 수 있는 깊이.
+    // 법선은 SSAO 와 외곽선이 본다. 색은 되도록 부동소수로 담아
+    // 해·전구가 1 을 넘어도 잘리지 않게 한다 (블룸·톤매핑이 살아난다).
+    const C = this.hdr ? { internal: gl.RGBA16F, format: gl.RGBA, type: gl.HALF_FLOAT }
+                       : { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
+    const N = { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
+    this.target = makeTarget(gl, w, h, [C, N], true);
+    if (!this.target) { this.gl2 = false; }
+    else {
+      this.sceneFB = this.target.fb;
+      this.color = this.target.tex[0];
+      this.normal = this.target.tex[1];
+      this.depthTex = this.target.depth;
+      const R = { internal: gl.R8, format: gl.RED, type: gl.UNSIGNED_BYTE };
+      this.ao = makeTarget(gl, w, h, [R], false);
+      this.aoBlur = makeTarget(gl, w, h, [R], false);
+      if (!this.ao || !this.aoBlur) {
+        freeTarget(gl, this.ao); freeTarget(gl, this.aoBlur);
+        this.ao = this.aoBlur = null;
+      }
+    }
+  }
+  if (!this.gl2 || !this.target) {
+    this.scene = makeFBO(gl, w, h, true);
+    if (!this.scene) { this.ok = false; return false; }
+    this.sceneFB = this.scene.fb;
+    this.color = this.scene.tex;
+    this.depthTex = this.scene.depth;
+  }
   if (this.level >= 2) {
     const hw = Math.max(1, w >> 1), hh = Math.max(1, h >> 1);
     this.half = makeFBO(gl, hw, hh, false);
@@ -250,7 +293,7 @@ PostFX.prototype.ensure = function (w, h) {
 PostFX.prototype.begin = function (w, h) {
   if (!this.ensure(w, h)) { this.active = false; return false; }
   const gl = this.gl;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.scene.fb);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFB);
   gl.viewport(0, 0, w, h);
   this.active = true;
   return true;
@@ -262,6 +305,7 @@ PostFX.prototype.drawQuad = function () {
   gl.enableVertexAttribArray(0);
   gl.disableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 };
@@ -273,10 +317,32 @@ PostFX.prototype.end = function (opts) {
   const lvl = this.level;
   const useBloom = lvl >= 2 && this.half && this.blurA && this.blurB;
   const useRays = lvl >= 3 && useBloom && opts.sunOnScreen;
+  const useAO = this.ssaoOn && this.ao && this.aoBlur && this.normal && this.depthTex;
 
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.CULL_FACE);
   gl.disable(gl.BLEND);
+
+  // 0) 화면 구석 그늘 — 깊이와 법선으로 잰 뒤 가로·세로로 문지른다
+  if (useAO) {
+    const sp = this.ssaoProg;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.ao.fb);
+    gl.viewport(0, 0, this.ao.w, this.ao.h);
+    gl.useProgram(sp);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.depthTex);
+    gl.uniform1i(sp.u.uDepth, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.normal);
+    gl.uniform1i(sp.u.uNormal, 1);
+    gl.uniformMatrix4fv(sp.u.uInvProj, false, opts.invProj);
+    gl.uniformMatrix4fv(sp.u.uProj, false, opts.proj);
+    gl.uniformMatrix4fv(sp.u.uViewOnly, false, opts.view);
+    gl.uniform2f(sp.u.uSize, this.w, this.h);
+    gl.uniform1f(sp.u.uRadius, opts.aoRadius || 0.85);
+    gl.uniform1f(sp.u.uStrength, opts.aoStrength || 1.15);
+    this.drawQuad();
+    this.blurTo(this.ao.tex[0], this.aoBlur, 1.4 / this.w, 0);
+    this.blurTo(this.aoBlur.tex[0], this.ao, 0, 1.4 / this.h);
+  }
 
   if (useBloom) {
     // 1) 밝은 곳 추출 (절반 해상도)
@@ -284,7 +350,7 @@ PostFX.prototype.end = function (opts) {
     gl.viewport(0, 0, this.half.w, this.half.h);
     gl.useProgram(this.brightProg);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.scene.tex);
+    gl.bindTexture(gl.TEXTURE_2D, this.color);
     gl.uniform1i(this.brightProg.u.uScene, 0);
     gl.uniform1f(this.brightProg.u.uThreshold, opts.bloomThreshold);
     gl.uniform1f(this.brightProg.u.uKnee, 0.45);
@@ -307,10 +373,10 @@ PostFX.prototype.end = function (opts) {
   const p = this.compProg;
   gl.useProgram(p);
   gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, this.scene.tex);
+  gl.bindTexture(gl.TEXTURE_2D, this.color);
   gl.uniform1i(p.u.uScene, 0);
   gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, useBloom ? this.blurB.tex : this.scene.tex);
+  gl.bindTexture(gl.TEXTURE_2D, useBloom ? this.blurB.tex : this.color);
   gl.uniform1i(p.u.uBloom, 1);
 
   gl.uniform1f(p.u.uBloomAmt, useBloom ? opts.bloom : 0);
@@ -324,10 +390,14 @@ PostFX.prototype.end = function (opts) {
   gl.uniform1f(p.u.uAberr, lvl >= 3 ? (opts.aberration || 0) : 0);
   gl.uniform1f(p.u.uTime, opts.time);
   // 애니 외곽선 — 깊이를 읽을 수 있을 때만 그을 수 있다
-  const ink = (opts.ink || 0) && this.scene.depth ? opts.ink : 0;
+  const ink = (opts.ink || 0) && this.depthTex ? opts.ink : 0;
   gl.activeTexture(gl.TEXTURE2);
-  gl.bindTexture(gl.TEXTURE_2D, this.scene.depth || this.scene.tex);
+  gl.bindTexture(gl.TEXTURE_2D, this.depthTex || this.color);
   gl.uniform1i(p.u.uDepth, 2);
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D, useAO ? this.ao.tex[0] : this.color);
+  gl.uniform1i(p.u.uAOTex, 3);
+  gl.uniform1f(p.u.uAoAmt, useAO ? (opts.aoAmount === undefined ? 0.85 : opts.aoAmount) : 0);
   gl.uniform1f(p.u.uInk, ink);
   gl.uniform2f(p.u.uPix, 1 / this.w, 1 / this.h);
   gl.uniform3fv(p.u.uInkColor, opts.inkColor || [0.13, 0.14, 0.20]);
@@ -338,6 +408,18 @@ PostFX.prototype.end = function (opts) {
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
   this.active = false;
+};
+
+PostFX.prototype.blurTo = function (srcTex, dst, dx, dy) {
+  const gl = this.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+  gl.viewport(0, 0, dst.w, dst.h);
+  gl.useProgram(this.blurProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, srcTex);
+  gl.uniform1i(this.blurProg.u.uTex, 0);
+  gl.uniform2f(this.blurProg.u.uDir, dx, dy);
+  this.drawQuad();
 };
 
 PostFX.prototype.blurPass = function (src, dst, dx, dy) {

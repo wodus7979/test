@@ -113,6 +113,26 @@ const mat4 = {
     o[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
     return o;
   },
+  // 눈이 eye 에서 center 를 보게 하는 뷰 행렬 (그림자 지도가 쓴다)
+  lookAt: function (o, eye, center, up) {
+    let fx = center[0] - eye[0], fy = center[1] - eye[1], fz = center[2] - eye[2];
+    let l = 1 / (Math.hypot(fx, fy, fz) || 1);
+    fx *= l; fy *= l; fz *= l;
+    let sx = fy * up[2] - fz * up[1];
+    let sy = fz * up[0] - fx * up[2];
+    let sz = fx * up[1] - fy * up[0];
+    l = 1 / (Math.hypot(sx, sy, sz) || 1);
+    sx *= l; sy *= l; sz *= l;
+    const ux = sy * fz - sz * fy, uy = sz * fx - sx * fz, uz = sx * fy - sy * fx;
+    o[0] = sx; o[1] = ux; o[2] = -fx; o[3] = 0;
+    o[4] = sy; o[5] = uy; o[6] = -fy; o[7] = 0;
+    o[8] = sz; o[9] = uz; o[10] = -fz; o[11] = 0;
+    o[12] = -(sx * eye[0] + sy * eye[1] + sz * eye[2]);
+    o[13] = -(ux * eye[0] + uy * eye[1] + uz * eye[2]);
+    o[14] = fx * eye[0] + fy * eye[1] + fz * eye[2];
+    o[15] = 1;
+    return o;
+  },
   rotateZ: function (o, m, rad) {
     const s = Math.sin(rad), c = Math.cos(rad);
     const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
@@ -139,7 +159,13 @@ function compileShader(gl, type, src) {
   return sh;
 }
 
-function createProgram(gl, vsSrc, fsSrc, attribs) {
+// outs 는 WebGL2 에서 색을 여러 장에 나눠 그릴 때 쓰는 출력 이름들이다.
+// 안 주면 gl_FragColor 하나로 친다.
+function createProgram(gl, vsSrc, fsSrc, attribs, outs) {
+  if (GLSL_ES3) {
+    vsSrc = glslES3(vsSrc, false, null);
+    fsSrc = glslES3(fsSrc, true, outs);
+  }
   const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
   const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
   const prog = gl.createProgram();

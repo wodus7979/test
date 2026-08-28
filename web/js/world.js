@@ -816,9 +816,20 @@ World.prototype.blockRenderBoxes = function (x, y, z, id, meta) {
 // ── 메시 생성 ─────────────────────────────────────────────────────────
 const _mv = [], _mi = [], _wv = [], _wi = [];
 
-function pushVertex(arr, x, y, z, u, v, sky, blk, ao) {
-  arr.push(x, y, z, u, v, sky, blk, ao);
+// 정점 하나 = 자리 3 · 무늬 2 · 빛 3 · 접어 넣은 법선 1 = 실수 9 칸.
+// 법선은 WebGL2 길에서 햇빛·그림자·노멀맵을 셈하는 데 쓴다.
+function pushVertex(arr, x, y, z, u, v, sky, blk, ao, nrm) {
+  arr.push(x, y, z, u, v, sky, blk, ao, nrm);
 }
+
+// 십자 식물 두 판 × 앞뒤의 법선 (미리 접어 둔다)
+const CROSS_NRM = (function () {
+  const r = Math.SQRT1_2;
+  return [
+    [packNormal(-r, 0, r), packNormal(r, 0, -r)],
+    [packNormal(r, 0, r), packNormal(-r, 0, -r)]
+  ];
+})();
 
 World.prototype.buildMesh = function (c) {
   _mv.length = 0; _mi.length = 0; _wv.length = 0; _wi.length = 0;
@@ -875,7 +886,7 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
     const u0 = t.u0, du0 = t.u1 - t.u0, v0 = t.v0, dv0 = t.v1 - t.v0;
     const shadeF = FACE_SHADE[f];
     const yShrink = (isLiquid && f === 2) ? 0.12 : 0;
-    const base = varr.length / 8;
+    const base = varr.length / 9;
 
     let q = f * 44;
     for (let ci = 0; ci < 4; ci++) {
@@ -908,7 +919,7 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
       if (!oc) { skySum += this.getSky(cx2, cy2, cz2); blkSum += this.getBlockLight(cx2, cy2, cz2); cnt++; }
       if (cnt === 0) { skySum = this.getSky(nx, ny, nz); blkSum = this.getBlockLight(nx, ny, nz); cnt = 1; }
 
-      varr.push(px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao);
+      varr.push(px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao, FACE_NRM[f]);
     }
     iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -935,7 +946,7 @@ World.prototype.emitLiquid = function (varr, iarr, wx, wy, wz, id, d) {
 
     const t = texUV(blockTexName(id, f));
     const shadeF = FACE_SHADE[f];
-    const base = varr.length / 8;
+    const base = varr.length / 9;
 
     const skyL = this.getSky(nx, ny, nz) / 15;
     const blkL = Math.max(this.getBlockLight(nx, ny, nz), d.light) / 15;
@@ -960,7 +971,7 @@ World.prototype.emitLiquid = function (varr, iarr, wx, wy, wz, id, d) {
         wx + ux, wy + uy, wz + uz,
         t.u0 + (t.u1 - t.u0) * uvp[0],
         t.v0 + (t.v1 - t.v0) * uvp[1],
-        skyL, blkL, shadeF);
+        skyL, blkL, shadeF, FACE_NRM[f]);
     }
     iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -998,7 +1009,7 @@ World.prototype.emitBoxes = function (varr, iarr, wx, wy, wz, id, d, meta) {
       const shadeF = FACE_SHADE[f];
       const ua = face.uAxis, va = face.vAxis;
       const u0 = b[ua], u1 = b[ua + 3], v0 = b[va], v1 = b[va + 3];
-      const base = varr.length / 8;
+      const base = varr.length / 9;
 
       for (let ci = 0; ci < 4; ci++) {
         const tu = (ci === 1 || ci === 2) ? 1 : 0;
@@ -1012,7 +1023,7 @@ World.prototype.emitBoxes = function (varr, iarr, wx, wy, wz, id, d, meta) {
           wx + p[0], wy + p[1], wz + p[2],
           t.u0 + (t.u1 - t.u0) * uvp[0],
           t.v0 + (t.v1 - t.v0) * uvp[1],
-          sky, blk, shadeF);
+          sky, blk, shadeF, FACE_NRM[f]);
       }
       iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
@@ -1032,12 +1043,13 @@ World.prototype.emitCross = function (varr, iarr, wx, wy, wz, d) {
   for (let pi = 0; pi < planes.length; pi++) {
     const a = planes[pi][0], b = planes[pi][1];
     for (let side = 0; side < 2; side++) {
-      const base = varr.length / 8;
+      const base = varr.length / 9;
       const p0 = side ? b : a, p1 = side ? a : b;
-      pushVertex(varr, wx + p0[0], wy, wz + p0[2], t.u0, t.v1, sky, blk, 1);
-      pushVertex(varr, wx + p1[0], wy, wz + p1[2], t.u1, t.v1, sky, blk, 1);
-      pushVertex(varr, wx + p1[0], wy + 1, wz + p1[2], t.u1, t.v0, sky, blk, 1);
-      pushVertex(varr, wx + p0[0], wy + 1, wz + p0[2], t.u0, t.v0, sky, blk, 1);
+      const cn = CROSS_NRM[pi][side];
+      pushVertex(varr, wx + p0[0], wy, wz + p0[2], t.u0, t.v1, sky, blk, 1, cn);
+      pushVertex(varr, wx + p1[0], wy, wz + p1[2], t.u1, t.v1, sky, blk, 1, cn);
+      pushVertex(varr, wx + p1[0], wy + 1, wz + p1[2], t.u1, t.v0, sky, blk, 1, cn);
+      pushVertex(varr, wx + p0[0], wy + 1, wz + p0[2], t.u0, t.v0, sky, blk, 1, cn);
       iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   }

@@ -3,14 +3,41 @@
 
 function Renderer(canvas) {
   const opts = { alpha: false, antialias: false, depth: true, stencil: false, powerPreference: 'high-performance' };
-  const gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+  // WebGL2 가 있으면 그 길로 간다 — 깊이 텍스처 · 여러 장 그리기 · 부동소수 화면이
+  // 확장 없이 그냥 되고, 그래야 그림자 지도와 SSAO 를 얹을 수 있다.
+  let gl = canvas.getContext('webgl2', opts);
+  this.gl2 = !!gl;
+  if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
   if (!gl) throw new Error('이 브라우저(웹뷰)에서 WebGL을 사용할 수 없습니다.');
   this.gl = gl;
   this.canvas = canvas;
+  setGLSL3(this.gl2);
 
-  this.uintExt = gl.getExtension('OES_element_index_uint');
+  this.uintExt = this.gl2 || gl.getExtension('OES_element_index_uint');
+  this.hdrOk = this.gl2 && !!gl.getExtension('EXT_color_buffer_float');
+  this.aniso = gl.getExtension('EXT_texture_filter_anisotropic')
+            || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
+  // 0 예전 방식 · 1 PBR · 2 +그림자 · 3 +SSAO
+  this.pbrLevel = this.gl2 ? 2 : 0;
 
-  this.terrainProg = createProgram(gl, TERRAIN_VS, TERRAIN_FS, ['aPos', 'aUV', 'aLight']);
+  if (this.gl2) {
+    this.terrainProg = createProgram(gl, TERRAIN2_VS, TERRAIN2_FS,
+      ['aPos', 'aUV', 'aLight', 'aNrm'], ['oFrag', 'oNrm']);
+    this.shadowProg = createProgram(gl, SHADOW_VS, SHADOW_FS, ['aPos', 'aUV']);
+    this.shadowTarget = makeShadowTarget(gl, SHADOW_SIZE);
+    if (!this.shadowTarget) this.pbrLevel = Math.min(this.pbrLevel, 1);
+    this.lightView = mat4.create();
+    this.lightProj = mat4.create();
+    this.lightVP = mat4.create();
+    this.invProj = mat4.create();
+    this.castBuf = gl.createBuffer();
+    this.castIdxBuf = gl.createBuffer();
+    this.castV = new Float32Array(9 * 4 * 4096);
+    this.castI = new Uint32Array(6 * 4096);
+    this.castVn = 0; this.castIn = 0;
+  } else {
+    this.terrainProg = createProgram(gl, TERRAIN_VS, TERRAIN_FS, ['aPos', 'aUV', 'aLight']);
+  }
   this.skyProg = createProgram(gl, SKY_VS, SKY_FS, ['aPos']);
   this.lineProg = createProgram(gl, LINE_VS, LINE_FS, ['aPos']);
   this.cloudProg = createProgram(gl, CLOUD_VS, CLOUD_FS, ['aPos', 'aShade']);
@@ -52,7 +79,7 @@ function Renderer(canvas) {
   this.stats = { chunks: 0, tris: 0 };
 
   // 화면 후처리(셰이더). 지원되지 않으면 조용히 꺼진다.
-  this.post = new PostFX(gl);
+  this.post = new PostFX(gl, this.gl2, this.hdrOk);
   this.invViewProj = mat4.create();
 
   this.cloud = null;         // {vbo, ibo, count, span}
@@ -84,6 +111,7 @@ Renderer.prototype.setClouds = function (mesh) {
 
 // 구름 판을 플레이어 주변 3×3으로 이어 붙여 끝없이 보이게 한다.
 Renderer.prototype.drawClouds = function (player, opts) {
+  this.setMRT(false);
   const c = this.cloud;
   if (!c || !c.count || opts.cloudAlpha <= 0.01) return;
   const gl = this.gl;
@@ -104,6 +132,7 @@ Renderer.prototype.drawClouds = function (player, opts) {
   gl.enableVertexAttribArray(0);
   gl.enableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 16, 0);
   gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 12);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, c.ibo);
@@ -174,6 +203,7 @@ Renderer.prototype.buildWeatherBuffer = function (count, radius) {
 };
 
 Renderer.prototype.drawWeather = function (player, opts) {
+  this.setMRT(false);
   const w = opts.weather;
   if (!w || w.alpha <= 0.01) return;
   const gl = this.gl;
@@ -207,6 +237,7 @@ Renderer.prototype.drawWeather = function (player, opts) {
   gl.enableVertexAttribArray(0);
   gl.enableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 20, 0);
   gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 20, 8);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.ibo);
@@ -251,6 +282,7 @@ Renderer.prototype.ensureFxBuffers = function (max) {
 };
 
 Renderer.prototype.drawParticles = function (fx, player, opts) {
+  this.setMRT(false);
   if (!fx || !fx.list.length) return;
   const gl = this.gl;
   this.ensureFxBuffers(FX_MAX);
@@ -300,8 +332,43 @@ Renderer.prototype.drawParticles = function (fx, player, opts) {
 };
 
 Renderer.prototype.setAtlases = function (blockCanvas, itemCanvas) {
-  this.atlasTex = makeTextureFromCanvas(this.gl, blockCanvas);
-  this.itemTex = makeTextureFromCanvas(this.gl, itemCanvas);
+  const gl = this.gl;
+  this.atlasTex = makeTextureFromCanvas(gl, blockCanvas);
+  this.itemTex = makeTextureFromCanvas(gl, itemCanvas);
+  this.applyAniso(this.atlasTex);
+  if (!this.gl2) return;
+  // 그림 파일을 안 쓰니 재질도 아틀라스에서 뽑아낸다 (결 · 거칠기 · 금속)
+  try {
+    const m = buildPBRAtlases(blockCanvas, TEXTURES);
+    this.nrmTex = makeTextureFromCanvas(gl, m.normal);
+    this.ormTex = makeTextureFromCanvas(gl, m.orm);
+    this.applyAniso(this.nrmTex);
+    this.applyAniso(this.ormTex);
+  } catch (e) {
+    console.warn('재질 아틀라스를 만들지 못했습니다:', e.message);
+    this.nrmTex = this.ormTex = null;
+    this.pbrLevel = 0;
+  }
+};
+
+// 비스듬히 보는 바닥이 뭉개지지 않게 (있으면 쓴다)
+Renderer.prototype.applyAniso = function (tex) {
+  const ext = this.aniso;
+  if (!ext || !tex) return;
+  const gl = this.gl;
+  const max = Math.min(8, gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT));
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
+};
+
+// 색 말고 법선도 함께 그릴지 — 하늘·구름·알갱이는 법선이 없으니 끈다
+Renderer.prototype.setMRT = function (on) {
+  if (!this.gl2 || !this.postOn || !this.post.normal) return;
+  if (this._mrt === on) return;
+  this._mrt = on;
+  const gl = this.gl;
+  gl.drawBuffers(on ? [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]
+                    : [gl.COLOR_ATTACHMENT0, gl.NONE]);
 };
 
 Renderer.prototype.resize = function () {
@@ -421,9 +488,18 @@ Renderer.prototype.beginFrame = function (player, opts) {
   mat4.multiply(this.viewProj, this.proj, this.view);
   this.extractFrustum();
   mat4.invert(this.invViewProj, this.viewProj);
+  if (this.gl2) mat4.invert(this.invProj, this.proj);
+  this.eyePos = eye;
+
+  // 해 쪽에서 본 깊이를 먼저 찍는다 (본 그림보다 앞서야 한다)
+  if (this.gl2 && this.pbrLevel >= 2) this.shadowPass(opts.world, player, opts);
+  else this.shadowReady = false;
 
   // 후처리를 쓰면 화면 대신 텍스처에 그린다
   this.postOn = this.post.begin(this.canvas.width, this.canvas.height);
+  this.post.ssaoOn = this.postOn && this.gl2 && this.pbrLevel >= 3;
+  this._mrt = null;
+  this.setMRT(false);
 
   gl.clearColor(opts.fogColor[0], opts.fogColor[1], opts.fogColor[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -436,6 +512,7 @@ Renderer.prototype.beginFrame = function (player, opts) {
   gl.enableVertexAttribArray(0);
   gl.disableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.uniform3fv(sp.u.uTop, opts.skyTop);
   gl.uniform3fv(sp.u.uBottom, opts.skyBottom);
@@ -459,9 +536,142 @@ Renderer.prototype.beginFrame = function (player, opts) {
   this.stats.chunks = 0; this.stats.tris = 0;
 };
 
+// ── 그림자 지도 ───────────────────────────────────────────────────────
+// 해를 마주 보는 직교 상자 하나를 눈앞에 씌운다. 상자는 그림자 지도의
+// 칸 격자에 딱 맞춰 옮겨야 걸음마다 그림자 가장자리가 지글거리지 않는다.
+const SHADOW_R = 96;
+
+Renderer.prototype.shadowPass = function (world, player, opts) {
+  const gl = this.gl, st = this.shadowTarget;
+  this.shadowReady = false;
+  if (!st || !world) return;
+  const sd = opts.sunDir;
+  // 해가 지평선 아래면 그림자를 접는다 (달빛으로 그림자를 만들지는 않는다)
+  if (sd[1] < 0.12 || opts.daylight < 0.20) { this.resetCasters(); return; }
+
+  // 해 쪽 기준틀
+  let fx = sd[0], fy = sd[1], fz = sd[2];
+  const up = Math.abs(fy) > 0.95 ? [0, 0, 1] : [0, 1, 0];
+  let rx = up[1] * fz - up[2] * fy, ry = up[2] * fx - up[0] * fz, rz = up[0] * fy - up[1] * fx;
+  let l = 1 / (Math.hypot(rx, ry, rz) || 1); rx *= l; ry *= l; rz *= l;
+  const ux = fy * rz - fz * ry, uy = fz * rx - fx * rz, uz = fx * ry - fy * rx;
+
+  // 상자 가운데는 눈보다 조금 앞
+  const dirx = -Math.sin(player.yaw), dirz = -Math.cos(player.yaw);
+  let cxw = player.x + dirx * SHADOW_R * 0.32;
+  let cyw = player.y + 6;
+  let czw = player.z + dirz * SHADOW_R * 0.32;
+  // 칸 격자에 맞춘다
+  const texel = 2 * SHADOW_R / SHADOW_SIZE;
+  const cr = Math.round((cxw * rx + cyw * ry + czw * rz) / texel) * texel;
+  const cu = Math.round((cxw * ux + cyw * uy + czw * uz) / texel) * texel;
+  const cf = cxw * fx + cyw * fy + czw * fz;
+  cxw = rx * cr + ux * cu + fx * cf;
+  cyw = ry * cr + uy * cu + fy * cf;
+  czw = rz * cr + uz * cu + fz * cf;
+
+  const D = SHADOW_R * 2.4;
+  mat4.lookAt(this.lightView, [cxw + fx * D, cyw + fy * D, czw + fz * D],
+    [cxw, cyw, czw], up);
+  mat4.ortho(this.lightProj, -SHADOW_R, SHADOW_R, -SHADOW_R, SHADOW_R, 1, D * 2.2);
+  mat4.multiply(this.lightVP, this.lightProj, this.lightView);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, st.fb);
+  gl.viewport(0, 0, st.size, st.size);
+  gl.disable(gl.BLEND);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthMask(true);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  // 앞면을 버리는 흔한 수법은 여기서 못 쓴다 — 복셀 지형은 속이 빈 껍데기라
+  // 해를 마주 본 면을 버리면 정작 그림자를 드리울 면이 통째로 사라진다.
+  // 그래서 뒷면만 버리고, 깊이를 조금 밀어 자기 그림자 얼룩을 막는다.
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.polygonOffset(2.2, 3.0);
+
+  const p = this.shadowProg;
+  gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u.uLightVP, false, this.lightVP);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(p.u.uModel, false, this.model);
+  gl.uniform1i(p.u.uTex, 0);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
+
+  const self = this;
+  const lim = SHADOW_R + CHUNK_X;
+  this.chunkGL.forEach(function (entry, key) {
+    const e = entry.solid;
+    if (!e || !e.count) return;
+    const parts = key.split(',');
+    const x0 = parseInt(parts[0], 10) * CHUNK_X + CHUNK_X / 2;
+    const z0 = parseInt(parts[1], 10) * CHUNK_Z + CHUNK_Z / 2;
+    const dx = x0 - cxw, dz = z0 - czw;
+    if (dx * dx + dz * dz > lim * lim) return;
+    self.bindShadowAttribs(e.vbo);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, e.ibo);
+    gl.drawElements(gl.TRIANGLES, e.count, e.type, 0);
+  });
+
+  // 지난 판에 쌓아 둔 탈것·짐승도 그림자를 드리운다.
+  // 한 판 늦지만 움직임이 이어져서 눈에 띄지 않는다.
+  if (this.castIn) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.castBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.castV.subarray(0, this.castVn), gl.DYNAMIC_DRAW);
+    this.bindShadowAttribs(this.castBuf);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.castIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.castI.subarray(0, this.castIn), gl.DYNAMIC_DRAW);
+    // 탈것은 얇은 판이 많아 양면 다 찍는다
+    gl.disable(gl.CULL_FACE);
+    gl.drawElements(gl.TRIANGLES, this.castIn, gl.UNSIGNED_INT, 0);
+    gl.enable(gl.CULL_FACE);
+  }
+  this.resetCasters();
+
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+  this.shadowReady = true;
+};
+
+Renderer.prototype.resetCasters = function () { this.castVn = 0; this.castIn = 0; };
+
+// 이번 판에 그린 엔티티 모양을 다음 판 그림자용으로 쟁여 둔다
+const CAST_MAX_V = 9 * 200000;
+
+Renderer.prototype.addCasters = function (buf) {
+  if (!this.gl2 || this.pbrLevel < 2 || !buf.inn) return;
+  const nv = buf.vn, ni = buf.inn;
+  if (this.castVn + nv > CAST_MAX_V) return;
+  if (this.castVn + nv > this.castV.length) {
+    let cap = this.castV.length;
+    while (cap < this.castVn + nv) cap *= 2;
+    const a = new Float32Array(cap); a.set(this.castV.subarray(0, this.castVn));
+    this.castV = a;
+  }
+  if (this.castIn + ni > this.castI.length) {
+    let cap = this.castI.length;
+    while (cap < this.castIn + ni) cap *= 2;
+    const a = new Uint32Array(cap); a.set(this.castI.subarray(0, this.castIn));
+    this.castI = a;
+  }
+  this.castV.set(buf.v.subarray(0, nv), this.castVn);
+  const base = this.castVn / 9;
+  const src = buf.i, dst = this.castI, at = this.castIn;
+  for (let i = 0; i < ni; i++) dst[at + i] = src[i] + base;
+  this.castVn += nv; this.castIn += ni;
+};
+
 // 후처리를 입혀 화면에 낸다. 프레임의 맨 마지막에 부른다.
 Renderer.prototype.endFrame = function (opts) {
-  if (this.postOn) this.post.end(opts);
+  if (this.postOn) {
+    // SSAO 는 깊이를 눈 좌표로 되돌려야 하므로 행렬을 함께 넘긴다
+    opts.proj = this.proj;
+    opts.view = this.view;
+    opts.invProj = this.invProj;
+    this.post.end(opts);
+  }
   this.postOn = false;
 };
 
@@ -500,21 +710,71 @@ Renderer.prototype.setupTerrainProgram = function (opts) {
   gl.uniform3fv(p.u.uToonWarm, opts.toonWarm || [1, 1, 1]);
   gl.uniform3fv(p.u.uToonCool, opts.toonCool || [1, 1, 1]);
   gl.uniform1f(p.u.uToonSat, opts.toonSat || 1);
+  if (this.gl2) this.setupPBR(p, opts);
+  this.setMRT(true);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
   return p;
 };
 
+// PBR 쪽 유니폼 — 해 · 하늘빛 · 그림자 지도 · 화면 그늘
+Renderer.prototype.setupPBR = function (p, opts) {
+  const gl = this.gl;
+  const lv = this.pbrLevel;
+  const on = lv >= 1 && this.nrmTex && this.ormTex;
+  gl.uniform1f(p.u.uPbr, on ? 1 : 0);
+  if (!on) { gl.uniform1f(p.u.uShadowOn, 0); gl.uniform1f(p.u.uSsaoOn, 0); return; }
+  gl.uniform1f(p.u.uNormalOn, 1);
+  gl.uniform1i(p.u.uNrmTex, 1);
+  gl.uniform1i(p.u.uOrmTex, 2);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.nrmTex);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.ormTex);
+  const useShadow = lv >= 2 && this.shadowTarget && this.shadowReady;
+  gl.uniform1f(p.u.uShadowOn, useShadow ? 1 : 0);
+  gl.uniform1i(p.u.uShadowTex, 3);
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D, this.shadowTarget ? this.shadowTarget.depth : null);
+  if (useShadow) gl.uniformMatrix4fv(p.u.uLightVP, false, this.lightVP);
+  // 화면 그늘은 합성 때 곱한다 (본 그림을 두 번 그리지 않으려고)
+  gl.uniform1f(p.u.uSsaoOn, 0);
+  gl.uniform3fv(p.u.uSunDir, opts.sunDir);
+  gl.uniform3fv(p.u.uSunCol, opts.pbrSun || [2.6, 2.45, 2.15]);
+  gl.uniform3fv(p.u.uAmbUp, opts.pbrAmbUp || [0.36, 0.42, 0.52]);
+  gl.uniform3fv(p.u.uAmbDn, opts.pbrAmbDn || [0.16, 0.15, 0.13]);
+  gl.uniform3fv(p.u.uSkyUp, opts.pbrSkyUp || opts.skyTop);
+  gl.uniform3fv(p.u.uSkyDn, opts.pbrSkyDn || opts.skyBottom);
+  gl.uniform3fv(p.u.uCamPos, this.eyePos || [0, 0, 0]);
+  gl.uniform2f(p.u.uPix, 1 / Math.max(1, this.canvas.width), 1 / Math.max(1, this.canvas.height));
+  gl.activeTexture(gl.TEXTURE0);
+};
+
+const VERT_STRIDE = 9 * 4;
+
 Renderer.prototype.bindTerrainAttribs = function (vbo) {
   const gl = this.gl;
   gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  const stride = 8 * 4;
   gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, 0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, VERT_STRIDE, 0);
   gl.enableVertexAttribArray(1);
-  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 12);
+  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, VERT_STRIDE, 12);
   gl.enableVertexAttribArray(2);
-  gl.vertexAttribPointer(2, 3, gl.FLOAT, false, stride, 20);
+  gl.vertexAttribPointer(2, 3, gl.FLOAT, false, VERT_STRIDE, 20);
+  if (this.gl2) {
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 1, gl.FLOAT, false, VERT_STRIDE, 32);
+  }
+};
+
+// 그림자 지도를 찍을 때는 자리와 무늬만 있으면 된다
+Renderer.prototype.bindShadowAttribs = function (vbo) {
+  const gl = this.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, VERT_STRIDE, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, VERT_STRIDE, 12);
+  gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
 };
 
 Renderer.prototype.drawChunks = function (world, player, opts, pass) {
@@ -570,7 +830,7 @@ Renderer.prototype.drawChunks = function (world, player, opts, pass) {
 // 프레임마다 배열을 새로 만들면 쓰레기가 쌓이니, 늘어나는 타입 배열 하나를
 // 계속 다시 쓴다.
 function GeomBuf(verts) {
-  this.v = new Float32Array(verts * 8);
+  this.v = new Float32Array(verts * 9);
   this.i = new Uint32Array(verts * 6 / 4);
   this.i16 = null;      // uint32 확장이 없는 기기에서만 쓴다
   this.vn = 0;          // 채워 넣은 float 개수
@@ -581,7 +841,7 @@ GeomBuf.prototype.reset = function () { this.vn = 0; this.inn = 0; };
 
 // 상자 하나(정점 24, 인덱스 36)를 더 담을 자리를 만든다
 GeomBuf.prototype.reserveBox = function () {
-  if (this.vn + 24 * 8 > this.v.length) {
+  if (this.vn + 24 * 9 > this.v.length) {
     const nv = new Float32Array(this.v.length * 2);
     nv.set(this.v.subarray(0, this.vn));
     this.v = nv;
@@ -595,7 +855,7 @@ GeomBuf.prototype.reserveBox = function () {
 
 // 사각형 n 개를 더 담을 자리를 만든다 (상자가 아닌 자유 모양용)
 GeomBuf.prototype.reserveQuads = function (n) {
-  const needV = this.vn + n * 4 * 8;
+  const needV = this.vn + n * 4 * 9;
   if (needV > this.v.length) {
     let cap = this.v.length;
     while (cap < needV) cap *= 2;
@@ -654,16 +914,17 @@ Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opt
     const lit = (glow && glow[name]) ? 1 : shadeOfNormal(no[0], no[1], no[2]);
     const gl0 = (glow && glow[name]) ? 1 : l0;
     const gl1 = (glow && glow[name]) ? 1 : l1;
+    const pn = packNormal(no[0], no[1], no[2]);
     let vn = buf.vn;
-    const base = vn / 8;
+    const base = vn / 9;
     for (let c = 0; c < 4; c++) {
       const pi = (q * 4 + c) * 3, ui = (q * 4 + c) * 2;
       rot(P[pi] * scale, P[pi + 1] * scale, P[pi + 2] * scale, o);
       F[vn] = cx + o[0]; F[vn + 1] = cy + o[1]; F[vn + 2] = cz + o[2];
       F[vn + 3] = t.u0 + du * U[ui];
       F[vn + 4] = t.v0 + dv * U[ui + 1];
-      F[vn + 5] = gl0; F[vn + 6] = gl1; F[vn + 7] = lit;
-      vn += 8;
+      F[vn + 5] = gl0; F[vn + 6] = gl1; F[vn + 7] = lit; F[vn + 8] = pn;
+      vn += 9;
     }
     buf.vn = vn;
     let inn = buf.inn;
@@ -674,15 +935,17 @@ Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opt
     // 얇은 판은 안쪽에서도 보여야 한다 (객실 안, 조종석 안)
     if (TW[q]) {
       const backLit = shadeOfNormal(-no[0], -no[1], -no[2]);
+      const bpn = packNormal(-no[0], -no[1], -no[2]);
       vn = buf.vn;
-      const b2 = vn / 8;
+      const b2 = vn / 9;
       for (let c = 0; c < 4; c++) {
-        const src = (buf.vn - 32) + c * 8;
+        const src = (buf.vn - 36) + c * 9;
         F[vn] = F[src]; F[vn + 1] = F[src + 1]; F[vn + 2] = F[src + 2];
         F[vn + 3] = F[src + 3]; F[vn + 4] = F[src + 4];
         F[vn + 5] = gl0; F[vn + 6] = gl1;
         F[vn + 7] = (glow && glow[name]) ? 1 : backLit;
-        vn += 8;
+        F[vn + 8] = bpn;
+        vn += 9;
       }
       buf.vn = vn;
       inn = buf.inn;
@@ -725,8 +988,9 @@ function emitBox(buf, cx, cy, cz, w, h, d, texName, frontTex, transform, light) 
     const t = (f === 4) ? tFront : tMain;
     const u0 = t.u0, du = t.u1 - t.u0, v0 = t.v0, dv = t.v1 - t.v0;
     const shade = FACE_SHADE[f];
+    const pn = FACE_NRM[f];
     let vn = buf.vn;
-    const base = vn / 8;
+    const base = vn / 9;
     let c = f * 20;
     for (let ci = 0; ci < 4; ci++) {
       transform((BOX_CORNER[c] - 0.5) * w, BOX_CORNER[c + 1] * h, (BOX_CORNER[c + 2] - 0.5) * d, out);
@@ -738,7 +1002,8 @@ function emitBox(buf, cx, cy, cz, w, h, d, texName, frontTex, transform, light) 
       V[vn + 5] = l0;
       V[vn + 6] = l1;
       V[vn + 7] = shade;
-      vn += 8; c += 5;
+      V[vn + 8] = pn;
+      vn += 9; c += 5;
     }
     buf.vn = vn;
     let inn = buf.inn;
@@ -758,7 +1023,7 @@ function emitUnitCube(buf, x, y, z, id, sky, blk, flash) {
     const t = texUV(blockTexName(id, f));
     const u0 = t.u0, du = t.u1 - t.u0, v0 = t.v0, dv = t.v1 - t.v0;
     const shade = flash ? 1 : FACE_SHADE[f];
-    const base = vn / 8;
+    const base = vn / 9;
     let c = f * 20;
     for (let ci = 0; ci < 4; ci++) {
       V[vn] = x - 0.5 + BOX_CORNER[c];
@@ -769,7 +1034,8 @@ function emitUnitCube(buf, x, y, z, id, sky, blk, flash) {
       V[vn + 5] = sky;
       V[vn + 6] = blk;
       V[vn + 7] = shade;
-      vn += 8; c += 5;
+      V[vn + 8] = FACE_NRM[f];
+      vn += 9; c += 5;
     }
     I[inn] = base; I[inn + 1] = base + 1; I[inn + 2] = base + 2;
     I[inn + 3] = base; I[inn + 4] = base + 2; I[inn + 5] = base + 3;
@@ -795,6 +1061,7 @@ Renderer.prototype.flushEntityGeom = function (opts, countTris) {
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
   gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   if (countTris !== false) this.stats.tris += idx.length / 3;
+  this.addCasters(buf);
 };
 
 Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
@@ -1512,7 +1779,7 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
     // 정점 예산 (16비트 인덱스뿐인 기기에서는 65535를 넘으면 안 된다)
     const cap = this.uintExt ? ITEM_VERT_BUDGET : 60000;
     const need = isCube ? 24 : (far ? 8 : mesh.v.length / 6);
-    const used = _fv.length / 8 + _iv.length / 8;
+    const used = _fv.length / 9 + _iv.length / 9;
     if (used + need * copies > cap) {
       copies = 1;
       if (used + need > cap) break;
@@ -1571,7 +1838,7 @@ Renderer.prototype.emitItemCube = function (v, ind, it, bid, off, rc, rs, bob, s
     const face = FACES[f];
     const t = texUV(blockTexName(bid, f));
     const shade = FACE_SHADE[f];
-    const base = v.length / 8;
+    const base = v.length / 9;
     for (let ci = 0; ci < 4; ci++) {
       const tu = (ci === 1 || ci === 2) ? 1 : 0;
       const tv = (ci === 2 || ci === 3) ? 1 : 0;
@@ -1583,7 +1850,7 @@ Renderer.prototype.emitItemCube = function (v, ind, it, bid, off, rc, rs, bob, s
         cx + lx * rc + lz * rs, cy + ly, cz - lx * rs + lz * rc,
         t.u0 + (t.u1 - t.u0) * uvp[0],
         t.v0 + (t.v1 - t.v0) * uvp[1],
-        sky, blk, shade);
+        sky, blk, shade, FACE_NRM[f]);
     }
     ind.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -1595,12 +1862,12 @@ Renderer.prototype.emitItemMesh = function (v, ind, mesh, it, off, rc, rs, bob, 
   const cx = it.x + off[0] * s, cz = it.z + off[2] * s;
   const cy = it.y + bob + off[1] * s + s * 0.5;
 
-  const src = mesh.v, base = v.length / 8;
+  const src = mesh.v, base = v.length / 9;
   for (let i = 0; i < src.length; i += 6) {
     const lx = src[i] * s, ly = src[i + 1] * s, lz = src[i + 2] * s;
     v.push(
       cx + lx * rc + lz * rs, cy + ly, cz - lx * rs + lz * rc,
-      src[i + 3], src[i + 4], sky, blk, src[i + 5]);
+      src[i + 3], src[i + 4], sky, blk, src[i + 5], NRM_FLAT);
   }
   const si = mesh.idx;
   for (let i = 0; i < si.length; i++) ind.push(base + si[i]);
@@ -1616,14 +1883,14 @@ Renderer.prototype.emitItemFlat = function (v, ind, it, off, rc, rs, bob, sky, b
   const corners = [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 1]];
 
   for (let side = 0; side < 2; side++) {
-    const base = v.length / 8;
+    const base = v.length / 9;
     for (let n = 0; n < 4; n++) {
       const c = corners[side === 0 ? n : 3 - n];
       const lx = c[0] * s;
       v.push(
         cx + lx * rc, cy + c[1] * s, cz - lx * rs,
         c[0] < 0 ? t.u0 : t.u1, c[1] > 0 ? t.v0 : t.v1,
-        sky, blk, side === 0 ? 1 : 0.88);
+        sky, blk, side === 0 ? 1 : 0.88, NRM_FLAT);
     }
     ind.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -1668,6 +1935,7 @@ Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
 // ── 선택 외곽선 ───────────────────────────────────────────────────────
 // box: [x0,y0,z0,x1,y1,z1] (블록 로컬 0~1 좌표). 생략하면 전체 큐브.
 Renderer.prototype.drawOutline = function (x, y, z, box) {
+  this.setMRT(false);
   const gl = this.gl;
   const p = this.lineProg;
   const e = 0.003;
@@ -1686,6 +1954,7 @@ Renderer.prototype.drawOutline = function (x, y, z, box) {
   gl.enableVertexAttribArray(0);
   gl.disableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

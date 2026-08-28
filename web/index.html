@@ -108,6 +108,14 @@
           <option value="3">최고 (＋갓레이)</option>
         </select>
       </label>
+      <label>화질
+        <select id="sel-render">
+          <option value="0">예전 방식 (면 밝기)</option>
+          <option value="1">물리 기반 조명 (＋노멀·반사)</option>
+          <option value="2" selected>높음 (＋해 그림자)</option>
+          <option value="3">최고 (＋구석 그늘)</option>
+        </select>
+      </label>
       <label>그림체
         <select id="sel-toon">
           <option value="0" selected>기본 (블록 그대로)</option>
@@ -128,6 +136,8 @@
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
           <li><b>J</b> 그림체 바꾸기 — <b>기본</b>과 <b>애니</b> 두 가지 (시작 화면에서도 고를 수 있다)</li>
+          <li><b>L</b> 화질 바꾸기 — <b>예전 방식 / 물리 기반 조명 / ＋해 그림자 / ＋구석 그늘</b>
+              (WebGL2 를 지원하는 기기에서만. 시작 화면에서도 고를 수 있다)</li>
           <li><b>R</b> 날씨 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개). 추운 지방에서는 비 대신 눈이 온다</li>
           <li><b>M</b> 지도 배율 바꾸기 · <b>N</b> 목적지 공항 바꾸기</li>
           <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
@@ -312,6 +322,17 @@
               물체 테두리에는 <b>먹선</b>이 그어진다 (화면 셰이더가 켜져 있어야 한다)</li>
           <li>먹선은 <b>가까운 것에만</b> 그어진다 — 복셀 지형은 한 칸짜리 계단이
               끝없이 이어져서, 거리에 따라 문턱을 높이지 않으면 온 산이 그물이 된다</li>
+          <li><b>화질을 올리면 빛이 진짜로 계산된다</b> (WebGL2 를 지원하는 기기).
+              면마다 정해진 밝기를 쓰는 대신 <b>정점에 실린 법선</b>으로 해와 하늘빛을
+              셈하고, 거칠기·금속기에 따라 <b>반사</b>가 생긴다. 무늬 자체에서 뽑아낸
+              <b>결(노멀맵)</b> 덕에 통나무는 둥글게, 벽돌은 파이게 보인다</li>
+          <li><b>＋해 그림자</b>는 해 쪽에서 세상을 한 번 더 찍어(2048²) 건물·나무·탈것이
+              땅에 <b>진짜 그림자</b>를 드리우게 한다. 눈앞 96칸만 덮고, 걸을 때 가장자리가
+              지글거리지 않도록 그림자 격자에 맞춰 옮긴다</li>
+          <li><b>＋구석 그늘</b>은 깊이와 법선으로 <b>맞닿은 구석</b>을 찾아 그늘을 넣는다
+              (SSAO). 창틀·계단참·나무 밑동이 바닥에 붙어 보인다</li>
+          <li>그림 파일은 여전히 <b>하나도 안 쓴다</b> — 결·거칠기·금속기 지도는 시작할 때
+              블록 무늬에서 뽑아낸다</li>
           <li><b>찻길과 철길의 굽이는 매끄럽게</b> 이어진다 — 땅에 깔린 블록은 그대로지만,
               그 위로 <b>곡선을 따라 휘는 띠</b>를 덧그려서 커브가 계단처럼 끊기지 않는다.
               찻길은 아스팔트·중앙 두 줄·차선 점선·갓길 흰 줄까지, 철길은 침목과 네 가닥
@@ -359,7 +380,10 @@
 <script src="js/skin.js"></script>
 <script src="js/textures.js"></script>
 <script src="js/itemicons.js"></script>
+<script src="js/gl2.js"></script>
 <script src="js/glutil.js"></script>
+<script src="js/pbr.js"></script>
+<script src="js/pbrmat.js"></script>
 <script src="js/postfx.js"></script>
 <script src="js/world.js"></script>
 <script src="js/village.js"></script>

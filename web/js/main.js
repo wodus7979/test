@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.14';
+const GAME_VERSION = 'v10.0';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -57,6 +57,11 @@ function Game(canvas) {
       const el = (typeof document !== 'undefined') && document.getElementById('sel-toon');
       return el ? parseInt(el.value, 10) : 0;
     })(),                       // 그림체 — 0 기본 · 1 애니
+    // 화질 — 0 예전 방식 · 1 물리 기반 조명 · 2 +그림자 · 3 +구석 그늘
+    render: (function () {
+      const el = (typeof document !== 'undefined') && document.getElementById('sel-render');
+      return el ? parseInt(el.value, 10) : 2;
+    })(),
     clouds: 1                   // 0 이면 구름을 그리지 않는다
   };
   this.input = {
@@ -723,6 +728,22 @@ Game.prototype.bindInput = function () {
         try { localStorage.setItem('wc_toon', String(self.settings.toon)); }
         catch (e) { /* 저장소가 막혀 있어도 진행 */ }
         self.ui.toast('그림체: ' + (self.settings.toon ? '애니' : '기본'));
+        break;
+      }
+      case 'KeyL': {
+        // 화질 돌려 가며 켜기 (물리 기반 조명 · 그림자 · 구석 그늘)
+        if (!self.renderer.gl2) {
+          self.ui.toast('이 기기는 WebGL2 를 지원하지 않아 예전 방식으로만 그립니다');
+          break;
+        }
+        const top = self.renderer.shadowTarget ? RENDER_LEVELS.length : 2;
+        const n = (self.settings.render + 1) % top;
+        self.settings.render = n;
+        const selr = document.getElementById('sel-render');
+        if (selr) selr.value = String(n);
+        try { localStorage.setItem('wc_render', String(n)); }
+        catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+        self.ui.toast('화질: ' + RENDER_LEVELS[n]);
         break;
       }
       case 'KeyP': {
@@ -2599,6 +2620,33 @@ Game.prototype.render = function (dt) {
 
   const r = this.renderer;
   r.post.setLevel(this.settings.shader);
+  // 화질 단계 — WebGL2 가 있어야 물리 기반 조명·그림자·SSAO 를 쓸 수 있다
+  if (r.gl2) r.pbrLevel = Math.min(this.settings.render, r.shadowTarget ? 3 : 1);
+  opts.world = this.world;
+
+  // ── 물리 기반 조명에 넘길 빛 ──
+  // 해는 세기를 그대로(선형) 넘기고, 하늘빛은 하늘 그림 색과 따로 잡는다.
+  // 하늘 그림 색을 그대로 쓰면 온 세상이 새파래진다.
+  if (r.gl2 && r.pbrLevel >= 1) {
+    const dl = Math.max(0, Math.min(1, daylight));
+    const t = this.dayPhase();
+    const s2 = Math.sin(t * Math.PI * 2);
+    const dusk2 = Math.max(0, 1 - Math.abs(s2) * 3.2);
+    // 해가 정면으로 드는 윗면이 예전 방식과 비슷한 밝기로 떨어지게 맞춘다.
+    // (해/파이 + 하늘빛) ≈ 1 이 되도록 잡아야 도로·인도가 하얗게 타지 않는다.
+    const k = 2.05 * dl;
+    opts.pbrSun = [k * (1.0 + dusk2 * 0.22),
+      k * (0.95 - dusk2 * 0.20),
+      k * (0.84 - dusk2 * 0.38)];
+    // 위에서 오는 하늘빛은 푸르되 옅게, 아래에서 튀는 빛은 땅 색으로
+    // 하늘빛. dl 은 0.30(한밤) ~ 1(한낮) 이라 기울기를 눕혀야 한다 —
+    // 낮에는 (해/파이 + 하늘빛) ≈ 1, 밤에도 예전 밝기(0.30) 언저리로 남게.
+    const a = 0.13 * dl + 0.195;
+    opts.pbrAmbUp = [a * 0.86, a * 0.96, a * 1.22];
+    opts.pbrAmbDn = [a * 0.62, a * 0.56, a * 0.46];
+    opts.pbrSkyUp = [skyTop[0] * dl, skyTop[1] * dl, skyTop[2] * dl];
+    opts.pbrSkyDn = [fogColor[0] * dl * 0.8, fogColor[1] * dl * 0.8, fogColor[2] * dl * 0.8];
+  }
 
   // ── 애니 그림체 ──
   // 지형·탈것·가구가 모두 같은 프로그램을 쓰므로 여기서 한 번에 정한다.
@@ -2634,6 +2682,10 @@ Game.prototype.render = function (dt) {
     fx.saturation *= 1.10;
     fx.vignette *= 0.5;
   }
+  // 화면에서 잰 구석 그늘
+  fx.aoAmount = (r.gl2 && r.pbrLevel >= 3) ? 0.80 : 0;
+  fx.aoRadius = 0.85;
+  fx.aoStrength = 1.15;
   fx.saturation *= 1 - 0.30 * wet;
   fx.exposure *= 1 - 0.12 * wet;
   fx.exposure += flash * 0.55;
@@ -2724,6 +2776,9 @@ Game.prototype.render = function (dt) {
       '  로드됨 ' + this.world.chunks.size + '  그림 ' + r.stats.chunks,
       '삼각형 ' + (r.stats.tris | 0) + '  셰이더 ' + SHADER_LEVELS[this.settings.shader] +
       (r.post.ok ? '' : ' (미지원)'),
+      (r.gl2 ? 'WebGL2  화질 ' + RENDER_LEVELS[r.pbrLevel] +
+        (r.shadowReady ? '  그림자 켜짐' : '') + (r.hdrOk ? '  HDR' : '')
+             : 'WebGL1 (예전 방식)'),
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
       '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))] +

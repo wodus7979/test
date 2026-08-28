@@ -1036,6 +1036,14 @@ button.tiny {
           <option value="3">최고 (＋갓레이)</option>
         </select>
       </label>
+      <label>화질
+        <select id="sel-render">
+          <option value="0">예전 방식 (면 밝기)</option>
+          <option value="1">물리 기반 조명 (＋노멀·반사)</option>
+          <option value="2" selected>높음 (＋해 그림자)</option>
+          <option value="3">최고 (＋구석 그늘)</option>
+        </select>
+      </label>
       <label>그림체
         <select id="sel-toon">
           <option value="0" selected>기본 (블록 그대로)</option>
@@ -1056,6 +1064,8 @@ button.tiny {
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
           <li><b>J</b> 그림체 바꾸기 — <b>기본</b>과 <b>애니</b> 두 가지 (시작 화면에서도 고를 수 있다)</li>
+          <li><b>L</b> 화질 바꾸기 — <b>예전 방식 / 물리 기반 조명 / ＋해 그림자 / ＋구석 그늘</b>
+              (WebGL2 를 지원하는 기기에서만. 시작 화면에서도 고를 수 있다)</li>
           <li><b>R</b> 날씨 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개). 추운 지방에서는 비 대신 눈이 온다</li>
           <li><b>M</b> 지도 배율 바꾸기 · <b>N</b> 목적지 공항 바꾸기</li>
           <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
@@ -1240,6 +1250,17 @@ button.tiny {
               물체 테두리에는 <b>먹선</b>이 그어진다 (화면 셰이더가 켜져 있어야 한다)</li>
           <li>먹선은 <b>가까운 것에만</b> 그어진다 — 복셀 지형은 한 칸짜리 계단이
               끝없이 이어져서, 거리에 따라 문턱을 높이지 않으면 온 산이 그물이 된다</li>
+          <li><b>화질을 올리면 빛이 진짜로 계산된다</b> (WebGL2 를 지원하는 기기).
+              면마다 정해진 밝기를 쓰는 대신 <b>정점에 실린 법선</b>으로 해와 하늘빛을
+              셈하고, 거칠기·금속기에 따라 <b>반사</b>가 생긴다. 무늬 자체에서 뽑아낸
+              <b>결(노멀맵)</b> 덕에 통나무는 둥글게, 벽돌은 파이게 보인다</li>
+          <li><b>＋해 그림자</b>는 해 쪽에서 세상을 한 번 더 찍어(2048²) 건물·나무·탈것이
+              땅에 <b>진짜 그림자</b>를 드리우게 한다. 눈앞 96칸만 덮고, 걸을 때 가장자리가
+              지글거리지 않도록 그림자 격자에 맞춰 옮긴다</li>
+          <li><b>＋구석 그늘</b>은 깊이와 법선으로 <b>맞닿은 구석</b>을 찾아 그늘을 넣는다
+              (SSAO). 창틀·계단참·나무 밑동이 바닥에 붙어 보인다</li>
+          <li>그림 파일은 여전히 <b>하나도 안 쓴다</b> — 결·거칠기·금속기 지도는 시작할 때
+              블록 무늬에서 뽑아낸다</li>
           <li><b>찻길과 철길의 굽이는 매끄럽게</b> 이어진다 — 땅에 깔린 블록은 그대로지만,
               그 위로 <b>곡선을 따라 휘는 띠</b>를 덧그려서 커브가 계단처럼 끊기지 않는다.
               찻길은 아스팔트·중앙 두 줄·차선 점선·갓길 흰 줄까지, 철길은 침목과 네 가닥
@@ -6962,6 +6983,174 @@ function itemMesh(name) {
 
 </script>
 <script>
+/* ==== js/gl2.js ==== */
+// gl2.js - WebGL2 로 옮기기 위한 밑바탕.
+//   · GLSL 1.00 로 쓴 셰이더를 3.00 ES 로 그때그때 옮겨 준다 (원본은 하나만 둔다)
+//   · 법선을 실수 한 칸에 접어 넣는 옥타헤드럴 압축
+//   · 부동소수 렌더 타깃 · 여러 장 그리기(MRT) · 그림자 지도 만들기
+// WebGL2 가 없는 기기에서는 이 파일이 하는 일이 전부 꺼지고 예전 길로 간다.
+'use strict';
+
+// 화질 단계 이름 (설정과 L 키가 함께 쓴다)
+const RENDER_LEVELS = ['예전 방식', '물리 기반 조명', '＋해 그림자', '＋구석 그늘'];
+
+// createProgram 이 이 값을 보고 셰이더를 옮길지 정한다. 렌더러가 켠다.
+let GLSL_ES3 = false;
+function setGLSL3(on) { GLSL_ES3 = !!on; }
+
+// GLSL 1.00 → 3.00 ES.
+//   attribute → in · varying → in/out · texture2D → texture · gl_FragColor → 내보내기 변수
+// outs 를 주면 그만큼 색 출력을 만든다 (MRT). 첫 칸이 gl_FragColor 를 대신한다.
+function glslES3(src, frag, outs) {
+  if (src.indexOf('#version') === 0) return src;
+  let s = src;
+  s = s.replace(/\battribute\b/g, 'in');
+  s = s.replace(/\bvarying\b/g, frag ? 'in' : 'out');
+  s = s.replace(/\btexture2DLod\b/g, 'textureLod');
+  s = s.replace(/\btexture2D\b/g, 'texture');
+  s = s.replace(/\btextureCube\b/g, 'texture');
+  if (frag) {
+    const list = (outs && outs.length) ? outs : ['oFrag'];
+    s = s.replace(/\bgl_FragColor\b/g, list[0]);
+    let decl = '';
+    for (let i = 0; i < list.length; i++) {
+      decl += 'layout(location = ' + i + ') out vec4 ' + list[i] + ';\n';
+    }
+    // precision 선언 바로 뒤에 넣는다 (없으면 맨 앞)
+    if (/precision\s+\w+\s+float\s*;/.test(s)) {
+      s = s.replace(/(precision\s+\w+\s+float\s*;)/, function (m) { return m + '\n' + decl; });
+    } else {
+      s = decl + s;
+    }
+  }
+  return '#version 300 es\n' + s;
+}
+
+// ── 법선 접어 넣기 ────────────────────────────────────────────────────
+// 팔면체 지도로 법선을 (u, v) 두 값으로 편 뒤 12비트씩 잘라 실수 하나에 담는다.
+// 24비트라 float32 가 정확히 담고, 축에 붙은 여섯 방향은 오차 없이 되돌아온다.
+// 정점 하나가 4바이트만 늘어난다 (법선 셋을 그냥 넣으면 12바이트).
+const NRM_Q = 4094;
+
+function packNormal(nx, ny, nz) {
+  const l = Math.abs(nx) + Math.abs(ny) + Math.abs(nz);
+  if (l < 1e-9) return 0;
+  const px = nx / l, py = ny / l, pz = nz / l;
+  let u, v;
+  if (py > 0) { u = px; v = pz; } else {
+    u = (1 - Math.abs(pz)) * (px >= 0 ? 1 : -1);
+    v = (1 - Math.abs(px)) * (pz >= 0 ? 1 : -1);
+  }
+  const iu = Math.round((u * 0.5 + 0.5) * NRM_Q);
+  const iv = Math.round((v * 0.5 + 0.5) * NRM_Q);
+  return iu * 4096 + iv;
+}
+
+// 셰이더 쪽 되돌리기 — 여러 셰이더가 함께 쓴다
+const UNPACK_NORMAL_GLSL = [
+  'vec3 unpackNrm(float c) {',
+  '  if (c < 0.0) return vec3(0.0, 1.0, 0.0);',
+  '  float iv = floor(mod(c, 4096.0));',
+  '  float iu = floor(c / 4096.0);',
+  '  vec2 e = vec2(iu, iv) / ' + NRM_Q.toFixed(1) + ' * 2.0 - 1.0;',
+  '  vec3 n = vec3(e.x, 1.0 - abs(e.x) - abs(e.y), e.y);',
+  '  if (n.y < 0.0) {',
+  '    n.xz = vec2((1.0 - abs(n.z)) * (n.x >= 0.0 ? 1.0 : -1.0),',
+  '                (1.0 - abs(n.x)) * (n.z >= 0.0 ? 1.0 : -1.0));',
+  '  }',
+  '  return normalize(n);',
+  '}'
+].join('\n');
+
+// 법선이 없는 것(아이콘을 밀어낸 아이템 판 같은)은 이 값을 싣는다.
+// 셰이더는 이걸 보고 예전처럼 면 밝기만 써서 그린다.
+const NRM_FLAT = -1;
+
+// 블록 여섯 면은 값이 정해져 있으니 미리 접어 둔다
+const FACE_NRM = new Float32Array(6);
+(function () {
+  const n = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  for (let f = 0; f < 6; f++) FACE_NRM[f] = packNormal(n[f][0], n[f][1], n[f][2]);
+})();
+
+// ── 렌더 타깃 ─────────────────────────────────────────────────────────
+// cols: [{internal, format, type}] 색 붙임 목록. depthTex 면 깊이를 텍스처로 붙인다.
+function makeTarget(gl, w, h, cols, depthTex, linear) {
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  const tex = [];
+  const bufs = [];
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i];
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, c.internal, w, h, 0, c.format, c.type, null);
+    const f = (linear === false) ? gl.NEAREST : gl.LINEAR;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, f);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0);
+    tex.push(t);
+    bufs.push(gl.COLOR_ATTACHMENT0 + i);
+  }
+  if (cols.length > 1) gl.drawBuffers(bufs);
+  let depth = null;
+  if (depthTex) {
+    depth = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, depth);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, w, h, 0,
+      gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depth, 0);
+  }
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (!ok) {
+    for (let i = 0; i < tex.length; i++) gl.deleteTexture(tex[i]);
+    if (depth) gl.deleteTexture(depth);
+    gl.deleteFramebuffer(fb);
+    return null;
+  }
+  return { fb: fb, tex: tex, depth: depth, w: w, h: h, bufs: bufs };
+}
+
+function freeTarget(gl, t) {
+  if (!t) return;
+  for (let i = 0; i < t.tex.length; i++) gl.deleteTexture(t.tex[i]);
+  if (t.depth) gl.deleteTexture(t.depth);
+  gl.deleteFramebuffer(t.fb);
+}
+
+// 그림자 지도 — 깊이만 담는다. 견줌 표본(sampler2DShadow) 으로 두면
+// 하드웨어가 2x2 를 알아서 섞어 줘서 3x3 만 돌아도 6x6 처럼 부드럽다.
+function makeShadowTarget(gl, size) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, size, size, 0,
+    gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t, 0);
+  gl.drawBuffers([gl.NONE]);
+  gl.readBuffer(gl.NONE);
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (!ok) { gl.deleteTexture(t); gl.deleteFramebuffer(fb); return null; }
+  return { fb: fb, depth: t, size: size };
+}
+
+</script>
+<script>
 /* ==== js/glutil.js ==== */
 // glutil.js - 행렬 수학과 WebGL 셰이더/버퍼 유틸리티.
 'use strict';
@@ -7078,6 +7267,26 @@ const mat4 = {
     o[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
     return o;
   },
+  // 눈이 eye 에서 center 를 보게 하는 뷰 행렬 (그림자 지도가 쓴다)
+  lookAt: function (o, eye, center, up) {
+    let fx = center[0] - eye[0], fy = center[1] - eye[1], fz = center[2] - eye[2];
+    let l = 1 / (Math.hypot(fx, fy, fz) || 1);
+    fx *= l; fy *= l; fz *= l;
+    let sx = fy * up[2] - fz * up[1];
+    let sy = fz * up[0] - fx * up[2];
+    let sz = fx * up[1] - fy * up[0];
+    l = 1 / (Math.hypot(sx, sy, sz) || 1);
+    sx *= l; sy *= l; sz *= l;
+    const ux = sy * fz - sz * fy, uy = sz * fx - sx * fz, uz = sx * fy - sy * fx;
+    o[0] = sx; o[1] = ux; o[2] = -fx; o[3] = 0;
+    o[4] = sy; o[5] = uy; o[6] = -fy; o[7] = 0;
+    o[8] = sz; o[9] = uz; o[10] = -fz; o[11] = 0;
+    o[12] = -(sx * eye[0] + sy * eye[1] + sz * eye[2]);
+    o[13] = -(ux * eye[0] + uy * eye[1] + uz * eye[2]);
+    o[14] = fx * eye[0] + fy * eye[1] + fz * eye[2];
+    o[15] = 1;
+    return o;
+  },
   rotateZ: function (o, m, rad) {
     const s = Math.sin(rad), c = Math.cos(rad);
     const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
@@ -7104,7 +7313,13 @@ function compileShader(gl, type, src) {
   return sh;
 }
 
-function createProgram(gl, vsSrc, fsSrc, attribs) {
+// outs 는 WebGL2 에서 색을 여러 장에 나눠 그릴 때 쓰는 출력 이름들이다.
+// 안 주면 gl_FragColor 하나로 친다.
+function createProgram(gl, vsSrc, fsSrc, attribs, outs) {
+  if (GLSL_ES3) {
+    vsSrc = glslES3(vsSrc, false, null);
+    fsSrc = glslES3(fsSrc, true, outs);
+  }
   const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
   const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
   const prog = gl.createProgram();
@@ -7541,6 +7756,421 @@ function makeTextureFromCanvas(gl, canvas) {
 
 </script>
 <script>
+/* ==== js/pbr.js ==== */
+// pbr.js - WebGL2 길에서 쓰는 셰이더들.
+//   TERRAIN2 : 지형·탈것·가구가 모두 쓰는 한 프로그램. 기본 / PBR / 애니 세 갈래.
+//   SHADOW   : 해 쪽에서 본 깊이만 찍는다.
+//   SSAO     : 깊이와 법선으로 구석 그늘을 셈한다.
+// 그림 파일은 여전히 하나도 안 쓴다. 노멀·거칠기는 pbrmat.js 가 아틀라스에서 뽑는다.
+'use strict';
+
+const SHADOW_SIZE = 2048;
+
+// ── 지형·엔티티 ───────────────────────────────────────────────────────
+const TERRAIN2_VS = [
+  'precision highp float;',
+  'attribute vec3 aPos;',
+  'attribute vec2 aUV;',
+  'attribute vec3 aLight;',
+  'attribute float aNrm;',        // 옥타헤드럴로 접은 법선 (음수면 법선 없음)
+  'uniform mat4 uProj;',
+  'uniform mat4 uView;',
+  'uniform mat4 uModel;',
+  'uniform float uTime;',
+  'uniform float uWave;',
+  'varying vec2 vUV;',
+  'varying vec3 vLight;',
+  'varying float vDist;',
+  'varying vec3 vNrm;',
+  'varying vec3 vWorld;',
+  'varying float vFlat;',
+  UNPACK_NORMAL_GLSL,
+  'void main() {',
+  '  vec4 world = uModel * vec4(aPos, 1.0);',
+  '  if (uWave > 0.5) {',
+  '    world.y += sin(world.x * 0.7 + uTime * 2.0) * 0.045',
+  '             + sin(world.z * 0.9 + uTime * 1.7) * 0.045 - 0.09;',
+  '  }',
+  '  vec4 eye = uView * world;',
+  '  vDist = length(eye.xyz);',
+  '  vUV = aUV;',
+  '  vLight = aLight;',
+  '  vWorld = world.xyz;',
+  '  vNrm = unpackNrm(aNrm);',
+  '  vFlat = aNrm < 0.0 ? 1.0 : 0.0;',
+  '  gl_Position = uProj * eye;',
+  '}'
+].join('\n');
+
+const TERRAIN2_FS = [
+  'precision highp float;',
+  'uniform sampler2D uTex;',
+  'uniform sampler2D uNrmTex;',
+  'uniform sampler2D uOrmTex;',
+  'uniform sampler2D uAOTex;',
+  'uniform highp sampler2DShadow uShadowTex;',
+  'uniform float uDaylight;',
+  'uniform vec3 uFogColor;',
+  'uniform float uFogStart;',
+  'uniform float uFogEnd;',
+  'uniform float uAlphaCut;',
+  'uniform vec4 uTint;',
+  'uniform float uToon;',
+  'uniform vec3 uToonWarm;',
+  'uniform vec3 uToonCool;',
+  'uniform float uToonSat;',
+  // ── PBR ──
+  'uniform float uPbr;',          // 0 예전 방식 · 1 물리 기반
+  'uniform float uNormalOn;',
+  'uniform float uShadowOn;',
+  'uniform float uSsaoOn;',
+  'uniform mat4 uLightVP;',
+  'uniform vec3 uSunDir;',
+  'uniform vec3 uSunCol;',
+  'uniform vec3 uAmbUp;',
+  'uniform vec3 uAmbDn;',
+  'uniform vec3 uSkyUp;',
+  'uniform vec3 uSkyDn;',
+  'uniform vec3 uCamPos;',
+  'uniform vec2 uPix;',
+  'varying vec2 vUV;',
+  'varying vec3 vLight;',
+  'varying float vDist;',
+  'varying vec3 vNrm;',
+  'varying vec3 vWorld;',
+  'varying float vFlat;',
+  'const float PI = 3.14159265;',
+  'float bandv(float x, float n) {',
+  '  float s = x * n;',
+  '  float i = floor(s);',
+  '  return (i + smoothstep(0.40, 0.60, s - i)) / n;',
+  '}',
+  // 정점에 실린 밝기는 (모서리 그늘 × 면 밝기) 라서, 면 밝기를 도로 나눠
+  // 순수한 모서리 그늘만 뽑아낸다. 축에 붙은 면은 표를 그대로 쓴다.
+  'float faceShadeOf(vec3 n) {',
+  '  vec3 a = abs(n);',
+  '  if (a.y > 0.999) return n.y > 0.0 ? 1.0 : 0.55;',
+  '  if (a.x > 0.999) return 0.80;',
+  '  if (a.z > 0.999) return 0.68;',
+  '  return clamp(0.63 + 0.33 * n.y + 0.07 * n.x + 0.04 * n.z, 0.42, 1.0);',
+  '}',
+  'float D_GGX(float nh, float a) {',
+  '  float a2 = a * a;',
+  '  float d = nh * nh * (a2 - 1.0) + 1.0;',
+  '  return a2 / (PI * d * d + 1e-7);',
+  '}',
+  'float V_Smith(float nv, float nl, float a) {',
+  '  float k = a * 0.5;',
+  '  return 0.25 / max(1e-5, (nv * (1.0 - k) + k) * (nl * (1.0 - k) + k));',
+  '}',
+  'vec3 F_Schlick(vec3 f0, float vh) { return f0 + (1.0 - f0) * pow(1.0 - vh, 5.0); }',
+  // 화면 미분으로 접선틀을 세운다. 축에 붙은 블록 면이든 매끈한 탈것이든 다 통한다.
+  'mat3 cotangent(vec3 n, vec3 p, vec2 uv) {',
+  '  vec3 dp1 = dFdx(p), dp2 = dFdy(p);',
+  '  vec2 du1 = dFdx(uv), du2 = dFdy(uv);',
+  '  vec3 dp2p = cross(dp2, n), dp1p = cross(n, dp1);',
+  '  vec3 t = dp2p * du1.x + dp1p * du2.x;',
+  '  vec3 b = dp2p * du1.y + dp1p * du2.y;',
+  '  float inv = inversesqrt(max(dot(t, t), dot(b, b)) + 1e-12);',
+  '  return mat3(t * inv, b * inv, n);',
+  '}',
+  'float shadowAt(vec3 p, float nl) {',
+  '  vec4 lp = uLightVP * vec4(p, 1.0);',
+  '  vec3 q = lp.xyz / lp.w * 0.5 + 0.5;',
+  '  if (q.x < 0.002 || q.x > 0.998 || q.y < 0.002 || q.y > 0.998 || q.z > 1.0) return 1.0;',
+  '  float bias = mix(0.0012, 0.00022, nl);',
+  '  float texel = 1.0 / ' + SHADOW_SIZE.toFixed(1) + ';',
+  '  float s = 0.0;',
+  '  for (int y = -1; y <= 1; y++) {',
+  '    for (int x = -1; x <= 1; x++) {',
+  '      s += texture(uShadowTex, vec3(q.xy + vec2(float(x), float(y)) * texel, q.z - bias));',
+  '    }',
+  '  }',
+  '  s /= 9.0;',
+  // 가장자리에서 뚝 끊기지 않게 바깥쪽으로 서서히 풀어 준다
+  '  vec2 e = abs(q.xy - 0.5) * 2.0;',
+  '  float fade = smoothstep(1.0, 0.86, max(e.x, e.y));',
+  '  return mix(1.0, s, fade);',
+  '}',
+  'void main() {',
+  '  vec4 tex = texture2D(uTex, vUV);',
+  '  if (tex.a < uAlphaCut) discard;',
+  '  float sky = vLight.x * uDaylight;',
+  // 하늘이 닿는 정도. 낮밤 세기는 uAmbUp/uAmbDn 이 이미 담고 있으므로
+  // 여기에 uDaylight 를 또 곱하면 밤에 두 번 어두워져 온 세상이 새까매진다.
+  '  float skyVis = clamp(vLight.x, 0.0, 1.0);',
+  '  float blk = vLight.y;',
+  '  float fog = clamp((vDist - uFogStart) / max(0.001, uFogEnd - uFogStart), 0.0, 1.0);',
+  '  vec3 col;',
+  '  vec3 gn = normalize(vNrm);',
+  '  if (uPbr > 0.5 && vFlat < 0.5) {',
+  // ── 물리 기반 ──
+  '    vec3 alb = tex.rgb * uTint.rgb;',
+  '    vec3 orm = texture2D(uOrmTex, vUV).rgb;',
+  '    float cav = orm.r, rough = clamp(orm.g, 0.045, 1.0), metal = orm.b;',
+  '    vec3 n = gn;',
+  '    if (uNormalOn > 0.5) {',
+  '      vec3 tn = texture2D(uNrmTex, vUV).rgb * 2.0 - 1.0;',
+  '      n = normalize(cotangent(gn, vWorld, vUV) * tn);',
+  '    }',
+  '    vec3 v = normalize(uCamPos - vWorld);',
+  '    if (dot(n, v) < 0.0 && dot(gn, v) > 0.0) n = gn;',
+  '    float nv = max(dot(n, v), 1e-4);',
+  '    float nl = max(dot(n, uSunDir), 0.0);',
+  // 꼭짓점 그늘 · 결 그늘 · 화면 그늘을 함께 쓴다
+  '    float vao = clamp(vLight.z / faceShadeOf(gn), 0.0, 1.0);',
+  '    float ao = mix(0.42, 1.0, vao) * mix(0.80, 1.0, cav);',
+  '    if (uSsaoOn > 0.5) ao *= texture2D(uAOTex, gl_FragCoord.xy * uPix).r;',
+  // 하늘이 안 닿는 굴 속에는 햇빛도 안 든다 (복셀 빛이 이미 알고 있다)
+  '    float open = clamp(vLight.x * 1.35, 0.0, 1.0);',
+  '    open *= open;',
+  '    float sh = (uShadowOn > 0.5) ? shadowAt(vWorld, nl) : 1.0;',
+  // 해가 지평선 아래로 넘어가면 직사광을 끈다.
+  // 안 그러면 한밤에 땅 밑에서 해가 벽을 비추는 꼴이 된다.
+  '    float sunUp = smoothstep(-0.02, 0.14, uSunDir.y);',
+  '    vec3 f0 = mix(vec3(0.04), alb, metal);',
+  '    vec3 diffCol = alb * (1.0 - metal);',
+  '    vec3 h = normalize(uSunDir + v);',
+  '    float a = rough * rough;',
+  '    vec3 spec = F_Schlick(f0, max(dot(v, h), 0.0)) * D_GGX(max(dot(n, h), 0.0), a)',
+  '              * V_Smith(nv, max(nl, 1e-4), a);',
+  '    col = (diffCol / PI + spec) * uSunCol * nl * sh * open * uDaylight * sunUp;',
+  // 하늘빛 — 위는 하늘, 아래는 땅에서 튄 빛. 하늘 그림 색을 그대로 쓰면 세상이 새파래진다.
+  '    vec3 amb = mix(uAmbDn, uAmbUp, n.y * 0.5 + 0.5);',
+  '    col += diffCol * amb * ao * max(skyVis, 0.05);',
+  // 하늘이 비치는 정도. 프레넬을 날것으로 쓰면 비스듬한 면마다 흰 막이 씌워져
+  // 온 세상이 뿌예진다 — 거칠기 제곱으로 눌러 반들한 것에만 남긴다.
+  '    vec3 r = reflect(-v, n);',
+  '    vec3 skyR = mix(uSkyDn, uSkyUp, r.y * 0.5 + 0.5);',
+  '    float gloss = (1.0 - rough) * (1.0 - rough);',
+  '    col += skyR * F_Schlick(f0, nv) * gloss * 0.55 * ao * max(skyVis, 0.05);',
+  // 횃불·등불 — 따뜻한 색으로 더한다
+  '    col += diffCol * vec3(1.00, 0.68, 0.36) * (blk * blk) * 1.55 * ao;',
+  '    col += alb * 0.022;',
+  '    if (uToon > 0.5) {',
+  // 애니 그림체 — PBR 로 셈한 밝기를 단으로 끊고 볕/그늘 색을 입힌다
+  '      float k = clamp(dot(col / max(alb, vec3(0.02)), vec3(0.3333)), 0.0, 1.4);',
+  '      k = bandv(clamp(k / 1.4, 0.0, 1.0), 3.0);',
+  '      vec3 tint = mix(uToonCool, uToonWarm, smoothstep(0.26, 0.70, k));',
+  '      col = alb * (0.40 + 0.85 * k) * tint;',
+  '      float l = dot(col, vec3(0.2126, 0.7152, 0.0722));',
+  '      col = mix(vec3(l), col, uToonSat);',
+  '      fog = bandv(fog, 4.0);',
+  '    }',
+  '  } else if (uToon > 0.5) {',
+  '    float lum = max(max(sky, blk), 0.055);',
+  '    float lit = bandv(clamp(lum, 0.0, 1.0), 3.0);',
+  '    float face = bandv(clamp(vLight.z, 0.0, 1.0), 3.0);',
+  '    float k = clamp(lit * face, 0.0, 1.0);',
+  '    vec3 tint = mix(uToonCool, uToonWarm, smoothstep(0.26, 0.70, k));',
+  '    col = tex.rgb * uTint.rgb * (0.40 + 0.60 * k) * tint;',
+  '    float l = dot(col, vec3(0.2126, 0.7152, 0.0722));',
+  '    col = mix(vec3(l), col, uToonSat);',
+  '    fog = bandv(fog, 4.0);',
+  '  } else {',
+  '    float lum = max(max(sky, blk), 0.055) * vLight.z;',
+  '    col = tex.rgb * uTint.rgb * lum;',
+  '  }',
+  '  col = mix(col, uFogColor, fog);',
+  '  gl_FragColor = vec4(col, tex.a * uTint.a);',
+  // 화면 두 번째 장 — SSAO 와 외곽선이 볼 세계 법선
+  '  oNrm = vec4(gn * 0.5 + 0.5, 1.0);',
+  '}'
+].join('\n');
+
+// ── 그림자 지도 ───────────────────────────────────────────────────────
+const SHADOW_VS = [
+  'precision highp float;',
+  'attribute vec3 aPos;',
+  'attribute vec2 aUV;',
+  'uniform mat4 uLightVP;',
+  'uniform mat4 uModel;',
+  'varying vec2 vUV;',
+  'void main() { vUV = aUV; gl_Position = uLightVP * uModel * vec4(aPos, 1.0); }'
+].join('\n');
+
+const SHADOW_FS = [
+  'precision highp float;',
+  'uniform sampler2D uTex;',
+  'varying vec2 vUV;',
+  'void main() {',
+  '  if (texture2D(uTex, vUV).a < 0.5) discard;',   // 나뭇잎 사이로 빛이 샌다
+  '  gl_FragColor = vec4(1.0);',
+  '}'
+].join('\n');
+
+// ── SSAO ──────────────────────────────────────────────────────────────
+const SSAO_FS = [
+  'precision highp float;',
+  'uniform sampler2D uDepth;',
+  'uniform sampler2D uNormal;',
+  'uniform mat4 uInvProj;',
+  'uniform mat4 uProj;',
+  'uniform mat4 uViewOnly;',
+  'uniform vec2 uSize;',
+  'uniform float uRadius;',
+  'uniform float uStrength;',
+  'varying vec2 vUV;',
+  'vec3 viewPos(vec2 uv) {',
+  '  float z = texture2D(uDepth, uv).r * 2.0 - 1.0;',
+  '  vec4 c = uInvProj * vec4(uv * 2.0 - 1.0, z, 1.0);',
+  '  return c.xyz / c.w;',
+  '}',
+  'float hash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }',
+  'void main() {',
+  '  float dz = texture2D(uDepth, vUV).r;',
+  '  if (dz >= 0.99999) { gl_FragColor = vec4(1.0); return; }',
+  '  vec3 p = viewPos(vUV);',
+  '  if (-p.z > 90.0) { gl_FragColor = vec4(1.0); return; }',   // 먼 데는 안 판다
+  '  vec3 wn = texture2D(uNormal, vUV).xyz * 2.0 - 1.0;',
+  '  vec3 n = normalize((uViewOnly * vec4(wn, 0.0)).xyz);',
+  '  float ang = hash(vUV * uSize) * 6.2831853;',
+  '  float ca = cos(ang), sa = sin(ang);',
+  '  float occ = 0.0;',
+  '  const int N = 12;',
+  '  for (int i = 0; i < N; i++) {',
+  '    float fi = float(i);',
+  '    float t = (fi + 0.5) / float(N);',
+  '    float r = uRadius * sqrt(t);',
+  '    float a2 = fi * 2.399963;',
+  '    vec3 dir = vec3(cos(a2), sin(a2), 0.0);',
+  '    dir.xy = vec2(dir.x * ca - dir.y * sa, dir.x * sa + dir.y * ca);',
+  '    dir.z = 0.35 + 0.65 * t;',
+  '    if (dot(dir, n) < 0.0) dir = -dir;',
+  '    vec3 sp = p + dir * r;',
+  '    vec4 cp = uProj * vec4(sp, 1.0);',
+  '    vec2 su = cp.xy / cp.w * 0.5 + 0.5;',
+  '    if (su.x < 0.0 || su.x > 1.0 || su.y < 0.0 || su.y > 1.0) continue;',
+  '    vec3 q = viewPos(su);',
+  '    float diff = q.z - sp.z;',
+  '    float range = smoothstep(0.0, 1.0, uRadius / max(0.0001, abs(p.z - q.z)));',
+  '    if (diff > 0.02) occ += range;',
+  '  }',
+  '  float ao = clamp(1.0 - occ / float(N) * uStrength, 0.0, 1.0);',
+  // 아주 먼 데서는 슬며시 걷는다
+  '  ao = mix(ao, 1.0, smoothstep(55.0, 90.0, -p.z));',
+  '  gl_FragColor = vec4(vec3(ao), 1.0);',
+  '}'
+].join('\n');
+
+</script>
+<script>
+/* ==== js/pbrmat.js ==== */
+// pbrmat.js - 블록 아틀라스에서 노멀맵과 ORM(가림·거칠기·금속) 아틀라스를 만든다.
+// 그림 파일을 하나도 안 쓰는 게임이라 재질도 그때그때 계산해서 뽑는다.
+//   · 노멀 : 칸마다 밝기를 높이로 보고 소벨로 기울기를 잰다 (칸 밖은 안 넘본다)
+//   · ORM  : R 결 가림 · G 거칠기 · B 금속. 거칠기·금속은 무늬 이름으로 정한다
+'use strict';
+
+// [이름 규칙, 거칠기, 금속, 결 깊이]
+const PBR_RULES = [
+  [/glass|ice|window|pane|water|crystal|diamond/, 0.10, 0.00, 0.25],
+  [/iron|steel|metal|anvil|chain|rail|gold|copper|silver|alum|chrome|engine|turbine|blade|prop|hull|jet/, 0.34, 0.88, 0.55],
+  [/lamp|lantern|light|glow|neon|torch|fire|lava|magma|screen|led/, 0.45, 0.10, 0.40],
+  [/polish|tile|marble|brick|concrete|asphalt|road|floor|panel|plaster|line|center|paint/, 0.58, 0.00, 0.85],
+  [/stone|rock|ore|gravel|cobble|granite|basalt|obsidian|slab|deepslate/, 0.82, 0.00, 1.25],
+  [/wood|plank|log|door|fence|crate|barrel|bamboo|table|chair|desk/, 0.70, 0.00, 1.00],
+  [/leaf|leaves|grass|plant|flower|wool|cloth|carpet|bed|cushion|seat|wheat|vine|moss/, 0.93, 0.00, 0.70],
+  [/sand|dirt|soil|snow|clay|mud|path|gravel/, 0.90, 0.00, 1.10]
+];
+const PBR_DEFAULT = [0.76, 0.00, 0.90];
+
+function pbrRuleFor(name) {
+  for (let i = 0; i < PBR_RULES.length; i++) {
+    if (PBR_RULES[i][0].test(name)) return PBR_RULES[i];
+  }
+  return [null, PBR_DEFAULT[0], PBR_DEFAULT[1], PBR_DEFAULT[2]];
+}
+
+// 아틀라스 두 장을 만들어 돌려준다.
+// tiles = { 이름: {canvasX, canvasY} } — textures.js 의 TEXTURES 를 그대로 넘긴다.
+function buildPBRAtlases(blockCanvas, tiles) {
+  const W = blockCanvas.width, H = blockCanvas.height;
+  const src = blockCanvas.getContext('2d').getImageData(0, 0, W, H).data;
+
+  const nCan = document.createElement('canvas');
+  nCan.width = W; nCan.height = H;
+  const nCtx = nCan.getContext('2d');
+  const nImg = nCtx.createImageData(W, H);
+  const oCan = document.createElement('canvas');
+  oCan.width = W; oCan.height = H;
+  const oCtx = oCan.getContext('2d');
+  const oImg = oCtx.createImageData(W, H);
+
+  // 아무 칸도 안 쓰는 자리는 밋밋한 기본값으로 채워 둔다
+  for (let i = 0; i < W * H; i++) {
+    nImg.data[i * 4] = 128; nImg.data[i * 4 + 1] = 128;
+    nImg.data[i * 4 + 2] = 255; nImg.data[i * 4 + 3] = 255;
+    oImg.data[i * 4] = 255; oImg.data[i * 4 + 1] = 194;
+    oImg.data[i * 4 + 2] = 0; oImg.data[i * 4 + 3] = 255;
+  }
+
+  const lum = new Float32Array(TILE * TILE);
+  const names = Object.keys(tiles);
+  for (let t = 0; t < names.length; t++) {
+    const info = tiles[names[t]];
+    if (!info || info.canvasX === undefined) continue;
+    const rule = pbrRuleFor(names[t]);
+    const rough = rule[1], metal = rule[2], depth = rule[3];
+    const bx = info.canvasX, by = info.canvasY;
+
+    // 1) 칸 안의 밝기를 높이로 읽는다
+    let lo = 1, hi = 0;
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const s = ((by + y) * W + (bx + x)) * 4;
+        const a = src[s + 3] / 255;
+        const l = (src[s] * 0.299 + src[s + 1] * 0.587 + src[s + 2] * 0.114) / 255 * a;
+        lum[y * TILE + x] = l;
+        if (l < lo) lo = l;
+        if (l > hi) hi = l;
+      }
+    }
+    // 밝기 폭이 좁은 칸(민무늬 페인트)은 결을 세게 세우면 지저분해진다
+    const span = hi - lo;
+    const gain = depth * (span > 0.02 ? Math.min(1, 0.28 / span) : 0) * 2.4;
+
+    // 2) 소벨로 기울기를 재서 접선 공간 법선을 만든다
+    const at = function (x, y) {
+      const cx = x < 0 ? 0 : (x >= TILE ? TILE - 1 : x);   // 칸 밖으로 안 나간다
+      const cy = y < 0 ? 0 : (y >= TILE ? TILE - 1 : y);
+      return lum[cy * TILE + cx];
+    };
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < TILE; x++) {
+        const gx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1))
+                 - (at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1));
+        const gy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1))
+                 - (at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1));
+        let nx = -gx * gain, ny = -gy * gain, nz = 1;
+        const il = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+        nx *= il; ny *= il; nz *= il;
+        const d = ((by + y) * W + (bx + x)) * 4;
+        nImg.data[d] = Math.round(nx * 127.5 + 127.5);
+        nImg.data[d + 1] = Math.round(ny * 127.5 + 127.5);
+        nImg.data[d + 2] = Math.round(nz * 127.5 + 127.5);
+        nImg.data[d + 3] = 255;
+
+        // 3) 결 가림 — 제 칸에서 어두운 골은 빛이 덜 든다
+        const rel = span > 0.02 ? (lum[y * TILE + x] - lo) / span : 1;
+        const cav = 0.72 + 0.28 * rel;
+        // 거친 데는 조금 더 거칠게, 반들한 데는 조금 더 반들하게 흔들어 준다
+        const r = Math.max(0.03, Math.min(1, rough + (rel - 0.5) * 0.14));
+        oImg.data[d] = Math.round(cav * 255);
+        oImg.data[d + 1] = Math.round(r * 255);
+        oImg.data[d + 2] = Math.round(metal * 255);
+        oImg.data[d + 3] = 255;
+      }
+    }
+  }
+
+  nCtx.putImageData(nImg, 0, 0);
+  oCtx.putImageData(oImg, 0, 0);
+  return { normal: nCan, orm: oCan };
+}
+
+</script>
+<script>
 /* ==== js/postfx.js ==== */
 // postfx.js - 화면 후처리(셰이더). 장면을 텍스처에 한 번 그린 뒤
 // 블룸 · 갓레이 · 톤 매핑 · 색 보정 · 비네팅 · 물속 일렁임을 입혀 화면에 낸다.
@@ -7606,6 +8236,8 @@ const COMPOSITE_FS = [
   'uniform float uTime;',
   // ── 애니 외곽선 ──
   'uniform sampler2D uDepth;',
+  'uniform sampler2D uAOTex;',
+  'uniform float uAoAmt;',      // 0 없음 ~ 1 그대로
   'uniform float uInk;',        // 0 없음 · 세기
   'uniform vec2 uPix;',
   'uniform vec3 uInkColor;',
@@ -7632,6 +8264,8 @@ const COMPOSITE_FS = [
   '  } else {',
   '    col = texture2D(uScene, uv).rgb;',
   '  }',
+  // 화면에서 잰 구석 그늘. 본 그림을 한 번 더 그리지 않으려고 여기서 곱한다.
+  '  if (uAoAmt > 0.0) col *= mix(1.0, texture2D(uAOTex, vUV).r, uAoAmt);',
   '  if (uBloomAmt > 0.0) col += texture2D(uBloom, uv).rgb * uBloomAmt;',
   '  if (uRays > 0.0) {',
   // 해 방향으로 밝은 부분을 끌어당겨 빛줄기를 만든다
@@ -7735,16 +8369,22 @@ function freeFBO(gl, f) {
 }
 
 // ── 후처리 ────────────────────────────────────────────────────────────
-function PostFX(gl) {
+function PostFX(gl, gl2, hdr) {
   this.gl = gl;
+  this.gl2 = !!gl2;          // WebGL2 이면 부동소수 화면 · 법선 한 장 · SSAO 를 쓸 수 있다
+  this.hdr = !!hdr;          // 부동소수 렌더 타깃이 되는가
+  this.ssaoOn = false;       // 렌더러가 화질 단계에 따라 켠다
   this.ok = false;
   this.level = SHADER_DEFAULT;
   this.active = false;
   this.w = 0; this.h = 0;
+  this.color = null; this.normal = null; this.depthTex = null; this.sceneFB = null;
+  this.ao = null; this.aoBlur = null;
   try {
     this.brightProg = createProgram(gl, POST_VS, BRIGHT_FS, ['aPos']);
     this.blurProg = createProgram(gl, POST_VS, BLUR_FS, ['aPos']);
     this.compProg = createProgram(gl, POST_VS, COMPOSITE_FS, ['aPos']);
+    if (this.gl2) this.ssaoProg = createProgram(gl, POST_VS, SSAO_FS, ['aPos']);
     this.quad = makeBuffer(gl, gl.ARRAY_BUFFER,
       new Float32Array([-1, -1, 3, -1, -1, 3]));
     this.ok = true;
@@ -7762,9 +8402,14 @@ PostFX.prototype.setLevel = function (n) {
 
 PostFX.prototype.release = function () {
   const gl = this.gl;
-  freeFBO(gl, this.scene); freeFBO(gl, this.half);
+  if (this.target) { freeTarget(gl, this.target); this.target = null; }
+  else freeFBO(gl, this.scene);
+  freeFBO(gl, this.half);
   freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
+  if (this.ao) { freeTarget(gl, this.ao); this.ao = null; }
+  if (this.aoBlur) { freeTarget(gl, this.aoBlur); this.aoBlur = null; }
   this.scene = this.half = this.blurA = this.blurB = null;
+  this.color = this.normal = this.depthTex = this.sceneFB = null;
   this.w = this.h = 0;
 };
 
@@ -7774,8 +8419,36 @@ PostFX.prototype.ensure = function (w, h) {
   if (this.scene && this.w === w && this.h === h) return true;
   this.release();
   const gl = this.gl;
-  this.scene = makeFBO(gl, w, h, true);
-  if (!this.scene) { this.ok = false; return false; }
+  if (this.gl2) {
+    // 색 한 장 + 세계 법선 한 장 + 읽을 수 있는 깊이.
+    // 법선은 SSAO 와 외곽선이 본다. 색은 되도록 부동소수로 담아
+    // 해·전구가 1 을 넘어도 잘리지 않게 한다 (블룸·톤매핑이 살아난다).
+    const C = this.hdr ? { internal: gl.RGBA16F, format: gl.RGBA, type: gl.HALF_FLOAT }
+                       : { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
+    const N = { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
+    this.target = makeTarget(gl, w, h, [C, N], true);
+    if (!this.target) { this.gl2 = false; }
+    else {
+      this.sceneFB = this.target.fb;
+      this.color = this.target.tex[0];
+      this.normal = this.target.tex[1];
+      this.depthTex = this.target.depth;
+      const R = { internal: gl.R8, format: gl.RED, type: gl.UNSIGNED_BYTE };
+      this.ao = makeTarget(gl, w, h, [R], false);
+      this.aoBlur = makeTarget(gl, w, h, [R], false);
+      if (!this.ao || !this.aoBlur) {
+        freeTarget(gl, this.ao); freeTarget(gl, this.aoBlur);
+        this.ao = this.aoBlur = null;
+      }
+    }
+  }
+  if (!this.gl2 || !this.target) {
+    this.scene = makeFBO(gl, w, h, true);
+    if (!this.scene) { this.ok = false; return false; }
+    this.sceneFB = this.scene.fb;
+    this.color = this.scene.tex;
+    this.depthTex = this.scene.depth;
+  }
   if (this.level >= 2) {
     const hw = Math.max(1, w >> 1), hh = Math.max(1, h >> 1);
     this.half = makeFBO(gl, hw, hh, false);
@@ -7794,7 +8467,7 @@ PostFX.prototype.ensure = function (w, h) {
 PostFX.prototype.begin = function (w, h) {
   if (!this.ensure(w, h)) { this.active = false; return false; }
   const gl = this.gl;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.scene.fb);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFB);
   gl.viewport(0, 0, w, h);
   this.active = true;
   return true;
@@ -7806,6 +8479,7 @@ PostFX.prototype.drawQuad = function () {
   gl.enableVertexAttribArray(0);
   gl.disableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 };
@@ -7817,10 +8491,32 @@ PostFX.prototype.end = function (opts) {
   const lvl = this.level;
   const useBloom = lvl >= 2 && this.half && this.blurA && this.blurB;
   const useRays = lvl >= 3 && useBloom && opts.sunOnScreen;
+  const useAO = this.ssaoOn && this.ao && this.aoBlur && this.normal && this.depthTex;
 
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.CULL_FACE);
   gl.disable(gl.BLEND);
+
+  // 0) 화면 구석 그늘 — 깊이와 법선으로 잰 뒤 가로·세로로 문지른다
+  if (useAO) {
+    const sp = this.ssaoProg;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.ao.fb);
+    gl.viewport(0, 0, this.ao.w, this.ao.h);
+    gl.useProgram(sp);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.depthTex);
+    gl.uniform1i(sp.u.uDepth, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.normal);
+    gl.uniform1i(sp.u.uNormal, 1);
+    gl.uniformMatrix4fv(sp.u.uInvProj, false, opts.invProj);
+    gl.uniformMatrix4fv(sp.u.uProj, false, opts.proj);
+    gl.uniformMatrix4fv(sp.u.uViewOnly, false, opts.view);
+    gl.uniform2f(sp.u.uSize, this.w, this.h);
+    gl.uniform1f(sp.u.uRadius, opts.aoRadius || 0.85);
+    gl.uniform1f(sp.u.uStrength, opts.aoStrength || 1.15);
+    this.drawQuad();
+    this.blurTo(this.ao.tex[0], this.aoBlur, 1.4 / this.w, 0);
+    this.blurTo(this.aoBlur.tex[0], this.ao, 0, 1.4 / this.h);
+  }
 
   if (useBloom) {
     // 1) 밝은 곳 추출 (절반 해상도)
@@ -7828,7 +8524,7 @@ PostFX.prototype.end = function (opts) {
     gl.viewport(0, 0, this.half.w, this.half.h);
     gl.useProgram(this.brightProg);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.scene.tex);
+    gl.bindTexture(gl.TEXTURE_2D, this.color);
     gl.uniform1i(this.brightProg.u.uScene, 0);
     gl.uniform1f(this.brightProg.u.uThreshold, opts.bloomThreshold);
     gl.uniform1f(this.brightProg.u.uKnee, 0.45);
@@ -7851,10 +8547,10 @@ PostFX.prototype.end = function (opts) {
   const p = this.compProg;
   gl.useProgram(p);
   gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, this.scene.tex);
+  gl.bindTexture(gl.TEXTURE_2D, this.color);
   gl.uniform1i(p.u.uScene, 0);
   gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, useBloom ? this.blurB.tex : this.scene.tex);
+  gl.bindTexture(gl.TEXTURE_2D, useBloom ? this.blurB.tex : this.color);
   gl.uniform1i(p.u.uBloom, 1);
 
   gl.uniform1f(p.u.uBloomAmt, useBloom ? opts.bloom : 0);
@@ -7868,10 +8564,14 @@ PostFX.prototype.end = function (opts) {
   gl.uniform1f(p.u.uAberr, lvl >= 3 ? (opts.aberration || 0) : 0);
   gl.uniform1f(p.u.uTime, opts.time);
   // 애니 외곽선 — 깊이를 읽을 수 있을 때만 그을 수 있다
-  const ink = (opts.ink || 0) && this.scene.depth ? opts.ink : 0;
+  const ink = (opts.ink || 0) && this.depthTex ? opts.ink : 0;
   gl.activeTexture(gl.TEXTURE2);
-  gl.bindTexture(gl.TEXTURE_2D, this.scene.depth || this.scene.tex);
+  gl.bindTexture(gl.TEXTURE_2D, this.depthTex || this.color);
   gl.uniform1i(p.u.uDepth, 2);
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D, useAO ? this.ao.tex[0] : this.color);
+  gl.uniform1i(p.u.uAOTex, 3);
+  gl.uniform1f(p.u.uAoAmt, useAO ? (opts.aoAmount === undefined ? 0.85 : opts.aoAmount) : 0);
   gl.uniform1f(p.u.uInk, ink);
   gl.uniform2f(p.u.uPix, 1 / this.w, 1 / this.h);
   gl.uniform3fv(p.u.uInkColor, opts.inkColor || [0.13, 0.14, 0.20]);
@@ -7882,6 +8582,18 @@ PostFX.prototype.end = function (opts) {
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
   this.active = false;
+};
+
+PostFX.prototype.blurTo = function (srcTex, dst, dx, dy) {
+  const gl = this.gl;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+  gl.viewport(0, 0, dst.w, dst.h);
+  gl.useProgram(this.blurProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, srcTex);
+  gl.uniform1i(this.blurProg.u.uTex, 0);
+  gl.uniform2f(this.blurProg.u.uDir, dx, dy);
+  this.drawQuad();
 };
 
 PostFX.prototype.blurPass = function (src, dst, dx, dy) {
@@ -8717,9 +9429,20 @@ World.prototype.blockRenderBoxes = function (x, y, z, id, meta) {
 // ── 메시 생성 ─────────────────────────────────────────────────────────
 const _mv = [], _mi = [], _wv = [], _wi = [];
 
-function pushVertex(arr, x, y, z, u, v, sky, blk, ao) {
-  arr.push(x, y, z, u, v, sky, blk, ao);
+// 정점 하나 = 자리 3 · 무늬 2 · 빛 3 · 접어 넣은 법선 1 = 실수 9 칸.
+// 법선은 WebGL2 길에서 햇빛·그림자·노멀맵을 셈하는 데 쓴다.
+function pushVertex(arr, x, y, z, u, v, sky, blk, ao, nrm) {
+  arr.push(x, y, z, u, v, sky, blk, ao, nrm);
 }
+
+// 십자 식물 두 판 × 앞뒤의 법선 (미리 접어 둔다)
+const CROSS_NRM = (function () {
+  const r = Math.SQRT1_2;
+  return [
+    [packNormal(-r, 0, r), packNormal(r, 0, -r)],
+    [packNormal(r, 0, r), packNormal(-r, 0, -r)]
+  ];
+})();
 
 World.prototype.buildMesh = function (c) {
   _mv.length = 0; _mi.length = 0; _wv.length = 0; _wi.length = 0;
@@ -8776,7 +9499,7 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
     const u0 = t.u0, du0 = t.u1 - t.u0, v0 = t.v0, dv0 = t.v1 - t.v0;
     const shadeF = FACE_SHADE[f];
     const yShrink = (isLiquid && f === 2) ? 0.12 : 0;
-    const base = varr.length / 8;
+    const base = varr.length / 9;
 
     let q = f * 44;
     for (let ci = 0; ci < 4; ci++) {
@@ -8809,7 +9532,7 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
       if (!oc) { skySum += this.getSky(cx2, cy2, cz2); blkSum += this.getBlockLight(cx2, cy2, cz2); cnt++; }
       if (cnt === 0) { skySum = this.getSky(nx, ny, nz); blkSum = this.getBlockLight(nx, ny, nz); cnt = 1; }
 
-      varr.push(px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao);
+      varr.push(px, py, pz, u, v, (skySum / cnt) / 15, (blkSum / cnt) / 15, ao, FACE_NRM[f]);
     }
     iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -8836,7 +9559,7 @@ World.prototype.emitLiquid = function (varr, iarr, wx, wy, wz, id, d) {
 
     const t = texUV(blockTexName(id, f));
     const shadeF = FACE_SHADE[f];
-    const base = varr.length / 8;
+    const base = varr.length / 9;
 
     const skyL = this.getSky(nx, ny, nz) / 15;
     const blkL = Math.max(this.getBlockLight(nx, ny, nz), d.light) / 15;
@@ -8861,7 +9584,7 @@ World.prototype.emitLiquid = function (varr, iarr, wx, wy, wz, id, d) {
         wx + ux, wy + uy, wz + uz,
         t.u0 + (t.u1 - t.u0) * uvp[0],
         t.v0 + (t.v1 - t.v0) * uvp[1],
-        skyL, blkL, shadeF);
+        skyL, blkL, shadeF, FACE_NRM[f]);
     }
     iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -8899,7 +9622,7 @@ World.prototype.emitBoxes = function (varr, iarr, wx, wy, wz, id, d, meta) {
       const shadeF = FACE_SHADE[f];
       const ua = face.uAxis, va = face.vAxis;
       const u0 = b[ua], u1 = b[ua + 3], v0 = b[va], v1 = b[va + 3];
-      const base = varr.length / 8;
+      const base = varr.length / 9;
 
       for (let ci = 0; ci < 4; ci++) {
         const tu = (ci === 1 || ci === 2) ? 1 : 0;
@@ -8913,7 +9636,7 @@ World.prototype.emitBoxes = function (varr, iarr, wx, wy, wz, id, d, meta) {
           wx + p[0], wy + p[1], wz + p[2],
           t.u0 + (t.u1 - t.u0) * uvp[0],
           t.v0 + (t.v1 - t.v0) * uvp[1],
-          sky, blk, shadeF);
+          sky, blk, shadeF, FACE_NRM[f]);
       }
       iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
@@ -8933,12 +9656,13 @@ World.prototype.emitCross = function (varr, iarr, wx, wy, wz, d) {
   for (let pi = 0; pi < planes.length; pi++) {
     const a = planes[pi][0], b = planes[pi][1];
     for (let side = 0; side < 2; side++) {
-      const base = varr.length / 8;
+      const base = varr.length / 9;
       const p0 = side ? b : a, p1 = side ? a : b;
-      pushVertex(varr, wx + p0[0], wy, wz + p0[2], t.u0, t.v1, sky, blk, 1);
-      pushVertex(varr, wx + p1[0], wy, wz + p1[2], t.u1, t.v1, sky, blk, 1);
-      pushVertex(varr, wx + p1[0], wy + 1, wz + p1[2], t.u1, t.v0, sky, blk, 1);
-      pushVertex(varr, wx + p0[0], wy + 1, wz + p0[2], t.u0, t.v0, sky, blk, 1);
+      const cn = CROSS_NRM[pi][side];
+      pushVertex(varr, wx + p0[0], wy, wz + p0[2], t.u0, t.v1, sky, blk, 1, cn);
+      pushVertex(varr, wx + p1[0], wy, wz + p1[2], t.u1, t.v1, sky, blk, 1, cn);
+      pushVertex(varr, wx + p1[0], wy + 1, wz + p1[2], t.u1, t.v0, sky, blk, 1, cn);
+      pushVertex(varr, wx + p0[0], wy + 1, wz + p0[2], t.u0, t.v0, sky, blk, 1, cn);
       iarr.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   }
@@ -17263,14 +17987,41 @@ function smeltResult(name) { return SMELTING[name] || null; }
 
 function Renderer(canvas) {
   const opts = { alpha: false, antialias: false, depth: true, stencil: false, powerPreference: 'high-performance' };
-  const gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+  // WebGL2 가 있으면 그 길로 간다 — 깊이 텍스처 · 여러 장 그리기 · 부동소수 화면이
+  // 확장 없이 그냥 되고, 그래야 그림자 지도와 SSAO 를 얹을 수 있다.
+  let gl = canvas.getContext('webgl2', opts);
+  this.gl2 = !!gl;
+  if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
   if (!gl) throw new Error('이 브라우저(웹뷰)에서 WebGL을 사용할 수 없습니다.');
   this.gl = gl;
   this.canvas = canvas;
+  setGLSL3(this.gl2);
 
-  this.uintExt = gl.getExtension('OES_element_index_uint');
+  this.uintExt = this.gl2 || gl.getExtension('OES_element_index_uint');
+  this.hdrOk = this.gl2 && !!gl.getExtension('EXT_color_buffer_float');
+  this.aniso = gl.getExtension('EXT_texture_filter_anisotropic')
+            || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
+  // 0 예전 방식 · 1 PBR · 2 +그림자 · 3 +SSAO
+  this.pbrLevel = this.gl2 ? 2 : 0;
 
-  this.terrainProg = createProgram(gl, TERRAIN_VS, TERRAIN_FS, ['aPos', 'aUV', 'aLight']);
+  if (this.gl2) {
+    this.terrainProg = createProgram(gl, TERRAIN2_VS, TERRAIN2_FS,
+      ['aPos', 'aUV', 'aLight', 'aNrm'], ['oFrag', 'oNrm']);
+    this.shadowProg = createProgram(gl, SHADOW_VS, SHADOW_FS, ['aPos', 'aUV']);
+    this.shadowTarget = makeShadowTarget(gl, SHADOW_SIZE);
+    if (!this.shadowTarget) this.pbrLevel = Math.min(this.pbrLevel, 1);
+    this.lightView = mat4.create();
+    this.lightProj = mat4.create();
+    this.lightVP = mat4.create();
+    this.invProj = mat4.create();
+    this.castBuf = gl.createBuffer();
+    this.castIdxBuf = gl.createBuffer();
+    this.castV = new Float32Array(9 * 4 * 4096);
+    this.castI = new Uint32Array(6 * 4096);
+    this.castVn = 0; this.castIn = 0;
+  } else {
+    this.terrainProg = createProgram(gl, TERRAIN_VS, TERRAIN_FS, ['aPos', 'aUV', 'aLight']);
+  }
   this.skyProg = createProgram(gl, SKY_VS, SKY_FS, ['aPos']);
   this.lineProg = createProgram(gl, LINE_VS, LINE_FS, ['aPos']);
   this.cloudProg = createProgram(gl, CLOUD_VS, CLOUD_FS, ['aPos', 'aShade']);
@@ -17312,7 +18063,7 @@ function Renderer(canvas) {
   this.stats = { chunks: 0, tris: 0 };
 
   // 화면 후처리(셰이더). 지원되지 않으면 조용히 꺼진다.
-  this.post = new PostFX(gl);
+  this.post = new PostFX(gl, this.gl2, this.hdrOk);
   this.invViewProj = mat4.create();
 
   this.cloud = null;         // {vbo, ibo, count, span}
@@ -17344,6 +18095,7 @@ Renderer.prototype.setClouds = function (mesh) {
 
 // 구름 판을 플레이어 주변 3×3으로 이어 붙여 끝없이 보이게 한다.
 Renderer.prototype.drawClouds = function (player, opts) {
+  this.setMRT(false);
   const c = this.cloud;
   if (!c || !c.count || opts.cloudAlpha <= 0.01) return;
   const gl = this.gl;
@@ -17364,6 +18116,7 @@ Renderer.prototype.drawClouds = function (player, opts) {
   gl.enableVertexAttribArray(0);
   gl.enableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 16, 0);
   gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 12);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, c.ibo);
@@ -17434,6 +18187,7 @@ Renderer.prototype.buildWeatherBuffer = function (count, radius) {
 };
 
 Renderer.prototype.drawWeather = function (player, opts) {
+  this.setMRT(false);
   const w = opts.weather;
   if (!w || w.alpha <= 0.01) return;
   const gl = this.gl;
@@ -17467,6 +18221,7 @@ Renderer.prototype.drawWeather = function (player, opts) {
   gl.enableVertexAttribArray(0);
   gl.enableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 20, 0);
   gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 20, 8);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.ibo);
@@ -17511,6 +18266,7 @@ Renderer.prototype.ensureFxBuffers = function (max) {
 };
 
 Renderer.prototype.drawParticles = function (fx, player, opts) {
+  this.setMRT(false);
   if (!fx || !fx.list.length) return;
   const gl = this.gl;
   this.ensureFxBuffers(FX_MAX);
@@ -17560,8 +18316,43 @@ Renderer.prototype.drawParticles = function (fx, player, opts) {
 };
 
 Renderer.prototype.setAtlases = function (blockCanvas, itemCanvas) {
-  this.atlasTex = makeTextureFromCanvas(this.gl, blockCanvas);
-  this.itemTex = makeTextureFromCanvas(this.gl, itemCanvas);
+  const gl = this.gl;
+  this.atlasTex = makeTextureFromCanvas(gl, blockCanvas);
+  this.itemTex = makeTextureFromCanvas(gl, itemCanvas);
+  this.applyAniso(this.atlasTex);
+  if (!this.gl2) return;
+  // 그림 파일을 안 쓰니 재질도 아틀라스에서 뽑아낸다 (결 · 거칠기 · 금속)
+  try {
+    const m = buildPBRAtlases(blockCanvas, TEXTURES);
+    this.nrmTex = makeTextureFromCanvas(gl, m.normal);
+    this.ormTex = makeTextureFromCanvas(gl, m.orm);
+    this.applyAniso(this.nrmTex);
+    this.applyAniso(this.ormTex);
+  } catch (e) {
+    console.warn('재질 아틀라스를 만들지 못했습니다:', e.message);
+    this.nrmTex = this.ormTex = null;
+    this.pbrLevel = 0;
+  }
+};
+
+// 비스듬히 보는 바닥이 뭉개지지 않게 (있으면 쓴다)
+Renderer.prototype.applyAniso = function (tex) {
+  const ext = this.aniso;
+  if (!ext || !tex) return;
+  const gl = this.gl;
+  const max = Math.min(8, gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT));
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, max);
+};
+
+// 색 말고 법선도 함께 그릴지 — 하늘·구름·알갱이는 법선이 없으니 끈다
+Renderer.prototype.setMRT = function (on) {
+  if (!this.gl2 || !this.postOn || !this.post.normal) return;
+  if (this._mrt === on) return;
+  this._mrt = on;
+  const gl = this.gl;
+  gl.drawBuffers(on ? [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]
+                    : [gl.COLOR_ATTACHMENT0, gl.NONE]);
 };
 
 Renderer.prototype.resize = function () {
@@ -17681,9 +18472,18 @@ Renderer.prototype.beginFrame = function (player, opts) {
   mat4.multiply(this.viewProj, this.proj, this.view);
   this.extractFrustum();
   mat4.invert(this.invViewProj, this.viewProj);
+  if (this.gl2) mat4.invert(this.invProj, this.proj);
+  this.eyePos = eye;
+
+  // 해 쪽에서 본 깊이를 먼저 찍는다 (본 그림보다 앞서야 한다)
+  if (this.gl2 && this.pbrLevel >= 2) this.shadowPass(opts.world, player, opts);
+  else this.shadowReady = false;
 
   // 후처리를 쓰면 화면 대신 텍스처에 그린다
   this.postOn = this.post.begin(this.canvas.width, this.canvas.height);
+  this.post.ssaoOn = this.postOn && this.gl2 && this.pbrLevel >= 3;
+  this._mrt = null;
+  this.setMRT(false);
 
   gl.clearColor(opts.fogColor[0], opts.fogColor[1], opts.fogColor[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -17696,6 +18496,7 @@ Renderer.prototype.beginFrame = function (player, opts) {
   gl.enableVertexAttribArray(0);
   gl.disableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
   gl.uniform3fv(sp.u.uTop, opts.skyTop);
   gl.uniform3fv(sp.u.uBottom, opts.skyBottom);
@@ -17719,9 +18520,142 @@ Renderer.prototype.beginFrame = function (player, opts) {
   this.stats.chunks = 0; this.stats.tris = 0;
 };
 
+// ── 그림자 지도 ───────────────────────────────────────────────────────
+// 해를 마주 보는 직교 상자 하나를 눈앞에 씌운다. 상자는 그림자 지도의
+// 칸 격자에 딱 맞춰 옮겨야 걸음마다 그림자 가장자리가 지글거리지 않는다.
+const SHADOW_R = 96;
+
+Renderer.prototype.shadowPass = function (world, player, opts) {
+  const gl = this.gl, st = this.shadowTarget;
+  this.shadowReady = false;
+  if (!st || !world) return;
+  const sd = opts.sunDir;
+  // 해가 지평선 아래면 그림자를 접는다 (달빛으로 그림자를 만들지는 않는다)
+  if (sd[1] < 0.12 || opts.daylight < 0.20) { this.resetCasters(); return; }
+
+  // 해 쪽 기준틀
+  let fx = sd[0], fy = sd[1], fz = sd[2];
+  const up = Math.abs(fy) > 0.95 ? [0, 0, 1] : [0, 1, 0];
+  let rx = up[1] * fz - up[2] * fy, ry = up[2] * fx - up[0] * fz, rz = up[0] * fy - up[1] * fx;
+  let l = 1 / (Math.hypot(rx, ry, rz) || 1); rx *= l; ry *= l; rz *= l;
+  const ux = fy * rz - fz * ry, uy = fz * rx - fx * rz, uz = fx * ry - fy * rx;
+
+  // 상자 가운데는 눈보다 조금 앞
+  const dirx = -Math.sin(player.yaw), dirz = -Math.cos(player.yaw);
+  let cxw = player.x + dirx * SHADOW_R * 0.32;
+  let cyw = player.y + 6;
+  let czw = player.z + dirz * SHADOW_R * 0.32;
+  // 칸 격자에 맞춘다
+  const texel = 2 * SHADOW_R / SHADOW_SIZE;
+  const cr = Math.round((cxw * rx + cyw * ry + czw * rz) / texel) * texel;
+  const cu = Math.round((cxw * ux + cyw * uy + czw * uz) / texel) * texel;
+  const cf = cxw * fx + cyw * fy + czw * fz;
+  cxw = rx * cr + ux * cu + fx * cf;
+  cyw = ry * cr + uy * cu + fy * cf;
+  czw = rz * cr + uz * cu + fz * cf;
+
+  const D = SHADOW_R * 2.4;
+  mat4.lookAt(this.lightView, [cxw + fx * D, cyw + fy * D, czw + fz * D],
+    [cxw, cyw, czw], up);
+  mat4.ortho(this.lightProj, -SHADOW_R, SHADOW_R, -SHADOW_R, SHADOW_R, 1, D * 2.2);
+  mat4.multiply(this.lightVP, this.lightProj, this.lightView);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, st.fb);
+  gl.viewport(0, 0, st.size, st.size);
+  gl.disable(gl.BLEND);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthMask(true);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  // 앞면을 버리는 흔한 수법은 여기서 못 쓴다 — 복셀 지형은 속이 빈 껍데기라
+  // 해를 마주 본 면을 버리면 정작 그림자를 드리울 면이 통째로 사라진다.
+  // 그래서 뒷면만 버리고, 깊이를 조금 밀어 자기 그림자 얼룩을 막는다.
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.polygonOffset(2.2, 3.0);
+
+  const p = this.shadowProg;
+  gl.useProgram(p);
+  gl.uniformMatrix4fv(p.u.uLightVP, false, this.lightVP);
+  mat4.identity(this.model);
+  gl.uniformMatrix4fv(p.u.uModel, false, this.model);
+  gl.uniform1i(p.u.uTex, 0);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
+
+  const self = this;
+  const lim = SHADOW_R + CHUNK_X;
+  this.chunkGL.forEach(function (entry, key) {
+    const e = entry.solid;
+    if (!e || !e.count) return;
+    const parts = key.split(',');
+    const x0 = parseInt(parts[0], 10) * CHUNK_X + CHUNK_X / 2;
+    const z0 = parseInt(parts[1], 10) * CHUNK_Z + CHUNK_Z / 2;
+    const dx = x0 - cxw, dz = z0 - czw;
+    if (dx * dx + dz * dz > lim * lim) return;
+    self.bindShadowAttribs(e.vbo);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, e.ibo);
+    gl.drawElements(gl.TRIANGLES, e.count, e.type, 0);
+  });
+
+  // 지난 판에 쌓아 둔 탈것·짐승도 그림자를 드리운다.
+  // 한 판 늦지만 움직임이 이어져서 눈에 띄지 않는다.
+  if (this.castIn) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.castBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.castV.subarray(0, this.castVn), gl.DYNAMIC_DRAW);
+    this.bindShadowAttribs(this.castBuf);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.castIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.castI.subarray(0, this.castIn), gl.DYNAMIC_DRAW);
+    // 탈것은 얇은 판이 많아 양면 다 찍는다
+    gl.disable(gl.CULL_FACE);
+    gl.drawElements(gl.TRIANGLES, this.castIn, gl.UNSIGNED_INT, 0);
+    gl.enable(gl.CULL_FACE);
+  }
+  this.resetCasters();
+
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+  this.shadowReady = true;
+};
+
+Renderer.prototype.resetCasters = function () { this.castVn = 0; this.castIn = 0; };
+
+// 이번 판에 그린 엔티티 모양을 다음 판 그림자용으로 쟁여 둔다
+const CAST_MAX_V = 9 * 200000;
+
+Renderer.prototype.addCasters = function (buf) {
+  if (!this.gl2 || this.pbrLevel < 2 || !buf.inn) return;
+  const nv = buf.vn, ni = buf.inn;
+  if (this.castVn + nv > CAST_MAX_V) return;
+  if (this.castVn + nv > this.castV.length) {
+    let cap = this.castV.length;
+    while (cap < this.castVn + nv) cap *= 2;
+    const a = new Float32Array(cap); a.set(this.castV.subarray(0, this.castVn));
+    this.castV = a;
+  }
+  if (this.castIn + ni > this.castI.length) {
+    let cap = this.castI.length;
+    while (cap < this.castIn + ni) cap *= 2;
+    const a = new Uint32Array(cap); a.set(this.castI.subarray(0, this.castIn));
+    this.castI = a;
+  }
+  this.castV.set(buf.v.subarray(0, nv), this.castVn);
+  const base = this.castVn / 9;
+  const src = buf.i, dst = this.castI, at = this.castIn;
+  for (let i = 0; i < ni; i++) dst[at + i] = src[i] + base;
+  this.castVn += nv; this.castIn += ni;
+};
+
 // 후처리를 입혀 화면에 낸다. 프레임의 맨 마지막에 부른다.
 Renderer.prototype.endFrame = function (opts) {
-  if (this.postOn) this.post.end(opts);
+  if (this.postOn) {
+    // SSAO 는 깊이를 눈 좌표로 되돌려야 하므로 행렬을 함께 넘긴다
+    opts.proj = this.proj;
+    opts.view = this.view;
+    opts.invProj = this.invProj;
+    this.post.end(opts);
+  }
   this.postOn = false;
 };
 
@@ -17760,21 +18694,71 @@ Renderer.prototype.setupTerrainProgram = function (opts) {
   gl.uniform3fv(p.u.uToonWarm, opts.toonWarm || [1, 1, 1]);
   gl.uniform3fv(p.u.uToonCool, opts.toonCool || [1, 1, 1]);
   gl.uniform1f(p.u.uToonSat, opts.toonSat || 1);
+  if (this.gl2) this.setupPBR(p, opts);
+  this.setMRT(true);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
   return p;
 };
 
+// PBR 쪽 유니폼 — 해 · 하늘빛 · 그림자 지도 · 화면 그늘
+Renderer.prototype.setupPBR = function (p, opts) {
+  const gl = this.gl;
+  const lv = this.pbrLevel;
+  const on = lv >= 1 && this.nrmTex && this.ormTex;
+  gl.uniform1f(p.u.uPbr, on ? 1 : 0);
+  if (!on) { gl.uniform1f(p.u.uShadowOn, 0); gl.uniform1f(p.u.uSsaoOn, 0); return; }
+  gl.uniform1f(p.u.uNormalOn, 1);
+  gl.uniform1i(p.u.uNrmTex, 1);
+  gl.uniform1i(p.u.uOrmTex, 2);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.nrmTex);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.ormTex);
+  const useShadow = lv >= 2 && this.shadowTarget && this.shadowReady;
+  gl.uniform1f(p.u.uShadowOn, useShadow ? 1 : 0);
+  gl.uniform1i(p.u.uShadowTex, 3);
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D, this.shadowTarget ? this.shadowTarget.depth : null);
+  if (useShadow) gl.uniformMatrix4fv(p.u.uLightVP, false, this.lightVP);
+  // 화면 그늘은 합성 때 곱한다 (본 그림을 두 번 그리지 않으려고)
+  gl.uniform1f(p.u.uSsaoOn, 0);
+  gl.uniform3fv(p.u.uSunDir, opts.sunDir);
+  gl.uniform3fv(p.u.uSunCol, opts.pbrSun || [2.6, 2.45, 2.15]);
+  gl.uniform3fv(p.u.uAmbUp, opts.pbrAmbUp || [0.36, 0.42, 0.52]);
+  gl.uniform3fv(p.u.uAmbDn, opts.pbrAmbDn || [0.16, 0.15, 0.13]);
+  gl.uniform3fv(p.u.uSkyUp, opts.pbrSkyUp || opts.skyTop);
+  gl.uniform3fv(p.u.uSkyDn, opts.pbrSkyDn || opts.skyBottom);
+  gl.uniform3fv(p.u.uCamPos, this.eyePos || [0, 0, 0]);
+  gl.uniform2f(p.u.uPix, 1 / Math.max(1, this.canvas.width), 1 / Math.max(1, this.canvas.height));
+  gl.activeTexture(gl.TEXTURE0);
+};
+
+const VERT_STRIDE = 9 * 4;
+
 Renderer.prototype.bindTerrainAttribs = function (vbo) {
   const gl = this.gl;
   gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  const stride = 8 * 4;
   gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, 0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, VERT_STRIDE, 0);
   gl.enableVertexAttribArray(1);
-  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 12);
+  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, VERT_STRIDE, 12);
   gl.enableVertexAttribArray(2);
-  gl.vertexAttribPointer(2, 3, gl.FLOAT, false, stride, 20);
+  gl.vertexAttribPointer(2, 3, gl.FLOAT, false, VERT_STRIDE, 20);
+  if (this.gl2) {
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 1, gl.FLOAT, false, VERT_STRIDE, 32);
+  }
+};
+
+// 그림자 지도를 찍을 때는 자리와 무늬만 있으면 된다
+Renderer.prototype.bindShadowAttribs = function (vbo) {
+  const gl = this.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, VERT_STRIDE, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, VERT_STRIDE, 12);
+  gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
 };
 
 Renderer.prototype.drawChunks = function (world, player, opts, pass) {
@@ -17830,7 +18814,7 @@ Renderer.prototype.drawChunks = function (world, player, opts, pass) {
 // 프레임마다 배열을 새로 만들면 쓰레기가 쌓이니, 늘어나는 타입 배열 하나를
 // 계속 다시 쓴다.
 function GeomBuf(verts) {
-  this.v = new Float32Array(verts * 8);
+  this.v = new Float32Array(verts * 9);
   this.i = new Uint32Array(verts * 6 / 4);
   this.i16 = null;      // uint32 확장이 없는 기기에서만 쓴다
   this.vn = 0;          // 채워 넣은 float 개수
@@ -17841,7 +18825,7 @@ GeomBuf.prototype.reset = function () { this.vn = 0; this.inn = 0; };
 
 // 상자 하나(정점 24, 인덱스 36)를 더 담을 자리를 만든다
 GeomBuf.prototype.reserveBox = function () {
-  if (this.vn + 24 * 8 > this.v.length) {
+  if (this.vn + 24 * 9 > this.v.length) {
     const nv = new Float32Array(this.v.length * 2);
     nv.set(this.v.subarray(0, this.vn));
     this.v = nv;
@@ -17855,7 +18839,7 @@ GeomBuf.prototype.reserveBox = function () {
 
 // 사각형 n 개를 더 담을 자리를 만든다 (상자가 아닌 자유 모양용)
 GeomBuf.prototype.reserveQuads = function (n) {
-  const needV = this.vn + n * 4 * 8;
+  const needV = this.vn + n * 4 * 9;
   if (needV > this.v.length) {
     let cap = this.v.length;
     while (cap < needV) cap *= 2;
@@ -17914,16 +18898,17 @@ Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opt
     const lit = (glow && glow[name]) ? 1 : shadeOfNormal(no[0], no[1], no[2]);
     const gl0 = (glow && glow[name]) ? 1 : l0;
     const gl1 = (glow && glow[name]) ? 1 : l1;
+    const pn = packNormal(no[0], no[1], no[2]);
     let vn = buf.vn;
-    const base = vn / 8;
+    const base = vn / 9;
     for (let c = 0; c < 4; c++) {
       const pi = (q * 4 + c) * 3, ui = (q * 4 + c) * 2;
       rot(P[pi] * scale, P[pi + 1] * scale, P[pi + 2] * scale, o);
       F[vn] = cx + o[0]; F[vn + 1] = cy + o[1]; F[vn + 2] = cz + o[2];
       F[vn + 3] = t.u0 + du * U[ui];
       F[vn + 4] = t.v0 + dv * U[ui + 1];
-      F[vn + 5] = gl0; F[vn + 6] = gl1; F[vn + 7] = lit;
-      vn += 8;
+      F[vn + 5] = gl0; F[vn + 6] = gl1; F[vn + 7] = lit; F[vn + 8] = pn;
+      vn += 9;
     }
     buf.vn = vn;
     let inn = buf.inn;
@@ -17934,15 +18919,17 @@ Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opt
     // 얇은 판은 안쪽에서도 보여야 한다 (객실 안, 조종석 안)
     if (TW[q]) {
       const backLit = shadeOfNormal(-no[0], -no[1], -no[2]);
+      const bpn = packNormal(-no[0], -no[1], -no[2]);
       vn = buf.vn;
-      const b2 = vn / 8;
+      const b2 = vn / 9;
       for (let c = 0; c < 4; c++) {
-        const src = (buf.vn - 32) + c * 8;
+        const src = (buf.vn - 36) + c * 9;
         F[vn] = F[src]; F[vn + 1] = F[src + 1]; F[vn + 2] = F[src + 2];
         F[vn + 3] = F[src + 3]; F[vn + 4] = F[src + 4];
         F[vn + 5] = gl0; F[vn + 6] = gl1;
         F[vn + 7] = (glow && glow[name]) ? 1 : backLit;
-        vn += 8;
+        F[vn + 8] = bpn;
+        vn += 9;
       }
       buf.vn = vn;
       inn = buf.inn;
@@ -17985,8 +18972,9 @@ function emitBox(buf, cx, cy, cz, w, h, d, texName, frontTex, transform, light) 
     const t = (f === 4) ? tFront : tMain;
     const u0 = t.u0, du = t.u1 - t.u0, v0 = t.v0, dv = t.v1 - t.v0;
     const shade = FACE_SHADE[f];
+    const pn = FACE_NRM[f];
     let vn = buf.vn;
-    const base = vn / 8;
+    const base = vn / 9;
     let c = f * 20;
     for (let ci = 0; ci < 4; ci++) {
       transform((BOX_CORNER[c] - 0.5) * w, BOX_CORNER[c + 1] * h, (BOX_CORNER[c + 2] - 0.5) * d, out);
@@ -17998,7 +18986,8 @@ function emitBox(buf, cx, cy, cz, w, h, d, texName, frontTex, transform, light) 
       V[vn + 5] = l0;
       V[vn + 6] = l1;
       V[vn + 7] = shade;
-      vn += 8; c += 5;
+      V[vn + 8] = pn;
+      vn += 9; c += 5;
     }
     buf.vn = vn;
     let inn = buf.inn;
@@ -18018,7 +19007,7 @@ function emitUnitCube(buf, x, y, z, id, sky, blk, flash) {
     const t = texUV(blockTexName(id, f));
     const u0 = t.u0, du = t.u1 - t.u0, v0 = t.v0, dv = t.v1 - t.v0;
     const shade = flash ? 1 : FACE_SHADE[f];
-    const base = vn / 8;
+    const base = vn / 9;
     let c = f * 20;
     for (let ci = 0; ci < 4; ci++) {
       V[vn] = x - 0.5 + BOX_CORNER[c];
@@ -18029,7 +19018,8 @@ function emitUnitCube(buf, x, y, z, id, sky, blk, flash) {
       V[vn + 5] = sky;
       V[vn + 6] = blk;
       V[vn + 7] = shade;
-      vn += 8; c += 5;
+      V[vn + 8] = FACE_NRM[f];
+      vn += 9; c += 5;
     }
     I[inn] = base; I[inn + 1] = base + 1; I[inn + 2] = base + 2;
     I[inn + 3] = base; I[inn + 4] = base + 2; I[inn + 5] = base + 3;
@@ -18055,6 +19045,7 @@ Renderer.prototype.flushEntityGeom = function (opts, countTris) {
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
   gl.drawElements(gl.TRIANGLES, idx.length, this.uintExt ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   if (countTris !== false) this.stats.tris += idx.length / 3;
+  this.addCasters(buf);
 };
 
 Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
@@ -18772,7 +19763,7 @@ Renderer.prototype.drawItems = function (mgr, world, player, opts) {
     // 정점 예산 (16비트 인덱스뿐인 기기에서는 65535를 넘으면 안 된다)
     const cap = this.uintExt ? ITEM_VERT_BUDGET : 60000;
     const need = isCube ? 24 : (far ? 8 : mesh.v.length / 6);
-    const used = _fv.length / 8 + _iv.length / 8;
+    const used = _fv.length / 9 + _iv.length / 9;
     if (used + need * copies > cap) {
       copies = 1;
       if (used + need > cap) break;
@@ -18831,7 +19822,7 @@ Renderer.prototype.emitItemCube = function (v, ind, it, bid, off, rc, rs, bob, s
     const face = FACES[f];
     const t = texUV(blockTexName(bid, f));
     const shade = FACE_SHADE[f];
-    const base = v.length / 8;
+    const base = v.length / 9;
     for (let ci = 0; ci < 4; ci++) {
       const tu = (ci === 1 || ci === 2) ? 1 : 0;
       const tv = (ci === 2 || ci === 3) ? 1 : 0;
@@ -18843,7 +19834,7 @@ Renderer.prototype.emitItemCube = function (v, ind, it, bid, off, rc, rs, bob, s
         cx + lx * rc + lz * rs, cy + ly, cz - lx * rs + lz * rc,
         t.u0 + (t.u1 - t.u0) * uvp[0],
         t.v0 + (t.v1 - t.v0) * uvp[1],
-        sky, blk, shade);
+        sky, blk, shade, FACE_NRM[f]);
     }
     ind.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -18855,12 +19846,12 @@ Renderer.prototype.emitItemMesh = function (v, ind, mesh, it, off, rc, rs, bob, 
   const cx = it.x + off[0] * s, cz = it.z + off[2] * s;
   const cy = it.y + bob + off[1] * s + s * 0.5;
 
-  const src = mesh.v, base = v.length / 8;
+  const src = mesh.v, base = v.length / 9;
   for (let i = 0; i < src.length; i += 6) {
     const lx = src[i] * s, ly = src[i + 1] * s, lz = src[i + 2] * s;
     v.push(
       cx + lx * rc + lz * rs, cy + ly, cz - lx * rs + lz * rc,
-      src[i + 3], src[i + 4], sky, blk, src[i + 5]);
+      src[i + 3], src[i + 4], sky, blk, src[i + 5], NRM_FLAT);
   }
   const si = mesh.idx;
   for (let i = 0; i < si.length; i++) ind.push(base + si[i]);
@@ -18876,14 +19867,14 @@ Renderer.prototype.emitItemFlat = function (v, ind, it, off, rc, rs, bob, sky, b
   const corners = [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 1]];
 
   for (let side = 0; side < 2; side++) {
-    const base = v.length / 8;
+    const base = v.length / 9;
     for (let n = 0; n < 4; n++) {
       const c = corners[side === 0 ? n : 3 - n];
       const lx = c[0] * s;
       v.push(
         cx + lx * rc, cy + c[1] * s, cz - lx * rs,
         c[0] < 0 ? t.u0 : t.u1, c[1] > 0 ? t.v0 : t.v1,
-        sky, blk, side === 0 ? 1 : 0.88);
+        sky, blk, side === 0 ? 1 : 0.88, NRM_FLAT);
     }
     ind.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -18928,6 +19919,7 @@ Renderer.prototype.drawBlockEntities = function (mgr, world, player, opts) {
 // ── 선택 외곽선 ───────────────────────────────────────────────────────
 // box: [x0,y0,z0,x1,y1,z1] (블록 로컬 0~1 좌표). 생략하면 전체 큐브.
 Renderer.prototype.drawOutline = function (x, y, z, box) {
+  this.setMRT(false);
   const gl = this.gl;
   const p = this.lineProg;
   const e = 0.003;
@@ -18946,6 +19938,7 @@ Renderer.prototype.drawOutline = function (x, y, z, box) {
   gl.enableVertexAttribArray(0);
   gl.disableVertexAttribArray(1);
   gl.disableVertexAttribArray(2);
+  gl.disableVertexAttribArray(3);
   gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -22137,7 +23130,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.14';
+const GAME_VERSION = 'v10.0';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -22166,6 +23159,11 @@ function Game(canvas) {
       const el = (typeof document !== 'undefined') && document.getElementById('sel-toon');
       return el ? parseInt(el.value, 10) : 0;
     })(),                       // 그림체 — 0 기본 · 1 애니
+    // 화질 — 0 예전 방식 · 1 물리 기반 조명 · 2 +그림자 · 3 +구석 그늘
+    render: (function () {
+      const el = (typeof document !== 'undefined') && document.getElementById('sel-render');
+      return el ? parseInt(el.value, 10) : 2;
+    })(),
     clouds: 1                   // 0 이면 구름을 그리지 않는다
   };
   this.input = {
@@ -22832,6 +23830,22 @@ Game.prototype.bindInput = function () {
         try { localStorage.setItem('wc_toon', String(self.settings.toon)); }
         catch (e) { /* 저장소가 막혀 있어도 진행 */ }
         self.ui.toast('그림체: ' + (self.settings.toon ? '애니' : '기본'));
+        break;
+      }
+      case 'KeyL': {
+        // 화질 돌려 가며 켜기 (물리 기반 조명 · 그림자 · 구석 그늘)
+        if (!self.renderer.gl2) {
+          self.ui.toast('이 기기는 WebGL2 를 지원하지 않아 예전 방식으로만 그립니다');
+          break;
+        }
+        const top = self.renderer.shadowTarget ? RENDER_LEVELS.length : 2;
+        const n = (self.settings.render + 1) % top;
+        self.settings.render = n;
+        const selr = document.getElementById('sel-render');
+        if (selr) selr.value = String(n);
+        try { localStorage.setItem('wc_render', String(n)); }
+        catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+        self.ui.toast('화질: ' + RENDER_LEVELS[n]);
         break;
       }
       case 'KeyP': {
@@ -24708,6 +25722,33 @@ Game.prototype.render = function (dt) {
 
   const r = this.renderer;
   r.post.setLevel(this.settings.shader);
+  // 화질 단계 — WebGL2 가 있어야 물리 기반 조명·그림자·SSAO 를 쓸 수 있다
+  if (r.gl2) r.pbrLevel = Math.min(this.settings.render, r.shadowTarget ? 3 : 1);
+  opts.world = this.world;
+
+  // ── 물리 기반 조명에 넘길 빛 ──
+  // 해는 세기를 그대로(선형) 넘기고, 하늘빛은 하늘 그림 색과 따로 잡는다.
+  // 하늘 그림 색을 그대로 쓰면 온 세상이 새파래진다.
+  if (r.gl2 && r.pbrLevel >= 1) {
+    const dl = Math.max(0, Math.min(1, daylight));
+    const t = this.dayPhase();
+    const s2 = Math.sin(t * Math.PI * 2);
+    const dusk2 = Math.max(0, 1 - Math.abs(s2) * 3.2);
+    // 해가 정면으로 드는 윗면이 예전 방식과 비슷한 밝기로 떨어지게 맞춘다.
+    // (해/파이 + 하늘빛) ≈ 1 이 되도록 잡아야 도로·인도가 하얗게 타지 않는다.
+    const k = 2.05 * dl;
+    opts.pbrSun = [k * (1.0 + dusk2 * 0.22),
+      k * (0.95 - dusk2 * 0.20),
+      k * (0.84 - dusk2 * 0.38)];
+    // 위에서 오는 하늘빛은 푸르되 옅게, 아래에서 튀는 빛은 땅 색으로
+    // 하늘빛. dl 은 0.30(한밤) ~ 1(한낮) 이라 기울기를 눕혀야 한다 —
+    // 낮에는 (해/파이 + 하늘빛) ≈ 1, 밤에도 예전 밝기(0.30) 언저리로 남게.
+    const a = 0.13 * dl + 0.195;
+    opts.pbrAmbUp = [a * 0.86, a * 0.96, a * 1.22];
+    opts.pbrAmbDn = [a * 0.62, a * 0.56, a * 0.46];
+    opts.pbrSkyUp = [skyTop[0] * dl, skyTop[1] * dl, skyTop[2] * dl];
+    opts.pbrSkyDn = [fogColor[0] * dl * 0.8, fogColor[1] * dl * 0.8, fogColor[2] * dl * 0.8];
+  }
 
   // ── 애니 그림체 ──
   // 지형·탈것·가구가 모두 같은 프로그램을 쓰므로 여기서 한 번에 정한다.
@@ -24743,6 +25784,10 @@ Game.prototype.render = function (dt) {
     fx.saturation *= 1.10;
     fx.vignette *= 0.5;
   }
+  // 화면에서 잰 구석 그늘
+  fx.aoAmount = (r.gl2 && r.pbrLevel >= 3) ? 0.80 : 0;
+  fx.aoRadius = 0.85;
+  fx.aoStrength = 1.15;
   fx.saturation *= 1 - 0.30 * wet;
   fx.exposure *= 1 - 0.12 * wet;
   fx.exposure += flash * 0.55;
@@ -24833,6 +25878,9 @@ Game.prototype.render = function (dt) {
       '  로드됨 ' + this.world.chunks.size + '  그림 ' + r.stats.chunks,
       '삼각형 ' + (r.stats.tris | 0) + '  셰이더 ' + SHADER_LEVELS[this.settings.shader] +
       (r.post.ok ? '' : ' (미지원)'),
+      (r.gl2 ? 'WebGL2  화질 ' + RENDER_LEVELS[r.pbrLevel] +
+        (r.shadowReady ? '  그림자 켜짐' : '') + (r.hdrOk ? '  HDR' : '')
+             : 'WebGL1 (예전 방식)'),
       '시각 ' + Math.floor(t) + ':' + String(Math.floor((t % 1) * 60)).padStart(2, '0') +
       '  햇빛 ' + daylight.toFixed(2),
       '바이옴 ' + BIOME_NAMES[this.world.biomeAt(Math.floor(p.x), Math.floor(p.z))] +
@@ -28528,6 +29576,20 @@ Game.prototype.updateNetHud = function () {
       const g = live();
       if (g) g.settings.toon = parseInt(selToon.value, 10);
       try { localStorage.setItem('wc_toon', selToon.value); } catch (e) { /* 무시 */ }
+    });
+  }
+
+  // 화질 — 예전 방식 / 물리 기반 조명 / +그림자 / +구석 그늘 (게임 안에서는 L)
+  const selRender = document.getElementById('sel-render');
+  if (selRender) {
+    try {
+      const saved = localStorage.getItem('wc_render');
+      if (saved !== null) selRender.value = saved;
+    } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+    selRender.addEventListener('change', function () {
+      const g = live();
+      if (g) g.settings.render = parseInt(selRender.value, 10);
+      try { localStorage.setItem('wc_render', selRender.value); } catch (e) { /* 무시 */ }
     });
   }
 

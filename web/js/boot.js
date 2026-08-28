@@ -156,6 +156,20 @@
     });
   }
 
+  // 화질 — 예전 방식 / 물리 기반 조명 / +그림자 / +구석 그늘 (게임 안에서는 L)
+  const selRender = document.getElementById('sel-render');
+  if (selRender) {
+    try {
+      const saved = localStorage.getItem('wc_render');
+      if (saved !== null) selRender.value = saved;
+    } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+    selRender.addEventListener('change', function () {
+      const g = live();
+      if (g) g.settings.render = parseInt(selRender.value, 10);
+      try { localStorage.setItem('wc_render', selRender.value); } catch (e) { /* 무시 */ }
+    });
+  }
+
   const chkClouds = document.getElementById('chk-clouds');
   if (chkClouds) {
     chkClouds.addEventListener('change', function () {
