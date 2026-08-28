@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.12';
+const GAME_VERSION = 'v9.13';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -53,6 +53,10 @@ function Game(canvas) {
     sensitivity: 0.0022,
     invertY: false,
     shader: SHADER_DEFAULT,     // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
+    toon: (function () {
+      const el = (typeof document !== 'undefined') && document.getElementById('sel-toon');
+      return el ? parseInt(el.value, 10) : 0;
+    })(),                       // 그림체 — 0 기본 · 1 애니
     clouds: 1                   // 0 이면 구름을 그리지 않는다
   };
   this.input = {
@@ -709,6 +713,16 @@ Game.prototype.bindInput = function () {
         const next = order[(cur + 1) % order.length];
         self.weather.setForced(next);
         self.ui.toast('날씨: ' + (next === null ? '자동' : WEATHER_KR[next] + ' (고정)'));
+        break;
+      }
+      case 'KeyJ': {
+        // 그림체 — 기본 / 애니
+        self.settings.toon = self.settings.toon ? 0 : 1;
+        const sel2 = document.getElementById('sel-toon');
+        if (sel2) sel2.value = String(self.settings.toon);
+        try { localStorage.setItem('wc_toon', String(self.settings.toon)); }
+        catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+        self.ui.toast('그림체: ' + (self.settings.toon ? '애니' : '기본'));
         break;
       }
       case 'KeyP': {
@@ -2585,8 +2599,41 @@ Game.prototype.render = function (dt) {
 
   const r = this.renderer;
   r.post.setLevel(this.settings.shader);
+
+  // ── 애니 그림체 ──
+  // 지형·탈것·가구가 모두 같은 프로그램을 쓰므로 여기서 한 번에 정한다.
+  const toon = !!this.settings.toon;
+  opts.toon = toon;
+  if (toon) {
+    const dl = Math.max(0, Math.min(1, daylight));
+    const dusk = Math.pow(1 - dl, 1.6);            // 해가 낮을수록 1
+    // 볕은 따뜻하게, 그늘은 푸르게
+    opts.toonWarm = [1.05 + dusk * 0.22, 1.00 - dusk * 0.02, 0.93 - dusk * 0.20];
+    opts.toonCool = [0.62 + dl * 0.10, 0.68 + dl * 0.10, 0.92 + dl * 0.04];
+    opts.toonSat = 1.28;
+    // 하늘도 그림처럼 — 위는 진하게 아래는 옅게
+    opts.toonSky = [(0.26 + 0.10 * dl) * (1 - dusk * 0.55),
+      (0.46 + 0.16 * dl) * (1 - dusk * 0.35),
+      (0.78 + 0.12 * dl) * (1 - dusk * 0.18)];
+    opts.toonHaze = [(0.70 + dusk * 0.26) * (0.30 + 0.70 * dl),
+      (0.80 - dusk * 0.06) * (0.32 + 0.68 * dl),
+      (0.92 - dusk * 0.22) * (0.38 + 0.62 * dl)];
+    // 안개도 하늘빛에 맞춰 옅게 — 판화 같은 원근이 산다
+    opts.fogColor = opts.toonHaze;
+    opts.skyBottom = opts.toonHaze;
+    opts.fogStart *= 1.35;
+    opts.fogEnd *= 1.25;
+  }
+
   // 하늘 셰이더와 후처리가 함께 쓰는 값
   const fx = this.shaderOpts(daylight, p.headInWater);
+  if (toon) {
+    fx.ink = 0.72;                       // 외곽선 세기
+    fx.inkColor = [0.13, 0.14, 0.20];
+    fx.near = 0.06; fx.far = 1200;       // 깊이를 실제 거리로 펴는 데 쓴다
+    fx.saturation *= 1.10;
+    fx.vignette *= 0.5;
+  }
   fx.saturation *= 1 - 0.30 * wet;
   fx.exposure *= 1 - 0.12 * wet;
   fx.exposure += flash * 0.55;

@@ -449,6 +449,9 @@ Renderer.prototype.beginFrame = function (player, opts) {
   gl.uniform1f(sp.u.uHigh, opts.high || 0);
   gl.uniform1f(sp.u.uSpace, opts.space || 0);
   gl.uniform1f(sp.u.uAurora, opts.aurora || 0);
+  gl.uniform1f(sp.u.uToon, opts.toon ? 1 : 0);
+  gl.uniform3fv(sp.u.uToonSky, opts.toonSky || [0.4, 0.6, 0.9]);
+  gl.uniform3fv(sp.u.uToonHaze, opts.toonHaze || [0.8, 0.86, 0.94]);
   gl.uniform1f(sp.u.uTime, opts.time);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST);
@@ -492,6 +495,11 @@ Renderer.prototype.setupTerrainProgram = function (opts) {
   gl.uniform4f(p.u.uTint, 1, 1, 1, 1);
   gl.uniform1f(p.u.uWave, 0);
   gl.uniform1f(p.u.uAlphaCut, 0.5);
+  // 애니 그림체 — 지형·탈것·가구가 모두 이 프로그램을 쓰므로 여기 한 번이면 된다
+  gl.uniform1f(p.u.uToon, opts.toon ? 1 : 0);
+  gl.uniform3fv(p.u.uToonWarm, opts.toonWarm || [1, 1, 1]);
+  gl.uniform3fv(p.u.uToonCool, opts.toonCool || [1, 1, 1]);
+  gl.uniform1f(p.u.uToonSat, opts.toonSat || 1);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
   return p;

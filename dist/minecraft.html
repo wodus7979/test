@@ -1036,6 +1036,12 @@ button.tiny {
           <option value="3">최고 (＋갓레이)</option>
         </select>
       </label>
+      <label>그림체
+        <select id="sel-toon">
+          <option value="0" selected>기본 (블록 그대로)</option>
+          <option value="1">애니 (명암 단·외곽선·그린 하늘)</option>
+        </select>
+      </label>
     </div>
 
     <details class="help">
@@ -1049,6 +1055,7 @@ button.tiny {
           <li><b>E</b> 인벤토리 · <b>G</b> 창작/생존 전환 · <b>C</b> 전체 아이템 목록(창작)</li>
           <li><b>F</b> 또는 <b>Space 두 번</b> 비행 켜기/끄기 (창작 모드) · 비행 중 <b>Space</b> 상승, <b>Shift</b> 하강</li>
           <li><b>F3</b> 디버그 정보 · <b>O</b> 즉시 저장 (60초마다 자동 저장) · <b>P</b> 화면 셰이더 바꾸기</li>
+          <li><b>J</b> 그림체 바꾸기 — <b>기본</b>과 <b>애니</b> 두 가지 (시작 화면에서도 고를 수 있다)</li>
           <li><b>R</b> 날씨 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개). 추운 지방에서는 비 대신 눈이 온다</li>
           <li><b>M</b> 지도 배율 바꾸기 · <b>N</b> 목적지 공항 바꾸기</li>
           <li>주민에게 <b>우클릭</b>하면 거래창이 열린다 (에메랄드가 마을의 돈)</li>
@@ -1227,6 +1234,12 @@ button.tiny {
               <b>공항 직원과 마을 주민은 그대로</b> 둔다</li>
           <li>구름 위로 올라가면 <b>비·눈이 미치지 않고</b>, 별과 오로라가 보인다.
               하늘이 두 배로 높아져 <b>고도 150</b>까지 올라갈 수 있다</li>
+          <li><b>애니 그림체</b>로 바꾸면 세상이 그림처럼 보인다 —
+              명암을 <b>세 단으로 뚝뚝 끊고</b>, 그늘은 푸르게 볕은 따뜻하게 물들이며,
+              색을 진하게 올린다. 하늘은 몇 겹으로 나뉘고 <b>그린 듯한 구름</b>이 흐른다.
+              물체 테두리에는 <b>먹선</b>이 그어진다 (화면 셰이더가 켜져 있어야 한다)</li>
+          <li>먹선은 <b>가까운 것에만</b> 그어진다 — 복셀 지형은 한 칸짜리 계단이
+              끝없이 이어져서, 거리에 따라 문턱을 높이지 않으면 온 산이 그물이 된다</li>
           <li><b>K</b> 세계를 파일로 내보내기 — 다른 PC·휴대폰으로 옮기거나 백업할 때</li>
         </ul>
         <h4>함께 놀기 (로컬 멀티플레이)</h4>
@@ -7132,9 +7145,20 @@ const TERRAIN_FS = [
   'uniform float uFogEnd;',
   'uniform float uAlphaCut;',
   'uniform vec4 uTint;',
+  // ── 애니 그림체 ──
+  'uniform float uToon;',        // 0 기본 · 1 애니
+  'uniform vec3 uToonWarm;',     // 볕이 드는 쪽 색
+  'uniform vec3 uToonCool;',     // 그늘 쪽 색
+  'uniform float uToonSat;',
   'varying vec2 vUV;',
   'varying vec3 vLight;',
   'varying float vDist;',
+  // 값을 단으로 끊는다. 경계만 살짝 부드럽게 해 계단이 지저분해지지 않게.
+  'float bandv(float x, float n) {',
+  '  float s = x * n;',
+  '  float i = floor(s);',
+  '  return (i + smoothstep(0.40, 0.60, s - i)) / n;',
+  '}',
   'void main() {',
   '  vec4 tex = texture2D(uTex, vUV);',
   '  if (tex.a < uAlphaCut) discard;',
@@ -7142,9 +7166,25 @@ const TERRAIN_FS = [
   '  float blk = vLight.y;',
   '  float lum = max(sky, blk);',
   '  lum = max(lum, 0.055);',
-  '  lum *= vLight.z;',            // AO
-  '  vec3 col = tex.rgb * uTint.rgb * lum;',
+  '  vec3 col;',
   '  float fog = clamp((vDist - uFogStart) / max(0.001, uFogEnd - uFogStart), 0.0, 1.0);',
+  '  if (uToon > 0.5) {',
+  // 빛과 면 밝기를 따로 단으로 끊는다.
+  // vLight.z 에는 면 방향(FACE_SHADE)과 모서리 그늘(AO)이 함께 들어 있다.
+  '    float lit = bandv(clamp(lum, 0.0, 1.0), 3.0);',
+  '    float face = bandv(clamp(vLight.z, 0.0, 1.0), 3.0);',
+  '    float k = clamp(lit * face, 0.0, 1.0);',
+  // 그늘은 푸르게, 볕은 따뜻하게
+  '    vec3 tint = mix(uToonCool, uToonWarm, smoothstep(0.26, 0.70, k));',
+  '    col = tex.rgb * uTint.rgb * (0.40 + 0.60 * k) * tint;',
+  '    float l = dot(col, vec3(0.2126, 0.7152, 0.0722));',
+  '    col = mix(vec3(l), col, uToonSat);',
+  // 안개도 단으로 — 판화 같은 원근이 된다
+  '    fog = bandv(fog, 4.0);',
+  '  } else {',
+  '    lum *= vLight.z;',
+  '    col = tex.rgb * uTint.rgb * lum;',
+  '  }',
   '  col = mix(col, uFogColor, fog);',
   '  gl_FragColor = vec4(col, tex.a * uTint.a);',
   '}'
@@ -7172,6 +7212,9 @@ const SKY_FS = [
   'uniform float uHigh;',      // 0 지상 ~ 1 성층권 (구름 위)
   'uniform float uSpace;',     // 0 대기권 ~ 1 우주 (하늘이 새까매진다)
   'uniform float uAurora;',    // 오로라 세기
+  'uniform float uToon;',      // 애니 그림체
+  'uniform vec3 uToonSky;',    // 애니 하늘 위 색
+  'uniform vec3 uToonHaze;',   // 애니 하늘 아래 색
   'uniform float uTime;',
   'varying vec2 vPos;',
   'float hash13(vec3 p) {',
@@ -7210,11 +7253,42 @@ const SKY_FS = [
   '  float a = 1.0 - smoothstep(0.960, 1.0, rr);',
   '  return vec4(col, a);',
   '}',
+  // 애니 하늘에 쓰는 2차원 잡음
+  'float h21(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }',
+  'float vn2(vec2 p) {',
+  '  vec2 i = floor(p), f = fract(p);',
+  '  f = f * f * (3.0 - 2.0 * f);',
+  '  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x),',
+  '             mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);',
+  '}',
+  'float fbm2(vec2 p) {',
+  '  float v = 0.0, a = 0.5;',
+  '  for (int i = 0; i < 5; i++) { v += vn2(p) * a; p *= 2.03; a *= 0.5; }',
+  '  return v;',
+  '}',
   'void main() {',
   '  vec4 far = uInvVP * vec4(vPos, 1.0, 1.0);',
   '  vec3 dir = normalize(far.xyz / far.w - uCamPos);',
   '  float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);',
   '  vec3 col = mix(uBottom, uTop, pow(t, 0.8));',
+  // ── 애니 그림체 하늘 ── 몇 겹으로 딱 나눈 하늘에 그린 듯한 구름
+  '  if (uToon > 0.5 && uUnder < 0.5) {',
+  '    float q = floor(smoothstep(0.42, 0.88, t) * 3.0 + 0.5) / 3.0;',
+  '    col = mix(uToonHaze, uToonSky, q);',
+  '    float sd = dot(dir, uSunDir);',
+  '    col = mix(col, uSunColor * 1.30, smoothstep(0.9976, 0.9988, sd) * (1.0 - uNight));',
+  '    col += uSunColor * pow(max(sd, 0.0), 26.0) * 0.18 * (1.0 - uNight);',
+  '    if (dir.y > 0.02) {',
+  '      vec2 pp = dir.xz / dir.y * 0.55 + vec2(uTime * 0.008, uTime * 0.003);',
+  '      float n = fbm2(pp * 1.4);',
+  '      float body = smoothstep(0.52, 0.58, n);',
+  '      float lit2 = smoothstep(0.62, 0.68, n);',
+  '      float fade = smoothstep(0.02, 0.18, dir.y) * (1.0 - uHigh * 0.8);',
+  '      vec3 cl = mix(vec3(0.78, 0.81, 0.90), vec3(1.02, 1.00, 0.96), lit2);',
+  '      cl = mix(cl * (0.30 + 0.20 * (1.0 - uNight)), cl, 1.0 - uNight);',
+  '      col = mix(col, cl, body * fade * 0.90);',
+  '    }',
+  '  }',
   // 높이 올라갈수록 하늘이 검푸르게 깊어진다 (성층권)
   '  if (uHigh > 0.001) {',
   '    vec3 deep = vec3(0.015, 0.025, 0.075) + uTop * 0.10;',
@@ -7510,6 +7584,12 @@ const COMPOSITE_FS = [
   'uniform float uUnder;',
   'uniform float uAberr;',
   'uniform float uTime;',
+  // ── 애니 외곽선 ──
+  'uniform sampler2D uDepth;',
+  'uniform float uInk;',        // 0 없음 · 세기
+  'uniform vec2 uPix;',
+  'uniform vec3 uInkColor;',
+  'uniform vec2 uClip;',        // near, far
   'varying vec2 vUV;',
   // 필름 톤 매핑 (ACES 근사)
   'vec3 aces(vec3 x) {',
@@ -7550,6 +7630,29 @@ const COMPOSITE_FS = [
   '  col = aces(col) * 1.2441;',   // 흰색이 흰색으로 남도록 정규화
   '  float l = dot(col, vec3(0.2126, 0.7152, 0.0722));',
   '  col = mix(vec3(l), col, uSat);',
+  // 실루엣 — 깊이가 뚝 끊기는 자리에 선을 긋는다.
+  // 복셀 지형은 한 칸짜리 계단이 끝없이 이어져서, 깊이 차를 그대로 쓰면
+  // 온 산이 그물이 된다. 그래서 깊이를 실제 거리로 펴고,
+  // 멀수록 문턱을 높여 가까운 것에만 선이 남게 한다.
+  '  if (uInk > 0.0) {',
+  '    float d0 = texture2D(uDepth, vUV).r;',
+  '    if (d0 < 0.99999) {',
+  '      float n = uClip.x, f = uClip.y;',
+  '      float z0 = (2.0 * n * f) / (f + n - (d0 * 2.0 - 1.0) * (f - n));',
+  '      float gap = 0.0;',
+  '      for (int i = 0; i < 8; i++) {',
+  '        float a = float(i) * 0.7853981;',
+  '        vec2 o = vec2(cos(a), sin(a)) * 1.5 * uPix;',
+  '        float d1 = texture2D(uDepth, clamp(vUV + o, 0.0, 1.0)).r;',
+  '        float z1 = (2.0 * n * f) / (f + n - (d1 * 2.0 - 1.0) * (f - n));',
+  '        gap = max(gap, abs(z1 - z0));',
+  '      }',
+  '      float thr = 0.55 + z0 * 0.060;',
+  '      float e = smoothstep(thr, thr * 2.2, gap);',
+  '      e *= 1.0 - smoothstep(90.0, 200.0, z0);',   // 아주 먼 것은 긋지 않는다
+  '      col = mix(col, uInkColor, e * uInk);',
+  '    }',
+  '  }',
   '  vec2 vd = vUV - 0.5;',
   '  col *= clamp(1.0 - uVignette * dot(vd, vd) * 2.3, 0.0, 1.0);',
   '  gl_FragColor = vec4(col, 1.0);',
@@ -7570,21 +7673,37 @@ function makeFBO(gl, w, h, withDepth) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
 
-  let rb = null;
+  let rb = null, depthTex = null;
   if (withDepth) {
-    rb = gl.createRenderbuffer();
-    gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    // 외곽선을 그으려면 깊이를 읽을 수 있어야 한다.
+    // WEBGL_depth_texture 가 있으면 텍스처로, 없으면 예전처럼 렌더버퍼로.
+    const ext = gl.getExtension('WEBGL_depth_texture');
+    if (ext) {
+      depthTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, depthTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, w, h, 0,
+        gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTex, 0);
+    } else {
+      rb = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    }
   }
   const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   if (!ok) {
     gl.deleteTexture(tex); gl.deleteFramebuffer(fb);
     if (rb) gl.deleteRenderbuffer(rb);
+    if (depthTex) gl.deleteTexture(depthTex);
     return null;
   }
-  return { tex: tex, fb: fb, rb: rb, w: w, h: h };
+  return { tex: tex, fb: fb, rb: rb, depth: depthTex, w: w, h: h };
 }
 
 function freeFBO(gl, f) {
@@ -7592,6 +7711,7 @@ function freeFBO(gl, f) {
   gl.deleteTexture(f.tex);
   gl.deleteFramebuffer(f.fb);
   if (f.rb) gl.deleteRenderbuffer(f.rb);
+  if (f.depth) gl.deleteTexture(f.depth);
 }
 
 // ── 후처리 ────────────────────────────────────────────────────────────
@@ -7727,6 +7847,15 @@ PostFX.prototype.end = function (opts) {
   gl.uniform1f(p.u.uUnder, opts.under);
   gl.uniform1f(p.u.uAberr, lvl >= 3 ? (opts.aberration || 0) : 0);
   gl.uniform1f(p.u.uTime, opts.time);
+  // 애니 외곽선 — 깊이를 읽을 수 있을 때만 그을 수 있다
+  const ink = (opts.ink || 0) && this.scene.depth ? opts.ink : 0;
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, this.scene.depth || this.scene.tex);
+  gl.uniform1i(p.u.uDepth, 2);
+  gl.uniform1f(p.u.uInk, ink);
+  gl.uniform2f(p.u.uPix, 1 / this.w, 1 / this.h);
+  gl.uniform3fv(p.u.uInkColor, opts.inkColor || [0.13, 0.14, 0.20]);
+  gl.uniform2f(p.u.uClip, opts.near || 0.06, opts.far || 1200);
   this.drawQuad();
 
   gl.activeTexture(gl.TEXTURE0);
@@ -17559,6 +17688,9 @@ Renderer.prototype.beginFrame = function (player, opts) {
   gl.uniform1f(sp.u.uHigh, opts.high || 0);
   gl.uniform1f(sp.u.uSpace, opts.space || 0);
   gl.uniform1f(sp.u.uAurora, opts.aurora || 0);
+  gl.uniform1f(sp.u.uToon, opts.toon ? 1 : 0);
+  gl.uniform3fv(sp.u.uToonSky, opts.toonSky || [0.4, 0.6, 0.9]);
+  gl.uniform3fv(sp.u.uToonHaze, opts.toonHaze || [0.8, 0.86, 0.94]);
   gl.uniform1f(sp.u.uTime, opts.time);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST);
@@ -17602,6 +17734,11 @@ Renderer.prototype.setupTerrainProgram = function (opts) {
   gl.uniform4f(p.u.uTint, 1, 1, 1, 1);
   gl.uniform1f(p.u.uWave, 0);
   gl.uniform1f(p.u.uAlphaCut, 0.5);
+  // 애니 그림체 — 지형·탈것·가구가 모두 이 프로그램을 쓰므로 여기 한 번이면 된다
+  gl.uniform1f(p.u.uToon, opts.toon ? 1 : 0);
+  gl.uniform3fv(p.u.uToonWarm, opts.toonWarm || [1, 1, 1]);
+  gl.uniform3fv(p.u.uToonCool, opts.toonCool || [1, 1, 1]);
+  gl.uniform1f(p.u.uToonSat, opts.toonSat || 1);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, this.atlasTex);
   return p;
@@ -21941,7 +22078,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v9.12';
+const GAME_VERSION = 'v9.13';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -21966,6 +22103,10 @@ function Game(canvas) {
     sensitivity: 0.0022,
     invertY: false,
     shader: SHADER_DEFAULT,     // 0 꺼짐 · 1 기본 · 2 높음 · 3 최고
+    toon: (function () {
+      const el = (typeof document !== 'undefined') && document.getElementById('sel-toon');
+      return el ? parseInt(el.value, 10) : 0;
+    })(),                       // 그림체 — 0 기본 · 1 애니
     clouds: 1                   // 0 이면 구름을 그리지 않는다
   };
   this.input = {
@@ -22622,6 +22763,16 @@ Game.prototype.bindInput = function () {
         const next = order[(cur + 1) % order.length];
         self.weather.setForced(next);
         self.ui.toast('날씨: ' + (next === null ? '자동' : WEATHER_KR[next] + ' (고정)'));
+        break;
+      }
+      case 'KeyJ': {
+        // 그림체 — 기본 / 애니
+        self.settings.toon = self.settings.toon ? 0 : 1;
+        const sel2 = document.getElementById('sel-toon');
+        if (sel2) sel2.value = String(self.settings.toon);
+        try { localStorage.setItem('wc_toon', String(self.settings.toon)); }
+        catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+        self.ui.toast('그림체: ' + (self.settings.toon ? '애니' : '기본'));
         break;
       }
       case 'KeyP': {
@@ -24498,8 +24649,41 @@ Game.prototype.render = function (dt) {
 
   const r = this.renderer;
   r.post.setLevel(this.settings.shader);
+
+  // ── 애니 그림체 ──
+  // 지형·탈것·가구가 모두 같은 프로그램을 쓰므로 여기서 한 번에 정한다.
+  const toon = !!this.settings.toon;
+  opts.toon = toon;
+  if (toon) {
+    const dl = Math.max(0, Math.min(1, daylight));
+    const dusk = Math.pow(1 - dl, 1.6);            // 해가 낮을수록 1
+    // 볕은 따뜻하게, 그늘은 푸르게
+    opts.toonWarm = [1.05 + dusk * 0.22, 1.00 - dusk * 0.02, 0.93 - dusk * 0.20];
+    opts.toonCool = [0.62 + dl * 0.10, 0.68 + dl * 0.10, 0.92 + dl * 0.04];
+    opts.toonSat = 1.28;
+    // 하늘도 그림처럼 — 위는 진하게 아래는 옅게
+    opts.toonSky = [(0.26 + 0.10 * dl) * (1 - dusk * 0.55),
+      (0.46 + 0.16 * dl) * (1 - dusk * 0.35),
+      (0.78 + 0.12 * dl) * (1 - dusk * 0.18)];
+    opts.toonHaze = [(0.70 + dusk * 0.26) * (0.30 + 0.70 * dl),
+      (0.80 - dusk * 0.06) * (0.32 + 0.68 * dl),
+      (0.92 - dusk * 0.22) * (0.38 + 0.62 * dl)];
+    // 안개도 하늘빛에 맞춰 옅게 — 판화 같은 원근이 산다
+    opts.fogColor = opts.toonHaze;
+    opts.skyBottom = opts.toonHaze;
+    opts.fogStart *= 1.35;
+    opts.fogEnd *= 1.25;
+  }
+
   // 하늘 셰이더와 후처리가 함께 쓰는 값
   const fx = this.shaderOpts(daylight, p.headInWater);
+  if (toon) {
+    fx.ink = 0.72;                       // 외곽선 세기
+    fx.inkColor = [0.13, 0.14, 0.20];
+    fx.near = 0.06; fx.far = 1200;       // 깊이를 실제 거리로 펴는 데 쓴다
+    fx.saturation *= 1.10;
+    fx.vignette *= 0.5;
+  }
   fx.saturation *= 1 - 0.30 * wet;
   fx.exposure *= 1 - 0.12 * wet;
   fx.exposure += flash * 0.55;
@@ -28084,6 +28268,21 @@ Game.prototype.updateNetHud = function () {
     selShader.addEventListener('change', function () {
       const g = live();
       if (g) g.settings.shader = parseInt(selShader.value, 10);
+    });
+  }
+
+  // 그림체 — 기본 / 애니 (게임 안에서는 J 로도 바꾼다).
+  // 다시 열었을 때 고른 것이 남아 있도록 따로 적어 둔다.
+  const selToon = document.getElementById('sel-toon');
+  if (selToon) {
+    try {
+      const saved = localStorage.getItem('wc_toon');
+      if (saved !== null) selToon.value = saved;
+    } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+    selToon.addEventListener('change', function () {
+      const g = live();
+      if (g) g.settings.toon = parseInt(selToon.value, 10);
+      try { localStorage.setItem('wc_toon', selToon.value); } catch (e) { /* 무시 */ }
     });
   }
 

@@ -141,6 +141,21 @@
     });
   }
 
+  // 그림체 — 기본 / 애니 (게임 안에서는 J 로도 바꾼다).
+  // 다시 열었을 때 고른 것이 남아 있도록 따로 적어 둔다.
+  const selToon = document.getElementById('sel-toon');
+  if (selToon) {
+    try {
+      const saved = localStorage.getItem('wc_toon');
+      if (saved !== null) selToon.value = saved;
+    } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+    selToon.addEventListener('change', function () {
+      const g = live();
+      if (g) g.settings.toon = parseInt(selToon.value, 10);
+      try { localStorage.setItem('wc_toon', selToon.value); } catch (e) { /* 무시 */ }
+    });
+  }
+
   const chkClouds = document.getElementById('chk-clouds');
   if (chkClouds) {
     chkClouds.addEventListener('change', function () {

@@ -200,9 +200,20 @@ const TERRAIN_FS = [
   'uniform float uFogEnd;',
   'uniform float uAlphaCut;',
   'uniform vec4 uTint;',
+  // ── 애니 그림체 ──
+  'uniform float uToon;',        // 0 기본 · 1 애니
+  'uniform vec3 uToonWarm;',     // 볕이 드는 쪽 색
+  'uniform vec3 uToonCool;',     // 그늘 쪽 색
+  'uniform float uToonSat;',
   'varying vec2 vUV;',
   'varying vec3 vLight;',
   'varying float vDist;',
+  // 값을 단으로 끊는다. 경계만 살짝 부드럽게 해 계단이 지저분해지지 않게.
+  'float bandv(float x, float n) {',
+  '  float s = x * n;',
+  '  float i = floor(s);',
+  '  return (i + smoothstep(0.40, 0.60, s - i)) / n;',
+  '}',
   'void main() {',
   '  vec4 tex = texture2D(uTex, vUV);',
   '  if (tex.a < uAlphaCut) discard;',
@@ -210,9 +221,25 @@ const TERRAIN_FS = [
   '  float blk = vLight.y;',
   '  float lum = max(sky, blk);',
   '  lum = max(lum, 0.055);',
-  '  lum *= vLight.z;',            // AO
-  '  vec3 col = tex.rgb * uTint.rgb * lum;',
+  '  vec3 col;',
   '  float fog = clamp((vDist - uFogStart) / max(0.001, uFogEnd - uFogStart), 0.0, 1.0);',
+  '  if (uToon > 0.5) {',
+  // 빛과 면 밝기를 따로 단으로 끊는다.
+  // vLight.z 에는 면 방향(FACE_SHADE)과 모서리 그늘(AO)이 함께 들어 있다.
+  '    float lit = bandv(clamp(lum, 0.0, 1.0), 3.0);',
+  '    float face = bandv(clamp(vLight.z, 0.0, 1.0), 3.0);',
+  '    float k = clamp(lit * face, 0.0, 1.0);',
+  // 그늘은 푸르게, 볕은 따뜻하게
+  '    vec3 tint = mix(uToonCool, uToonWarm, smoothstep(0.26, 0.70, k));',
+  '    col = tex.rgb * uTint.rgb * (0.40 + 0.60 * k) * tint;',
+  '    float l = dot(col, vec3(0.2126, 0.7152, 0.0722));',
+  '    col = mix(vec3(l), col, uToonSat);',
+  // 안개도 단으로 — 판화 같은 원근이 된다
+  '    fog = bandv(fog, 4.0);',
+  '  } else {',
+  '    lum *= vLight.z;',
+  '    col = tex.rgb * uTint.rgb * lum;',
+  '  }',
   '  col = mix(col, uFogColor, fog);',
   '  gl_FragColor = vec4(col, tex.a * uTint.a);',
   '}'
@@ -240,6 +267,9 @@ const SKY_FS = [
   'uniform float uHigh;',      // 0 지상 ~ 1 성층권 (구름 위)
   'uniform float uSpace;',     // 0 대기권 ~ 1 우주 (하늘이 새까매진다)
   'uniform float uAurora;',    // 오로라 세기
+  'uniform float uToon;',      // 애니 그림체
+  'uniform vec3 uToonSky;',    // 애니 하늘 위 색
+  'uniform vec3 uToonHaze;',   // 애니 하늘 아래 색
   'uniform float uTime;',
   'varying vec2 vPos;',
   'float hash13(vec3 p) {',
@@ -278,11 +308,42 @@ const SKY_FS = [
   '  float a = 1.0 - smoothstep(0.960, 1.0, rr);',
   '  return vec4(col, a);',
   '}',
+  // 애니 하늘에 쓰는 2차원 잡음
+  'float h21(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }',
+  'float vn2(vec2 p) {',
+  '  vec2 i = floor(p), f = fract(p);',
+  '  f = f * f * (3.0 - 2.0 * f);',
+  '  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x),',
+  '             mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);',
+  '}',
+  'float fbm2(vec2 p) {',
+  '  float v = 0.0, a = 0.5;',
+  '  for (int i = 0; i < 5; i++) { v += vn2(p) * a; p *= 2.03; a *= 0.5; }',
+  '  return v;',
+  '}',
   'void main() {',
   '  vec4 far = uInvVP * vec4(vPos, 1.0, 1.0);',
   '  vec3 dir = normalize(far.xyz / far.w - uCamPos);',
   '  float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);',
   '  vec3 col = mix(uBottom, uTop, pow(t, 0.8));',
+  // ── 애니 그림체 하늘 ── 몇 겹으로 딱 나눈 하늘에 그린 듯한 구름
+  '  if (uToon > 0.5 && uUnder < 0.5) {',
+  '    float q = floor(smoothstep(0.42, 0.88, t) * 3.0 + 0.5) / 3.0;',
+  '    col = mix(uToonHaze, uToonSky, q);',
+  '    float sd = dot(dir, uSunDir);',
+  '    col = mix(col, uSunColor * 1.30, smoothstep(0.9976, 0.9988, sd) * (1.0 - uNight));',
+  '    col += uSunColor * pow(max(sd, 0.0), 26.0) * 0.18 * (1.0 - uNight);',
+  '    if (dir.y > 0.02) {',
+  '      vec2 pp = dir.xz / dir.y * 0.55 + vec2(uTime * 0.008, uTime * 0.003);',
+  '      float n = fbm2(pp * 1.4);',
+  '      float body = smoothstep(0.52, 0.58, n);',
+  '      float lit2 = smoothstep(0.62, 0.68, n);',
+  '      float fade = smoothstep(0.02, 0.18, dir.y) * (1.0 - uHigh * 0.8);',
+  '      vec3 cl = mix(vec3(0.78, 0.81, 0.90), vec3(1.02, 1.00, 0.96), lit2);',
+  '      cl = mix(cl * (0.30 + 0.20 * (1.0 - uNight)), cl, 1.0 - uNight);',
+  '      col = mix(col, cl, body * fade * 0.90);',
+  '    }',
+  '  }',
   // 높이 올라갈수록 하늘이 검푸르게 깊어진다 (성층권)
   '  if (uHigh > 0.001) {',
   '    vec3 deep = vec3(0.015, 0.025, 0.075) + uTop * 0.10;',

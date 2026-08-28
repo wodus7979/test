@@ -60,6 +60,12 @@ const COMPOSITE_FS = [
   'uniform float uUnder;',
   'uniform float uAberr;',
   'uniform float uTime;',
+  // ── 애니 외곽선 ──
+  'uniform sampler2D uDepth;',
+  'uniform float uInk;',        // 0 없음 · 세기
+  'uniform vec2 uPix;',
+  'uniform vec3 uInkColor;',
+  'uniform vec2 uClip;',        // near, far
   'varying vec2 vUV;',
   // 필름 톤 매핑 (ACES 근사)
   'vec3 aces(vec3 x) {',
@@ -100,6 +106,29 @@ const COMPOSITE_FS = [
   '  col = aces(col) * 1.2441;',   // 흰색이 흰색으로 남도록 정규화
   '  float l = dot(col, vec3(0.2126, 0.7152, 0.0722));',
   '  col = mix(vec3(l), col, uSat);',
+  // 실루엣 — 깊이가 뚝 끊기는 자리에 선을 긋는다.
+  // 복셀 지형은 한 칸짜리 계단이 끝없이 이어져서, 깊이 차를 그대로 쓰면
+  // 온 산이 그물이 된다. 그래서 깊이를 실제 거리로 펴고,
+  // 멀수록 문턱을 높여 가까운 것에만 선이 남게 한다.
+  '  if (uInk > 0.0) {',
+  '    float d0 = texture2D(uDepth, vUV).r;',
+  '    if (d0 < 0.99999) {',
+  '      float n = uClip.x, f = uClip.y;',
+  '      float z0 = (2.0 * n * f) / (f + n - (d0 * 2.0 - 1.0) * (f - n));',
+  '      float gap = 0.0;',
+  '      for (int i = 0; i < 8; i++) {',
+  '        float a = float(i) * 0.7853981;',
+  '        vec2 o = vec2(cos(a), sin(a)) * 1.5 * uPix;',
+  '        float d1 = texture2D(uDepth, clamp(vUV + o, 0.0, 1.0)).r;',
+  '        float z1 = (2.0 * n * f) / (f + n - (d1 * 2.0 - 1.0) * (f - n));',
+  '        gap = max(gap, abs(z1 - z0));',
+  '      }',
+  '      float thr = 0.55 + z0 * 0.060;',
+  '      float e = smoothstep(thr, thr * 2.2, gap);',
+  '      e *= 1.0 - smoothstep(90.0, 200.0, z0);',   // 아주 먼 것은 긋지 않는다
+  '      col = mix(col, uInkColor, e * uInk);',
+  '    }',
+  '  }',
   '  vec2 vd = vUV - 0.5;',
   '  col *= clamp(1.0 - uVignette * dot(vd, vd) * 2.3, 0.0, 1.0);',
   '  gl_FragColor = vec4(col, 1.0);',
@@ -120,21 +149,37 @@ function makeFBO(gl, w, h, withDepth) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
 
-  let rb = null;
+  let rb = null, depthTex = null;
   if (withDepth) {
-    rb = gl.createRenderbuffer();
-    gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    // 외곽선을 그으려면 깊이를 읽을 수 있어야 한다.
+    // WEBGL_depth_texture 가 있으면 텍스처로, 없으면 예전처럼 렌더버퍼로.
+    const ext = gl.getExtension('WEBGL_depth_texture');
+    if (ext) {
+      depthTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, depthTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, w, h, 0,
+        gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTex, 0);
+    } else {
+      rb = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    }
   }
   const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   if (!ok) {
     gl.deleteTexture(tex); gl.deleteFramebuffer(fb);
     if (rb) gl.deleteRenderbuffer(rb);
+    if (depthTex) gl.deleteTexture(depthTex);
     return null;
   }
-  return { tex: tex, fb: fb, rb: rb, w: w, h: h };
+  return { tex: tex, fb: fb, rb: rb, depth: depthTex, w: w, h: h };
 }
 
 function freeFBO(gl, f) {
@@ -142,6 +187,7 @@ function freeFBO(gl, f) {
   gl.deleteTexture(f.tex);
   gl.deleteFramebuffer(f.fb);
   if (f.rb) gl.deleteRenderbuffer(f.rb);
+  if (f.depth) gl.deleteTexture(f.depth);
 }
 
 // ── 후처리 ────────────────────────────────────────────────────────────
@@ -277,6 +323,15 @@ PostFX.prototype.end = function (opts) {
   gl.uniform1f(p.u.uUnder, opts.under);
   gl.uniform1f(p.u.uAberr, lvl >= 3 ? (opts.aberration || 0) : 0);
   gl.uniform1f(p.u.uTime, opts.time);
+  // 애니 외곽선 — 깊이를 읽을 수 있을 때만 그을 수 있다
+  const ink = (opts.ink || 0) && this.scene.depth ? opts.ink : 0;
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, this.scene.depth || this.scene.tex);
+  gl.uniform1i(p.u.uDepth, 2);
+  gl.uniform1f(p.u.uInk, ink);
+  gl.uniform2f(p.u.uPix, 1 / this.w, 1 / this.h);
+  gl.uniform3fv(p.u.uInkColor, opts.inkColor || [0.13, 0.14, 0.20]);
+  gl.uniform2f(p.u.uClip, opts.near || 0.06, opts.far || 1200);
   this.drawQuad();
 
   gl.activeTexture(gl.TEXTURE0);
