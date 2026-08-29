@@ -300,7 +300,10 @@ function buildPlaneMesh() {
 // ── 전동차 ────────────────────────────────────────────────────────────
 // 옆면·객실은 그대로 두고, 블록처럼 보이던 지붕과 앞머리만 곡면으로 만든다.
 // 량 하나 몫만 만든다 (편성 전체를 한 덩어리로 두면 코너에서 레일을 벗어난다).
-function buildTrainCarMesh(isFront, isBack) {
+// opt.tex = 겉면 텍스처 묶음, opt.nose = 코 모양 단계표
+function buildTrainCarMesh(isFront, isBack, opt) {
+  opt = opt || {};
+  const TX = opt.tex || TR_TEX;
   const m = new Mesh3D();
   const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
 
@@ -317,26 +320,29 @@ function buildTrainCarMesh(isFront, isBack) {
     return pts;
   };
   loft(m, roofRing(-L / 2), roofRing(L / 2),
-    function () { return 'tr_roof'; }, true, false);
+    function () { return TX.roof; }, true, false);
 
   // 앞머리 — 운전실 쪽을 비스듬히 좁혀 내려가게 깎는다
   const base = ringSquircle(HW, 2.24, 0.06, 3.2, 18, 0);
   const noseTex = function (my) {
-    if (my < -1.35) return 'tr_skirt';
-    if (my > 0.25 && my < 1.65) return 'tr_face';       // 앞유리
-    if (my > -0.66 && my < -0.14) return 'tr_stripe';   // 옆구리 띠를 코까지 잇는다
-    return 'tr_body';
+    if (my < -1.35) return TX.skirt;
+    if (my > 0.25 && my < 1.65) return TX.face;         // 앞유리
+    if (my > -0.66 && my < -0.14) return TX.stripe;     // 옆구리 띠를 코까지 잇는다
+    return TX.body;
   };
+  // KTX 는 코가 훨씬 길고 낮게 흐른다 (실제 KTX-산천의 유선형 선두부)
+  const DEFAULT_NOSE = [
+    [L / 2 - 0.05, 1.00, 0.00],
+    [L / 2 + 0.55, 0.985, 0.03],
+    [L / 2 + 1.15, 0.93, 0.10],
+    [L / 2 + 1.70, 0.81, 0.22],
+    [L / 2 + 2.12, 0.62, 0.38],
+    [L / 2 + 2.40, 0.34, 0.54]
+  ];
+  const noseTip = opt.tip || [0, 0.62, L / 2 + 2.55];
   const nose = function (e) {
     const q0 = m.t.length;
-    const steps = [
-      [L / 2 - 0.05, 1.00, 0.00],
-      [L / 2 + 0.55, 0.985, 0.03],
-      [L / 2 + 1.15, 0.93, 0.10],
-      [L / 2 + 1.70, 0.81, 0.22],
-      [L / 2 + 2.12, 0.62, 0.38],
-      [L / 2 + 2.40, 0.34, 0.54]
-    ];
+    const steps = opt.nose || DEFAULT_NOSE;
     let prev = null;
     for (let i = 0; i < steps.length; i++) {
       const st = steps[i];
@@ -344,12 +350,13 @@ function buildTrainCarMesh(isFront, isBack) {
       if (prev) loft(m, prev, ring, noseTex, false);
       prev = ring;
     }
-    capRing(m, prev, [0, 0.62, L / 2 + 2.55], 'tr_face', false);
+    capRing(m, prev, noseTip, TX.face, false);
     // 전조등 둘
+    const lampZ = noseTip[2] - 0.25, lampY = opt.lampY !== undefined ? opt.lampY : -0.55;
     for (const sx of [-1, 1]) {
-      const lx = sx * 0.62, ly = -0.55, lz = L / 2 + 2.3;
+      const lx = sx * 0.62, ly = lampY, lz = lampZ;
       m.quad([lx - 0.24, ly - 0.14, lz], [lx + 0.24, ly - 0.14, lz],
-        [lx + 0.24, ly + 0.14, lz], [lx - 0.24, ly + 0.14, lz], 'tr_light', false);
+        [lx + 0.24, ly + 0.14, lz], [lx - 0.24, ly + 0.14, lz], TX.light, false);
     }
     if (e < 0) {
       // 뒤쪽 운전실 — 방금 만든 것을 z 로 뒤집어 옮긴다
@@ -688,6 +695,33 @@ function trainCarMesh(k) {
   return TRAIN_MESHES[k];
 }
 
+// KTX — 코가 길고 낮게 흐르는 유선형 선두부
+let KTX_MESHES = null;
+function ktxCarMesh(k) {
+  if (!KTX_MESHES) {
+    const L = TRAIN_CAR_LEN;
+    const opt = {
+      tex: KX_TEX,
+      nose: [
+        [L / 2 - 0.05, 1.00, 0.00],
+        [L / 2 + 0.90, 0.98, 0.02],
+        [L / 2 + 1.90, 0.92, 0.08],
+        [L / 2 + 2.90, 0.83, 0.16],
+        [L / 2 + 3.80, 0.70, 0.26],
+        [L / 2 + 4.55, 0.53, 0.36],
+        [L / 2 + 5.10, 0.33, 0.44]
+      ],
+      tip: [0, 0.46, L / 2 + 5.35],
+      lampY: -0.72
+    };
+    KTX_MESHES = [];
+    for (let c = 0; c < TRAIN_CARS; c++) {
+      KTX_MESHES.push(buildTrainCarMesh(c === TRAIN_CARS - 1, c === 0, opt));
+    }
+  }
+  return KTX_MESHES[k];
+}
+
 // ── 포크레인 ──────────────────────────────────────────────────────────
 // 궤도·상부·붐·암·버킷을 따로 만들어 둔다. 관절마다 따로 움직여야 하므로
 // 한 덩어리로 합치지 않고 부품별 모형을 그릴 때 이어 붙인다.
@@ -969,6 +1003,57 @@ function buildTrainInsideMesh() {
     }
   }
   return m.build();
+}
+
+
+// ── KTX 객실 ──────────────────────────────────────────────────────────
+// 지하철과 달리 앞을 보고 앉는 2+2 좌석이 줄지어 있다.
+function buildKtxInsideMesh() {
+  const m = new Mesh3D();
+  const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
+  const HL = L / 2;
+
+  // 둥근 천장
+  const arcN = 10;
+  const arc = [];
+  for (let i = 0; i <= arcN; i++) {
+    const t = (i / arcN) * Math.PI;
+    arc.push([HW * 0.93 * Math.cos(t), TRAIN_CEIL - 0.04 + 0.32 * Math.sin(t)]);
+  }
+  for (let i = 0; i < arcN; i++) {
+    const a = arc[i], b = arc[i + 1];
+    m.quad([a[0], a[1], -HL], [b[0], b[1], -HL], [b[0], b[1], HL], [a[0], a[1], HL],
+      'kx_wall', true);
+  }
+
+  // 좌석 — 통로(가운데)를 비우고 양쪽에 두 자리씩
+  const SEAT_X = [0.52, 1.28];
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < SEAT_X.length; k++) {
+      const x = s * SEAT_X[k];
+      for (let z = -HL + 2.2; z <= HL - 2.6; z += 2.05) {
+        m.box(x, -1.02, z, 0.68, 0.16, 1.10, 'kx_seat');       // 좌판
+        m.box(x, -0.52, z - 0.52, 0.68, 1.14, 0.16, 'kx_seat'); // 등받이
+        m.box(x, 0.10, z - 0.52, 0.44, 0.30, 0.18, 'kx_seat');  // 머리 받침
+        m.box(x, -1.32, z, 0.16, 0.44, 0.20, 'tr_pole');        // 다리
+      }
+    }
+    // 짐 선반
+    m.box(s * 1.28, 1.16, 0, 0.86, 0.10, L - 2.2, 'kx_wall');
+    // 조명 띠 (스스로 빛난다)
+    tubeZ(m, s * 0.62, 1.52, -HL + 1.7, HL - 1.7, 0.09, 'kx_light', 5);
+    // 창 아래 벽
+    m.box(s * (HW - 0.10), -0.60, 0, 0.12, 1.30, L - 1.2, 'kx_wall');
+  }
+  // 바닥 통로
+  m.box(0, TRAIN_FLOOR_TOP - 0.05, 0, HW * 1.9, 0.10, L - 0.8, 'kx_floor');
+  return m.build();
+}
+
+let KTX_INSIDE_MESH = null;
+function ktxInsideMesh() {
+  if (!KTX_INSIDE_MESH) KTX_INSIDE_MESH = buildKtxInsideMesh();
+  return KTX_INSIDE_MESH;
 }
 
 let TRAIN_INSIDE_MESH = null;
@@ -1751,3 +1836,122 @@ function ferryBeamAt(hull, z) {
 
 let _ferryMesh = null;
 function ferryMesh() { return _ferryMesh || (_ferryMesh = buildFerryMesh()); }
+
+// ── 크루즈선 ──────────────────────────────────────────────────────────
+// 목포 ↔ 제주를 오가는 대형 여객선. 남색 선체 위로 흰 객실이 다섯 층 오르고,
+// 꼭대기에는 야외 수영장과 굴뚝 둘이 선다.
+const CR_L = 108, CR_W = 22;
+
+function buildCruiseMesh() {
+  const m = new Mesh3D();
+  const HL = CR_L / 2;
+
+  // 1) 선체 — 흘수선 아래 붉은 바닥, 그 위 남색, 어깨는 흰색
+  const hull = [
+    [-HL, 6.6, -4.2, 5.6],
+    [-HL + 6, 8.2, -5.0, 5.9],
+    [-34, 9.6, -5.6, 6.2],
+    [-14, 10.2, -5.9, 6.4],
+    [6, 10.2, -5.9, 6.5],
+    [24, 9.6, -5.6, 6.6],
+    [38, 8.0, -4.9, 6.9],
+    [46, 5.6, -3.6, 7.4],
+    [HL, 2.0, -1.8, 7.9]
+  ];
+  carLoft(m, hull, 4.0, function (my) {
+    if (my < -0.05) return 'cr_boot';
+    if (my < 4.4) return 'cr_hull';
+    if (my < 5.0) return 'cr_gold';
+    return 'cr_white';
+  }, 'cr_hull', 16);
+  deckStrip(m, hull, 6.6, 0.92, 'cr_deck');
+
+  // 2) 객실 — 층마다 조금씩 좁아지며 올라간다
+  const tiers = [
+    { sec: [[-40, 9.2, 6.6, 10.4], [-26, 9.8, 6.6, 10.6], [0, 9.8, 6.6, 10.6],
+      [26, 9.4, 6.6, 10.4], [38, 8.0, 6.6, 10.0]], top: 10.7, tex: 'cr_win' },
+    { sec: [[-36, 8.8, 10.7, 14.4], [-22, 9.4, 10.7, 14.6], [2, 9.4, 10.7, 14.6],
+      [24, 8.9, 10.7, 14.4], [34, 7.6, 10.7, 14.0]], top: 14.7, tex: 'cr_balc' },
+    { sec: [[-32, 8.2, 14.7, 18.4], [-18, 8.8, 14.7, 18.6], [4, 8.8, 14.7, 18.6],
+      [22, 8.2, 14.7, 18.4], [30, 7.0, 14.7, 18.0]], top: 18.7, tex: 'cr_balc' },
+    { sec: [[-26, 7.4, 18.7, 22.2], [-12, 7.9, 18.7, 22.4], [6, 7.9, 18.7, 22.4],
+      [20, 7.2, 18.7, 22.2], [27, 6.2, 18.7, 21.8]], top: 22.5, tex: 'cr_win' }
+  ];
+  for (let k = 0; k < tiers.length; k++) {
+    const t = tiers[k];
+    const y0 = t.sec[0][2], y1 = t.sec[0][3];
+    carLoft(m, t.sec, 5.4, function (my) {
+      return (my > y0 + 0.7 && my < y1 - 0.6) ? t.tex : 'cr_white';
+    }, 'cr_white', 14);
+    deckStrip(m, t.sec, t.top, 0.94, k === tiers.length - 1 ? 'cr_deck' : 'cr_white');
+  }
+
+  // 3) 조타실 — 제일 앞 위층, 양옆으로 날개가 뻗는다
+  const brg = [[16, 6.4, 22.5, 25.4], [22, 6.6, 22.5, 25.6], [27, 5.2, 22.5, 25.0]];
+  carLoft(m, brg, 5.0, function (my) {
+    return (my > 23.2 && my < 24.8) ? 'cr_win' : 'cr_white';
+  }, 'cr_white', 12);
+  deckStrip(m, brg, 25.7, 0.92, 'cr_white');
+  for (const s of [-1, 1]) m.box(s * 8.2, 24.1, 21.0, 3.6, 0.4, 4.0, 'cr_white');
+
+  // 4) 야외 수영장과 갑판 의자 (꼭대기 층)
+  m.box(0, 22.7, -4, 9.0, 0.3, 12.0, 'cr_pool');
+  for (const s of [-1, 1]) {
+    for (const z of [-14, -9, 2, 7]) {
+      m.box(s * 6.6, 23.0, z, 1.6, 0.24, 3.0, 'cr_white');
+    }
+  }
+
+  // 5) 굴뚝 둘
+  for (const z of [-20, -12]) {
+    taperPole(m, [0, 22.5, z], [0, 30.5, z - 1.2], 3.0, 2.5, 14, 'cr_funnel');
+    m.box(0, 30.8, z - 1.2, 5.2, 0.5, 5.2, 'cr_funnel');
+  }
+  taperPole(m, [0, 25.8, 24.5], [0, 34.0, 23.4], 0.34, 0.14, 8, 'cr_white');
+  m.box(0, 34.4, 23.3, 0.28, 0.3, 0.28, 'yt_light');
+
+  // 6) 구명정 — 아래 두 층 사이에 줄지어 매단다
+  for (const s of [-1, 1]) {
+    for (let z = -24; z <= 20; z += 8) {
+      m.box(s * 9.6, 11.6, z, 1.8, 1.3, 5.2, 'fy_stripe');
+      taperPole(m, [s * 8.6, 10.6, z - 2.2], [s * 8.6, 13.2, z - 2.2], 0.12, 0.12, 6, 'yt_rail');
+      taperPole(m, [s * 8.6, 10.6, z + 2.2], [s * 8.6, 13.2, z + 2.2], 0.12, 0.12, 6, 'yt_rail');
+    }
+  }
+
+  // 7) 난간 — 산책 갑판을 두른다
+  for (const s of [-1, 1]) {
+    for (let z = -38; z <= 38; z += 5) {
+      const w = ferryBeamAt(hull, z) * 0.93;
+      taperPole(m, [s * w, 6.6, z], [s * w, 7.8, z], 0.09, 0.09, 6, 'yt_rail');
+    }
+    const w0 = 9.6;
+    taperPole(m, [s * w0, 7.75, -38], [s * w0, 7.75, 38], 0.07, 0.07, 6, 'yt_rail');
+  }
+
+  // 8) 항해등과 뱃전 금색 띠
+  m.box(-8.0, 24.4, 22.6, 0.26, 0.28, 0.26, 'yt_navR');
+  m.box(8.0, 24.4, 22.6, 0.26, 0.28, 0.26, 'yt_navG');
+  for (const s of [-1, 1]) m.box(s * 7.6, 5.0, 20, 0.18, 1.1, 8.0, 'cr_gold');
+  return m.build();
+}
+
+const CR_HULL_SEC = [
+  [-54, 6.6], [-48, 8.2], [-34, 9.6], [-14, 10.2], [6, 10.2],
+  [24, 9.6], [38, 8.0], [46, 5.6], [54, 2.0]
+];
+function cruiseBeamAt(z) {
+  const h = CR_HULL_SEC;
+  if (z <= h[0][0]) return h[0][1];
+  if (z >= h[h.length - 1][0]) return h[h.length - 1][1];
+  for (let i = 0; i + 1 < h.length; i++) {
+    if (z <= h[i + 1][0]) {
+      const t = (z - h[i][0]) / (h[i + 1][0] - h[i][0] || 1);
+      return h[i][1] + (h[i + 1][1] - h[i][1]) * t;
+    }
+  }
+  return h[0][1];
+}
+
+let _cruiseMesh = null;
+function cruiseMesh() { return _cruiseMesh || (_cruiseMesh = buildCruiseMesh()); }

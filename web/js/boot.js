@@ -276,8 +276,8 @@
   btnNew.addEventListener('click', function () { boot('new'); });
   btnContinue.addEventListener('click', function () { boot('continue'); });
 
-  // 도시에서 바로 시작 — 공항 딸린 도시 세 곳
-  ['ICN', 'GMP', 'CJU'].forEach(function (code) {
+  // 도시에서 바로 시작
+  ['ICN', 'GMP', 'CJU', 'MPO'].forEach(function (code) {
     const btn = document.getElementById('btn-city-' + code);
     if (btn) btn.addEventListener('click', function () { boot('city:' + code); });
   });

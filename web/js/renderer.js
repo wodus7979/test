@@ -1266,7 +1266,7 @@ Renderer.prototype.drawYachts = function (game, world, player, opts) {
 };
 
 // ── 제주행 여객선 ─────────────────────────────────────────────────────
-const FERRY_OPTS = { glow: { yt_light: 1, yt_navR: 1, yt_navG: 1, fy_win: 0.35 } };
+const FERRY_OPTS = { glow: { yt_light: 1, yt_navR: 1, yt_navG: 1, fy_win: 0.35, cr_win: 0.35, cr_balc: 0.18 } };
 
 Renderer.prototype.drawFerries = function (game, world, player, opts) {
   const list = game.ferries;
@@ -1277,8 +1277,9 @@ Renderer.prototype.drawFerries = function (game, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const f = list[i];
     const dx = f.x - player.x, dz = f.z - player.z;
-    if (dx * dx + dz * dz > 900 * 900) continue;
-    if (!this.boxInFrustum(f.x - 32, f.y - 6, f.z - 32, f.x + 32, f.y + 26, f.z + 32)) continue;
+    if (dx * dx + dz * dz > 1100 * 1100) continue;
+    const R = f.cruise ? 62 : 32;
+    if (!this.boxInFrustum(f.x - R, f.y - 8, f.z - R, f.x + R, f.y + 40, f.z + R)) continue;
     any++;
 
     const bx = Math.floor(f.x), bz = Math.floor(f.z);
@@ -1294,7 +1295,7 @@ Renderer.prototype.drawFerries = function (game, world, player, opts) {
       const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
       out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
     };
-    this.emitMesh(ferryMesh(), f.x, f.y, f.z, rot, 1, light, FERRY_OPTS);
+    this.emitMesh(f.cruise ? cruiseMesh() : ferryMesh(), f.x, f.y, f.z, rot, 1, light, FERRY_OPTS);
   }
 
   if (!any || !_geom.inn) return;
@@ -1465,7 +1466,7 @@ Renderer.prototype.drawShuttles = function (game, world, player, opts) {
 
 // ── 열차 ──────────────────────────────────────────────────────────────
 // 전조등은 밤에도 스스로 빛난다
-const TRAIN_MESH_OPTS = { glow: { tr_light: 1 } };
+const TRAIN_MESH_OPTS = { glow: { tr_light: 1, kx_light: 1 } };
 
 Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
   const list = mgr.trains;
@@ -1497,11 +1498,13 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
       const rot = function (lx, ly, lz, out) {
         out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
       };
-      // 둥근 지붕과 운전실 코
-      this.emitMesh(trainCarMesh(ci), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
-      // 객실 안 — 둥근 천장·긴의자·손잡이봉·조명. 가까이 왔을 때만 그린다.
+      // 둥근 지붕과 운전실 코 (KTX 는 코가 길고 껍데기 색이 다르다)
+      this.emitMesh(t.ktx ? ktxCarMesh(ci) : trainCarMesh(ci),
+        po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+      // 객실 안 — 가까이 왔을 때만 그린다.
       if (showInner) {
-        this.emitMesh(trainInsideMesh(), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+        this.emitMesh(t.ktx ? ktxInsideMesh() : trainInsideMesh(),
+          po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
         // 객실 안 사람들 — 긴의자에 앉거나 손잡이를 잡고 서 있다
         const ppl = trainRiders(ci);
         for (let q = 0; q < ppl.length; q++) {
@@ -1518,7 +1521,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
         }
       }
 
-      const parts = TRAIN_CAR_PARTS[ci];
+      const parts = (t.ktx ? KTX_CAR_PARTS : TRAIN_CAR_PARTS)[ci];
       for (let k = 0; k < parts.length; k++) {
         const b = parts[k];
         if (b.inner && !showInner) continue;

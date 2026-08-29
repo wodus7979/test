@@ -946,3 +946,86 @@ defFurn('cinema_seat', '영화관 좌석', [
 defFurn('cinema_sign', '영화관 간판', [
   box(0, 2, 14, 16, 14, 16, 'cn_sign')
 ], { tex: 'cn_sign', tool: TOOL_PICKAXE, light: 8 });
+
+// ── KTX (고속열차) 표면 ───────────────────────────────────────────────
+// 실제 KTX-산천처럼 흰 차체에 짙은 남색 띠, 지붕은 밝은 은색이다.
+defFurnTex('kx_body', function (p, rnd) {
+  p.noise(rnd, '#f4f6f8', 3, 3);
+  p.rect(0, 0, 16, 1, '#d7dce1');
+  p.rect(0, 15, 16, 1, '#ffffff');
+});
+defFurnTex('kx_roof', function (p, rnd) { p.noise(rnd, '#b6bec7', 4, 3); });
+defFurnTex('kx_skirt', function (p, rnd) { p.noise(rnd, '#2b3138', 5, 3); });
+defFurnTex('kx_stripe', function (p, rnd) {
+  p.noise(rnd, '#12356e', 5, 4);
+  p.rect(0, 12, 16, 4, '#3f7fd0');
+});
+defFurnTex('kx_face', function (p, rnd) {
+  p.noise(rnd, '#f4f6f8', 3, 3);
+  p.rect(1, 2, 14, 7, '#0c141d');        // 앞유리
+  p.rect(1, 2, 14, 1, '#3a5b82');
+  p.rect(0, 10, 16, 2, '#12356e');
+  p.rect(1, 12, 4, 2, '#fff6cf');        // 전조등
+  p.rect(11, 12, 4, 2, '#fff6cf');
+});
+defFurnTex('kx_door', function (p, rnd) {
+  p.noise(rnd, '#e7ebef', 4, 4);
+  p.rect(7, 0, 2, 16, '#9aa3ac');
+  p.rect(1, 3, 5, 8, '#0c141d');
+  p.rect(10, 3, 5, 8, '#0c141d');
+});
+defFurnTex('kx_wall', function (p, rnd) {
+  p.noise(rnd, '#eef2f6', 4, 5);
+  p.rect(0, 14, 16, 2, '#d3d9e0');
+});
+defFurnTex('kx_seat', function (p, rnd) {
+  p.noise(rnd, '#7b1f3a', 6, 3);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#661931');
+});
+defFurnTex('kx_floor', function (p, rnd) {
+  p.noise(rnd, '#3b414a', 6, 2);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#31363e');
+});
+defFurnTex('kx_light', function (p, rnd) { p.noise(rnd, '#fffaea', 4, 6); });
+
+// ── 크루즈선 ──────────────────────────────────────────────────────────
+defFurnTex('cr_hull', function (p, rnd) {
+  p.noise(rnd, '#14213d', 4, 4);
+  p.rect(0, 5, 16, 1, '#1d3157');
+});
+defFurnTex('cr_boot', function (p, rnd) {
+  p.noise(rnd, '#6d2020', 4, 4);
+  p.rect(0, 0, 16, 1, '#511818');
+});
+defFurnTex('cr_white', function (p, rnd) {
+  p.noise(rnd, '#f6f8fa', 3, 4);
+  p.rect(0, 13, 16, 1, '#e2e7ec');
+});
+defFurnTex('cr_gold', function (p, rnd) {
+  p.noise(rnd, '#d8b45a', 4, 4);
+  p.rect(0, 7, 16, 2, '#f0d489');
+});
+defFurnTex('cr_win', function (p, rnd) {
+  p.noise(rnd, '#1a2d40', 3, 4);
+  for (let x = 1; x < 16; x += 3) p.rect(x, 3, 2, 10, '#7fb3d8');
+  p.rect(0, 0, 16, 2, '#f2f5f8');
+  p.rect(0, 14, 16, 2, '#f2f5f8');
+});
+defFurnTex('cr_balc', function (p, rnd) {
+  p.noise(rnd, '#e8edf2', 3, 4);
+  for (let x = 0; x < 16; x += 4) p.rect(x, 2, 2, 12, '#243a52');
+  p.rect(0, 0, 16, 2, '#cfd6dd');
+});
+defFurnTex('cr_funnel', function (p, rnd) {
+  p.noise(rnd, '#1d4f8c', 4, 4);
+  p.rect(0, 0, 16, 4, '#12233a');
+  p.rect(0, 9, 16, 3, '#d8b45a');
+});
+defFurnTex('cr_deck', function (p, rnd) {
+  p.noise(rnd, '#c39a63', 5, 4);
+  for (let y = 0; y < 16; y += 3) p.rect(0, y, 16, 1, '#a8804d');
+});
+defFurnTex('cr_pool', function (p, rnd) {
+  p.noise(rnd, '#3fb6d8', 4, 5);
+  for (let x = 0; x < 16; x += 5) p.rect(x, 0, 1, 16, '#7fe0f2');
+});

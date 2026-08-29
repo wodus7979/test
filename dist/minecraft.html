@@ -746,7 +746,7 @@ body.touch .hand { display: none !important; }
 
 #net-hud {
   display: none;
-  position: fixed; right: 16px; top: 286px;   /* "도시로"·"영화" 버튼 아래로 */
+  position: fixed; right: 16px; top: 320px;   /* 오른쪽 단추 줄 아래로 */
   z-index: 40; pointer-events: none; max-width: 220px;
   background: rgba(10,14,22,.66);
   border: 1px solid rgba(150,190,240,.22);
@@ -950,9 +950,9 @@ button.tiny {
 #btn-warp:hover { background: rgba(24,34,52,.86); border-color: rgba(150,190,240,.5); }
 #btn-warp.on { background: rgba(40,70,110,.9); border-color: #7fb2ff; }
 
-#warp-panel {
+#warp-panel, #fly-panel {
   display: none;
-  position: fixed; right: 12px; top: 244px; z-index: 44;
+  position: fixed; right: 12px; top: 320px; z-index: 44;
   width: 244px;
   background: rgba(8,12,20,.90);
   border: 1px solid rgba(150,190,240,.28);
@@ -960,8 +960,8 @@ button.tiny {
   font: 13px/1.5 ui-monospace, Menlo, monospace; color: #cfe0f5;
   box-shadow: 0 6px 22px rgba(0,0,0,.55);
 }
-#warp-panel .wp-head { color: #9fc4f0; margin-bottom: 7px; font-size: 12px; }
-#warp-panel .wp-foot { color: #7789a0; margin-top: 7px; font-size: 11px; }
+#warp-panel .wp-head, #fly-panel .wp-head { color: #9fc4f0; margin-bottom: 7px; font-size: 12px; }
+#warp-panel .wp-foot, #fly-panel .wp-foot { color: #7789a0; margin-top: 7px; font-size: 11px; }
 .wp-row {
   display: flex; align-items: baseline; gap: 8px;
   width: 100%; text-align: left;
@@ -988,7 +988,9 @@ button.tiny {
 
 @media (max-width: 720px) {
   #btn-warp { top: 146px; right: 8px; padding: 5px 10px; font-size: 12px; }
-  #warp-panel { top: 180px; right: 8px; width: 210px; }
+  #btn-autofly { top: 182px; right: 8px; padding: 5px 10px; font-size: 12px; }
+  #btn-movie { top: 218px; right: 8px; padding: 5px 10px; font-size: 12px; }
+  #warp-panel, #fly-panel { top: 256px; right: 8px; width: 210px; }
 }
 /* PC 에서는 조준 중에 마우스가 잠겨 있어 버튼을 누를 수 없다 — 단축키를 같이 적어 둔다 */
 #btn-warp b {
@@ -1001,7 +1003,7 @@ body.touch #btn-warp b { display: none; }
 /* ── 영화관 ────────────────────────────────────────────────────────── */
 #btn-movie {
   display: none;
-  position: fixed; right: 12px; top: 244px; z-index: 45;
+  position: fixed; right: 12px; top: 280px; z-index: 45;
   align-items: center;
   background: rgba(18,10,14,.80);
   border: 1px solid rgba(240,200,90,.38);
@@ -1099,6 +1101,27 @@ body.touch #btn-movie b { display: none; }
 .wp-row.locked { opacity: .55; cursor: default; }
 .wp-row.locked .wp-dist { color: #c9a24a; }
 
+/* 자동 비행 버튼 — 비행기를 타고 있을 때만 뜬다 */
+#btn-autofly {
+  display: none;
+  position: fixed; right: 12px; top: 244px; z-index: 45;
+  align-items: center;
+  background: rgba(10,18,28,.80);
+  border: 1px solid rgba(120,200,255,.36);
+  border-radius: 8px; padding: 6px 12px;
+  font: 13px/1.3 ui-monospace, Menlo, monospace; color: #d6ecff;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+}
+#btn-autofly.on { background: rgba(30,70,110,.92); border-color: #7fd0ff; }
+#btn-autofly:hover { background: rgba(20,44,70,.9); border-color: rgba(120,200,255,.65); }
+#btn-autofly b {
+  display: inline-block; margin-left: 7px; padding: 0 5px;
+  border: 1px solid rgba(120,200,255,.45); border-radius: 4px;
+  font-size: 10px; font-weight: 700; color: #7fd0ff;
+}
+body.touch #btn-autofly b { display: none; }
+
 </style>
 </head>
 <body>
@@ -1120,6 +1143,14 @@ body.touch #btn-movie b { display: none; }
   <div class="wp-foot">B 또는 Esc 로 닫기 · 화면을 누르면 다시 조준</div>
 </div>
 <div id="warp-fade"></div>
+
+<!-- 전자동 비행 — 목적지 공항 고르기 -->
+<button id="btn-autofly" type="button" title="자동 비행 (U)">🛫 자동비행<b>U</b></button>
+<div id="fly-panel">
+  <div class="wp-head">어느 공항으로 갈까요</div>
+  <div id="fly-list"></div>
+  <div class="wp-foot">U 또는 Esc 로 닫기 · 고르면 이륙부터 착륙까지 기계가 합니다</div>
+</div>
 
 <!-- 채굴 진행 -->
 <div id="crack"></div>
@@ -1190,6 +1221,7 @@ body.touch #btn-movie b { display: none; }
       <button id="btn-city-ICN" type="button">인천 송도<small>유리 신도시</small></button>
       <button id="btn-city-GMP" type="button">서울<small>롯데타워</small></button>
       <button id="btn-city-CJU" type="button">제주시<small>현무암 돌담</small></button>
+      <button id="btn-city-MPO" type="button">목포<small>항구 소도시</small></button>
     </div>
 
     <label class="file-row">
@@ -1432,6 +1464,34 @@ body.touch #btn-movie b { display: none; }
               물살을 받아야 잘 돌아가고, 빠를수록 돛이 당겨지며 뱃머리가 들린다.
               얕은 데로는 들어가지 않는다. 내릴 때 가까이 뭍이 있으면 거기 내려 주고,
               없으면 바다에 뛰어든다</li>
+          <li><b>활주로가 400칸</b>으로 길어졌다 (예전 260칸). 실제 인천공항 활주로
+              3.75km 를 그대로 옮긴 눈금이라, 무겁게 뜨고 여유 있게 내려앉는다.
+              공항 부지도 그만큼 넓어졌고, 진입등은 부지 밖까지 뻗는다</li>
+          <li><b>자동 비행</b> — 비행기에 타면 오른쪽에 <b>🛫 자동비행</b> 단추가 뜬다
+              (<b>U</b> 키). 목적지 공항을 고르면 <b>유도로 주행 → 이륙 → 상승 →
+              순항 → 강하 → 최종 진입 → 착륙 → 주기장</b>까지 기계가 다 한다.
+              계기판에 지금 어느 단계인지 나오고, <b>N</b> 을 누르면 언제든 조종을
+              넘겨받는다. 하늘에서 걸면 그 자리에서 순항 단계로 들어간다</li>
+          <li><b>목포</b>가 생겼다 — 공항이 없는 <b>소규모 항구 도시</b>다.
+              높은 건물이 없고 시가지가 안쪽만 차 있으며, 한가운데에는 붉은 띠를 두른
+              <b>등대</b>가 선다. 시작 화면에서 바로 목포로 들어갈 수도 있다</li>
+          <li>목포에도 <b>여객선터미널</b>이 있고, 거기서 <b>크루즈선</b>이 제주로 뜬다 —
+              108칸짜리 큰 배로, 남색 선체 위에 흰 객실이 네 층 오르고 굴뚝 둘과
+              <b>야외 수영장</b>이 있다. 타면 스스로 출항해 제주까지 데려다 준다.
+              꼭대기 산책 갑판을 걸어 다닐 수 있다 (수영장·굴뚝·조타실은 못 지나간다)</li>
+          <li><b>고속도로가 목포까지</b> 이어진다 — 도시끼리 모두 한 번씩 이어지므로
+              인천·서울·목포가 다 통한다. <b>제주에는 길을 놓지 않는다</b>. 섬이라
+              배나 비행기로만 간다</li>
+          <li><b>KTX 고속철도</b>가 새로 생겼다. 도시마다 있던 공항선 전동차(지하철)는
+              그대로 두고, 그 위에 나라를 세로로 관통하는 노선을 하나 더 깔았다 —
+              <b>서울 → 인천 송도 → 목포</b>. 선로 생김새와 역 구조는 지금 쓰는 고가
+              철로와 똑같지만, 나라 끝에서 끝까지 이어지므로 상판이 땅을 따라
+              오르내리고 <b>교각</b>으로 받친다. 바다를 건널 때는 물속까지 기둥을 박는다</li>
+          <li>KTX 는 실제 KTX-산천을 본떠 <b>5량</b>으로 만들었다 — 흰 차체에 짙은 남색 띠,
+              <b>길고 낮게 흐르는 유선형 선두부</b>, 객실은 앞을 보고 앉는 2+2 좌석이다.
+              최고 <b>166km/h</b> 로 달리고 <b>역마다 선다</b> (중간역은 지나던 쪽으로 계속 간다).
+              도시 옆 <b>KTX역</b> 승강장에서 계단이나 에스컬레이터로 올라가
+              문이 열렸을 때 <b>우클릭</b>하면 탄다</li>
           <li>바닷가 도시에는 <b>여객선터미널</b>이 있다 — 물가를 메운 부두에서
               긴 <b>잔교</b>가 바다로 뻗고, 그 옆을 깊게 파낸 <b>정박지</b>에
               흰 <b>여객선</b>이 대어 있다. 잔교 끝에서 <b>우클릭</b>하면 승선하고,
@@ -4260,6 +4320,89 @@ defFurn('cinema_seat', '영화관 좌석', [
 defFurn('cinema_sign', '영화관 간판', [
   box(0, 2, 14, 16, 14, 16, 'cn_sign')
 ], { tex: 'cn_sign', tool: TOOL_PICKAXE, light: 8 });
+
+// ── KTX (고속열차) 표면 ───────────────────────────────────────────────
+// 실제 KTX-산천처럼 흰 차체에 짙은 남색 띠, 지붕은 밝은 은색이다.
+defFurnTex('kx_body', function (p, rnd) {
+  p.noise(rnd, '#f4f6f8', 3, 3);
+  p.rect(0, 0, 16, 1, '#d7dce1');
+  p.rect(0, 15, 16, 1, '#ffffff');
+});
+defFurnTex('kx_roof', function (p, rnd) { p.noise(rnd, '#b6bec7', 4, 3); });
+defFurnTex('kx_skirt', function (p, rnd) { p.noise(rnd, '#2b3138', 5, 3); });
+defFurnTex('kx_stripe', function (p, rnd) {
+  p.noise(rnd, '#12356e', 5, 4);
+  p.rect(0, 12, 16, 4, '#3f7fd0');
+});
+defFurnTex('kx_face', function (p, rnd) {
+  p.noise(rnd, '#f4f6f8', 3, 3);
+  p.rect(1, 2, 14, 7, '#0c141d');        // 앞유리
+  p.rect(1, 2, 14, 1, '#3a5b82');
+  p.rect(0, 10, 16, 2, '#12356e');
+  p.rect(1, 12, 4, 2, '#fff6cf');        // 전조등
+  p.rect(11, 12, 4, 2, '#fff6cf');
+});
+defFurnTex('kx_door', function (p, rnd) {
+  p.noise(rnd, '#e7ebef', 4, 4);
+  p.rect(7, 0, 2, 16, '#9aa3ac');
+  p.rect(1, 3, 5, 8, '#0c141d');
+  p.rect(10, 3, 5, 8, '#0c141d');
+});
+defFurnTex('kx_wall', function (p, rnd) {
+  p.noise(rnd, '#eef2f6', 4, 5);
+  p.rect(0, 14, 16, 2, '#d3d9e0');
+});
+defFurnTex('kx_seat', function (p, rnd) {
+  p.noise(rnd, '#7b1f3a', 6, 3);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#661931');
+});
+defFurnTex('kx_floor', function (p, rnd) {
+  p.noise(rnd, '#3b414a', 6, 2);
+  for (let y = 0; y < 16; y += 4) p.rect(0, y, 16, 1, '#31363e');
+});
+defFurnTex('kx_light', function (p, rnd) { p.noise(rnd, '#fffaea', 4, 6); });
+
+// ── 크루즈선 ──────────────────────────────────────────────────────────
+defFurnTex('cr_hull', function (p, rnd) {
+  p.noise(rnd, '#14213d', 4, 4);
+  p.rect(0, 5, 16, 1, '#1d3157');
+});
+defFurnTex('cr_boot', function (p, rnd) {
+  p.noise(rnd, '#6d2020', 4, 4);
+  p.rect(0, 0, 16, 1, '#511818');
+});
+defFurnTex('cr_white', function (p, rnd) {
+  p.noise(rnd, '#f6f8fa', 3, 4);
+  p.rect(0, 13, 16, 1, '#e2e7ec');
+});
+defFurnTex('cr_gold', function (p, rnd) {
+  p.noise(rnd, '#d8b45a', 4, 4);
+  p.rect(0, 7, 16, 2, '#f0d489');
+});
+defFurnTex('cr_win', function (p, rnd) {
+  p.noise(rnd, '#1a2d40', 3, 4);
+  for (let x = 1; x < 16; x += 3) p.rect(x, 3, 2, 10, '#7fb3d8');
+  p.rect(0, 0, 16, 2, '#f2f5f8');
+  p.rect(0, 14, 16, 2, '#f2f5f8');
+});
+defFurnTex('cr_balc', function (p, rnd) {
+  p.noise(rnd, '#e8edf2', 3, 4);
+  for (let x = 0; x < 16; x += 4) p.rect(x, 2, 2, 12, '#243a52');
+  p.rect(0, 0, 16, 2, '#cfd6dd');
+});
+defFurnTex('cr_funnel', function (p, rnd) {
+  p.noise(rnd, '#1d4f8c', 4, 4);
+  p.rect(0, 0, 16, 4, '#12233a');
+  p.rect(0, 9, 16, 3, '#d8b45a');
+});
+defFurnTex('cr_deck', function (p, rnd) {
+  p.noise(rnd, '#c39a63', 5, 4);
+  for (let y = 0; y < 16; y += 3) p.rect(0, y, 16, 1, '#a8804d');
+});
+defFurnTex('cr_pool', function (p, rnd) {
+  p.noise(rnd, '#3fb6d8', 4, 5);
+  for (let x = 0; x < 16; x += 5) p.rect(x, 0, 1, 16, '#7fe0f2');
+});
 
 </script>
 <script>
@@ -9661,6 +9804,7 @@ World.prototype.decorateChunk = function (c) {
   // 도시와 고가 철로는 공항 다음 (공항 부지 밖에 선다)
   if (this.paintCity) c.hasCity = this.paintCity(c);
   if (this.paintHighway) c.hasHighway = this.paintHighway(c);
+  if (this.paintKtx) this.paintKtx(c);
   if (this.paintBridge) this.paintBridge(c);
   if (this.paintHighwaySigns) this.paintHighwaySigns(c);
   // 눈은 맨 마지막 — 나무든 지붕이든 하늘에 닿은 것 위에 쌓인다
@@ -11314,12 +11458,12 @@ const AIRPORT_DEFS = [
   { code: 'CJU', name: '제주국제공항', lat: 33.51, lon: 126.49, tint: 'orange' }
 ];
 
-const AP_X = 150;           // 부지 절반 (활주로 방향)
+const AP_X = 216;           // 부지 절반 (활주로 방향)
 const AP_Z = 62;            // 부지 절반 (가로)
 const AP_MARGIN = 14;       // 원래 지형으로 이어 붙이는 띠
 const AP_CLEAR_H = 18;      // 지면 위로 이만큼 치운다
 
-const RW_LEN = 260;         // 활주로 길이
+const RW_LEN = 400;         // 활주로 길이 (실제 인천 3.75km 를 그대로 옮긴 눈금)
 const RW_HALF = 7;          // 활주로 반폭 (폭 15)
 const RW_A_Z = -48;
 const RW_B_Z = 48;
@@ -11340,7 +11484,8 @@ const PAD_X = -60, PAD_Z = -78;
 const PAD_HALF = 13;          // 콘크리트 발사판 반폭
 const PAD_TOWER_H = 40;       // 정비탑 높이
 // 청크를 칠할 범위 — 발사대가 부지 밖으로 조금 나가므로 그만큼 넓힌다
-const AP_PAINT_X = Math.max(AP_X + AP_MARGIN + 16, Math.abs(PAD_X) + PAD_HALF + 26);
+const AP_PAINT_X = Math.max(AP_X + AP_MARGIN + 16, Math.abs(PAD_X) + PAD_HALF + 26,
+  RW_LEN / 2 + 62);   // 진입등이 부지 밖으로 뻗는다
 const AP_PAINT_Z = Math.max(AP_Z + AP_MARGIN + 16, Math.abs(PAD_Z) + PAD_HALF + 26);
 
 // 활주로 번호와 글자에 쓰는 3×5 도트 글꼴
@@ -12097,6 +12242,15 @@ function initCityStyles() {
       accent: B.blue_concrete,
       heights: [16, 40], tall: 10, tallH: [44, 70]
     }),
+    // 목포풍 항구 소도시 — 붉은 벽돌과 흰 회벽, 높은 건물이 없다
+    port: Object.assign({}, common, {
+      kr: '항구도시',
+      wall: B.white_concrete, trim: B.light_gray_concrete,
+      glass: B.glass_pane, floor: B.smooth_quartz,
+      roof: B.gray_concrete, base: B.polished_andesite,
+      accent: B.red_concrete,
+      heights: [8, 18], tall: 0, tallH: [20, 26]
+    }),
     // 제주 — 흰 벽에 주황 기와, 검은 현무암 돌담
     jeju: Object.assign({}, common, {
       kr: '제주시',
@@ -12117,7 +12271,9 @@ const CITY_DEFS = {
   ICN: { name: '인천 송도', style: 'modern', lat: 37.38, lon: 126.65 },
   GMP: { name: '서울', style: 'skyline', lat: 37.55, lon: 126.99 },
   // 제주는 섬이다 — 배나 비행기로 한 번 닿아야 도시 이동 목록에 열린다
-  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53, island: true }
+  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53, island: true },
+  // 목포 — 공항이 없는 소규모 항구 도시. 기차와 배로 닿는다.
+  MPO: { name: '목포', style: 'port', lat: 34.79, lon: 126.39, small: 118 }
 };
 
 // ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
@@ -13165,7 +13321,7 @@ const ST_EDGE = 10;
 const ST_WALL = 11;
 
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
-function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
+function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
   // 5량 편성은 95칸이라 예전 길이(69칸)로는 앞뒤가 삐져나왔다
   const L = 50;   // 승강장 반길이 (철로 방향) — 5량 편성이 다 선다
@@ -13306,7 +13462,7 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
       for (let u = STAIR_U - 2; u <= ESC_U + WIDE + 1; u++) at(u, gy, side * v, st.plaza);
     }
     // 입구 표지
-    apText(plan, 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + side * (gv + 3),
+    apText(plan, label || 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + side * (gv + 3),
       faceX ? cz + side * (gv + 3) : cz + (STAIR_U + ESC_U) / 2 + 2,
       1, st.accent, !faceX, gy, faceX);
     // 조명
@@ -13781,17 +13937,19 @@ function cityCinema(plan, st) {
 }
 
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────
-function buildCityPlan(world, ap, index) {
+function buildCityPlan(world, ap, index, code) {
   initCityStyles();
-  const def = CITY_DEFS[ap.code] || { name: ap.code + ' 시가지', style: 'modern' };
+  code = ap ? ap.code : code;
+  const def = CITY_DEFS[code] || { name: code + ' 시가지', style: 'modern' };
   const st = CSTYLE[def.style];
-  const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + ap.code));
+  const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + code));
 
   // 실제 자리 언저리에서 도시를 앉힐 곳을 고른다.
   // "바다 한 점 없는 평지" 는 이 세계에 아예 없으므로(물이 지면의 6할이다)
   // 조건에 맞는 첫 자리 대신 여러 후보에 점수를 매겨 가장 나은 곳을 쓴다.
   // 남는 바다는 도시를 찍을 때 메운다 — 송도처럼 매립한 땅인 셈이다.
-  const tp = (def.lat !== undefined) ? korToWorld(def.lat, def.lon) : [ap.x + CITY_DIST, ap.z];
+  const tp = (def.lat !== undefined) ? korToWorld(def.lat, def.lon)
+    : [ap.x + CITY_DIST, ap.z];
   const tx = Math.round(tp[0]), tz = Math.round(tp[1]);
   let best = null, bestScore = 1e9;
   for (let ring = 0; ring <= 7; ring++) {
@@ -13809,8 +13967,11 @@ function buildCityPlan(world, ap, index) {
       }
       // 공항 부지와도 겹치면 안 된다 (김포공항은 서울 바로 옆이다)
       const aps = world._airports || [];
+      // 공항 부지는 활주로 방향으로만 길쭉하다. 원으로 재면 도시가
+      // 쓸데없이 멀리 밀려나므로 부지 모양 그대로 네모로 잰다.
       for (let q = 0; q < aps.length && !clash; q++) {
-        if (Math.hypot(aps[q].x - cx, aps[q].z - cz) < CITY_R + AP_X + 70) clash = true;
+        if (Math.abs(aps[q].x - cx) < CITY_R + AP_X + 40 &&
+            Math.abs(aps[q].z - cz) < CITY_R + AP_Z + 40) clash = true;
       }
       if (clash) continue;
       let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
@@ -13832,7 +13993,7 @@ function buildCityPlan(world, ap, index) {
         bestScore = score;
         // 고가 철로가 빠져나가는 쪽 — 공항이 있는 방향
         best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3),
-          side: (ap.x >= cx) ? 1 : -1 };
+          side: ap ? ((ap.x >= cx) ? 1 : -1) : 1 };
       }
     }
   }
@@ -13840,7 +14001,7 @@ function buildCityPlan(world, ap, index) {
 
   const plan = new VillagePlan(world, best.x, best.z, best.y, st, rnd);
   plan.isCity = true;
-  plan.code = ap.code;
+  plan.code = code;
   plan.side = best.side;      // 고가철로가 빠져나가는 쪽(-side) 을 알려 준다
   plan.topY = best.y + 24;    // 제일 높은 건물 꼭대기 (cityTower 가 올려 잡는다)
   plan.name = def.name;
@@ -13867,7 +14028,9 @@ function buildCityPlan(world, ap, index) {
     for (let j = 0; j + 1 < lines.length; j++) {
       const lx = (lines[i] + lines[i + 1]) / 2;
       const lz = (lines[j] + lines[j + 1]) / 2;
-      if (Math.hypot(lx, lz) > CITY_RING - 13) continue;   // 순환도로를 침범하지 않게
+      // 소도시(목포)는 안쪽만 채우고 바깥은 들판으로 남긴다
+      const lotLim = def.small || (CITY_RING - 13);
+      if (Math.hypot(lx, lz) > lotLim) continue;   // 순환도로를 침범하지 않게
       lots.push({ x: lx, z: lz, d: Math.hypot(lx, lz) });
     }
   }
@@ -13981,6 +14144,31 @@ function buildCityPlan(world, ap, index) {
     plan.set(best.x + plaza.x, gy + 6, best.z + plaza.z, B.sea_lantern, 0, true);
     plan.landmark = { x: best.x + plaza.x, y: gy + 8, z: best.z + plaza.z, name: '제주 정자' };
     for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 4, null);
+  } else if (def.style === 'port') {
+    // 목포 등대 — 흰 몸통에 붉은 띠, 꼭대기에 등불
+    const LH = 26;
+    for (let y = 1; y <= LH; y++) {
+      const r = (y < 4) ? 4 : (y < LH - 4) ? 3 : 2;
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dz * dz > r * r + 1) continue;
+          const shell = (dx * dx + dz * dz > (r - 1) * (r - 1));
+          if (!shell && y > 1) continue;
+          plan.set(best.x + plaza.x + dx, gy + y, best.z + plaza.z + dz,
+            ((y % 6) < 3) ? B.white_concrete : B.red_concrete, 0, true);
+        }
+      }
+    }
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        if (dx * dx + dz * dz > 10) continue;
+        plan.set(best.x + plaza.x + dx, gy + LH + 1, best.z + plaza.z + dz, B.black_concrete, 0, true);
+      }
+    }
+    plan.set(best.x + plaza.x, gy + LH, best.z + plaza.z, B.sea_lantern, 0, true);
+    plan.set(best.x + plaza.x, gy + LH + 2, best.z + plaza.z, B.sea_lantern, 0, true);
+    plan.landmark = { x: best.x + plaza.x, y: gy + LH + 3, z: best.z + plaza.z, name: '목포 등대' };
+    for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 6, null);
   } else {
     const towerH = Math.min(62, CHUNK_Y - 18 - gy);
     cityTower(plan, plaza.x, plaza.z, 6, 6, towerH, st, { taperTo: 3, spire: 6 });
@@ -14184,8 +14372,8 @@ function cityFerry(plan, st) {
   // 6) 정박지 준설 — 서해 갯벌은 아주 완만해서 그냥 두면 배가 바닥에 닿는다.
   //    잔교 오른쪽을 네모지게 파내고 물을 채운다 (실제 항만도 이렇게 판다).
   const BED = SEA_LEVEL - FT_DEPTH;
-  for (let u = Math.max(12, pier - 52); u <= pier + 24; u++) {
-    for (let v = FT_PIER_HALF + 1; v <= FT_PIER_HALF + 24; v++) {
+  for (let u = Math.max(12, pier - 74); u <= pier + 40; u++) {
+    for (let v = FT_PIER_HALF + 1; v <= FT_PIER_HALF + 32; v++) {
       const q = at(u, v);
       if (w.heightAt(q[0], q[1]) >= SEA_LEVEL) continue;   // 뭍은 건드리지 않는다
       plan.set(q[0], BED, q[1], B.water, 0, true, FT_DEPTH + 1);
@@ -14196,11 +14384,14 @@ function cityFerry(plan, st) {
   // 7) 배가 서는 자리 — 잔교 오른쪽에 나란히
   const mid = at(pier - 6, 0);
   const berth = at(pier - 10, FT_PIER_HALF + 9);
+  // 크루즈는 배가 훨씬 커서 잔교에서 더 떨어져 선다
+  const berthBig = at(pier - 22, FT_PIER_HALF + 17);
   plan.ferry = {
     name: plan.name + ' 여객선터미널',
     city: plan.code,
     x: mid[0], z: mid[1], y: SURF,          // 승선하는 자리 (잔교 위)
-    dock: { x: berth[0], z: berth[1] },     // 배가 뜨는 자리
+    dock: { x: berth[0], z: berth[1] },     // 여객선이 뜨는 자리
+    dockBig: { x: berthBig[0], z: berthBig[1] },   // 크루즈가 뜨는 자리
     yaw: Math.atan2(dx, dz),                // 뱃머리는 바다 쪽 — 잔교와 나란히 선다
     dirx: dx, dirz: dz
   };
@@ -14219,7 +14410,13 @@ function cityFerry(plan, st) {
     put(lot.x, lot.z + 2, 'farmer');
   }
 
-  // ── 철도 ──
+  // ── 철도 (공항선) ──
+  // 공항이 없는 도시(목포)는 이 노선이 없다 — KTX 로만 닿는다.
+  if (!ap) {
+    plan.stations = [];
+    plan.freeze();
+    return plan;
+  }
   const side = best.side || 1;
   const railY = Math.max(ap.y, gy) + RAIL_UP;
   const apStX = ap.x + side * 86, apStZ = ap.z;
@@ -14260,13 +14457,24 @@ function cityFerry(plan, st) {
 World.prototype.cities = function () {
   if (this._cities) return this._cities;
   this._cities = [];
-  if (!this.airports) return this._cities;
-  const aps = this.airports();
+  const aps = this.airports ? this.airports() : [];
   for (let i = 0; i < aps.length; i++) {
     let p = null;
     try { p = buildCityPlan(this, aps[i], i); }
     catch (e) { console.warn('도시 생성 실패', aps[i].code, e); }
     if (p) { this._cities.push(p); aps[i].city = p; }
+  }
+  // 공항이 딸리지 않은 도시 (목포) — 공항 도시를 다 앉힌 뒤에 자리를 잡는다
+  const codes = Object.keys(CITY_DEFS);
+  for (let i = 0; i < codes.length; i++) {
+    const code = codes[i];
+    let has = false;
+    for (let k = 0; k < aps.length; k++) if (aps[k].code === code) has = true;
+    if (has) continue;
+    let p = null;
+    try { p = buildCityPlan(this, null, this._cities.length, code); }
+    catch (e) { console.warn('도시 생성 실패', code, e); }
+    if (p) this._cities.push(p);
   }
   return this._cities;
 };
@@ -16356,6 +16564,14 @@ Plane.prototype.aiControl = function (dt, game) {
   switch (a.state) {
     case 'park':
       out.throttle = 0;
+      if (a.full) {
+        // 전자동 비행은 주기장에 대는 것으로 끝난다 — 조종을 사람에게 넘긴다
+        if (a.t > 1.2) {
+          this.ai = null;
+          if (this.onAutolandDone) this.onAutolandDone(a.to);
+        }
+        break;
+      }
       if (a.t > 8) {
         const list = this.world.airports();
         const here = a.to;
@@ -16415,7 +16631,8 @@ Plane.prototype.aiControl = function (dt, game) {
       out.yaw = aiHeadingTo(this.x, this.z, a.to.x, a.to.z);
       out.pitch = Math.max(-0.12, Math.min(0.12, (AI_CRUISE_ALT - this.y) * 0.02));
       const d = Math.hypot(a.to.x - this.x, a.to.z - this.z);
-      if (d < 620 || stuck) {
+      // 활주로가 길어진 만큼 일찍 내려가기 시작한다 (완만한 강하각)
+      if (d < 1500 || stuck) {
         a.rwTo = a.to.runways[0];
         a.state = 'descend'; a.t = 0;
       }
@@ -16469,7 +16686,7 @@ Plane.prototype.aiControl = function (dt, game) {
       out.throttle = 0;
       out.yaw = (a.dir || 1) > 0 ? Math.PI / 2 : -Math.PI / 2;
       if (!this.onGround && a.t > 1.5) { a.state = 'final'; a.t = 0; break; }
-      if (a.auto) {
+      if (a.auto && !a.full) {
         // 자동 착륙은 여기까지. 멈추면 조종을 사람에게 넘긴다.
         if (this.speed < 4 || stuck) {
           this.ai = null;
@@ -16505,7 +16722,13 @@ Plane.prototype.aiControl = function (dt, game) {
 
   // 도시 위를 낮게 지나가지 않는다 — 빌딩에 부딪힌다.
   // 땅 위 상태(활주·이륙 활주)와 착륙 접지 직전은 건드리지 않는다.
-  if (!this.onGround && a.state !== 'taxi_out' && a.state !== 'taxi_in' &&
+  //
+  // 진입로가 도시 옆을 스치는 공항(제주)에서는 이 안전 고도가 최종 진입을
+  // 통째로 막아 버려, 활주로 위를 80칸 높이로 지나쳐 복행만 되풀이했다.
+  // 그래서 활주로에 다 와서는(최종 진입, 그리고 공항 900칸 안 강하) 풀어 준다.
+  const nearAp = a.to ? Math.hypot(a.to.x - this.x, a.to.z - this.z) : 1e9;
+  const landing = a.state === 'final' || (a.state === 'descend' && nearAp < 900);
+  if (!this.onGround && !landing && a.state !== 'taxi_out' && a.state !== 'taxi_in' &&
       a.state !== 'rollout' && a.state !== 'park') {
     const floor = this.cityFloor(this.x, this.z);
     if (floor > 0 && this.y < floor) {
@@ -16562,12 +16785,45 @@ Plane.prototype.cancelAutoland = function () {
   if (this.ai && this.ai.auto) this.ai = null;
 };
 
+// ── 전자동 비행 ───────────────────────────────────────────────────────
+// 목적지 공항만 고르면 유도로 주행 → 이륙 → 순항 → 강하 → 착륙 →
+// 주기장까지 기계가 다 한다. 땅에 있으면 활주로 끝까지 스스로 나간다.
+Plane.prototype.beginAutoFlight = function (toAp, fromAp) {
+  if (!toAp || !toAp.runways || !toAp.runways.length) return false;
+  if (this.onGround && fromAp && fromAp !== toAp) {
+    this.startFlight(fromAp, toAp);
+    this.ai.auto = true;
+    this.ai.full = true;
+    return true;
+  }
+  // 하늘에 있으면 그 자리에서 순항 단계로 들어간다
+  this.ai = {
+    auto: true, full: true, t: 0,
+    state: (this.y < AI_CRUISE_ALT - 25) ? 'climb' : 'cruise',
+    from: null, to: toAp, rwTo: null, wp: [], wpi: 0,
+    dep: 1, dir: aiRunwayDir(toAp)
+  };
+  if (this.onGround) { this.onGround = false; this.y += 3; }
+  return true;
+};
+
+const AUTO_PHASE = {
+  taxi_out: '자동 유도로 주행', takeoff: '자동 이륙', climb: '자동 상승',
+  cruise: '자동 순항', descend: '자동 강하', final: '자동 최종 진입 — 활주로 정렬',
+  rollout: '접지 — 감속 중', taxi_in: '자동 주기장 진입', park: '주기장 도착'
+};
+
 Plane.prototype.autoState = function () {
   if (!this.ai || !this.ai.auto) return null;
-  const s = this.ai.state;
-  return s === 'descend' ? '자동 강하 중'
-    : s === 'final' ? '자동 최종 진입 — 활주로 정렬'
-      : s === 'rollout' ? '접지 — 감속 중' : '자동 착륙 중';
+  const a = this.ai;
+  const base = AUTO_PHASE[a.state] || (a.full ? '자동 비행 중' : '자동 착륙 중');
+  if (!a.full) {
+    return a.state === 'descend' ? '자동 강하 중'
+      : a.state === 'final' ? '자동 최종 진입 — 활주로 정렬'
+        : a.state === 'rollout' ? '접지 — 감속 중' : '자동 착륙 중';
+  }
+  const to = a.to ? (' → ' + a.to.code) : '';
+  return base + to;
 };
 
 // 어떤 비행기인지 (계기판·경보에 쓴다)
@@ -16657,39 +16913,52 @@ const TRAIN_WHEEL_R = 0.62;
 const TRAIN_PITCH = TRAIN_CAR_LEN + TRAIN_GAP;
 const TRAIN_HALF = (TRAIN_CARS - 1) / 2 * TRAIN_PITCH + TRAIN_CAR_LEN / 2;
 
-function trainCarParts(P, zc, isFront, isBack) {
+// 겉면 텍스처 이름 묶음 — 전동차와 KTX 가 같은 뼈대를 쓰고 껍데기만 바꾼다
+const TR_TEX = {
+  body: 'tr_body', stripe: 'tr_stripe', roof: 'tr_roof', skirt: 'tr_skirt',
+  door: 'tr_door', floor: 'tr_floor', wall: 'tr_wall', bogie: 'tr_bogie',
+  face: 'tr_face', light: 'tr_light', seat: 'tr_seat'
+};
+const KX_TEX = {
+  body: 'kx_body', stripe: 'kx_stripe', roof: 'kx_roof', skirt: 'kx_skirt',
+  door: 'kx_door', floor: 'kx_floor', wall: 'kx_wall', bogie: 'tr_bogie',
+  face: 'kx_face', light: 'kx_light', seat: 'kx_seat'
+};
+
+function trainCarParts(P, zc, isFront, isBack, TX) {
+  TX = TX || TR_TEX;
   const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
   const box = function (x, y, z, w, h, d, tex, front) {
     P.push({ x: x, y: y, z: zc + z, w: w, h: h, d: d, tex: tex, front: front });
   };
 
   // ── 바닥 ──
-  box(0, TRAIN_FLOOR, 0, HW * 2, 0.26, L, 'tr_floor');
+  box(0, TRAIN_FLOOR, 0, HW * 2, 0.26, L, TX.floor);
   // 지붕(바깥)·운전실 앞머리·객실 안(둥근 천장, 긴의자, 손잡이)은
   // model3d.js 가 곡면으로 만든다
 
   // ── 옆면 ── (창은 비워 두고 기둥과 띠만 세운다)
   for (const s of [-1, 1]) {
     const X = s * HW;
-    box(X, -0.95, 0, 0.2, 1.02, L, 'tr_body');       // 창 아래 외판
-    box(X, -0.38, 0, 0.22, 0.24, L, 'tr_stripe');    // 파랑·청록 띠
-    box(X, 1.02, 0, 0.22, 0.2, L, 'tr_body');        // 창 위 띠
-    box(X, 1.36, 0, 0.2, 0.5, L, 'tr_body');         // 어깨까지 외판
+    box(X, -0.95, 0, 0.2, 1.02, L, TX.body);       // 창 아래 외판
+    box(X, -0.38, 0, 0.22, 0.24, L, TX.stripe);    // 파랑·청록 띠
+    box(X, 1.02, 0, 0.22, 0.2, L, TX.body);        // 창 위 띠
+    box(X, 1.36, 0, 0.2, 0.5, L, TX.body);         // 어깨까지 외판
     // 창 기둥
     for (let k = -3; k <= 3; k++) {
-      box(X, 0.34, k * 2.6, 0.24, 1.6, 0.5, 'tr_body');
+      box(X, 0.34, k * 2.6, 0.24, 1.6, 0.5, TX.body);
     }
-    box(X, 0.34, -L / 2 + 0.3, 0.24, 1.6, 0.6, 'tr_body');
-    box(X, 0.34, L / 2 - 0.3, 0.24, 1.6, 0.6, 'tr_body');
+    box(X, 0.34, -L / 2 + 0.3, 0.24, 1.6, 0.6, TX.body);
+    box(X, 0.34, L / 2 - 0.3, 0.24, 1.6, 0.6, TX.body);
     // 출입문 — 두 짝이 양옆으로 미끄러져 열린다
     for (const dz of [-5.2, 5.2]) {
       for (const h of [-1, 1]) {
         P.push({ x: X + s * 0.03, y: -0.05, z: zc + dz + h * 0.6,
-          w: 0.16, h: 2.7, d: 1.2, tex: 'tr_door', door: h });
+          w: 0.16, h: 2.7, d: 1.2, tex: TX.door, door: h });
       }
     }
     // 치마 (대차를 가린다)
-    box(s * (HW - 0.06), -2.02, 0, 0.2, 0.72, L - 0.6, 'tr_skirt');
+    box(s * (HW - 0.06), -2.02, 0, 0.2, 0.72, L - 0.6, TX.skirt);
   }
 
   // ── 앞뒤 벽 ── (량 사이는 통로가 뚫려 있다)
@@ -16698,15 +16967,15 @@ function trainCarParts(P, zc, isFront, isBack) {
     const capped = (e > 0 && isFront) || (e < 0 && isBack);
     if (capped) continue;   // 운전실 쪽은 아래 운전실 파트가 막는다
     for (const s of [-1, 1]) {
-      box(s * 1.12, 0.1, zEnd, 1.3, 3.0, 0.2, 'tr_wall');
+      box(s * 1.12, 0.1, zEnd, 1.3, 3.0, 0.2, TX.wall);
     }
-    box(0, TRAIN_CEIL - 0.4, zEnd, 1.0, 0.5, 0.2, 'tr_wall');
+    box(0, TRAIN_CEIL - 0.4, zEnd, 1.0, 0.5, 0.2, TX.wall);
   }
 
   // ── 대차와 바퀴 ──
   for (const bz of [-L / 2 + 4.2, L / 2 - 4.2]) {
-    P.push({ x: 0, y: -2.42, z: zc + bz, w: 2.4, h: 0.55, d: 4.0, tex: 'tr_bogie' });
-    P.push({ x: 0, y: -2.05, z: zc + bz, w: 1.6, h: 0.4, d: 3.0, tex: 'tr_bogie' });
+    P.push({ x: 0, y: -2.42, z: zc + bz, w: 2.4, h: 0.55, d: 4.0, tex: TX.bogie });
+    P.push({ x: 0, y: -2.05, z: zc + bz, w: 1.6, h: 0.4, d: 3.0, tex: TX.bogie });
     for (const wx of [-1.28, 1.28]) {
       for (const wz of [bz - 1.35, bz + 1.35]) {
         // 굴대 높이 — 바퀴 아랫면이 레일에 정확히 닿는 자리
@@ -16716,14 +16985,14 @@ function trainCarParts(P, zc, isFront, isBack) {
   }
 
   // ── 지붕 위 장비 ──
-  box(0, TRAIN_CEIL + 0.62, -L / 4, 1.7, 0.36, 3.2, 'tr_roof');   // 냉방 장치
-  box(0, TRAIN_CEIL + 0.62, L / 4, 1.7, 0.36, 3.2, 'tr_roof');
+  box(0, TRAIN_CEIL + 0.62, -L / 4, 1.7, 0.36, 3.2, TX.roof);   // 냉방 장치
+  box(0, TRAIN_CEIL + 0.62, L / 4, 1.7, 0.36, 3.2, TX.roof);
   if (!isFront && !isBack) {
     // 가운데 량에 팬터그래프
-    box(0, TRAIN_CEIL + 0.62, 0, 2.2, 0.24, 1.6, 'tr_bogie');
-    box(0, TRAIN_CEIL + 1.25, 0.7, 0.16, 1.3, 0.16, 'tr_bogie');
-    box(0, TRAIN_CEIL + 1.25, -0.7, 0.16, 1.3, 0.16, 'tr_bogie');
-    box(0, TRAIN_CEIL + 1.95, 0, 1.9, 0.14, 0.4, 'tr_bogie');
+    box(0, TRAIN_CEIL + 0.62, 0, 2.2, 0.24, 1.6, TX.bogie);
+    box(0, TRAIN_CEIL + 1.25, 0.7, 0.16, 1.3, 0.16, TX.bogie);
+    box(0, TRAIN_CEIL + 1.25, -0.7, 0.16, 1.3, 0.16, TX.bogie);
+    box(0, TRAIN_CEIL + 1.95, 0, 1.9, 0.14, 0.4, TX.bogie);
   }
 
   // ── 운전실 (앞·뒤 끝) ──
@@ -16731,39 +17000,60 @@ function trainCarParts(P, zc, isFront, isBack) {
   // 여기서는 아래쪽 치마와 연결기만 세운다.
   const cab = function (e) {
     const z0 = e * (L / 2);
-    box(0, -1.95, z0 + e * 1.0, HW * 2 - 0.5, 0.85, 1.6, 'tr_skirt');
-    box(0, -1.85, z0 + e * 2.0, 0.5, 0.4, 0.6, 'tr_bogie');
+    box(0, -1.95, z0 + e * 1.0, HW * 2 - 0.5, 0.85, 1.6, TX.skirt);
+    box(0, -1.85, z0 + e * 2.0, 0.5, 0.4, 0.6, TX.bogie);
   };
   if (isFront) cab(1);
   if (isBack) cab(-1);
 }
 
 // 량마다 따로 담아 둔다 (앞뒤 자리는 그릴 때 더한다)
-const TRAIN_CAR_PARTS = (function () {
+function buildCarParts(TX) {
   const out = [];
   for (let c = 0; c < TRAIN_CARS; c++) {
     const P = [];
-    trainCarParts(P, 0, c === TRAIN_CARS - 1, c === 0);
+    trainCarParts(P, 0, c === TRAIN_CARS - 1, c === 0, TX);
     out.push(P);
   }
   return out;
-})();
+}
+const TRAIN_CAR_PARTS = buildCarParts(TR_TEX);
+const KTX_CAR_PARTS = buildCarParts(KX_TEX);
 
 // ── 노선 ──────────────────────────────────────────────────────────────
-function TrainRoute(rail, stations, name) {
+function TrainRoute(rail, stations, name, opts) {
+  opts = opts || {};
   this.y = rail.y;
   this.name = name;
+  this.ktx = !!opts.ktx;
   this.stations = stations || [];
   this.segs = [];
   this.len = 0;
   const pts = rail.pts;
+  // 노선 높이가 점마다 다를 수 있다 (KTX 는 나라를 가로지르므로 오르내린다)
+  const rys = rail.rideYs || null;
+  const arc = [];             // 점마다의 노선 위 거리 (역 자리를 찾는 데 쓴다)
+  let acc = 0;
   for (let i = 0; i + 1 < pts.length; i++) {
     const x0 = pts[i][0], z0 = pts[i][1], x1 = pts[i + 1][0], z1 = pts[i + 1][1];
     const dx = x1 - x0, dz = z1 - z0;
     const len = Math.hypot(dx, dz);
+    arc[i] = acc;
     if (len < 0.5) continue;
-    this.segs.push({ x0: x0, z0: z0, dx: dx / len, dz: dz / len, len: len, yaw: Math.atan2(dx, dz) });
+    this.segs.push({ x0: x0, z0: z0, dx: dx / len, dz: dz / len, len: len,
+      yaw: Math.atan2(dx, dz),
+      y0: rys ? rys[i] : this.y, y1: rys ? rys[i + 1] : this.y });
     this.len += len;
+    acc += len;
+  }
+  arc[pts.length - 1] = acc;
+  // 중간역이 있는 노선은 역마다 선다 (없으면 예전처럼 양 끝에서만 선다)
+  if (opts.stopIndex && opts.stopIndex.length > 2) {
+    // 역이 노선 위 어디쯤인지. 양 끝 역 바깥으로도 선로가 조금 더 뻗어
+    // 있으므로(승강장이 직선이어야 한다) 0/len 으로 밀어붙이지 않는다.
+    this.stops = opts.stopIndex.map(function (q) {
+      return Math.max(0, Math.min(acc, arc[Math.min(arc.length - 1, q)]));
+    });
   }
 }
 
@@ -16774,19 +17064,22 @@ TrainRoute.prototype.at = function (s) {
   if (!this.segs.length) return { x: 0, z: 0, yaw: 0 };
   if (s < 0) {
     const g = this.segs[0];
-    return { x: g.x0 + g.dx * s, z: g.z0 + g.dz * s, yaw: g.yaw };
+    return { x: g.x0 + g.dx * s, z: g.z0 + g.dz * s, yaw: g.yaw, y: g.y0 };
   }
   if (s > this.len) {
     const g = this.segs[this.segs.length - 1];
     const over = s - this.len;
-    return { x: g.x0 + g.dx * (g.len + over), z: g.z0 + g.dz * (g.len + over), yaw: g.yaw };
+    return { x: g.x0 + g.dx * (g.len + over), z: g.z0 + g.dz * (g.len + over),
+      yaw: g.yaw, y: g.y1 };
   }
   let rest = s;
   for (let i = 0; i < this.segs.length; i++) {
     const g = this.segs[i];
     if (rest <= g.len || i === this.segs.length - 1) {
       const t = Math.min(rest, g.len);
-      return { x: g.x0 + g.dx * t, z: g.z0 + g.dz * t, yaw: g.yaw };
+      const f = g.len > 0 ? t / g.len : 0;
+      return { x: g.x0 + g.dx * t, z: g.z0 + g.dz * t, yaw: g.yaw,
+        y: g.y0 + (g.y1 - g.y0) * f };
     }
     rest -= g.len;
   }
@@ -16813,14 +17106,46 @@ function Train(world, route, s, dir) {
   this.wheelAngle = 0;
   this.doorT = 0;             // 0 닫힘 ~ 1 열림
   const p = route.at(s);
+  this.ktx = !!route.ktx;
   this.yaw = p.yaw + (this.dir > 0 ? 0 : Math.PI);
   const o = this.trackOffset(p.yaw);
-  this.x = p.x + o[0]; this.y = route.y + TRAIN_RIDE; this.z = p.z + o[1];
+  this.x = p.x + o[0];
+  this.y = (p.y !== undefined ? p.y : route.y) + TRAIN_RIDE;
+  this.z = p.z + o[1];
   this.updatePoses(0);
 }
 
 // 노선 중심선에서 제 선로까지의 옆거리.
 // 노선이 향하는 쪽 기준 오른쪽이 -tk 쪽이라 부호가 반대로 붙는다.
+// 이 방향으로 갈 때 다음에 설 자리 (중간역이 있는 노선용)
+// 이 방향으로 갈 때 다음에 설 자리.
+// 한 번 정한 목표는 거기 설 때까지 바꾸지 않는다 — 다 와서 목표를 다시
+// 고르면 "이미 지나친 역"으로 보고 그 역을 그냥 통과해 버린다.
+Train.prototype.nextStop = function () {
+  const st = this.route.stops;
+  if (!st) return this.dir > 0 ? this.route.len : 0;
+  if (this._target !== undefined) return this._target;
+  if (this.dir > 0) {
+    for (let i = 0; i < st.length; i++) {
+      if (st[i] > this.s + 1.5) { this._target = st[i]; return st[i]; }
+    }
+    this._target = st[st.length - 1];
+  } else {
+    this._target = st[0];
+    for (let i = st.length - 1; i >= 0; i--) {
+      if (st[i] < this.s - 1.5) { this._target = st[i]; break; }
+    }
+  }
+  return this._target;
+};
+
+// 이 자리가 노선의 종착역인가 (여기서 방향을 뒤집는다)
+Train.prototype.isTerminus = function (arc) {
+  const st = this.route.stops;
+  if (!st) return arc >= this.route.len - 0.6 || arc <= 0.6;
+  return Math.abs(arc - st[0]) < 0.6 || Math.abs(arc - st[st.length - 1]) < 0.6;
+};
+
 Train.prototype.trackOffset = function (routeYaw) {
   const k = TRACK_OFFSET * this.tk;
   return [Math.cos(routeYaw) * k, -Math.sin(routeYaw) * k];
@@ -16832,19 +17157,30 @@ Train.prototype.update = function (dt) {
     this.dwell -= dt;
     this.speed = 0;
   } else {
-    const remain = this.dir > 0 ? (r.len - this.s) : this.s;
+    const target = this.nextStop();
+    // 부호 있는 남은 거리 — 지나쳐 버리면 음수가 되어 곧바로 멈춘다
+    const signed = (target - this.s) * this.dir;
+    const remain = Math.max(0, signed);
+    const vmax = this.ktx ? KTX_MAX : TRAIN_MAX;
+    const acc = this.ktx ? TRAIN_ACC * 1.6 : TRAIN_ACC;
+    const brk = this.ktx ? TRAIN_BRAKE * 1.6 : TRAIN_BRAKE;
     // 남은 거리에 맞춰 미리 감속한다 (역에 부드럽게 선다)
-    const want = Math.min(TRAIN_MAX, Math.sqrt(Math.max(0, remain) * 2 * TRAIN_BRAKE));
+    const want = Math.min(vmax, Math.sqrt(Math.max(0, remain) * 2 * brk));
     const d = want - this.speed;
-    this.speed += Math.max(-TRAIN_BRAKE * dt, Math.min(TRAIN_ACC * dt, d));
+    this.speed += Math.max(-brk * dt, Math.min(acc * dt, d));
     this.speed = Math.max(0, this.speed);
     this.s += this.dir * this.speed * dt;
-    if (remain <= 0.6 && this.speed < 0.8) {
-      this.s = this.dir > 0 ? r.len : 0;
+    this.s = Math.max(-2, Math.min(r.len + 2, this.s));
+    if (signed <= 0.6 && this.speed < 0.8) {
+      this.s = target;
       this.speed = 0;
       this.dwell = TRAIN_DWELL;
-      this.dir = -this.dir;
-      this.track = -this.dir;      // 우측통행 — 반대편 선로로 건너간다
+      this._target = undefined;    // 다음 역을 새로 고른다
+      // 종착역에서만 방향을 뒤집는다 (중간역은 그대로 지나던 쪽으로 간다)
+      if (this.isTerminus(target)) {
+        this.dir = -this.dir;
+        this.track = -this.dir;    // 우측통행 — 반대편 선로로 건너간다
+      }
     }
   }
   // 서 있는 동안 옆 선로로 슬슬 건너간다 (한 번에 튀지 않게)
@@ -16859,7 +17195,7 @@ Train.prototype.update = function (dt) {
   this.doorT += Math.max(-dt * 1.6, Math.min(dt * 1.6, doorWant - this.doorT));
 
   const p = r.at(this.s);
-  this.y = r.y + TRAIN_RIDE;
+  this.y = (p.y !== undefined ? p.y : r.y) + TRAIN_RIDE;
   // 노선은 짧은 직선을 이어 붙인 것이라 구간을 넘을 때 방향이 조금씩 튄다.
   // 목표 방향으로 부드럽게 따라가게 해서 코너가 매끄럽게 돌아가게 한다.
   const want = p.yaw + (this.dir > 0 ? 0 : Math.PI);
@@ -16898,7 +17234,9 @@ Train.prototype.updatePoses = function (dt) {
     const p = r.at(s);
     const o = this.trackOffset(p.yaw);
     const po = this.pose[k];
-    po.x = p.x + o[0]; po.y = this.y; po.z = p.z + o[1];
+    po.x = p.x + o[0];
+    po.y = (p.y !== undefined ? p.y : r.y) + TRAIN_RIDE;
+    po.z = p.z + o[1];
     const want = p.yaw + (this.dir > 0 ? 0 : Math.PI);
     if (!po.init) { po.yaw = want; po.init = true; continue; }
     // 구간을 넘을 때 방향이 톡톡 튀는 걸 눌러 준다
@@ -16929,6 +17267,9 @@ Train.prototype.doorsOpen = function () {
   return this.speed < 0.4 && this.dwell > 0 && !!this.atStation();
 };
 
+// 어떤 열차인가
+Train.prototype.kindName = function () { return this.ktx ? 'KTX' : '전동열차'; };
+
 // 지금 어느 역에 서 있나
 Train.prototype.atStation = function () {
   for (let i = 0; i < this.route.stations.length; i++) {
@@ -16951,6 +17292,23 @@ Train.prototype.targetStationIndex = function () {
 };
 
 Train.prototype.nextStation = function () {
+  const list = this.route.stations;
+  if (!list.length) return null;
+  const st = this.route.stops;
+  if (!st || st.length !== list.length) {
+    return this.dir > 0 ? list[list.length - 1] : list[0];
+  }
+  const target = this.nextStop();
+  let bi = 0, bd = 1e9;
+  for (let i = 0; i < st.length; i++) {
+    const d = Math.abs(st[i] - target);
+    if (d < bd) { bd = d; bi = i; }
+  }
+  return list[bi];
+};
+
+// 이 방향의 종착역
+Train.prototype.lastStation = function () {
   const list = this.route.stations;
   if (!list.length) return null;
   return this.dir > 0 ? list[list.length - 1] : list[0];
@@ -17072,6 +17430,14 @@ EntityManager.prototype.trainRoutes = function () {
     if (!c.rail || !c.rail.pts || c.rail.pts.length < 2) continue;
     this._routes.push(new TrainRoute(c.rail, c.stations, c.name));
   }
+  // 전국을 잇는 KTX 노선
+  if (w.ktx) {
+    const k = w.ktx();
+    if (k && k.rail && k.rail.pts && k.rail.pts.length > 2) {
+      this._routes.push(new TrainRoute(k.rail, k.stations, 'KTX 경부·호남선',
+        { ktx: true, stopIndex: k.stopIndex }));
+    }
+  }
   return this._routes;
 };
 
@@ -17082,6 +17448,27 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
   // 가까운 노선에는 열차 두 대를 (양쪽 끝에서 마주 오게) 띄운다
   for (let i = 0; i < routes.length; i++) {
     const r = routes[i];
+    // 나라를 가로지르는 긴 노선(KTX)은 양 끝에서 띄우면 곧바로 치워진다.
+    // 대신 플레이어와 가까운 역에서 한 대를 내보낸다.
+    if (r.stops) {
+      let near = -1, bd = 1e9;
+      for (let k = 0; k < r.stations.length; k++) {
+        const st = r.stations[k];
+        const d = Math.hypot(st.x - player.x, st.z - player.z);
+        if (d < bd) { bd = d; near = k; }
+      }
+      if (near < 0 || bd > 900) continue;
+      let have = false;
+      for (let k = 0; k < this.trains.length; k++) {
+        const t = this.trains[k];
+        if (t.route === r && Math.hypot(t.x - player.x, t.z - player.z) < 1300) have = true;
+      }
+      if (!have) {
+        const s0 = r.stops[near];
+        this.trains.push(new Train(this.world, r, s0, near >= r.stops.length - 1 ? -1 : 1));
+      }
+      continue;
+    }
     const mid = r.at(r.len / 2);
     if (Math.hypot(mid.x - player.x, mid.z - player.z) > r.len / 2 + 420) continue;
     let here = 0, mine = null;
@@ -17109,7 +17496,8 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
     t.update(dt);
     if (t.rider) t.ridePlayer(t.rider, dt, game);
     // 아주 멀어지면 치운다 (다시 오면 새로 만든다)
-    if (!t.rider && Math.hypot(t.x - player.x, t.z - player.z) > 900) this.trains.splice(i, 1);
+    const far = t.ktx ? 1500 : 900;
+    if (!t.rider && Math.hypot(t.x - player.x, t.z - player.z) > far) this.trains.splice(i, 1);
   }
 };
 
@@ -17131,6 +17519,304 @@ EntityManager.prototype.pickTrain = function (ox, oy, oz, dx, dy, dz, maxDist) {
     if (hit && hit.t < bestT) { bestT = hit.t; best = { train: t, t: hit.t }; }
   }
   return best;
+};
+
+</script>
+<script>
+/* ==== js/ktx.js ==== */
+// ktx.js - 전국을 잇는 고속철도(KTX).
+// 도시마다 놓인 공항선 전동차(지하철)는 그대로 두고, 그 위에 나라를 세로로
+// 관통하는 별도 노선을 하나 더 깐다. 선로 생김새·역 구조는 지금 쓰는 고가
+// 철로와 똑같다 — 다만 나라 끝에서 끝까지 이어지므로 상판 높이가 땅을 따라
+// 오르내리고, 도시마다 역에 선다.
+'use strict';
+
+const KTX_UP = 14;              // 지면 위 상판 높이 (교각으로 받친다)
+const KTX_CURVE_R = 220;        // 고속선이라 코너를 크게 돈다
+const KTX_STEP = 1.0;           // 길 위 점 간격
+const KTX_GRADE = 0.022;        // 최대 기울기 (한 칸 갈 때 이만큼까지만 오른다)
+const KTX_STA_OFF = CITY_RING + 46;   // 도시 중심에서 역까지 (시가지 바깥)
+const KTX_STA_LEAD = 78;        // 역 앞뒤로 곧게 두는 길이 (승강장이 직선이라야 한다)
+const KTX_PIER = 8;             // 교각 간격
+const KTX_MAX = 46;             // 최고 속도 (블록/초 ≈ 166km/h)
+
+// ── 노선 도면 ─────────────────────────────────────────────────────────
+function buildKtxPlan(world) {
+  initCityStyles();
+  const st = CSTYLE.modern;
+  const all = world.cities();
+  const cities = [];
+  for (let i = 0; i < all.length; i++) if (!all[i].island) cities.push(all[i]);
+  if (cities.length < 2) return null;
+  cities.sort(function (a, b) { return a.z - b.z; });     // 북 → 남
+
+  // 역은 시가지 옆에 세운다.
+  //
+  // 역 자리를 도시마다 따로 고르면, 서울과 인천 송도처럼 남북으로 가까운
+  // 두 도시 사이에서 노선이 크게 비스듬해져 시가지 한복판을 뚫고 지나갔다.
+  // 그래서 역마다 몇 가지 자리(도시 동/서쪽, 가깝게/멀게)를 후보로 두고,
+  // 노선 전체가 어느 도시·공항도 침범하지 않는 조합을 골라 쓴다.
+  const OFFS = [1, -1, 1.8, -1.8];
+  const aps = world.airports ? world.airports() : [];
+  const CITY_KEEP = CITY_RING + 40;
+
+  // 후보 조합으로 만든 꺾은선이 도시·공항을 얼마나 침범하나
+  const violate = function (corners) {
+    let bad = 0, len = 0;
+    for (let i = 0; i + 1 < corners.length; i++) {
+      const a = corners[i], b = corners[i + 1];
+      const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      len += d;
+      const n = Math.max(1, Math.ceil(d / 18));
+      for (let k = 0; k <= n; k++) {
+        const t = k / n;
+        const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
+        for (let q = 0; q < cities.length; q++) {
+          const need = CITY_KEEP - Math.hypot(cities[q].x - x, cities[q].z - z);
+          if (need > 0) bad += need;
+        }
+        for (let q = 0; q < aps.length; q++) {
+          const ox = (AP_X + 50) - Math.abs(aps[q].x - x);
+          const oz = (AP_Z + 50) - Math.abs(aps[q].z - z);
+          if (ox > 0 && oz > 0) bad += Math.min(ox, oz);
+        }
+      }
+    }
+    return { bad: bad, len: len };
+  };
+
+  const cornersFor = function (pick) {
+    const out = [];
+    for (let i = 0; i < cities.length; i++) {
+      const x = Math.round(cities[i].x + pick[i] * KTX_STA_OFF);
+      out.push([x, cities[i].z - KTX_STA_LEAD]);
+      out.push([x, cities[i].z + KTX_STA_LEAD]);
+    }
+    return out;
+  };
+
+  // 조합이 너무 많아지지 않게 도시가 다섯 곳을 넘으면 하나씩 훑어 고른다
+  let best = null;
+  if (cities.length <= 5) {
+    const pick = new Array(cities.length);
+    const walk = function (i) {
+      if (i === cities.length) {
+        const c = cornersFor(pick);
+        const v = violate(c);
+        // 침범이 없으면 짧고, 역이 시가지에 가까운 쪽을 고른다
+        let far = 0;
+        for (let q = 0; q < pick.length; q++) far += Math.abs(pick[q]) * 420;
+        const score = v.bad * 1000 + v.len + far;
+        if (!best || score < best.score) {
+          best = { score: score, bad: v.bad, len: v.len, pick: pick.slice() };
+        }
+        return;
+      }
+      for (let k = 0; k < OFFS.length; k++) { pick[i] = OFFS[k]; walk(i + 1); }
+    };
+    walk(0);
+  } else {
+    const pick = [];
+    for (let i = 0; i < cities.length; i++) {
+      let bi = OFFS[0], bv = null;
+      for (let k = 0; k < OFFS.length; k++) {
+        pick[i] = OFFS[k];
+        const v = violate(cornersFor(pick.slice(0, i + 1)));
+        if (!bv || v.bad < bv.bad - 0.5 || (Math.abs(v.bad - bv.bad) <= 0.5 && v.len < bv.len)) {
+          bv = v; bi = OFFS[k];
+        }
+      }
+      pick[i] = bi;
+    }
+    best = { pick: pick, bad: 0, len: 0 };
+  }
+
+  const stas = [];
+  for (let i = 0; i < cities.length; i++) {
+    const c = cities[i];
+    stas.push({
+      city: c, x: Math.round(c.x + best.pick[i] * KTX_STA_OFF), z: c.z,
+      name: c.name + ' KTX역', code: c.code
+    });
+  }
+
+  // 역마다 남북으로 곧은 토막을 두고, 그 사이는 호로 둥글려 잇는다
+  const corners = cornersFor(best.pick);
+  const path = smoothPath(corners, KTX_CURVE_R, KTX_STEP);
+  if (path.length < 4) return null;
+
+  // ── 상판 높이 ──
+  // 땅(또는 바다)보다 KTX_UP 만큼 위를 지나되, 넓게 고르고 기울기를 눌러
+  // 고속선답게 완만하게 만든다.
+  const n = path.length;
+  const g = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    g[i] = Math.max(world.heightAt(Math.round(path[i][0]), Math.round(path[i][1])), SEA_LEVEL);
+  }
+  let ys = new Float32Array(n);
+  for (let i = 0; i < n; i++) ys[i] = g[i] + KTX_UP;
+  // 이동평균 세 번 — 언덕을 타고 넘실대지 않게
+  for (let pass = 0; pass < 3; pass++) {
+    const out = new Float32Array(n);
+    const R = 44;
+    let sum = 0, cnt = 0;
+    for (let i = 0; i < Math.min(n, R + 1); i++) { sum += ys[i]; cnt++; }
+    for (let i = 0; i < n; i++) {
+      out[i] = sum / cnt;
+      const add = i + R + 1, rem = i - R;
+      if (add < n) { sum += ys[add]; cnt++; }
+      if (rem >= 0) { sum -= ys[rem]; cnt--; }
+    }
+    ys = out;
+  }
+  // 역 자리는 평평하게 — 승강장이 계단지지 않게 한다
+  for (let k = 0; k < stas.length; k++) {
+    let bi = 0, bd = 1e9;
+    for (let i = 0; i < n; i++) {
+      const d = Math.hypot(path[i][0] - stas[k].x, path[i][1] - stas[k].z);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    stas[k].i = bi;
+    stas[k].y = Math.round(ys[bi]);
+    const half = Math.round(KTX_STA_LEAD / KTX_STEP);
+    for (let i = Math.max(0, bi - half); i <= Math.min(n - 1, bi + half); i++) ys[i] = stas[k].y;
+  }
+  // 기울기 제한 (앞뒤로 한 번씩 훑는다)
+  for (let i = 1; i < n; i++) ys[i] = Math.min(ys[i], ys[i - 1] + KTX_GRADE);
+  for (let i = n - 2; i >= 0; i--) ys[i] = Math.min(ys[i], ys[i + 1] + KTX_GRADE);
+  // 땅에 파묻히지 않게 바닥을 지킨다
+  const yi = new Int32Array(n);
+  for (let i = 0; i < n; i++) yi[i] = Math.max(Math.round(ys[i]), Math.round(g[i]) + 6);
+
+  // ── 도면에 깐다 ──
+  const mid = path[(n / 2) | 0];
+  const rnd = makeRandom(hashSeed('ktx:' + world.seed));
+  const plan = new VillagePlan(world, Math.round(mid[0]), Math.round(mid[1]),
+    yi[(n / 2) | 0], st, rnd);
+  plan.isKtx = true;
+  plan.style = st;
+
+  ktxViaduct(plan, path, yi, st);
+
+  plan.stations = [];
+  for (let k = 0; k < stas.length; k++) {
+    const s = stas[k];
+    const gy = Math.max(1, world.heightAt(s.x, s.z));
+    const gate = railStation(plan, s.x, s.z, s.y, Math.min(gy, s.y - 4), st, s.name, false, 'KTX');
+    plan.stations.push({
+      x: s.x, z: s.z, y: s.y + 1, platformY: s.y + 2, faceX: false, half: 34,
+      name: s.name, gate: gate, code: s.code, city: s.city
+    });
+  }
+
+  // 열차가 따라갈 길
+  const ridePts = [], rideYs = [], stopArc = [];
+  const keep = [];
+  for (let i = 0; i < n; i += 5) keep.push(i);
+  if (keep[keep.length - 1] !== n - 1) keep.push(n - 1);
+  for (let q = 0; q < keep.length; q++) {
+    ridePts.push([path[keep[q]][0], path[keep[q]][1]]);
+    rideYs.push(yi[keep[q]] + 1);
+  }
+  plan.rail = { y: yi[0] + 1, pts: ridePts, full: path, ys: (function () {
+    const a = new Array(n);
+    for (let i = 0; i < n; i++) a[i] = yi[i] + 1;
+    return a;
+  })(), rideYs: rideYs };
+  // 역이 노선 위 어디쯤인지 (열차가 그 자리에 선다)
+  plan.stopIndex = stas.map(function (s) {
+    let bq = 0, bd = 1e9;
+    for (let q = 0; q < keep.length; q++) {
+      const d = Math.abs(keep[q] - s.i);
+      if (d < bd) { bd = d; bq = q; }
+    }
+    return bq;
+  });
+  plan.freeze();
+  return plan;
+}
+
+// 굽은 고가 철로 — railCurve 와 같은 모양이되 상판 높이가 점마다 다르다
+function ktxViaduct(plan, path, ys, st) {
+  const w = plan.world;
+  const done = new Map();
+  const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
+  paintAlong(path, RAIL_HALF, function (x, z, d, i) {
+    const ry = ys[i];
+    const key = x + ',' + z;
+    if (done.get(key) === ry) return;      // 같은 자리를 몇 번씩 덮지 않는다
+    done.set(key, ry);
+    const ad = Math.abs(d);
+    set(x, ry, z, ad === RAIL_HALF ? st.trim : st.walk);
+    plan.set(x, ry + 1, z, 0, 0, true, 16);       // 언덕을 만나면 뚫고 지나간다
+    if (ad === RAIL_HALF) {
+      set(x, ry + 1, z, B.iron_bars);
+      set(x, ry + 2, z, B.iron_bars);
+    } else if (d === 0) {
+      set(x, ry, z, st.dash);
+    }
+  });
+  // 교각
+  const step = Math.max(1, Math.round(KTX_PIER / KTX_STEP));
+  for (let i = 0; i < path.length; i += step) {
+    const a = path[i];
+    const b = path[Math.min(path.length - 1, i + 1)];
+    let dx = b[0] - a[0], dz = b[1] - a[1];
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    const nx = dz, nz = -dx;
+    const ry = ys[i];
+    const px0 = Math.round(a[0]), pz0 = Math.round(a[1]);
+    const gr = Math.max(1, w.heightAt(px0, pz0));
+    for (const d of [-4, 4]) {
+      const px = Math.round(a[0] + nx * d), pz = Math.round(a[1] + nz * d);
+      const g2 = Math.max(1, w.heightAt(px, pz));
+      const h = ry - 1 - g2;
+      if (h > 0) plan.set(px, g2, pz, st.post, 0, true, h + 1);
+    }
+    for (const d of [-6, 6]) {
+      set(Math.round(a[0] + nx * d), ry - 1, Math.round(a[1] + nz * d), st.post);
+    }
+    // 바다를 건널 때는 물속까지 기둥을 박는다
+    if (gr <= SEA_LEVEL) {
+      for (const d of [-4, 4]) {
+        const px = Math.round(a[0] + nx * d), pz = Math.round(a[1] + nz * d);
+        plan.set(px, Math.max(1, gr - 3), pz, bid('stone_bricks'), 0, true, 4);
+      }
+    }
+  }
+}
+
+// ── 월드 연결 ─────────────────────────────────────────────────────────
+World.prototype.ktx = function () {
+  if (this._ktx !== undefined) return this._ktx;
+  this._ktx = null;
+  try { this._ktx = buildKtxPlan(this); }
+  catch (e) { console.warn('KTX 노선 생성 실패', e); }
+  return this._ktx;
+};
+
+// 청크에 노선을 찍는다 (도면 그대로 얹는다 — 땅 고르기는 하지 않는다)
+World.prototype.paintKtx = function (c) {
+  const k = this.ktx();
+  if (!k) return false;
+  const a = k.ops.get(c.cx + ',' + c.cz);
+  if (!a) return false;
+  for (let i = 0; i < a.length; i += VOP) {
+    const lx = a[i], y0 = a[i + 1], lz = a[i + 2];
+    const id = a[i + 3], meta = a[i + 4], force = a[i + 5], run = a[i + 6];
+    for (let q = 0; q < run; q++) {
+      const y = y0 + q;
+      if (y < 0 || y >= CHUNK_Y) continue;
+      const j = idx(lx, y, lz);
+      if (!force) {
+        const cur = c.blocks[j];
+        if (cur !== 0 && cur !== B.water) continue;
+      }
+      c.blocks[j] = id;
+      c.meta[j] = meta;
+    }
+  }
+  return true;
 };
 
 </script>
@@ -20226,7 +20912,7 @@ Renderer.prototype.drawYachts = function (game, world, player, opts) {
 };
 
 // ── 제주행 여객선 ─────────────────────────────────────────────────────
-const FERRY_OPTS = { glow: { yt_light: 1, yt_navR: 1, yt_navG: 1, fy_win: 0.35 } };
+const FERRY_OPTS = { glow: { yt_light: 1, yt_navR: 1, yt_navG: 1, fy_win: 0.35, cr_win: 0.35, cr_balc: 0.18 } };
 
 Renderer.prototype.drawFerries = function (game, world, player, opts) {
   const list = game.ferries;
@@ -20237,8 +20923,9 @@ Renderer.prototype.drawFerries = function (game, world, player, opts) {
   for (let i = 0; i < list.length; i++) {
     const f = list[i];
     const dx = f.x - player.x, dz = f.z - player.z;
-    if (dx * dx + dz * dz > 900 * 900) continue;
-    if (!this.boxInFrustum(f.x - 32, f.y - 6, f.z - 32, f.x + 32, f.y + 26, f.z + 32)) continue;
+    if (dx * dx + dz * dz > 1100 * 1100) continue;
+    const R = f.cruise ? 62 : 32;
+    if (!this.boxInFrustum(f.x - R, f.y - 8, f.z - R, f.x + R, f.y + 40, f.z + R)) continue;
     any++;
 
     const bx = Math.floor(f.x), bz = Math.floor(f.z);
@@ -20254,7 +20941,7 @@ Renderer.prototype.drawFerries = function (game, world, player, opts) {
       const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
       out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
     };
-    this.emitMesh(ferryMesh(), f.x, f.y, f.z, rot, 1, light, FERRY_OPTS);
+    this.emitMesh(f.cruise ? cruiseMesh() : ferryMesh(), f.x, f.y, f.z, rot, 1, light, FERRY_OPTS);
   }
 
   if (!any || !_geom.inn) return;
@@ -20425,7 +21112,7 @@ Renderer.prototype.drawShuttles = function (game, world, player, opts) {
 
 // ── 열차 ──────────────────────────────────────────────────────────────
 // 전조등은 밤에도 스스로 빛난다
-const TRAIN_MESH_OPTS = { glow: { tr_light: 1 } };
+const TRAIN_MESH_OPTS = { glow: { tr_light: 1, kx_light: 1 } };
 
 Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
   const list = mgr.trains;
@@ -20457,11 +21144,13 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
       const rot = function (lx, ly, lz, out) {
         out[0] = lx * cy + lz * sy; out[1] = ly; out[2] = -lx * sy + lz * cy;
       };
-      // 둥근 지붕과 운전실 코
-      this.emitMesh(trainCarMesh(ci), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
-      // 객실 안 — 둥근 천장·긴의자·손잡이봉·조명. 가까이 왔을 때만 그린다.
+      // 둥근 지붕과 운전실 코 (KTX 는 코가 길고 껍데기 색이 다르다)
+      this.emitMesh(t.ktx ? ktxCarMesh(ci) : trainCarMesh(ci),
+        po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+      // 객실 안 — 가까이 왔을 때만 그린다.
       if (showInner) {
-        this.emitMesh(trainInsideMesh(), po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
+        this.emitMesh(t.ktx ? ktxInsideMesh() : trainInsideMesh(),
+          po.x, po.y, po.z, rot, 1, light, TRAIN_MESH_OPTS);
         // 객실 안 사람들 — 긴의자에 앉거나 손잡이를 잡고 서 있다
         const ppl = trainRiders(ci);
         for (let q = 0; q < ppl.length; q++) {
@@ -20478,7 +21167,7 @@ Renderer.prototype.drawTrains = function (mgr, world, player, opts) {
         }
       }
 
-      const parts = TRAIN_CAR_PARTS[ci];
+      const parts = (t.ktx ? KTX_CAR_PARTS : TRAIN_CAR_PARTS)[ci];
       for (let k = 0; k < parts.length; k++) {
         const b = parts[k];
         if (b.inner && !showInner) continue;
@@ -21344,7 +22033,10 @@ function buildPlaneMesh() {
 // ── 전동차 ────────────────────────────────────────────────────────────
 // 옆면·객실은 그대로 두고, 블록처럼 보이던 지붕과 앞머리만 곡면으로 만든다.
 // 량 하나 몫만 만든다 (편성 전체를 한 덩어리로 두면 코너에서 레일을 벗어난다).
-function buildTrainCarMesh(isFront, isBack) {
+// opt.tex = 겉면 텍스처 묶음, opt.nose = 코 모양 단계표
+function buildTrainCarMesh(isFront, isBack, opt) {
+  opt = opt || {};
+  const TX = opt.tex || TR_TEX;
   const m = new Mesh3D();
   const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
 
@@ -21361,26 +22053,29 @@ function buildTrainCarMesh(isFront, isBack) {
     return pts;
   };
   loft(m, roofRing(-L / 2), roofRing(L / 2),
-    function () { return 'tr_roof'; }, true, false);
+    function () { return TX.roof; }, true, false);
 
   // 앞머리 — 운전실 쪽을 비스듬히 좁혀 내려가게 깎는다
   const base = ringSquircle(HW, 2.24, 0.06, 3.2, 18, 0);
   const noseTex = function (my) {
-    if (my < -1.35) return 'tr_skirt';
-    if (my > 0.25 && my < 1.65) return 'tr_face';       // 앞유리
-    if (my > -0.66 && my < -0.14) return 'tr_stripe';   // 옆구리 띠를 코까지 잇는다
-    return 'tr_body';
+    if (my < -1.35) return TX.skirt;
+    if (my > 0.25 && my < 1.65) return TX.face;         // 앞유리
+    if (my > -0.66 && my < -0.14) return TX.stripe;     // 옆구리 띠를 코까지 잇는다
+    return TX.body;
   };
+  // KTX 는 코가 훨씬 길고 낮게 흐른다 (실제 KTX-산천의 유선형 선두부)
+  const DEFAULT_NOSE = [
+    [L / 2 - 0.05, 1.00, 0.00],
+    [L / 2 + 0.55, 0.985, 0.03],
+    [L / 2 + 1.15, 0.93, 0.10],
+    [L / 2 + 1.70, 0.81, 0.22],
+    [L / 2 + 2.12, 0.62, 0.38],
+    [L / 2 + 2.40, 0.34, 0.54]
+  ];
+  const noseTip = opt.tip || [0, 0.62, L / 2 + 2.55];
   const nose = function (e) {
     const q0 = m.t.length;
-    const steps = [
-      [L / 2 - 0.05, 1.00, 0.00],
-      [L / 2 + 0.55, 0.985, 0.03],
-      [L / 2 + 1.15, 0.93, 0.10],
-      [L / 2 + 1.70, 0.81, 0.22],
-      [L / 2 + 2.12, 0.62, 0.38],
-      [L / 2 + 2.40, 0.34, 0.54]
-    ];
+    const steps = opt.nose || DEFAULT_NOSE;
     let prev = null;
     for (let i = 0; i < steps.length; i++) {
       const st = steps[i];
@@ -21388,12 +22083,13 @@ function buildTrainCarMesh(isFront, isBack) {
       if (prev) loft(m, prev, ring, noseTex, false);
       prev = ring;
     }
-    capRing(m, prev, [0, 0.62, L / 2 + 2.55], 'tr_face', false);
+    capRing(m, prev, noseTip, TX.face, false);
     // 전조등 둘
+    const lampZ = noseTip[2] - 0.25, lampY = opt.lampY !== undefined ? opt.lampY : -0.55;
     for (const sx of [-1, 1]) {
-      const lx = sx * 0.62, ly = -0.55, lz = L / 2 + 2.3;
+      const lx = sx * 0.62, ly = lampY, lz = lampZ;
       m.quad([lx - 0.24, ly - 0.14, lz], [lx + 0.24, ly - 0.14, lz],
-        [lx + 0.24, ly + 0.14, lz], [lx - 0.24, ly + 0.14, lz], 'tr_light', false);
+        [lx + 0.24, ly + 0.14, lz], [lx - 0.24, ly + 0.14, lz], TX.light, false);
     }
     if (e < 0) {
       // 뒤쪽 운전실 — 방금 만든 것을 z 로 뒤집어 옮긴다
@@ -21732,6 +22428,33 @@ function trainCarMesh(k) {
   return TRAIN_MESHES[k];
 }
 
+// KTX — 코가 길고 낮게 흐르는 유선형 선두부
+let KTX_MESHES = null;
+function ktxCarMesh(k) {
+  if (!KTX_MESHES) {
+    const L = TRAIN_CAR_LEN;
+    const opt = {
+      tex: KX_TEX,
+      nose: [
+        [L / 2 - 0.05, 1.00, 0.00],
+        [L / 2 + 0.90, 0.98, 0.02],
+        [L / 2 + 1.90, 0.92, 0.08],
+        [L / 2 + 2.90, 0.83, 0.16],
+        [L / 2 + 3.80, 0.70, 0.26],
+        [L / 2 + 4.55, 0.53, 0.36],
+        [L / 2 + 5.10, 0.33, 0.44]
+      ],
+      tip: [0, 0.46, L / 2 + 5.35],
+      lampY: -0.72
+    };
+    KTX_MESHES = [];
+    for (let c = 0; c < TRAIN_CARS; c++) {
+      KTX_MESHES.push(buildTrainCarMesh(c === TRAIN_CARS - 1, c === 0, opt));
+    }
+  }
+  return KTX_MESHES[k];
+}
+
 // ── 포크레인 ──────────────────────────────────────────────────────────
 // 궤도·상부·붐·암·버킷을 따로 만들어 둔다. 관절마다 따로 움직여야 하므로
 // 한 덩어리로 합치지 않고 부품별 모형을 그릴 때 이어 붙인다.
@@ -22013,6 +22736,57 @@ function buildTrainInsideMesh() {
     }
   }
   return m.build();
+}
+
+
+// ── KTX 객실 ──────────────────────────────────────────────────────────
+// 지하철과 달리 앞을 보고 앉는 2+2 좌석이 줄지어 있다.
+function buildKtxInsideMesh() {
+  const m = new Mesh3D();
+  const L = TRAIN_CAR_LEN, HW = TRAIN_HW;
+  const HL = L / 2;
+
+  // 둥근 천장
+  const arcN = 10;
+  const arc = [];
+  for (let i = 0; i <= arcN; i++) {
+    const t = (i / arcN) * Math.PI;
+    arc.push([HW * 0.93 * Math.cos(t), TRAIN_CEIL - 0.04 + 0.32 * Math.sin(t)]);
+  }
+  for (let i = 0; i < arcN; i++) {
+    const a = arc[i], b = arc[i + 1];
+    m.quad([a[0], a[1], -HL], [b[0], b[1], -HL], [b[0], b[1], HL], [a[0], a[1], HL],
+      'kx_wall', true);
+  }
+
+  // 좌석 — 통로(가운데)를 비우고 양쪽에 두 자리씩
+  const SEAT_X = [0.52, 1.28];
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < SEAT_X.length; k++) {
+      const x = s * SEAT_X[k];
+      for (let z = -HL + 2.2; z <= HL - 2.6; z += 2.05) {
+        m.box(x, -1.02, z, 0.68, 0.16, 1.10, 'kx_seat');       // 좌판
+        m.box(x, -0.52, z - 0.52, 0.68, 1.14, 0.16, 'kx_seat'); // 등받이
+        m.box(x, 0.10, z - 0.52, 0.44, 0.30, 0.18, 'kx_seat');  // 머리 받침
+        m.box(x, -1.32, z, 0.16, 0.44, 0.20, 'tr_pole');        // 다리
+      }
+    }
+    // 짐 선반
+    m.box(s * 1.28, 1.16, 0, 0.86, 0.10, L - 2.2, 'kx_wall');
+    // 조명 띠 (스스로 빛난다)
+    tubeZ(m, s * 0.62, 1.52, -HL + 1.7, HL - 1.7, 0.09, 'kx_light', 5);
+    // 창 아래 벽
+    m.box(s * (HW - 0.10), -0.60, 0, 0.12, 1.30, L - 1.2, 'kx_wall');
+  }
+  // 바닥 통로
+  m.box(0, TRAIN_FLOOR_TOP - 0.05, 0, HW * 1.9, 0.10, L - 0.8, 'kx_floor');
+  return m.build();
+}
+
+let KTX_INSIDE_MESH = null;
+function ktxInsideMesh() {
+  if (!KTX_INSIDE_MESH) KTX_INSIDE_MESH = buildKtxInsideMesh();
+  return KTX_INSIDE_MESH;
 }
 
 let TRAIN_INSIDE_MESH = null;
@@ -22795,6 +23569,125 @@ function ferryBeamAt(hull, z) {
 
 let _ferryMesh = null;
 function ferryMesh() { return _ferryMesh || (_ferryMesh = buildFerryMesh()); }
+
+// ── 크루즈선 ──────────────────────────────────────────────────────────
+// 목포 ↔ 제주를 오가는 대형 여객선. 남색 선체 위로 흰 객실이 다섯 층 오르고,
+// 꼭대기에는 야외 수영장과 굴뚝 둘이 선다.
+const CR_L = 108, CR_W = 22;
+
+function buildCruiseMesh() {
+  const m = new Mesh3D();
+  const HL = CR_L / 2;
+
+  // 1) 선체 — 흘수선 아래 붉은 바닥, 그 위 남색, 어깨는 흰색
+  const hull = [
+    [-HL, 6.6, -4.2, 5.6],
+    [-HL + 6, 8.2, -5.0, 5.9],
+    [-34, 9.6, -5.6, 6.2],
+    [-14, 10.2, -5.9, 6.4],
+    [6, 10.2, -5.9, 6.5],
+    [24, 9.6, -5.6, 6.6],
+    [38, 8.0, -4.9, 6.9],
+    [46, 5.6, -3.6, 7.4],
+    [HL, 2.0, -1.8, 7.9]
+  ];
+  carLoft(m, hull, 4.0, function (my) {
+    if (my < -0.05) return 'cr_boot';
+    if (my < 4.4) return 'cr_hull';
+    if (my < 5.0) return 'cr_gold';
+    return 'cr_white';
+  }, 'cr_hull', 16);
+  deckStrip(m, hull, 6.6, 0.92, 'cr_deck');
+
+  // 2) 객실 — 층마다 조금씩 좁아지며 올라간다
+  const tiers = [
+    { sec: [[-40, 9.2, 6.6, 10.4], [-26, 9.8, 6.6, 10.6], [0, 9.8, 6.6, 10.6],
+      [26, 9.4, 6.6, 10.4], [38, 8.0, 6.6, 10.0]], top: 10.7, tex: 'cr_win' },
+    { sec: [[-36, 8.8, 10.7, 14.4], [-22, 9.4, 10.7, 14.6], [2, 9.4, 10.7, 14.6],
+      [24, 8.9, 10.7, 14.4], [34, 7.6, 10.7, 14.0]], top: 14.7, tex: 'cr_balc' },
+    { sec: [[-32, 8.2, 14.7, 18.4], [-18, 8.8, 14.7, 18.6], [4, 8.8, 14.7, 18.6],
+      [22, 8.2, 14.7, 18.4], [30, 7.0, 14.7, 18.0]], top: 18.7, tex: 'cr_balc' },
+    { sec: [[-26, 7.4, 18.7, 22.2], [-12, 7.9, 18.7, 22.4], [6, 7.9, 18.7, 22.4],
+      [20, 7.2, 18.7, 22.2], [27, 6.2, 18.7, 21.8]], top: 22.5, tex: 'cr_win' }
+  ];
+  for (let k = 0; k < tiers.length; k++) {
+    const t = tiers[k];
+    const y0 = t.sec[0][2], y1 = t.sec[0][3];
+    carLoft(m, t.sec, 5.4, function (my) {
+      return (my > y0 + 0.7 && my < y1 - 0.6) ? t.tex : 'cr_white';
+    }, 'cr_white', 14);
+    deckStrip(m, t.sec, t.top, 0.94, k === tiers.length - 1 ? 'cr_deck' : 'cr_white');
+  }
+
+  // 3) 조타실 — 제일 앞 위층, 양옆으로 날개가 뻗는다
+  const brg = [[16, 6.4, 22.5, 25.4], [22, 6.6, 22.5, 25.6], [27, 5.2, 22.5, 25.0]];
+  carLoft(m, brg, 5.0, function (my) {
+    return (my > 23.2 && my < 24.8) ? 'cr_win' : 'cr_white';
+  }, 'cr_white', 12);
+  deckStrip(m, brg, 25.7, 0.92, 'cr_white');
+  for (const s of [-1, 1]) m.box(s * 8.2, 24.1, 21.0, 3.6, 0.4, 4.0, 'cr_white');
+
+  // 4) 야외 수영장과 갑판 의자 (꼭대기 층)
+  m.box(0, 22.7, -4, 9.0, 0.3, 12.0, 'cr_pool');
+  for (const s of [-1, 1]) {
+    for (const z of [-14, -9, 2, 7]) {
+      m.box(s * 6.6, 23.0, z, 1.6, 0.24, 3.0, 'cr_white');
+    }
+  }
+
+  // 5) 굴뚝 둘
+  for (const z of [-20, -12]) {
+    taperPole(m, [0, 22.5, z], [0, 30.5, z - 1.2], 3.0, 2.5, 14, 'cr_funnel');
+    m.box(0, 30.8, z - 1.2, 5.2, 0.5, 5.2, 'cr_funnel');
+  }
+  taperPole(m, [0, 25.8, 24.5], [0, 34.0, 23.4], 0.34, 0.14, 8, 'cr_white');
+  m.box(0, 34.4, 23.3, 0.28, 0.3, 0.28, 'yt_light');
+
+  // 6) 구명정 — 아래 두 층 사이에 줄지어 매단다
+  for (const s of [-1, 1]) {
+    for (let z = -24; z <= 20; z += 8) {
+      m.box(s * 9.6, 11.6, z, 1.8, 1.3, 5.2, 'fy_stripe');
+      taperPole(m, [s * 8.6, 10.6, z - 2.2], [s * 8.6, 13.2, z - 2.2], 0.12, 0.12, 6, 'yt_rail');
+      taperPole(m, [s * 8.6, 10.6, z + 2.2], [s * 8.6, 13.2, z + 2.2], 0.12, 0.12, 6, 'yt_rail');
+    }
+  }
+
+  // 7) 난간 — 산책 갑판을 두른다
+  for (const s of [-1, 1]) {
+    for (let z = -38; z <= 38; z += 5) {
+      const w = ferryBeamAt(hull, z) * 0.93;
+      taperPole(m, [s * w, 6.6, z], [s * w, 7.8, z], 0.09, 0.09, 6, 'yt_rail');
+    }
+    const w0 = 9.6;
+    taperPole(m, [s * w0, 7.75, -38], [s * w0, 7.75, 38], 0.07, 0.07, 6, 'yt_rail');
+  }
+
+  // 8) 항해등과 뱃전 금색 띠
+  m.box(-8.0, 24.4, 22.6, 0.26, 0.28, 0.26, 'yt_navR');
+  m.box(8.0, 24.4, 22.6, 0.26, 0.28, 0.26, 'yt_navG');
+  for (const s of [-1, 1]) m.box(s * 7.6, 5.0, 20, 0.18, 1.1, 8.0, 'cr_gold');
+  return m.build();
+}
+
+const CR_HULL_SEC = [
+  [-54, 6.6], [-48, 8.2], [-34, 9.6], [-14, 10.2], [6, 10.2],
+  [24, 9.6], [38, 8.0], [46, 5.6], [54, 2.0]
+];
+function cruiseBeamAt(z) {
+  const h = CR_HULL_SEC;
+  if (z <= h[0][0]) return h[0][1];
+  if (z >= h[h.length - 1][0]) return h[h.length - 1][1];
+  for (let i = 0; i + 1 < h.length; i++) {
+    if (z <= h[i + 1][0]) {
+      const t = (z - h[i][0]) / (h[i + 1][0] - h[i][0] || 1);
+      return h[i][1] + (h[i + 1][1] - h[i][1]) * t;
+    }
+  }
+  return h[0][1];
+}
+
+let _cruiseMesh = null;
+function cruiseMesh() { return _cruiseMesh || (_cruiseMesh = buildCruiseMesh()); }
 
 </script>
 <script>
@@ -24620,7 +25513,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.6';
+const GAME_VERSION = 'v10.7';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -24893,6 +25786,120 @@ Game.prototype.warpTargets = function () {
   }
   out.sort(function (a, b) { return a.dist - b.dist; });
   return out;
+};
+
+
+// ── 전자동 비행 ───────────────────────────────────────────────────────
+// 목적지 공항만 고르면 유도로 주행부터 착륙·주기까지 기계가 다 한다.
+Game.prototype.flyTargets = function () {
+  const pl = this.player.riding;
+  const list = this.world.airports ? this.world.airports() : [];
+  const out = [];
+  if (!pl) return out;
+  // 지금 서 있는 공항 (땅에 있을 때만 여기서 이륙할 수 있다)
+  const here = this.world.airport ? this.world.airport(pl.x, pl.z) : null;
+  for (let i = 0; i < list.length; i++) {
+    const ap = list[i];
+    const dx = ap.x - pl.x, dz = ap.z - pl.z;
+    const d = Math.hypot(dx, dz);
+    out.push({
+      ap: ap, code: ap.code, name: ap.name, dist: Math.round(d),
+      dir: warpBearing(dx, dz), here: (ap === here && pl.onGround)
+    });
+  }
+  out.sort(function (a, b) { return a.dist - b.dist; });
+  return out;
+};
+
+Game.prototype.buildFlyList = function () {
+  const box = document.getElementById('fly-list');
+  if (!box) return;
+  box.innerHTML = '';
+  const pl = this.player.riding;
+  const self = this;
+  const note = function (t) {
+    const d = document.createElement('div');
+    d.className = 'wp-note';
+    d.textContent = t;
+    box.appendChild(d);
+  };
+  if (!pl) { note('비행기에 탄 뒤에 눌러 주세요'); return; }
+  const list = this.flyTargets();
+  if (!list.length) { note('공항을 찾지 못했습니다'); return; }
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wp-row' + (t.here ? ' here' : '');
+    const name = document.createElement('span');
+    name.className = 'wp-name';
+    name.textContent = t.name;
+    const code = document.createElement('span');
+    code.className = 'wp-code';
+    code.textContent = t.code;
+    const dist = document.createElement('span');
+    dist.className = 'wp-dist';
+    dist.textContent = t.here ? '지금 여기' : (t.dist + '블록 ' + t.dir);
+    b.appendChild(name); b.appendChild(code); b.appendChild(dist);
+    if (!t.here) b.addEventListener('click', function () { self.startAutoFlight(t.ap); });
+    box.appendChild(b);
+  }
+  if (pl.ai && pl.ai.auto) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wp-row';
+    b.textContent = '자동 비행 해제 (N)';
+    b.addEventListener('click', function () {
+      pl.cancelAutoland();
+      self.ui.toast('자동 비행 해제 — 직접 조종하세요');
+      self.closeFly();
+    });
+    box.appendChild(b);
+  }
+};
+
+Game.prototype.startAutoFlight = function (ap) {
+  const pl = this.player.riding;
+  if (!pl) { this.ui.toast('비행기에 탄 뒤에 눌러 주세요'); return; }
+  const from = (pl.onGround && this.world.airport) ? this.world.airport(pl.x, pl.z) : null;
+  if (!pl.beginAutoFlight(ap, from)) { this.ui.toast('그 공항으로는 갈 수 없습니다'); return; }
+  const self = this;
+  pl.onAutolandDone = function (a) {
+    self.ui.toast('자동 비행 완료 — ' + a.name + ' 주기장. 조종을 넘겨받으세요');
+    self._autolandBlock = a;
+    self.playSound('place');
+  };
+  // 항법 목적지도 같이 맞춰 둔다
+  const list = this.world.airports ? this.world.airports() : [];
+  for (let i = 0; i < list.length; i++) if (list[i] === ap) this.navTarget = i;
+  this.closeFly();
+  this.ui.toast(pl.onGround
+    ? ('자동 비행 시작 — ' + ap.name + ' 까지. 활주로로 나가 이륙합니다')
+    : ('자동 비행 시작 — ' + ap.name + ' 로 향합니다'));
+  this.playSound('place');
+};
+
+Game.prototype.openFly = function () {
+  const panel = document.getElementById('fly-panel');
+  if (!panel) return;
+  if (!this.player.riding) { this.ui.toast('비행기에 탄 뒤에 눌러 주세요'); return; }
+  this.buildFlyList();
+  panel.style.display = 'block';
+  this.flyOpen = true;
+  const b = document.getElementById('btn-autofly');
+  if (b) b.classList.add('on');
+};
+
+Game.prototype.closeFly = function () {
+  const panel = document.getElementById('fly-panel');
+  if (panel) panel.style.display = 'none';
+  this.flyOpen = false;
+  const b = document.getElementById('btn-autofly');
+  if (b) b.classList.remove('on');
+};
+
+Game.prototype.toggleFly = function () {
+  if (this.flyOpen) this.closeFly(); else this.openFly();
 };
 
 // 지금 옮겨 갈 수 있는 상태인가. 안 되면 까닭을 돌려준다.
@@ -25412,6 +26419,7 @@ Game.prototype.bindInput = function () {
         break;
       case 'Escape':
         if (self.cineOpen) self.closeCine();
+        else if (self.flyOpen) self.closeFly();
         else if (self.warpOpen) self.closeWarp();
         else if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
         else if (self.ui.open) self.ui.closeScreen();
@@ -25458,6 +26466,9 @@ Game.prototype.bindInput = function () {
         break;
       case 'KeyV':
         if (self.toggleCine) { self.toggleCine(); e.preventDefault(); }
+        break;
+      case 'KeyU':
+        if (self.toggleFly) { self.toggleFly(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -25755,6 +26766,19 @@ Game.prototype.bindTouch = function () {
       if (self.toggleCine) self.toggleCine();
     });
   }
+  // 자동 비행 — 비행기를 타고 있을 때만 뜬다
+  const af = document.getElementById('btn-autofly');
+  if (af) {
+    af.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (self.toggleFly) self.toggleFly();
+    });
+  }
+  const fp = document.getElementById('fly-panel');
+  if (fp) {
+    fp.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    fp.addEventListener('touchstart', function (e) { e.stopPropagation(); });
+  }
   const panel = document.getElementById('warp-panel');
   if (panel) {
     // 패널 안을 눌러도 화면(캐닝·설치)으로 넘어가지 않게 막는다
@@ -26035,7 +27059,9 @@ Game.prototype.onPlatform = function () {
   const w = this.world;
   if (!w.cities) return null;
   const p = this.player;
-  const list = w.cities();
+  const list = w.cities().slice();
+  const kx = w.ktx ? w.ktx() : null;
+  if (kx) list.push(kx);              // KTX 승강장도 같이 본다
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
     if (!c.stations) continue;
@@ -27385,6 +28411,15 @@ Game.prototype.update = function (dt) {
   this.ui.updateHUD(dt);
   this.updateDriveHud();
   this.updateFerryHud();
+  {
+    // 자동 비행 단추는 비행기를 타고 있을 때만 뜬다
+    const af = document.getElementById('btn-autofly');
+    if (af) {
+      const want = this.player.riding ? 'flex' : 'none';
+      if (af.style.display !== want) af.style.display = want;
+      if (!this.player.riding && this.flyOpen) this.closeFly();
+    }
+  }
   this.updateDigHud();
   if (this.updateBusHud) this.updateBusHud();
   if (this.updateUseHint) this.updateUseHint();
@@ -27788,7 +28823,8 @@ Highway.prototype.detourSide = function (order, i, j, Astart, ux, uz, nx, nz) {
 Highway.prototype.build = function () {
   const w = this.world;
   if (!w.cities) return;
-  const cities = w.cities();
+  // 섬(제주)에는 길을 놓지 않는다 — 배나 비행기로만 닿는다
+  const cities = w.cities().filter(function (c) { return !c.island; });
   if (cities.length < 2) return;
 
   // 가까운 도시부터 차례로 놓고, 모든 도시 쌍을 하나씩 잇는다.
@@ -30866,9 +31902,12 @@ function swNormal(pts, i) {
 
 // ── 철로 ──────────────────────────────────────────────────────────────
 // 상판을 통째로 매끄럽게 덮고, 그 위에 이어진 레일 넉 줄과 침목을 얹는다.
+// y 는 숫자(높이가 한결같은 노선) 이거나 점마다의 높이 배열(KTX 처럼 오르내리는 노선)이다
 function swBuildRail(pts, i0, i1, y, st) {
   const m = new Mesh3D();
-  const yOf = function () { return y; };
+  const ys = (typeof y === 'number') ? null : y;
+  const yOf = ys ? function (i) { return ys[Math.max(0, Math.min(ys.length - 1, i))]; }
+    : function () { return y; };
   const deck = blockTexName(st.walk, 2);
   const trim = blockTexName(st.trim, 2);
   const dash = blockTexName(st.dash || st.trim, 2);
@@ -30893,7 +31932,7 @@ function swBuildRail(pts, i0, i1, y, st) {
       const fx = (b[0] - a[0]), fz = (b[1] - a[1]);
       const fl = Math.hypot(fx, fz) || 1;
       const ux = fx / fl * 0.45, uz = fz / fl * 0.45;
-      const yy = y + SW_LIFT + 0.02;
+      const yy = yOf(i) + SW_LIFT + 0.02;
       const q = function (dd, e) {
         return [a[0] + na[0] * dd + ux * e, yy, a[1] + na[1] * dd + uz * e];
       };
@@ -30967,11 +32006,22 @@ Game.prototype.ensureSmoothWays = function () {
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
       if (!c.rail || !c.rail.full || c.rail.full.length < 3) continue;
-      const pts = c.rail.full, y = c.rail.y, st = c.style || c.st;
+      const pts = c.rail.full, y = c.rail.ys || c.rail.y, st = c.style || c.st;
       const segs = swSegments(pts, function (i0, i1) {
         return swBuildRail(pts, i0, i1, y, st);
       });
-      segs.forEach(function (s) { s.y = y; });
+      segs.forEach(function (s) { s.y = c.rail.ys ? c.rail.ys[s.i0] : y; });
+      out.rail = out.rail.concat(segs);
+    }
+  }
+  if (w.ktx) {
+    const k = w.ktx();
+    if (k && k.rail && k.rail.full && k.rail.full.length > 2) {
+      const pts = k.rail.full, ys = k.rail.ys, st = k.style;
+      const segs = swSegments(pts, function (i0, i1) {
+        return swBuildRail(pts, i0, i1, ys, st);
+      });
+      segs.forEach(function (s) { s.y = ys[Math.min(ys.length - 1, s.i0)]; });
       out.rail = out.rail.concat(segs);
     }
   }
@@ -31327,10 +32377,24 @@ const FY_NEAR = 900;            // 이 안에 들면 터미널에 한 척 대어
 const FY_LEG = 26;              // 뱃길을 이만큼씩 나눠 바다인지 살핀다
 const FY_DEPTH = 4;             // 이만큼 깊어야 뱃길로 친다 (해수면 아래)
 
-// 산책 갑판 — 선실 지붕 위 (buildFerryMesh 의 deckA 지붕과 같은 높이)
-const FY_DECK_Y = 7.66;
-const FY_PROM = [[-22, 5.6], [-14, 6.0], [2, 6.0], [14, 5.6], [20, 4.4]];
-const FY_CABIN_X = 5.02, FY_CABIN_Z0 = -16.6, FY_CABIN_Z1 = 15.6;   // 위층 선실 자리
+// 배마다의 산책 갑판 — 걸어 다닐 수 있는 높이와 테두리, 못 들어가는 자리
+// prom = [z, 반폭] 차례, blocks = [x0, x1, z0, z1] 상자들
+const FY_SPEC = {
+  kr: '여객선', deck: 7.66, speed: 55, half: 6.8, len: 54, reach: 16,
+  prom: [[-22, 5.6], [-14, 6.0], [2, 6.0], [14, 5.6], [20, 4.4]],
+  blocks: [[-5.02, 5.02, -16.6, 15.6]],          // 위층 선실
+  spawn: [0, -19.2]
+};
+const CR_SPEC = {
+  kr: '크루즈', deck: 22.62, speed: 36, half: 10.5, len: 108, reach: 36,
+  prom: [[-26, 6.2], [-12, 7.9], [6, 7.9], [20, 7.2], [26, 6.2]],
+  blocks: [
+    [-6.8, 6.8, 15.2, 27.5],       // 조타실
+    [-3.8, 3.8, -23.8, -9.2],      // 굴뚝 둘
+    [-4.9, 4.9, -10.4, 2.4]        // 야외 수영장
+  ],
+  spawn: [0, 10.5]
+};
 
 // 서해 앞바다를 따라 내려가는 길잡이 점 (위도, 경도)
 const FY_WAY = [[36.5, 126.0], [35.8, 125.85], [35.0, 125.9], [34.35, 125.95], [33.9, 126.3]];
@@ -31388,9 +32452,12 @@ function ferryRefine(world, pts) {
 // ── 뱃길 ──────────────────────────────────────────────────────────────
 // a, b 는 plan.ferry (터미널). 정박지에서 곧장 앞바다로 나갔다가
 // 길잡이 점을 지나 건너편 정박지로 들어온다.
-function FerryRoute(world, a, b) {
+function FerryRoute(world, a, b, opts) {
+  opts = opts || {};
   this.world = world;
   this.ends = [a, b];
+  this.cruise = !!opts.cruise;
+  this.spec = this.cruise ? CR_SPEC : FY_SPEC;
   this.name = a.city + '↔' + b.city;
 
   const raw = [[a.dock.x, a.dock.z], [a.dock.x + a.dirx * 150, a.dock.z + a.dirz * 150]];
@@ -31442,6 +32509,8 @@ FerryRoute.prototype.at = function (s) {
 function Ferry(world, route, end) {
   this.world = world;
   this.route = route;
+  this.cruise = !!route.cruise;
+  this.spec = route.spec || FY_SPEC;
   this.end = end;                    // 지금 대어 둔(또는 향하는) 터미널 0/1
   this.mode = 'dock';                // dock | sail
   this.s = end ? route.len : 0;
@@ -31451,10 +32520,16 @@ function Ferry(world, route, end) {
   this.rider = null;
   this.t = 0;
   const t = route.ends[end];
-  this.x = t.dock.x; this.z = t.dock.z; this.y = ferryWaterY();
+  const d = this.berthOf(t);
+  this.x = d.x; this.z = d.z; this.y = ferryWaterY();
   this.yaw = t.yaw;
   this.roll = 0; this.pitch = 0;
 }
+
+// 이 배가 이 터미널에서 서는 자리 (크루즈는 잔교에서 더 떨어져 선다)
+Ferry.prototype.berthOf = function (t) {
+  return (this.cruise && t.dockBig) ? t.dockBig : t.dock;
+};
 
 Ferry.prototype.terminal = function () { return this.route.ends[this.end]; };
 Ferry.prototype.other = function () { return this.route.ends[this.end ? 0 : 1]; };
@@ -31494,9 +32569,10 @@ Ferry.prototype.update = function (dt, game) {
 
   if (this.mode === 'dock') {
     const t = this.terminal();
+    const bd = this.berthOf(t);
     this.speed += (0 - this.speed) * Math.min(1, dt * 2.2);
-    this.x += (t.dock.x - this.x) * Math.min(1, dt * 1.2);
-    this.z += (t.dock.z - this.z) * Math.min(1, dt * 1.2);
+    this.x += (bd.x - this.x) * Math.min(1, dt * 1.2);
+    this.z += (bd.z - this.z) * Math.min(1, dt * 1.2);
     this.turnTo(t.yaw, FY_DOCK_TURN, dt);
     if (this.rider) {
       this.wait -= dt;
@@ -31509,7 +32585,7 @@ Ferry.prototype.update = function (dt, game) {
     const left = this.remain();
     // 남은 거리에 맞춰 목표 속도를 낮춘다 — 부두 앞에서 스르르 선다
     const cap = Math.sqrt(Math.max(0, 2 * FY_BRAKE * Math.max(0, left - 2)));
-    const want = Math.min(FY_SPEED, cap);
+    const want = Math.min(this.spec.speed || FY_SPEED, cap);
     if (this.speed < want) this.speed = Math.min(want, this.speed + FY_ACC * dt);
     else this.speed = Math.max(want, this.speed - FY_BRAKE * 1.6 * dt);
 
@@ -31533,9 +32609,9 @@ Ferry.prototype.update = function (dt, game) {
   this.pitch = Math.sin(this.t * 0.41) * 0.012 + this.speed * 0.0014;
 };
 
-// 갑판 안으로 가둔다 (선실은 못 뚫고 지나간다)
-function ferryPromHalf(lz) {
-  const s = FY_PROM;
+// 갑판 안으로 가둔다 (선실·굴뚝·수영장은 못 뚫고 지나간다)
+function ferryPromHalf(spec, lz) {
+  const s = spec.prom;
   if (lz <= s[0][0]) return s[0][1];
   if (lz >= s[s.length - 1][0]) return s[s.length - 1][1];
   for (let i = 0; i + 1 < s.length; i++) {
@@ -31547,18 +32623,43 @@ function ferryPromHalf(lz) {
   return s[0][1];
 }
 
-function ferryDeckClamp(lx, lz) {
-  lz = Math.max(FY_PROM[0][0] + 0.6, Math.min(FY_PROM[FY_PROM.length - 1][0] - 0.6, lz));
-  const w = ferryPromHalf(lz) - 0.45;
+function ferryDeckClamp(spec, lx, lz) {
+  const P = spec.prom;
+  lz = Math.max(P[0][0] + 0.6, Math.min(P[P.length - 1][0] - 0.6, lz));
+  const w = ferryPromHalf(spec, lz) - 0.45;
   lx = Math.max(-w, Math.min(w, lx));
-  // 선실 상자 안이면 제일 가까운 바깥면으로 민다
-  if (Math.abs(lx) < FY_CABIN_X && lz > FY_CABIN_Z0 && lz < FY_CABIN_Z1) {
-    const dx = FY_CABIN_X - Math.abs(lx);
-    const dz0 = lz - FY_CABIN_Z0, dz1 = FY_CABIN_Z1 - lz;
-    if (dx <= dz0 && dx <= dz1) lx = (lx < 0 ? -1 : 1) * FY_CABIN_X;
-    else if (dz0 <= dz1) lz = FY_CABIN_Z0;
-    else lz = FY_CABIN_Z1;
+  // 막힌 상자 안이면 제일 가까운 바깥면으로 민다.
+  // 갑판 밖으로 밀려나는 면은 고르지 않는다 (뱃머리 조타실에 갇히면
+  // 바다로 튕겨 나가 버린다).
+  const zLo = P[0][0] + 0.6, zHi = P[P.length - 1][0] - 0.6;
+  const okAt = function (x, z) {
+    if (z < zLo - 0.01 || z > zHi + 0.01) return false;
+    return Math.abs(x) <= ferryPromHalf(spec, z) - 0.45 + 0.01;
+  };
+  for (let pass = 0; pass < 3; pass++) {
+    let moved = false;
+    for (let k = 0; k < spec.blocks.length; k++) {
+      const bx0 = spec.blocks[k][0], bx1 = spec.blocks[k][1];
+      const bz0 = spec.blocks[k][2], bz1 = spec.blocks[k][3];
+      if (lx <= bx0 || lx >= bx1 || lz <= bz0 || lz >= bz1) continue;
+      const cand = [
+        [bx0 - 0.02, lz, lx - bx0], [bx1 + 0.02, lz, bx1 - lx],
+        [lx, bz0 - 0.02, lz - bz0], [lx, bz1 + 0.02, bz1 - lz]
+      ];
+      cand.sort(function (a, b) { return a[2] - b[2]; });
+      let put = null;
+      for (let i = 0; i < cand.length; i++) {
+        if (okAt(cand[i][0], cand[i][1])) { put = cand[i]; break; }
+      }
+      if (!put) put = cand[0];
+      lx = put[0]; lz = put[1];
+      moved = true;
+    }
+    if (!moved) break;
   }
+  lz = Math.max(zLo, Math.min(zHi, lz));
+  const w2 = ferryPromHalf(spec, lz) - 0.45;
+  lx = Math.max(-w2, Math.min(w2, lx));
   return [lx, lz];
 }
 
@@ -31571,7 +32672,7 @@ Ferry.prototype.board = function (player) {
   if (this.rider) return false;
   this.rider = player;
   player.onFerry = this;
-  const d = ferryDeckClamp(0, FY_CABIN_Z0 - 2.6);
+  const d = ferryDeckClamp(this.spec, this.spec.spawn[0], this.spec.spawn[1]);
   player.ferryX = d[0]; player.ferryZ = d[1];
   player.vx = player.vy = player.vz = 0;
   this.wait = FY_WAIT;
@@ -31605,7 +32706,7 @@ Ferry.prototype.unboard = function () {
 
 // 타고 있는 동안 — 갑판 위를 걸어 다닌다
 Ferry.prototype.ridePlayer = function (p, dt, game) {
-  if (p.ferryX === undefined) { p.ferryX = 0; p.ferryZ = FY_CABIN_Z0 - 2.6; }
+  if (p.ferryX === undefined) { p.ferryX = this.spec.spawn[0]; p.ferryZ = this.spec.spawn[1]; }
 
   if (this._prevYaw !== undefined) {
     let d = this.yaw - this._prevYaw;
@@ -31634,10 +32735,10 @@ Ferry.prototype.ridePlayer = function (p, dt, game) {
       p.ferryZ += dz * spd;
     }
   }
-  const d = ferryDeckClamp(p.ferryX, p.ferryZ);
+  const d = ferryDeckClamp(this.spec, p.ferryX, p.ferryZ);
   p.ferryX = d[0]; p.ferryZ = d[1];
 
-  const w = this.toWorld(p.ferryX, FY_DECK_Y, p.ferryZ);
+  const w = this.toWorld(p.ferryX, this.spec.deck, p.ferryZ);
   p.x = w[0]; p.y = w[1]; p.z = w[2];
   p.vx = p.vy = p.vz = 0;
   p.onGround = true;
@@ -31650,20 +32751,23 @@ Game.prototype.ferryRoutes = function () {
   this._ferryRoutes = [];
   const w = this.world;
   if (!w.cities) return this._ferryRoutes;
-  const ports = [];
+  const isle = [], main = [];
   const list = w.cities();
-  for (let i = 0; i < list.length; i++) if (list[i].ferry) ports.push(list[i].ferry);
-  // 항구가 둘 이상이면 남북으로 가장 멀리 떨어진 두 곳을 잇는다 (인천 ↔ 제주)
-  if (ports.length >= 2) {
-    let a = ports[0], b = ports[1], bd = -1;
-    for (let i = 0; i < ports.length; i++) {
-      for (let k = i + 1; k < ports.length; k++) {
-        const d = Math.hypot(ports[i].x - ports[k].x, ports[i].z - ports[k].z);
-        if (d > bd) { bd = d; a = ports[i]; b = ports[k]; }
-      }
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (!c.ferry) continue;
+    (c.island ? isle : main).push(c);
+  }
+  // 섬(제주)과 뭍의 항구를 하나씩 잇는다.
+  // 목포에서 뜨는 배는 큰 크루즈선, 인천에서 뜨는 배는 쾌속 여객선이다.
+  for (let i = 0; i < isle.length; i++) {
+    for (let k = 0; k < main.length; k++) {
+      const a = main[k], b = isle[i];
+      try {
+        this._ferryRoutes.push(new FerryRoute(w, a.ferry, b.ferry,
+          { cruise: a.code === 'MPO' }));
+      } catch (e) { console.warn('뱃길 생성 실패', a.code, e); }
     }
-    try { this._ferryRoutes.push(new FerryRoute(w, a, b)); }
-    catch (e) { console.warn('뱃길 생성 실패', e); }
   }
   return this._ferryRoutes;
 };
@@ -31700,19 +32804,20 @@ Game.prototype.updateFerries = function (dt) {
 Game.prototype.nearestFerry = function () {
   if (!this.ferries) return null;
   const p = this.player;
-  let best = null, bd = FY_REACH;
+  let best = null, bd = 1e9;
   for (let i = 0; i < this.ferries.length; i++) {
     const f = this.ferries[i];
     if (f.rider || !f.docked()) continue;
+    const reach = f.spec.reach || FY_REACH;
     const d = Math.hypot(f.x - p.x, f.z - p.z);
-    if (d < bd && Math.abs(f.y - p.y) < 12) { bd = d; best = f; }
+    if (d < reach && d < bd && Math.abs(f.y - p.y) < 26) { bd = d; best = f; }
   }
   return best;
 };
 
 Game.prototype.enterFerry = function (f) {
   if (!f.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
-  this.ui.toast('여객선 승선 — ' + f.other().name + ' 행. ' +
+  this.ui.toast(f.spec.kr + ' 승선 — ' + f.other().name + ' 행. ' +
     Math.round(FY_WAIT) + '초 뒤 출항합니다 (갑판을 걸어 다닐 수 있어요 · Shift 하선)');
   this.playSound('place');
   this._ferryLast = null;
@@ -32667,8 +33772,8 @@ Game.prototype.updateNetHud = function () {
   btnNew.addEventListener('click', function () { boot('new'); });
   btnContinue.addEventListener('click', function () { boot('continue'); });
 
-  // 도시에서 바로 시작 — 공항 딸린 도시 세 곳
-  ['ICN', 'GMP', 'CJU'].forEach(function (code) {
+  // 도시에서 바로 시작
+  ['ICN', 'GMP', 'CJU', 'MPO'].forEach(function (code) {
     const btn = document.getElementById('btn-city-' + code);
     if (btn) btn.addEventListener('click', function () { boot('city:' + code); });
   });

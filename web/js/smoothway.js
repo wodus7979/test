@@ -54,9 +54,12 @@ function swNormal(pts, i) {
 
 // ── 철로 ──────────────────────────────────────────────────────────────
 // 상판을 통째로 매끄럽게 덮고, 그 위에 이어진 레일 넉 줄과 침목을 얹는다.
+// y 는 숫자(높이가 한결같은 노선) 이거나 점마다의 높이 배열(KTX 처럼 오르내리는 노선)이다
 function swBuildRail(pts, i0, i1, y, st) {
   const m = new Mesh3D();
-  const yOf = function () { return y; };
+  const ys = (typeof y === 'number') ? null : y;
+  const yOf = ys ? function (i) { return ys[Math.max(0, Math.min(ys.length - 1, i))]; }
+    : function () { return y; };
   const deck = blockTexName(st.walk, 2);
   const trim = blockTexName(st.trim, 2);
   const dash = blockTexName(st.dash || st.trim, 2);
@@ -81,7 +84,7 @@ function swBuildRail(pts, i0, i1, y, st) {
       const fx = (b[0] - a[0]), fz = (b[1] - a[1]);
       const fl = Math.hypot(fx, fz) || 1;
       const ux = fx / fl * 0.45, uz = fz / fl * 0.45;
-      const yy = y + SW_LIFT + 0.02;
+      const yy = yOf(i) + SW_LIFT + 0.02;
       const q = function (dd, e) {
         return [a[0] + na[0] * dd + ux * e, yy, a[1] + na[1] * dd + uz * e];
       };
@@ -155,11 +158,22 @@ Game.prototype.ensureSmoothWays = function () {
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
       if (!c.rail || !c.rail.full || c.rail.full.length < 3) continue;
-      const pts = c.rail.full, y = c.rail.y, st = c.style || c.st;
+      const pts = c.rail.full, y = c.rail.ys || c.rail.y, st = c.style || c.st;
       const segs = swSegments(pts, function (i0, i1) {
         return swBuildRail(pts, i0, i1, y, st);
       });
-      segs.forEach(function (s) { s.y = y; });
+      segs.forEach(function (s) { s.y = c.rail.ys ? c.rail.ys[s.i0] : y; });
+      out.rail = out.rail.concat(segs);
+    }
+  }
+  if (w.ktx) {
+    const k = w.ktx();
+    if (k && k.rail && k.rail.full && k.rail.full.length > 2) {
+      const pts = k.rail.full, ys = k.rail.ys, st = k.style;
+      const segs = swSegments(pts, function (i0, i1) {
+        return swBuildRail(pts, i0, i1, ys, st);
+      });
+      segs.forEach(function (s) { s.y = ys[Math.min(ys.length - 1, s.i0)]; });
       out.rail = out.rail.concat(segs);
     }
   }

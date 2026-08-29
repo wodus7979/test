@@ -124,7 +124,8 @@ Highway.prototype.detourSide = function (order, i, j, Astart, ux, uz, nx, nz) {
 Highway.prototype.build = function () {
   const w = this.world;
   if (!w.cities) return;
-  const cities = w.cities();
+  // 섬(제주)에는 길을 놓지 않는다 — 배나 비행기로만 닿는다
+  const cities = w.cities().filter(function (c) { return !c.island; });
   if (cities.length < 2) return;
 
   // 가까운 도시부터 차례로 놓고, 모든 도시 쌍을 하나씩 잇는다.

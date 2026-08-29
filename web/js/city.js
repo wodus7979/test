@@ -47,6 +47,15 @@ function initCityStyles() {
       accent: B.blue_concrete,
       heights: [16, 40], tall: 10, tallH: [44, 70]
     }),
+    // 목포풍 항구 소도시 — 붉은 벽돌과 흰 회벽, 높은 건물이 없다
+    port: Object.assign({}, common, {
+      kr: '항구도시',
+      wall: B.white_concrete, trim: B.light_gray_concrete,
+      glass: B.glass_pane, floor: B.smooth_quartz,
+      roof: B.gray_concrete, base: B.polished_andesite,
+      accent: B.red_concrete,
+      heights: [8, 18], tall: 0, tallH: [20, 26]
+    }),
     // 제주 — 흰 벽에 주황 기와, 검은 현무암 돌담
     jeju: Object.assign({}, common, {
       kr: '제주시',
@@ -67,7 +76,9 @@ const CITY_DEFS = {
   ICN: { name: '인천 송도', style: 'modern', lat: 37.38, lon: 126.65 },
   GMP: { name: '서울', style: 'skyline', lat: 37.55, lon: 126.99 },
   // 제주는 섬이다 — 배나 비행기로 한 번 닿아야 도시 이동 목록에 열린다
-  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53, island: true }
+  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53, island: true },
+  // 목포 — 공항이 없는 소규모 항구 도시. 기차와 배로 닿는다.
+  MPO: { name: '목포', style: 'port', lat: 34.79, lon: 126.39, small: 118 }
 };
 
 // ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
@@ -1115,7 +1126,7 @@ const ST_EDGE = 10;
 const ST_WALL = 11;
 
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
-function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
+function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
   // 5량 편성은 95칸이라 예전 길이(69칸)로는 앞뒤가 삐져나왔다
   const L = 50;   // 승강장 반길이 (철로 방향) — 5량 편성이 다 선다
@@ -1256,7 +1267,7 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
       for (let u = STAIR_U - 2; u <= ESC_U + WIDE + 1; u++) at(u, gy, side * v, st.plaza);
     }
     // 입구 표지
-    apText(plan, 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + side * (gv + 3),
+    apText(plan, label || 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + side * (gv + 3),
       faceX ? cz + side * (gv + 3) : cz + (STAIR_U + ESC_U) / 2 + 2,
       1, st.accent, !faceX, gy, faceX);
     // 조명
@@ -1731,17 +1742,19 @@ function cityCinema(plan, st) {
 }
 
 // ── 도시 하나 짓기 ────────────────────────────────────────────────────
-function buildCityPlan(world, ap, index) {
+function buildCityPlan(world, ap, index, code) {
   initCityStyles();
-  const def = CITY_DEFS[ap.code] || { name: ap.code + ' 시가지', style: 'modern' };
+  code = ap ? ap.code : code;
+  const def = CITY_DEFS[code] || { name: code + ' 시가지', style: 'modern' };
   const st = CSTYLE[def.style];
-  const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + ap.code));
+  const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + code));
 
   // 실제 자리 언저리에서 도시를 앉힐 곳을 고른다.
   // "바다 한 점 없는 평지" 는 이 세계에 아예 없으므로(물이 지면의 6할이다)
   // 조건에 맞는 첫 자리 대신 여러 후보에 점수를 매겨 가장 나은 곳을 쓴다.
   // 남는 바다는 도시를 찍을 때 메운다 — 송도처럼 매립한 땅인 셈이다.
-  const tp = (def.lat !== undefined) ? korToWorld(def.lat, def.lon) : [ap.x + CITY_DIST, ap.z];
+  const tp = (def.lat !== undefined) ? korToWorld(def.lat, def.lon)
+    : [ap.x + CITY_DIST, ap.z];
   const tx = Math.round(tp[0]), tz = Math.round(tp[1]);
   let best = null, bestScore = 1e9;
   for (let ring = 0; ring <= 7; ring++) {
@@ -1759,8 +1772,11 @@ function buildCityPlan(world, ap, index) {
       }
       // 공항 부지와도 겹치면 안 된다 (김포공항은 서울 바로 옆이다)
       const aps = world._airports || [];
+      // 공항 부지는 활주로 방향으로만 길쭉하다. 원으로 재면 도시가
+      // 쓸데없이 멀리 밀려나므로 부지 모양 그대로 네모로 잰다.
       for (let q = 0; q < aps.length && !clash; q++) {
-        if (Math.hypot(aps[q].x - cx, aps[q].z - cz) < CITY_R + AP_X + 70) clash = true;
+        if (Math.abs(aps[q].x - cx) < CITY_R + AP_X + 40 &&
+            Math.abs(aps[q].z - cz) < CITY_R + AP_Z + 40) clash = true;
       }
       if (clash) continue;
       let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
@@ -1782,7 +1798,7 @@ function buildCityPlan(world, ap, index) {
         bestScore = score;
         // 고가 철로가 빠져나가는 쪽 — 공항이 있는 방향
         best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3),
-          side: (ap.x >= cx) ? 1 : -1 };
+          side: ap ? ((ap.x >= cx) ? 1 : -1) : 1 };
       }
     }
   }
@@ -1790,7 +1806,7 @@ function buildCityPlan(world, ap, index) {
 
   const plan = new VillagePlan(world, best.x, best.z, best.y, st, rnd);
   plan.isCity = true;
-  plan.code = ap.code;
+  plan.code = code;
   plan.side = best.side;      // 고가철로가 빠져나가는 쪽(-side) 을 알려 준다
   plan.topY = best.y + 24;    // 제일 높은 건물 꼭대기 (cityTower 가 올려 잡는다)
   plan.name = def.name;
@@ -1817,7 +1833,9 @@ function buildCityPlan(world, ap, index) {
     for (let j = 0; j + 1 < lines.length; j++) {
       const lx = (lines[i] + lines[i + 1]) / 2;
       const lz = (lines[j] + lines[j + 1]) / 2;
-      if (Math.hypot(lx, lz) > CITY_RING - 13) continue;   // 순환도로를 침범하지 않게
+      // 소도시(목포)는 안쪽만 채우고 바깥은 들판으로 남긴다
+      const lotLim = def.small || (CITY_RING - 13);
+      if (Math.hypot(lx, lz) > lotLim) continue;   // 순환도로를 침범하지 않게
       lots.push({ x: lx, z: lz, d: Math.hypot(lx, lz) });
     }
   }
@@ -1931,6 +1949,31 @@ function buildCityPlan(world, ap, index) {
     plan.set(best.x + plaza.x, gy + 6, best.z + plaza.z, B.sea_lantern, 0, true);
     plan.landmark = { x: best.x + plaza.x, y: gy + 8, z: best.z + plaza.z, name: '제주 정자' };
     for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 4, null);
+  } else if (def.style === 'port') {
+    // 목포 등대 — 흰 몸통에 붉은 띠, 꼭대기에 등불
+    const LH = 26;
+    for (let y = 1; y <= LH; y++) {
+      const r = (y < 4) ? 4 : (y < LH - 4) ? 3 : 2;
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dz * dz > r * r + 1) continue;
+          const shell = (dx * dx + dz * dz > (r - 1) * (r - 1));
+          if (!shell && y > 1) continue;
+          plan.set(best.x + plaza.x + dx, gy + y, best.z + plaza.z + dz,
+            ((y % 6) < 3) ? B.white_concrete : B.red_concrete, 0, true);
+        }
+      }
+    }
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        if (dx * dx + dz * dz > 10) continue;
+        plan.set(best.x + plaza.x + dx, gy + LH + 1, best.z + plaza.z + dz, B.black_concrete, 0, true);
+      }
+    }
+    plan.set(best.x + plaza.x, gy + LH, best.z + plaza.z, B.sea_lantern, 0, true);
+    plan.set(best.x + plaza.x, gy + LH + 2, best.z + plaza.z, B.sea_lantern, 0, true);
+    plan.landmark = { x: best.x + plaza.x, y: gy + LH + 3, z: best.z + plaza.z, name: '목포 등대' };
+    for (let k = 0; k < 6; k++) put(plaza.x + (k - 3) * 2, plaza.z + 6, null);
   } else {
     const towerH = Math.min(62, CHUNK_Y - 18 - gy);
     cityTower(plan, plaza.x, plaza.z, 6, 6, towerH, st, { taperTo: 3, spire: 6 });
@@ -2134,8 +2177,8 @@ function cityFerry(plan, st) {
   // 6) 정박지 준설 — 서해 갯벌은 아주 완만해서 그냥 두면 배가 바닥에 닿는다.
   //    잔교 오른쪽을 네모지게 파내고 물을 채운다 (실제 항만도 이렇게 판다).
   const BED = SEA_LEVEL - FT_DEPTH;
-  for (let u = Math.max(12, pier - 52); u <= pier + 24; u++) {
-    for (let v = FT_PIER_HALF + 1; v <= FT_PIER_HALF + 24; v++) {
+  for (let u = Math.max(12, pier - 74); u <= pier + 40; u++) {
+    for (let v = FT_PIER_HALF + 1; v <= FT_PIER_HALF + 32; v++) {
       const q = at(u, v);
       if (w.heightAt(q[0], q[1]) >= SEA_LEVEL) continue;   // 뭍은 건드리지 않는다
       plan.set(q[0], BED, q[1], B.water, 0, true, FT_DEPTH + 1);
@@ -2146,11 +2189,14 @@ function cityFerry(plan, st) {
   // 7) 배가 서는 자리 — 잔교 오른쪽에 나란히
   const mid = at(pier - 6, 0);
   const berth = at(pier - 10, FT_PIER_HALF + 9);
+  // 크루즈는 배가 훨씬 커서 잔교에서 더 떨어져 선다
+  const berthBig = at(pier - 22, FT_PIER_HALF + 17);
   plan.ferry = {
     name: plan.name + ' 여객선터미널',
     city: plan.code,
     x: mid[0], z: mid[1], y: SURF,          // 승선하는 자리 (잔교 위)
-    dock: { x: berth[0], z: berth[1] },     // 배가 뜨는 자리
+    dock: { x: berth[0], z: berth[1] },     // 여객선이 뜨는 자리
+    dockBig: { x: berthBig[0], z: berthBig[1] },   // 크루즈가 뜨는 자리
     yaw: Math.atan2(dx, dz),                // 뱃머리는 바다 쪽 — 잔교와 나란히 선다
     dirx: dx, dirz: dz
   };
@@ -2169,7 +2215,13 @@ function cityFerry(plan, st) {
     put(lot.x, lot.z + 2, 'farmer');
   }
 
-  // ── 철도 ──
+  // ── 철도 (공항선) ──
+  // 공항이 없는 도시(목포)는 이 노선이 없다 — KTX 로만 닿는다.
+  if (!ap) {
+    plan.stations = [];
+    plan.freeze();
+    return plan;
+  }
   const side = best.side || 1;
   const railY = Math.max(ap.y, gy) + RAIL_UP;
   const apStX = ap.x + side * 86, apStZ = ap.z;
@@ -2210,13 +2262,24 @@ function cityFerry(plan, st) {
 World.prototype.cities = function () {
   if (this._cities) return this._cities;
   this._cities = [];
-  if (!this.airports) return this._cities;
-  const aps = this.airports();
+  const aps = this.airports ? this.airports() : [];
   for (let i = 0; i < aps.length; i++) {
     let p = null;
     try { p = buildCityPlan(this, aps[i], i); }
     catch (e) { console.warn('도시 생성 실패', aps[i].code, e); }
     if (p) { this._cities.push(p); aps[i].city = p; }
+  }
+  // 공항이 딸리지 않은 도시 (목포) — 공항 도시를 다 앉힌 뒤에 자리를 잡는다
+  const codes = Object.keys(CITY_DEFS);
+  for (let i = 0; i < codes.length; i++) {
+    const code = codes[i];
+    let has = false;
+    for (let k = 0; k < aps.length; k++) if (aps[k].code === code) has = true;
+    if (has) continue;
+    let p = null;
+    try { p = buildCityPlan(this, null, this._cities.length, code); }
+    catch (e) { console.warn('도시 생성 실패', code, e); }
+    if (p) this._cities.push(p);
   }
   return this._cities;
 };

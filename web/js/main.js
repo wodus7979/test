@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.6';
+const GAME_VERSION = 'v10.7';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -301,6 +301,120 @@ Game.prototype.warpTargets = function () {
   }
   out.sort(function (a, b) { return a.dist - b.dist; });
   return out;
+};
+
+
+// ── 전자동 비행 ───────────────────────────────────────────────────────
+// 목적지 공항만 고르면 유도로 주행부터 착륙·주기까지 기계가 다 한다.
+Game.prototype.flyTargets = function () {
+  const pl = this.player.riding;
+  const list = this.world.airports ? this.world.airports() : [];
+  const out = [];
+  if (!pl) return out;
+  // 지금 서 있는 공항 (땅에 있을 때만 여기서 이륙할 수 있다)
+  const here = this.world.airport ? this.world.airport(pl.x, pl.z) : null;
+  for (let i = 0; i < list.length; i++) {
+    const ap = list[i];
+    const dx = ap.x - pl.x, dz = ap.z - pl.z;
+    const d = Math.hypot(dx, dz);
+    out.push({
+      ap: ap, code: ap.code, name: ap.name, dist: Math.round(d),
+      dir: warpBearing(dx, dz), here: (ap === here && pl.onGround)
+    });
+  }
+  out.sort(function (a, b) { return a.dist - b.dist; });
+  return out;
+};
+
+Game.prototype.buildFlyList = function () {
+  const box = document.getElementById('fly-list');
+  if (!box) return;
+  box.innerHTML = '';
+  const pl = this.player.riding;
+  const self = this;
+  const note = function (t) {
+    const d = document.createElement('div');
+    d.className = 'wp-note';
+    d.textContent = t;
+    box.appendChild(d);
+  };
+  if (!pl) { note('비행기에 탄 뒤에 눌러 주세요'); return; }
+  const list = this.flyTargets();
+  if (!list.length) { note('공항을 찾지 못했습니다'); return; }
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wp-row' + (t.here ? ' here' : '');
+    const name = document.createElement('span');
+    name.className = 'wp-name';
+    name.textContent = t.name;
+    const code = document.createElement('span');
+    code.className = 'wp-code';
+    code.textContent = t.code;
+    const dist = document.createElement('span');
+    dist.className = 'wp-dist';
+    dist.textContent = t.here ? '지금 여기' : (t.dist + '블록 ' + t.dir);
+    b.appendChild(name); b.appendChild(code); b.appendChild(dist);
+    if (!t.here) b.addEventListener('click', function () { self.startAutoFlight(t.ap); });
+    box.appendChild(b);
+  }
+  if (pl.ai && pl.ai.auto) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'wp-row';
+    b.textContent = '자동 비행 해제 (N)';
+    b.addEventListener('click', function () {
+      pl.cancelAutoland();
+      self.ui.toast('자동 비행 해제 — 직접 조종하세요');
+      self.closeFly();
+    });
+    box.appendChild(b);
+  }
+};
+
+Game.prototype.startAutoFlight = function (ap) {
+  const pl = this.player.riding;
+  if (!pl) { this.ui.toast('비행기에 탄 뒤에 눌러 주세요'); return; }
+  const from = (pl.onGround && this.world.airport) ? this.world.airport(pl.x, pl.z) : null;
+  if (!pl.beginAutoFlight(ap, from)) { this.ui.toast('그 공항으로는 갈 수 없습니다'); return; }
+  const self = this;
+  pl.onAutolandDone = function (a) {
+    self.ui.toast('자동 비행 완료 — ' + a.name + ' 주기장. 조종을 넘겨받으세요');
+    self._autolandBlock = a;
+    self.playSound('place');
+  };
+  // 항법 목적지도 같이 맞춰 둔다
+  const list = this.world.airports ? this.world.airports() : [];
+  for (let i = 0; i < list.length; i++) if (list[i] === ap) this.navTarget = i;
+  this.closeFly();
+  this.ui.toast(pl.onGround
+    ? ('자동 비행 시작 — ' + ap.name + ' 까지. 활주로로 나가 이륙합니다')
+    : ('자동 비행 시작 — ' + ap.name + ' 로 향합니다'));
+  this.playSound('place');
+};
+
+Game.prototype.openFly = function () {
+  const panel = document.getElementById('fly-panel');
+  if (!panel) return;
+  if (!this.player.riding) { this.ui.toast('비행기에 탄 뒤에 눌러 주세요'); return; }
+  this.buildFlyList();
+  panel.style.display = 'block';
+  this.flyOpen = true;
+  const b = document.getElementById('btn-autofly');
+  if (b) b.classList.add('on');
+};
+
+Game.prototype.closeFly = function () {
+  const panel = document.getElementById('fly-panel');
+  if (panel) panel.style.display = 'none';
+  this.flyOpen = false;
+  const b = document.getElementById('btn-autofly');
+  if (b) b.classList.remove('on');
+};
+
+Game.prototype.toggleFly = function () {
+  if (this.flyOpen) this.closeFly(); else this.openFly();
 };
 
 // 지금 옮겨 갈 수 있는 상태인가. 안 되면 까닭을 돌려준다.
@@ -820,6 +934,7 @@ Game.prototype.bindInput = function () {
         break;
       case 'Escape':
         if (self.cineOpen) self.closeCine();
+        else if (self.flyOpen) self.closeFly();
         else if (self.warpOpen) self.closeWarp();
         else if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
         else if (self.ui.open) self.ui.closeScreen();
@@ -866,6 +981,9 @@ Game.prototype.bindInput = function () {
         break;
       case 'KeyV':
         if (self.toggleCine) { self.toggleCine(); e.preventDefault(); }
+        break;
+      case 'KeyU':
+        if (self.toggleFly) { self.toggleFly(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -1163,6 +1281,19 @@ Game.prototype.bindTouch = function () {
       if (self.toggleCine) self.toggleCine();
     });
   }
+  // 자동 비행 — 비행기를 타고 있을 때만 뜬다
+  const af = document.getElementById('btn-autofly');
+  if (af) {
+    af.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (self.toggleFly) self.toggleFly();
+    });
+  }
+  const fp = document.getElementById('fly-panel');
+  if (fp) {
+    fp.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    fp.addEventListener('touchstart', function (e) { e.stopPropagation(); });
+  }
   const panel = document.getElementById('warp-panel');
   if (panel) {
     // 패널 안을 눌러도 화면(캐닝·설치)으로 넘어가지 않게 막는다
@@ -1443,7 +1574,9 @@ Game.prototype.onPlatform = function () {
   const w = this.world;
   if (!w.cities) return null;
   const p = this.player;
-  const list = w.cities();
+  const list = w.cities().slice();
+  const kx = w.ktx ? w.ktx() : null;
+  if (kx) list.push(kx);              // KTX 승강장도 같이 본다
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
     if (!c.stations) continue;
@@ -2793,6 +2926,15 @@ Game.prototype.update = function (dt) {
   this.ui.updateHUD(dt);
   this.updateDriveHud();
   this.updateFerryHud();
+  {
+    // 자동 비행 단추는 비행기를 타고 있을 때만 뜬다
+    const af = document.getElementById('btn-autofly');
+    if (af) {
+      const want = this.player.riding ? 'flex' : 'none';
+      if (af.style.display !== want) af.style.display = want;
+      if (!this.player.riding && this.flyOpen) this.closeFly();
+    }
+  }
   this.updateDigHud();
   if (this.updateBusHud) this.updateBusHud();
   if (this.updateUseHint) this.updateUseHint();

@@ -536,6 +536,14 @@ Plane.prototype.aiControl = function (dt, game) {
   switch (a.state) {
     case 'park':
       out.throttle = 0;
+      if (a.full) {
+        // 전자동 비행은 주기장에 대는 것으로 끝난다 — 조종을 사람에게 넘긴다
+        if (a.t > 1.2) {
+          this.ai = null;
+          if (this.onAutolandDone) this.onAutolandDone(a.to);
+        }
+        break;
+      }
       if (a.t > 8) {
         const list = this.world.airports();
         const here = a.to;
@@ -595,7 +603,8 @@ Plane.prototype.aiControl = function (dt, game) {
       out.yaw = aiHeadingTo(this.x, this.z, a.to.x, a.to.z);
       out.pitch = Math.max(-0.12, Math.min(0.12, (AI_CRUISE_ALT - this.y) * 0.02));
       const d = Math.hypot(a.to.x - this.x, a.to.z - this.z);
-      if (d < 620 || stuck) {
+      // 활주로가 길어진 만큼 일찍 내려가기 시작한다 (완만한 강하각)
+      if (d < 1500 || stuck) {
         a.rwTo = a.to.runways[0];
         a.state = 'descend'; a.t = 0;
       }
@@ -649,7 +658,7 @@ Plane.prototype.aiControl = function (dt, game) {
       out.throttle = 0;
       out.yaw = (a.dir || 1) > 0 ? Math.PI / 2 : -Math.PI / 2;
       if (!this.onGround && a.t > 1.5) { a.state = 'final'; a.t = 0; break; }
-      if (a.auto) {
+      if (a.auto && !a.full) {
         // 자동 착륙은 여기까지. 멈추면 조종을 사람에게 넘긴다.
         if (this.speed < 4 || stuck) {
           this.ai = null;
@@ -685,7 +694,13 @@ Plane.prototype.aiControl = function (dt, game) {
 
   // 도시 위를 낮게 지나가지 않는다 — 빌딩에 부딪힌다.
   // 땅 위 상태(활주·이륙 활주)와 착륙 접지 직전은 건드리지 않는다.
-  if (!this.onGround && a.state !== 'taxi_out' && a.state !== 'taxi_in' &&
+  //
+  // 진입로가 도시 옆을 스치는 공항(제주)에서는 이 안전 고도가 최종 진입을
+  // 통째로 막아 버려, 활주로 위를 80칸 높이로 지나쳐 복행만 되풀이했다.
+  // 그래서 활주로에 다 와서는(최종 진입, 그리고 공항 900칸 안 강하) 풀어 준다.
+  const nearAp = a.to ? Math.hypot(a.to.x - this.x, a.to.z - this.z) : 1e9;
+  const landing = a.state === 'final' || (a.state === 'descend' && nearAp < 900);
+  if (!this.onGround && !landing && a.state !== 'taxi_out' && a.state !== 'taxi_in' &&
       a.state !== 'rollout' && a.state !== 'park') {
     const floor = this.cityFloor(this.x, this.z);
     if (floor > 0 && this.y < floor) {
@@ -742,12 +757,45 @@ Plane.prototype.cancelAutoland = function () {
   if (this.ai && this.ai.auto) this.ai = null;
 };
 
+// ── 전자동 비행 ───────────────────────────────────────────────────────
+// 목적지 공항만 고르면 유도로 주행 → 이륙 → 순항 → 강하 → 착륙 →
+// 주기장까지 기계가 다 한다. 땅에 있으면 활주로 끝까지 스스로 나간다.
+Plane.prototype.beginAutoFlight = function (toAp, fromAp) {
+  if (!toAp || !toAp.runways || !toAp.runways.length) return false;
+  if (this.onGround && fromAp && fromAp !== toAp) {
+    this.startFlight(fromAp, toAp);
+    this.ai.auto = true;
+    this.ai.full = true;
+    return true;
+  }
+  // 하늘에 있으면 그 자리에서 순항 단계로 들어간다
+  this.ai = {
+    auto: true, full: true, t: 0,
+    state: (this.y < AI_CRUISE_ALT - 25) ? 'climb' : 'cruise',
+    from: null, to: toAp, rwTo: null, wp: [], wpi: 0,
+    dep: 1, dir: aiRunwayDir(toAp)
+  };
+  if (this.onGround) { this.onGround = false; this.y += 3; }
+  return true;
+};
+
+const AUTO_PHASE = {
+  taxi_out: '자동 유도로 주행', takeoff: '자동 이륙', climb: '자동 상승',
+  cruise: '자동 순항', descend: '자동 강하', final: '자동 최종 진입 — 활주로 정렬',
+  rollout: '접지 — 감속 중', taxi_in: '자동 주기장 진입', park: '주기장 도착'
+};
+
 Plane.prototype.autoState = function () {
   if (!this.ai || !this.ai.auto) return null;
-  const s = this.ai.state;
-  return s === 'descend' ? '자동 강하 중'
-    : s === 'final' ? '자동 최종 진입 — 활주로 정렬'
-      : s === 'rollout' ? '접지 — 감속 중' : '자동 착륙 중';
+  const a = this.ai;
+  const base = AUTO_PHASE[a.state] || (a.full ? '자동 비행 중' : '자동 착륙 중');
+  if (!a.full) {
+    return a.state === 'descend' ? '자동 강하 중'
+      : a.state === 'final' ? '자동 최종 진입 — 활주로 정렬'
+        : a.state === 'rollout' ? '접지 — 감속 중' : '자동 착륙 중';
+  }
+  const to = a.to ? (' → ' + a.to.code) : '';
+  return base + to;
 };
 
 // 어떤 비행기인지 (계기판·경보에 쓴다)

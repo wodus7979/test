@@ -11,12 +11,12 @@ const AIRPORT_DEFS = [
   { code: 'CJU', name: '제주국제공항', lat: 33.51, lon: 126.49, tint: 'orange' }
 ];
 
-const AP_X = 150;           // 부지 절반 (활주로 방향)
+const AP_X = 216;           // 부지 절반 (활주로 방향)
 const AP_Z = 62;            // 부지 절반 (가로)
 const AP_MARGIN = 14;       // 원래 지형으로 이어 붙이는 띠
 const AP_CLEAR_H = 18;      // 지면 위로 이만큼 치운다
 
-const RW_LEN = 260;         // 활주로 길이
+const RW_LEN = 400;         // 활주로 길이 (실제 인천 3.75km 를 그대로 옮긴 눈금)
 const RW_HALF = 7;          // 활주로 반폭 (폭 15)
 const RW_A_Z = -48;
 const RW_B_Z = 48;
@@ -37,7 +37,8 @@ const PAD_X = -60, PAD_Z = -78;
 const PAD_HALF = 13;          // 콘크리트 발사판 반폭
 const PAD_TOWER_H = 40;       // 정비탑 높이
 // 청크를 칠할 범위 — 발사대가 부지 밖으로 조금 나가므로 그만큼 넓힌다
-const AP_PAINT_X = Math.max(AP_X + AP_MARGIN + 16, Math.abs(PAD_X) + PAD_HALF + 26);
+const AP_PAINT_X = Math.max(AP_X + AP_MARGIN + 16, Math.abs(PAD_X) + PAD_HALF + 26,
+  RW_LEN / 2 + 62);   // 진입등이 부지 밖으로 뻗는다
 const AP_PAINT_Z = Math.max(AP_Z + AP_MARGIN + 16, Math.abs(PAD_Z) + PAD_HALF + 26);
 
 // 활주로 번호와 글자에 쓰는 3×5 도트 글꼴
