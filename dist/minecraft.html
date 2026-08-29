@@ -1351,6 +1351,11 @@ body.touch #btn-warp b { display: none; }
               (SSAO). 창틀·계단참·나무 밑동이 바닥에 붙어 보인다</li>
           <li>그림 파일은 여전히 <b>하나도 안 쓴다</b> — 결·거칠기·금속기 지도는 시작할 때
               블록 무늬에서 뽑아낸다</li>
+          <li>전동차는 <b>5량 편성</b>이다 (승객 60명 남짓). 승강장도 그만큼 길어져
+              앞뒤가 다 들어간다</li>
+          <li>고가 철로에는 <b>레일을 블록으로 깔지 않는다</b> — 블록은 정수 격자에만
+              놓을 수 있어 굽은 데서 계단처럼 끊긴다. 상판만 블록으로 깔고
+              레일 넉 줄·침목·난간은 아래의 곡선 띠가 그린다</li>
           <li><b>찻길과 철길의 굽이는 매끄럽게</b> 이어진다 — 땅에 깔린 블록은 그대로지만,
               그 위로 <b>곡선을 따라 휘는 띠</b>를 덧그려서 커브가 계단처럼 끊기지 않는다.
               찻길은 아스팔트·중앙 두 줄·차선 점선·갓길 흰 줄까지, 철길은 침목과 네 가닥
@@ -12557,6 +12562,11 @@ function paintAlong(path, half, cb) {
 
 // ── 고가 철로 ─────────────────────────────────────────────────────────
 // 공항 터미널 옆 승강장에서 도시 중앙역까지 곧게 잇는다.
+//
+// 레일 자체는 블록으로 깔지 않는다. 블록은 정수 격자에만 놓을 수 있어
+// 굽은 데서 계단처럼 끊기는데, smoothway.js 가 같은 자리에 곡선 레일을
+// 덧그리다 보니 두 겹이 어긋나 보였다. 이제 상판만 블록으로 깔고
+// 레일·침목·난간은 곡선 띠에 맡긴다.
 function railRun(plan, x0, z0, x1, z1, ry, st) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
   const horiz = (z0 === z1);
@@ -12576,9 +12586,6 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
       if (ad === RAIL_HALF) {
         set(x, ry + 1, z, B.iron_bars);
         set(x, ry + 2, z, B.iron_bars);
-      } else if (ad === TRACK_OFFSET - 1 || ad === TRACK_OFFSET + 1) {
-        // 선로 두 벌 — 가운데(d=0)를 사이에 두고 상행·하행이 따로 간다
-        set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);
       } else if (d === 0) {
         set(x, ry, z, st.dash);   // 두 선로를 가르는 가운데 줄
       }
@@ -12614,8 +12621,6 @@ function railCurve(plan, path, ry, st) {
     if (ad === RAIL_HALF) {
       set(x, ry + 1, z, B.iron_bars);
       set(x, ry + 2, z, B.iron_bars);
-    } else if (ad === TRACK_OFFSET - 1 || ad === TRACK_OFFSET + 1) {
-      set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);
     } else if (d === 0) {
       set(x, ry, z, st.dash);
     }
@@ -12650,7 +12655,8 @@ const ST_WALL = 11;
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
 function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
-  const L = 34;   // 승강장 길이 (철로 방향) — 3량 편성이 다 선다
+  // 5량 편성은 95칸이라 예전 길이(69칸)로는 앞뒤가 삐져나왔다
+  const L = 50;   // 승강장 반길이 (철로 방향) — 5량 편성이 다 선다
   // 가운데는 선로, 그 양옆으로 한 칸 높은 승강장을 낸다.
   // 승강장 바닥(ry+2)이 객실 바닥과 거의 같은 높이라 그대로 걸어 들어갈 수 있다.
   for (let a = -L; a <= L; a++) {
@@ -15822,9 +15828,9 @@ const TRAIN_DWELL = 9;       // 역에서 서 있는 시간(초)
 const TRAIN_RIDE = 2.75;     // 선로 위 동체 중심 높이 (바퀴가 레일에 닿게)
 
 // ── 생김새 ────────────────────────────────────────────────────────────
-// 코레일 전동차를 본떠 3량 편성으로 만든다. 상자마다 {x,y,z} 는 가운데, 앞은 +Z.
+// 코레일 전동차를 본떠 5량 편성으로 만든다. 상자마다 {x,y,z} 는 가운데, 앞은 +Z.
 // 겉껍데기는 "얇은 판"으로 세워서 안쪽 면도 보이게 한다 — 그래야 객실 안이 보인다.
-const TRAIN_CARS = 3;
+const TRAIN_CARS = 5;
 const TRAIN_CAR_LEN = 18;      // 한 량 길이
 const TRAIN_GAP = 1.3;         // 량 사이 간격
 const TRAIN_HW = 1.75;         // 반폭
@@ -23570,7 +23576,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.4';
+const GAME_VERSION = 'v10.5';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -29690,8 +29696,10 @@ Game.prototype.closeCookUI = function () {
 'use strict';
 
 const SW_SEG = 40;        // 길을 이만큼씩 잘라 조각으로 만든다
-const SW_DRAW = 260;      // 이 안에 든 조각만 그린다
-const SW_KEEP = 460;      // 이보다 멀어지면 만들어 둔 것을 버린다
+// 레일을 블록으로 깔지 않게 되면서, 이 띠가 안 보이면 상판이 민둥해진다.
+// 그래서 예전보다 멀리까지 그린다.
+const SW_DRAW = 420;      // 이 안에 든 조각만 그린다
+const SW_KEEP = 600;      // 이보다 멀어지면 만들어 둔 것을 버린다
 const SW_LIFT = 0.06;     // 블록 윗면에서 살짝 띄운다 (z-파이팅 막기)
 
 // 경로 한 토막을 따라가는 띠 하나.
@@ -29768,7 +29776,9 @@ function swBuildRail(pts, i0, i1, y, st) {
       const q = function (dd, e) {
         return [a[0] + na[0] * dd + ux * e, yy, a[1] + na[1] * dd + uz * e];
       };
-      m.quad(q(c - 1.7, -1), q(c + 1.7, -1), q(c + 1.7, 1), q(c - 1.7, 1), tie, false);
+      // 진행 방향 먼저, 그 다음 옆 — swBand 와 같은 차례여야 법선이 위를 본다.
+      // 거꾸로 돌면 침목이 바닥을 보고 서서 통째로 안 보인다.
+      m.quad(q(c - 1.7, -1), q(c - 1.7, 1), q(c + 1.7, 1), q(c + 1.7, -1), tie, false);
     }
   }
 

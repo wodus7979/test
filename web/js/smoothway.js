@@ -5,8 +5,10 @@
 'use strict';
 
 const SW_SEG = 40;        // 길을 이만큼씩 잘라 조각으로 만든다
-const SW_DRAW = 260;      // 이 안에 든 조각만 그린다
-const SW_KEEP = 460;      // 이보다 멀어지면 만들어 둔 것을 버린다
+// 레일을 블록으로 깔지 않게 되면서, 이 띠가 안 보이면 상판이 민둥해진다.
+// 그래서 예전보다 멀리까지 그린다.
+const SW_DRAW = 420;      // 이 안에 든 조각만 그린다
+const SW_KEEP = 600;      // 이보다 멀어지면 만들어 둔 것을 버린다
 const SW_LIFT = 0.06;     // 블록 윗면에서 살짝 띄운다 (z-파이팅 막기)
 
 // 경로 한 토막을 따라가는 띠 하나.
@@ -83,7 +85,9 @@ function swBuildRail(pts, i0, i1, y, st) {
       const q = function (dd, e) {
         return [a[0] + na[0] * dd + ux * e, yy, a[1] + na[1] * dd + uz * e];
       };
-      m.quad(q(c - 1.7, -1), q(c + 1.7, -1), q(c + 1.7, 1), q(c - 1.7, 1), tie, false);
+      // 진행 방향 먼저, 그 다음 옆 — swBand 와 같은 차례여야 법선이 위를 본다.
+      // 거꾸로 돌면 침목이 바닥을 보고 서서 통째로 안 보인다.
+      m.quad(q(c - 1.7, -1), q(c - 1.7, 1), q(c + 1.7, 1), q(c + 1.7, -1), tie, false);
     }
   }
 

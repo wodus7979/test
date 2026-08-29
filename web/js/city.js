@@ -1021,6 +1021,11 @@ function paintAlong(path, half, cb) {
 
 // ── 고가 철로 ─────────────────────────────────────────────────────────
 // 공항 터미널 옆 승강장에서 도시 중앙역까지 곧게 잇는다.
+//
+// 레일 자체는 블록으로 깔지 않는다. 블록은 정수 격자에만 놓을 수 있어
+// 굽은 데서 계단처럼 끊기는데, smoothway.js 가 같은 자리에 곡선 레일을
+// 덧그리다 보니 두 겹이 어긋나 보였다. 이제 상판만 블록으로 깔고
+// 레일·침목·난간은 곡선 띠에 맡긴다.
 function railRun(plan, x0, z0, x1, z1, ry, st) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
   const horiz = (z0 === z1);
@@ -1040,9 +1045,6 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
       if (ad === RAIL_HALF) {
         set(x, ry + 1, z, B.iron_bars);
         set(x, ry + 2, z, B.iron_bars);
-      } else if (ad === TRACK_OFFSET - 1 || ad === TRACK_OFFSET + 1) {
-        // 선로 두 벌 — 가운데(d=0)를 사이에 두고 상행·하행이 따로 간다
-        set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);
       } else if (d === 0) {
         set(x, ry, z, st.dash);   // 두 선로를 가르는 가운데 줄
       }
@@ -1078,8 +1080,6 @@ function railCurve(plan, path, ry, st) {
     if (ad === RAIL_HALF) {
       set(x, ry + 1, z, B.iron_bars);
       set(x, ry + 2, z, B.iron_bars);
-    } else if (ad === TRACK_OFFSET - 1 || ad === TRACK_OFFSET + 1) {
-      set(x, ry + 1, z, B.rail !== undefined ? B.rail : st.trim);
     } else if (d === 0) {
       set(x, ry, z, st.dash);
     }
@@ -1114,7 +1114,8 @@ const ST_WALL = 11;
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
 function railStation(plan, cx, cz, ry, gy, st, name, faceX) {
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
-  const L = 34;   // 승강장 길이 (철로 방향) — 3량 편성이 다 선다
+  // 5량 편성은 95칸이라 예전 길이(69칸)로는 앞뒤가 삐져나왔다
+  const L = 50;   // 승강장 반길이 (철로 방향) — 5량 편성이 다 선다
   // 가운데는 선로, 그 양옆으로 한 칸 높은 승강장을 낸다.
   // 승강장 바닥(ry+2)이 객실 바닥과 거의 같은 높이라 그대로 걸어 들어갈 수 있다.
   for (let a = -L; a <= L; a++) {
