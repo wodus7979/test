@@ -267,8 +267,13 @@ Player.prototype.update = function (dt, input) {
   if (this.dead) return;
   const w = this.world;
 
-  // 벽 속에 박혀 한 발짝도 못 움직이는 상태면 먼저 빼낸다
-  if (!this.flying) this.unstick();
+  // 벽 속에 박혀 한 발짝도 못 움직이는 상태면 먼저 빼낸다.
+  //
+  // 비행 중에도 빼낸다. 예전에는 비행할 때만 건너뛰었는데, 하늘을 날다가
+  // 청크가 뒤늦게 자라 몸 둘레에 지형이 생기면 그대로 갇혔다. 갇힌 채로는
+  // 비행을 켜 두어도 어느 쪽으로도 못 가서, 그 뒤로는 영영 못 날았다.
+  // (박히지 않았으면 unstick 은 곧바로 돌아 나오므로 손해가 없다)
+  this.unstick();
 
   // 유체 판정 — 수면 높이를 보고 판단하므로 얕게 흐르는 물에서는 헤엄치지 않는다
   const bx = Math.floor(this.x), bz = Math.floor(this.z);

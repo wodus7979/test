@@ -2253,14 +2253,22 @@ function cityFerry(plan, st) {
   }
   const side = best.side || 1;
   const railY = Math.max(ap.y, gy) + RAIL_UP;
-  const apStX = ap.x + side * 86, apStZ = ap.z;
+  // 공항역은 터미널 옆 계류장 축(두 활주로 사이)에 세우고,
+  // 노선은 그 축을 따라 활주로 "끝" 을 지나 부지 밖으로 나간 다음에야
+  // 방향을 꺾는다.
+  //
+  // 예전에는 역을 도시 반대쪽에 두고 부지 한가운데에서 z 로 꺾었다.
+  // 그러면 고가가 활주로를 가로질러 지나가고 교각이 노면에 박혔다.
+  const toCity = -side;                     // 도시가 있는 쪽 (+1 이면 +X)
+  const apStX = ap.x + toCity * 86, apStZ = ap.z;
   const cityStX = best.x - side * CITY_GRID * 2, cityStZ = best.z;
-  const bendX = Math.round((apStX + cityStX) / 2);
+  // 활주로 끝(RW_LEN/2)과 부지 울타리(AP_X) 를 모두 지나야 안전하다
+  const outX = ap.x + toCity * (Math.max(AP_X, RW_LEN / 2) + 46);
 
   // 꺾이는 자리를 호로 둥글려 깐다 — 열차가 코너에서 홱 돌지 않게
   const corners = (cityStZ === apStZ)
-    ? [[apStX + side * 15, apStZ], [cityStX - side * 15, cityStZ]]
-    : [[apStX + side * 15, apStZ], [bendX, apStZ], [bendX, cityStZ], [cityStX - side * 15, cityStZ]];
+    ? [[apStX + toCity * 15, apStZ], [cityStX, cityStZ]]
+    : [[apStX + toCity * 15, apStZ], [outX, apStZ], [outX, cityStZ], [cityStX, cityStZ]];
   const railPath = smoothPath(corners, RAIL_CURVE_R, 0.8);
   railCurve(plan, railPath, railY, st);
 

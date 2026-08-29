@@ -1464,6 +1464,10 @@ body.touch #btn-autofly b { display: none; }
               물살을 받아야 잘 돌아가고, 빠를수록 돛이 당겨지며 뱃머리가 들린다.
               얕은 데로는 들어가지 않는다. 내릴 때 가까이 뭍이 있으면 거기 내려 주고,
               없으면 바다에 뛰어든다</li>
+          <li>공항철도는 <b>터미널 옆 계류장 축</b>(두 활주로 사이)에서 출발해,
+              그 축을 따라 <b>활주로 끝을 지나 부지 밖으로 나간 다음에야</b> 방향을 꺾는다.
+              고가가 활주로를 가로지르거나 교각이 노면에 박히지 않는다.
+              고속도로와 KTX 도 공항 부지를 비켜 간다</li>
           <li><b>활주로가 400칸</b>으로 길어졌다 (예전 260칸). 실제 인천공항 활주로
               3.75km 를 그대로 옮긴 눈금이라, 무겁게 뜨고 여유 있게 내려앉는다.
               공항 부지도 그만큼 넓어졌고, 진입등은 부지 밖까지 뻗는다</li>
@@ -14454,14 +14458,22 @@ function cityFerry(plan, st) {
   }
   const side = best.side || 1;
   const railY = Math.max(ap.y, gy) + RAIL_UP;
-  const apStX = ap.x + side * 86, apStZ = ap.z;
+  // 공항역은 터미널 옆 계류장 축(두 활주로 사이)에 세우고,
+  // 노선은 그 축을 따라 활주로 "끝" 을 지나 부지 밖으로 나간 다음에야
+  // 방향을 꺾는다.
+  //
+  // 예전에는 역을 도시 반대쪽에 두고 부지 한가운데에서 z 로 꺾었다.
+  // 그러면 고가가 활주로를 가로질러 지나가고 교각이 노면에 박혔다.
+  const toCity = -side;                     // 도시가 있는 쪽 (+1 이면 +X)
+  const apStX = ap.x + toCity * 86, apStZ = ap.z;
   const cityStX = best.x - side * CITY_GRID * 2, cityStZ = best.z;
-  const bendX = Math.round((apStX + cityStX) / 2);
+  // 활주로 끝(RW_LEN/2)과 부지 울타리(AP_X) 를 모두 지나야 안전하다
+  const outX = ap.x + toCity * (Math.max(AP_X, RW_LEN / 2) + 46);
 
   // 꺾이는 자리를 호로 둥글려 깐다 — 열차가 코너에서 홱 돌지 않게
   const corners = (cityStZ === apStZ)
-    ? [[apStX + side * 15, apStZ], [cityStX - side * 15, cityStZ]]
-    : [[apStX + side * 15, apStZ], [bendX, apStZ], [bendX, cityStZ], [cityStX - side * 15, cityStZ]];
+    ? [[apStX + toCity * 15, apStZ], [cityStX, cityStZ]]
+    : [[apStX + toCity * 15, apStZ], [outX, apStZ], [outX, cityStZ], [cityStX, cityStZ]];
   const railPath = smoothPath(corners, RAIL_CURVE_R, 0.8);
   railCurve(plan, railPath, railY, st);
 
@@ -15213,8 +15225,13 @@ Player.prototype.update = function (dt, input) {
   if (this.dead) return;
   const w = this.world;
 
-  // 벽 속에 박혀 한 발짝도 못 움직이는 상태면 먼저 빼낸다
-  if (!this.flying) this.unstick();
+  // 벽 속에 박혀 한 발짝도 못 움직이는 상태면 먼저 빼낸다.
+  //
+  // 비행 중에도 빼낸다. 예전에는 비행할 때만 건너뛰었는데, 하늘을 날다가
+  // 청크가 뒤늦게 자라 몸 둘레에 지형이 생기면 그대로 갇혔다. 갇힌 채로는
+  // 비행을 켜 두어도 어느 쪽으로도 못 가서, 그 뒤로는 영영 못 날았다.
+  // (박히지 않았으면 unstick 은 곧바로 돌아 나오므로 손해가 없다)
+  this.unstick();
 
   // 유체 판정 — 수면 높이를 보고 판단하므로 얕게 흐르는 물에서는 헤엄치지 않는다
   const bx = Math.floor(this.x), bz = Math.floor(this.z);
@@ -25562,7 +25579,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.8';
+const GAME_VERSION = 'v10.8.1';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
