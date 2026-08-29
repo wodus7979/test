@@ -25513,7 +25513,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.7';
+const GAME_VERSION = 'v10.7.1';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -28838,12 +28838,29 @@ Highway.prototype.build = function () {
     for (let j = i + 2; j < order.length; j++) links.push([i, j]);      // 건너뛰는 길
   }
 
-  // ── 호수 자리: 첫 두 도시 사이 한가운데에서 옆으로 조금 비켜난 곳 ──
-  const a0 = order[0], b0 = order[1];
+  // ── 호수 자리 ──
+  // 예전에는 "첫 두 도시 사이 한가운데"에 앉혔는데, 서울과 인천 송도처럼
+  // 실제로도 붙어 있는 두 도시를 고르면 호수가 시가지 한복판을 덮어
+  // 빌딩이 물에 잠긴 채로 서 있었다. 그래서 제일 멀리 떨어진 두 도시를
+  // 골라 그 사이에 앉히고, 자리 고르기 단계에서 도시·공항을 피한다.
+  let a0 = order[0], b0 = order[1], bd = -1;
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 1; j < order.length; j++) {
+      const d = Math.hypot(order[i].x - order[j].x, order[i].z - order[j].z);
+      if (d > bd) { bd = d; a0 = order[i]; b0 = order[j]; }
+    }
+  }
   const mx = (a0.x + b0.x) / 2, mz = (a0.z + b0.z) / 2;
   let dx = b0.x - a0.x, dz = b0.z - a0.z;
   const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
   this.lake = this.pickLake(mx, mz, dx, dz, dl);
+  // 호수 위를 다리로 건너는 길은 "호수를 앉힌 그 두 도시" 사이 길뿐이다.
+  // 아무 길에나 호수를 끼우면 엉뚱한 노선이 수천 칸을 돌아간다.
+  let lakeLink = -1;
+  for (let k = 0; k < links.length; k++) {
+    const A = order[links[k][0]], B = order[links[k][1]];
+    if ((A === a0 && B === b0) || (A === b0 && B === a0)) { lakeLink = k; break; }
+  }
 
   for (let k = 0; k < links.length; k++) {
     const A = order[links[k][0]], B = order[links[k][1]];
@@ -28874,7 +28891,7 @@ Highway.prototype.build = function () {
     const ul = Math.hypot(ux, uz) || 1;
     const nx = uz / ul, nz = -ux / ul;              // 직각 방향
     const pts = [[Astart[0], Astart[1]]];
-    if (k === 0) {
+    if (k === lakeLink && this.lake) {
       pts.push([Astart[0] + ux * 0.28 + nx * ul * 0.10, Astart[1] + uz * 0.28 + nz * ul * 0.10]);
       pts.push([this.lake.x, this.lake.z]);
       pts.push([Astart[0] + ux * 0.72 - nx * ul * 0.09, Astart[1] + uz * 0.72 - nz * ul * 0.09]);
@@ -28916,20 +28933,38 @@ Highway.prototype.build = function () {
 // 호수를 앉힐 자리를 고른다. 두 도시 사이 한가운데를 크게 벗어나지 않는 선에서
 // 몇 군데를 재 보고, 테두리가 제일 높은 곳(= 물이 잘 담기는 곳)을 쓴다.
 // 수면은 그 테두리보다 낮게 잡되, 바다보다 낮출 수는 없다.
+// 호수가 물러나 있어야 할 거리 — 물가 띠 끝에서 도시 가장자리까지
+const LAKE_CITY_KEEP = LAKE_R + LAKE_MARGIN + CITY_R + CITY_MARGIN + 20;
+
 Highway.prototype.pickLake = function (mx, mz, ux, uz, ul) {
   const nx = uz, nz = -ux;                    // 두 도시를 잇는 선의 직각 방향
   const span = Math.min(ul * 0.22, 700);
+  const cities = this.world.cities ? this.world.cities() : [];
+  const aps = this.world.airports ? this.world.airports() : [];
+  // 도시나 공항 부지를 건드리는 자리인가
+  const blocked = function (x, z) {
+    for (let i = 0; i < cities.length; i++) {
+      if (Math.hypot(cities[i].x - x, cities[i].z - z) < LAKE_CITY_KEEP) return true;
+    }
+    for (let i = 0; i < aps.length; i++) {
+      if (Math.abs(aps[i].x - x) < AP_X + LAKE_R + LAKE_MARGIN &&
+          Math.abs(aps[i].z - z) < AP_Z + LAKE_R + LAKE_MARGIN) return true;
+    }
+    return false;
+  };
   let best = null;
-  for (let a = -2; a <= 2; a++) {
-    for (let b = -2; b <= 2; b++) {
+  for (let a = -3; a <= 3; a++) {
+    for (let b = -3; b <= 3; b++) {
       const x = Math.round(mx + ux * (a * span * 0.5) + nx * (b * span * 0.5));
       const z = Math.round(mz + uz * (a * span * 0.5) + nz * (b * span * 0.5));
+      if (blocked(x, z)) continue;
       const rim = lakeRim(this.world, x, z);
       // 가운데값을 우선하고, 같으면 최저값이 높은 쪽
       const score = rim.mid * 10 + rim.lo;
       if (!best || score > best.score) best = { x: x, z: z, rim: rim, score: score };
     }
   }
+  // 어디에도 앉힐 자리가 없으면 호수를 만들지 않는다 (도시를 덮느니 없는 편이 낫다)
   if (!best) return null;
   // 수면: 테두리보다 낮게. 바다와 같은 높이까지는 내려갈 수 있다 —
   // 그러면 바다와 만나도 이음매가 안 보인다.
@@ -29088,6 +29123,8 @@ World.prototype.paintHighway = function (c) {
         const wx = bx + lx, wz = bz + lz;
         const d = Math.hypot(wx - lk.x, wz - lk.z);
         if (d >= LAKE_R + LAKE_MARGIN) continue;
+        // 도시 부지 안은 절대 손대지 않는다 — 물이 빌딩을 덮는다
+        if (hw.nearCity(wx, wz, CITY_R + CITY_MARGIN)) continue;
         const nat = this.heightAt(wx, wz);
         const bed = Math.round(lakeBed(d, nat, lk.y));
         if (bed === nat && bed >= lk.y) continue;      // 손댈 것이 없다
