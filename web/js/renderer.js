@@ -1265,6 +1265,42 @@ Renderer.prototype.drawYachts = function (game, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// ── 제주행 여객선 ─────────────────────────────────────────────────────
+const FERRY_OPTS = { glow: { yt_light: 1, yt_navR: 1, yt_navG: 1, fy_win: 0.35 } };
+
+Renderer.prototype.drawFerries = function (game, world, player, opts) {
+  const list = game.ferries;
+  if (!list || !list.length) return;
+  _geom.reset();
+  let any = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i];
+    const dx = f.x - player.x, dz = f.z - player.z;
+    if (dx * dx + dz * dz > 900 * 900) continue;
+    if (!this.boxInFrustum(f.x - 32, f.y - 6, f.z - 32, f.x + 32, f.y + 26, f.z + 32)) continue;
+    any++;
+
+    const bx = Math.floor(f.x), bz = Math.floor(f.z);
+    const by = Math.min(CHUNK_Y - 1, Math.floor(f.y) + 6);
+    // 바다 한복판이라 하늘이 늘 열려 있다
+    const light = [Math.max(0.9, world.getSky(bx, by, bz) / 15), world.getBlockLight(bx, by, bz) / 15];
+
+    const cr = Math.cos(f.roll), sr = Math.sin(f.roll);
+    const cp = Math.cos(f.pitch), sp = Math.sin(f.pitch);
+    const cy = Math.cos(f.yaw), sy = Math.sin(f.yaw);
+    const rot = function (lx, ly, lz, out) {
+      const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+      const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
+      out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
+    };
+    this.emitMesh(ferryMesh(), f.x, f.y, f.z, rot, 1, light, FERRY_OPTS);
+  }
+
+  if (!any || !_geom.inn) return;
+  this.flushEntityGeom(opts);
+};
+
 // ── 드론 택시 ─────────────────────────────────────────────────────────
 const DRONE_OPTS = { glow: { dr_light: 1 } };
 

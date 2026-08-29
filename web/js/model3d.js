@@ -1643,3 +1643,111 @@ function buildYachtSailMesh() {
 let _yachtMesh = null, _yachtSail = null;
 function yachtMesh() { return _yachtMesh || (_yachtMesh = buildYachtMesh()); }
 function yachtSailMesh() { return _yachtSail || (_yachtSail = buildYachtSailMesh()); }
+
+// ── 제주행 여객선 ─────────────────────────────────────────────────────
+// 자동차도 싣는 큰 연안 여객선. 축은 요트와 같다 (+Z 뱃머리, y=0 흘수선).
+const FY_L = 54, FY_W = 13;
+
+function buildFerryMesh() {
+  const m = new Mesh3D();
+  const HL = FY_L / 2;
+
+  // 1) 선체 — 흘수선 아래 붉은 바닥, 위는 남색, 그 위 흰 갑판벽
+  const hull = [
+    [-HL, 5.2, -2.4, 3.6],
+    [-HL + 3, 6.0, -2.9, 3.7],
+    [-16, 6.5, -3.2, 3.8],
+    [-4, 6.5, -3.2, 3.9],
+    [8, 6.3, -3.1, 4.0],
+    [16, 5.6, -2.9, 4.2],
+    [22, 4.0, -2.4, 4.5],
+    [25, 2.4, -1.7, 4.8],
+    [HL, 0.7, -0.9, 5.1]
+  ];
+  carLoft(m, hull, 3.4, function (my) {
+    if (my < -0.05) return 'fy_boot';
+    if (my < 2.6) return 'fy_hull';
+    if (my < 3.1) return 'fy_stripe';
+    return 'fy_white';
+  }, 'fy_hull', 14);
+  deckStrip(m, hull, 4.0, 0.90, 'fy_dock');
+
+  // 2) 선미 램프 (자동차가 오르내린다)
+  m.box(0, 0.5, -HL - 1.6, 7.0, 0.4, 3.4, 'fy_dock');
+  m.box(0, 2.3, -HL - 0.1, 8.0, 4.0, 0.3, 'fy_hull');
+
+  // 3) 객실 — 두 층, 창문 띠를 두른다
+  const deckA = [
+    [-22, 5.6, 4.0, 7.4], [-14, 6.0, 4.0, 7.6], [2, 6.0, 4.0, 7.7],
+    [14, 5.6, 4.0, 7.5], [20, 4.4, 4.0, 7.1]
+  ];
+  carLoft(m, deckA, 5.0, function (my) {
+    return (my > 4.9 && my < 6.6) ? 'fy_win' : 'fy_white';
+  }, 'fy_white', 12);
+  deckStrip(m, deckA, 7.66, 0.92, 'fy_dock');
+
+  const deckB = [
+    [-16, 4.6, 7.6, 10.6], [-8, 5.0, 7.6, 10.8], [6, 5.0, 7.6, 10.8],
+    [15, 4.4, 7.6, 10.4]
+  ];
+  carLoft(m, deckB, 5.0, function (my) {
+    return (my > 8.4 && my < 9.9) ? 'fy_win' : 'fy_white';
+  }, 'fy_white', 12);
+  deckStrip(m, deckB, 10.7, 0.92, 'fy_dock');
+
+  // 4) 조타실 — 제일 앞 위쪽, 앞으로 기운 통유리
+  const brg = [
+    [10, 4.2, 10.7, 13.0], [15, 4.4, 10.7, 13.2], [19, 3.4, 10.7, 12.8]
+  ];
+  carLoft(m, brg, 5.0, function (my) {
+    return (my > 11.3 && my < 12.7) ? 'fy_win' : 'fy_white';
+  }, 'fy_white', 10);
+  deckStrip(m, brg, 13.15, 0.92, 'fy_dock');
+  // 조타실 날개
+  for (const s of [-1, 1]) m.box(s * 5.6, 11.6, 15.5, 2.4, 0.3, 3.0, 'fy_dock');
+
+  // 5) 연돌과 돛대
+  taperPole(m, [0, 10.8, -11], [0, 16.6, -12.4], 2.5, 2.1, 12, 'fy_funnel');
+  m.box(0, 16.8, -12.4, 4.2, 0.4, 4.2, 'fy_funnel');
+  taperPole(m, [0, 13.2, 17.5], [0, 20.5, 16.6], 0.28, 0.12, 8, 'fy_white');
+  m.box(0, 20.8, 16.5, 0.24, 0.26, 0.24, 'yt_light');
+
+  // 6) 구명정 — 양옆 상갑판에 매단다
+  for (const s of [-1, 1]) {
+    for (const z of [-6, 0, 6]) {
+      m.box(s * 5.4, 8.6, z, 1.5, 1.1, 4.0, 'fy_stripe');
+      taperPole(m, [s * 4.6, 7.7, z - 1.6], [s * 4.6, 9.8, z - 1.6], 0.10, 0.10, 6, 'yt_rail');
+      taperPole(m, [s * 4.6, 7.7, z + 1.6], [s * 4.6, 9.8, z + 1.6], 0.10, 0.10, 6, 'yt_rail');
+    }
+  }
+
+  // 7) 난간
+  for (const s of [-1, 1]) {
+    for (let z = -24; z <= 24; z += 4) {
+      const w = ferryBeamAt(hull, z) * 0.92;
+      taperPole(m, [s * w, 4.0, z], [s * w, 5.1, z], 0.07, 0.07, 6, 'yt_rail');
+    }
+    const w0 = 5.9;
+    taperPole(m, [s * w0, 5.05, -24], [s * w0, 5.05, 24], 0.06, 0.06, 6, 'yt_rail');
+  }
+
+  // 8) 항해등과 배 이름판
+  m.box(-5.6, 11.9, 15.6, 0.22, 0.24, 0.22, 'yt_navR');
+  m.box(5.6, 11.9, 15.6, 0.22, 0.24, 0.22, 'yt_navG');
+  for (const s of [-1, 1]) m.box(s * 6.3, 3.2, 12, 0.16, 1.0, 5.0, 'fy_stripe');
+  return m.build();
+}
+
+function ferryBeamAt(hull, z) {
+  for (let i = 0; i + 1 < hull.length; i++) {
+    const a = hull[i], b = hull[i + 1];
+    if (z >= a[0] && z <= b[0]) {
+      const t = (z - a[0]) / (b[0] - a[0] || 1);
+      return a[1] + (b[1] - a[1]) * t;
+    }
+  }
+  return hull[hull.length - 1][1];
+}
+
+let _ferryMesh = null;
+function ferryMesh() { return _ferryMesh || (_ferryMesh = buildFerryMesh()); }

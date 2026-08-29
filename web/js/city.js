@@ -66,7 +66,8 @@ function initCityStyles() {
 const CITY_DEFS = {
   ICN: { name: '인천 송도', style: 'modern', lat: 37.38, lon: 126.65 },
   GMP: { name: '서울', style: 'skyline', lat: 37.55, lon: 126.99 },
-  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53 }
+  // 제주는 섬이다 — 배나 비행기로 한 번 닿아야 도시 이동 목록에 열린다
+  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53, island: true }
 };
 
 // ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
@@ -1380,15 +1381,19 @@ const RS_MARK = [
 ];
 
 function restaurantRoofSign(plan, r, st) {
+  roofSign(plan, r, RS_MARK, bid('red_concrete'));
+}
+
+// 옥상 간판 한 벌 — 네 면에 같은 무늬를 그리고 꼭대기에 등을 단다
+function roofSign(plan, r, mark, back) {
   const gy = plan.y;
   const set = function (x, y, z, id, meta, run) {
     plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
   };
   const cx = r.cx, cz = r.cz, top = r.top;
-  const W = RS_MARK[0].length, H = RS_MARK.length;
+  const W = mark[0].length, H = mark.length;
   const half = (W - 1) / 2;                       // 5
   const lit = bid('sea_lantern');
-  const back = bid('red_concrete');
   const frame = bid('black_concrete');
 
   // 간판이 설 자리를 치운다 (항공 장애등·난간이 걸린다)
@@ -1406,7 +1411,7 @@ function restaurantRoofSign(plan, r, st) {
   // 네 면에 무늬를 그린다. 면마다 바깥에서 봤을 때 바로 읽히게 방향을 맞춘다.
   const y0 = top + 2;
   for (let row = 0; row < H; row++) {
-    const line = RS_MARK[row];
+    const line = mark[row];
     const y = y0 + (H - 1 - row);
     for (let col = 0; col < W; col++) {
       const on = line[col] === 'X';
@@ -1576,6 +1581,7 @@ function cityRestaurant(plan, st) {
 
   // 7) 옥상 간판 — 멀리서도 어느 빌딩인지 알아보게
   restaurantRoofSign(plan, r, st);
+  plan._takenRoof = r.cx + ',' + r.cz;
 
   plan.restaurant = {
     name: (plan.name || '') + ' 레스토랑',
@@ -1587,6 +1593,140 @@ function cityRestaurant(plan, st) {
     in: { x: plan.x + cx + doorX + 0.5, y: gy + 1, z: plan.z + cz + wz + 1.5 },
     tables: plan.restTables,
     stations: plan.restStations
+  };
+}
+
+
+// ── 영화관 ────────────────────────────────────────────────────────────
+// 빌딩 1층을 통째로 비워 상영관으로 꾸민다. 앞(+Z)이 은막, 뒤(-Z)가 출입구다.
+// 바닥은 뒤로 갈수록 한 단씩 높아져 앞자리에 가리지 않는다.
+const CN_H = 9;              // 실내 높이
+const CN_MIN = 5;            // 이만큼 넓은 빌딩이라야 들어간다
+
+// 옥상 간판 — 은막에 재생 표시
+const CN_MARK = [
+  'XXXXXXXXXXX',
+  'X.........X',
+  'X..X......X',
+  'X..XX.....X',
+  'X..XXX....X',
+  'X..XXXX...X',
+  'X..XXX....X',
+  'X..XX.....X',
+  'X..X......X',
+  'X.........X',
+  'XXXXXXXXXXX'
+];
+
+function cityCinema(plan, st) {
+  const roofs = plan.roofs;
+  if (!roofs || !roofs.length) return;
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  // 레스토랑·옥상 승강장이 쓰는 빌딩은 피한다
+  const taken = {};
+  if (plan._takenRoof) taken[plan._takenRoof] = 1;
+  const pads = plan.helipads || [];
+  for (let i = 0; i < pads.length; i++) {
+    taken[(pads[i].x - plan.x) + ',' + (pads[i].z - plan.z)] = 1;
+  }
+  let pick = null;
+  for (let i = 0; i < roofs.length; i++) {
+    const r = roofs[i];
+    if (r.hw < CN_MIN || r.hd < CN_MIN) continue;
+    if (taken[r.cx + ',' + r.cz]) continue;
+    const area = Math.min(r.hw, r.hd) * 1000 - Math.hypot(r.cx, r.cz);
+    if (!pick || area > pick.area) pick = { r: r, area: area };
+  }
+  if (!pick) return;
+  const r = pick.r, cx = r.cx, cz = r.cz;
+  const ix = r.hw - 1, iz = r.hd - 1;
+
+  // 뒤로 갈수록 높아지는 바닥 (앞자리 머리에 가리지 않게)
+  const stepOf = function (dz) {
+    const back = (iz - 2) - dz;                 // 은막에서 멀수록 크다
+    return Math.max(0, Math.min(4, Math.floor(back / 4)));
+  };
+
+  // 1) 1층을 비우고 바닥·천장·벽을 마감한다
+  for (let dz = -iz; dz <= iz; dz++) {
+    for (let dx = -ix; dx <= ix; dx++) {
+      const f = stepOf(dz);
+      set(cx + dx, 0, cz + dz, bid('cinema_carpet'), 0, 1);
+      if (f > 0) set(cx + dx, 1, cz + dz, bid('cinema_step'), 0, f);
+      set(cx + dx, 1 + f, cz + dz, 0, 0, CN_H - f);
+      set(cx + dx, 1 + CN_H, cz + dz, B.black_concrete);
+    }
+  }
+  for (let dz = -iz - 1; dz <= iz + 1; dz++) {
+    for (let dx = -ix - 1; dx <= ix + 1; dx++) {
+      if (Math.abs(dx) <= ix && Math.abs(dz) <= iz) continue;
+      for (let y = 1; y <= CN_H; y++) set(cx + dx, y, cz + dz, bid('cinema_wall'));
+    }
+  }
+
+  // 2) 은막 — 앞(+Z) 벽을 가득 채운다
+  const SC_Y0 = 2, SC_Y1 = Math.min(CN_H - 2, 7);
+  for (let dx = -ix + 1; dx <= ix - 1; dx++) {
+    for (let y = SC_Y0; y <= SC_Y1; y++) set(cx + dx, y, cz + iz, bid('cinema_screen'));
+  }
+  // 은막 둘레 검은 테
+  for (let dx = -ix; dx <= ix; dx++) {
+    set(cx + dx, SC_Y0 - 1, cz + iz, B.black_concrete);
+    set(cx + dx, SC_Y1 + 1, cz + iz, B.black_concrete);
+  }
+
+  // 3) 출입구는 뒤(-Z) 구석 — 복도 불빛을 단다
+  const wz = -iz - 1;
+  const doorX = ix - 1;
+  const backF = stepOf(-iz);
+  for (const dx of [doorX, doorX + 1]) {
+    for (let y = 1; y <= 3; y++) set(cx + dx, 1 + backF + y - 1, cz + wz, 0);
+  }
+  set(cx + doorX, 1 + backF + 3, cz + wz, bid('cinema_sign'), 2);
+  set(cx + doorX + 1, 1 + backF + 3, cz + wz, bid('cinema_sign'), 2);
+  // 영사실 창 — 뒷벽 위쪽
+  for (const dx of [-1, 0, 1]) set(cx + dx, CN_H - 2, cz + wz, B.glass_pane);
+  // 천장 조명 (은막에서 먼 쪽만 — 앞쪽은 어둡게 둔다)
+  for (let dz = -iz + 2; dz <= 0; dz += 4) {
+    for (let dx = -ix + 2; dx <= ix - 2; dx += 5) set(cx + dx, CN_H, cz + dz, B.ceiling_panel);
+  }
+  // 계단 옆 통로 등
+  for (let dz = -iz + 1; dz <= iz - 1; dz += 5) {
+    set(cx - ix, 2 + stepOf(dz), cz + dz, B.floor_lamp);
+  }
+
+  // 4) 관람석 — 앞줄부터 뒤로, 가운데 통로를 비운다
+  const seats = [];
+  const aisle = (ix >= 5) ? 0 : 99;
+  for (let dz = iz - 3; dz >= -iz + 2; dz -= 2) {
+    const f = stepOf(dz);
+    for (let dx = -ix + 1; dx <= ix - 1; dx++) {
+      if (dx === aisle) continue;
+      set(cx + dx, 1 + f, cz + dz, bid('cinema_seat'), 0);   // 메타 0 = +Z(은막) 를 본다
+      seats.push({
+        x: plan.x + cx + dx, z: plan.z + cz + dz,
+        sy: gy + 1 + f + 0.62, yaw: 0
+      });
+    }
+  }
+
+  // 5) 옥상 간판
+  roofSign(plan, r, CN_MARK, bid('black_concrete'));
+  plan._takenRoof2 = r.cx + ',' + r.cz;
+
+  plan.cinema = {
+    name: (plan.name || '') + ' 시네마',
+    city: plan.code,
+    x: plan.x + cx, y: gy + 1, z: plan.z + cz,
+    hw: ix, hd: iz,
+    // 문 앞(밖)과 문 안쪽
+    out: { x: plan.x + cx + doorX + 0.5, y: gy + 1 + backF, z: plan.z + cz + wz - 2.5 },
+    in: { x: plan.x + cx + doorX + 0.5, y: gy + 1 + backF, z: plan.z + cz + wz + 1.5 },
+    screen: { x: plan.x + cx, y: gy + (SC_Y0 + SC_Y1) / 2, z: plan.z + cz + iz, hw: ix - 1 },
+    seats: seats
   };
 }
 
@@ -1654,6 +1794,7 @@ function buildCityPlan(world, ap, index) {
   plan.side = best.side;      // 고가철로가 빠져나가는 쪽(-side) 을 알려 준다
   plan.topY = best.y + 24;    // 제일 높은 건물 꼭대기 (cityTower 가 올려 잡는다)
   plan.name = def.name;
+  plan.island = !!def.island;
   plan.styleName = def.style;
   plan.index = index;
   plan.people = [];
@@ -1866,7 +2007,158 @@ function buildCityPlan(world, ap, index) {
 
   citySignals(plan, st);
   cityHelipads(plan, st);
+
+// ── 여객선 터미널 ─────────────────────────────────────────────────────
+// 바다가 가까운 도시에만 짓는다 (인천 송도·제주시). 물가를 메워 부두를 만들고,
+// 대합실을 올린 뒤 바다 쪽으로 잔교를 뻗어 배를 댄다.
+const FT_QUAY_Y = SEA_LEVEL + 4;     // 부두 블록 꼭대기 (걷는 면은 그 위)
+const FT_PIER_HALF = 5;              // 잔교 반폭
+const FT_PIER_MAX = 120;             // 잔교 최대 길이
+const FT_DEPTH = 9;                  // 정박지를 이만큼 파낸다 (배 흘수 3칸)
+const FT_SEA_MAX = 820;              // 도시에서 바다까지 이만큼 안이어야 짓는다
+
+function cityFerry(plan, st) {
+  const w = plan.world;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(x, y, z, id, meta || 0, true, run || 1);
+  };
+
+  // 1) 제일 가까운 바다 쪽을 찾는다
+  let best = null;
+  for (let i = 0; i < 96; i++) {
+    const a = i / 96 * Math.PI * 2;
+    const cs = Math.cos(a), sn = Math.sin(a);
+    for (let d = CITY_R - 30; d < FT_SEA_MAX + 60; d += 12) {
+      const x = Math.round(plan.x + cs * d), z = Math.round(plan.z + sn * d);
+      if (w.heightAt(x, z) <= SEA_LEVEL - 5) {
+        if (!best || d < best.d) best = { d: d, cs: cs, sn: sn, x: x, z: z };
+        break;
+      }
+    }
+  }
+  if (!best || best.d > FT_SEA_MAX) return;      // 내륙 도시는 그냥 넘어간다
+
+  const dx = best.cs, dz = best.sn;              // 바다 쪽
+  const rx = -dz, rz = dx;                       // 오른쪽 (잔교에서 배가 서는 쪽)
+
+  // 2) 물가 — 바다 지점에서 도시 쪽으로 되짚어 마지막 뭍을 찾는다
+  let sx = best.x, sz = best.z;
+  for (let k = 0; k < 90; k++) {
+    const x = Math.round(best.x - dx * k), z = Math.round(best.z - dz * k);
+    if (w.heightAt(x, z) > SEA_LEVEL + 1) { sx = x; sz = z; break; }
+  }
+
+  const QY = FT_QUAY_Y, SURF = QY + 1;
+  const at = function (u, v) {   // u = 바다 쪽 거리, v = 오른쪽 거리
+    return [Math.round(sx + dx * u + rx * v), Math.round(sz + dz * u + rz * v)];
+  };
+  // 바닥까지 메우고 부두 바닥을 깐다
+  const pave = function (u, v, top) {
+    const q = at(u, v);
+    const g = Math.max(1, Math.min(w.heightAt(q[0], q[1]), top));
+    plan.set(q[0], g, q[1], st.base || st.trim, 0, true, top - g + 1);
+    set(q[0], top, q[1], bid('light_gray_concrete', 'smooth_stone', 'stone_bricks'));
+    plan.set(q[0], top + 1, q[1], 0, 0, true, 12);       // 위를 비운다
+  };
+
+  // 3) 부두 앞마당 — 물가 앞뒤로 넉넉히
+  for (let u = -30; u <= 8; u++) {
+    for (let v = -22; v <= 22; v++) pave(u, v, QY);
+  }
+  // 4) 잔교 — 깊은 데까지 뻗는다
+  let pier = 20;
+  for (let u = 8; u <= FT_PIER_MAX; u++) {
+    const q = at(u, 0);
+    pier = u;
+    if (w.heightAt(q[0], q[1]) <= SEA_LEVEL - 5 && u >= 44) break;
+  }
+  for (let u = 8; u <= pier; u++) {
+    for (let v = -FT_PIER_HALF; v <= FT_PIER_HALF; v++) {
+      pave(u, v, QY);
+      if (Math.abs(v) === FT_PIER_HALF) set(at(u, v)[0], QY + 1, at(u, v)[1], bid('quay_edge'));
+    }
+    // 계선주와 등
+    if (u % 8 === 0) {
+      for (const v of [-FT_PIER_HALF + 1, FT_PIER_HALF - 1]) {
+        const q = at(u, v);
+        set(q[0], QY + 1, q[1], bid('bollard'));
+      }
+    }
+    if (u % 16 === 0) {
+      const q = at(u, -FT_PIER_HALF + 1);
+      set(q[0], QY + 2, q[1], B.sea_lantern !== undefined ? B.sea_lantern : bid('bollard'), 0, 3);
+    }
+  }
+
+  // 5) 대합실 — 물가 뒤에 앉힌다
+  const TH = 9, HW = 13, HD = 7;
+  const cu = -17;
+  for (let u = cu - HD; u <= cu + HD; u++) {
+    for (let v = -HW; v <= HW; v++) {
+      const q = at(u, v);
+      const edge = (u === cu - HD || u === cu + HD || v === -HW || v === HW);
+      if (edge) {
+        for (let y = 1; y <= TH; y++) {
+          const bl = (u === cu + HD && Math.abs(v) <= HW - 2 && y >= 2 && y <= TH - 3)
+            ? B.glass_pane : (st.wall || st.trim);
+          set(q[0], QY + y, q[1], bl);
+        }
+      }
+      set(q[0], QY + TH + 1, q[1], st.roof || st.trim);
+    }
+  }
+  // 바다 쪽 출입구
+  for (const v of [-1, 0, 1]) {
+    const q = at(cu + HD, v);
+    for (let y = 1; y <= 3; y++) plan.set(q[0], QY + y, q[1], 0, 0, true);
+  }
+  // 도시 쪽 출입구
+  for (const v of [-1, 0, 1]) {
+    const q = at(cu - HD, v);
+    for (let y = 1; y <= 3; y++) plan.set(q[0], QY + y, q[1], 0, 0, true);
+  }
+  // 매표소와 의자, 천장 조명
+  const tick = at(cu - 2, 0);
+  set(tick[0], QY + 1, tick[1], bid('ferry_desk'));
+  for (const v of [-8, -4, 4, 8]) {
+    for (const u of [cu - 3, cu + 2]) {
+      const q = at(u, v);
+      set(q[0], QY + 1, q[1], B.airport_bench, 0);
+    }
+  }
+  for (let v = -8; v <= 8; v += 8) {
+    const q = at(cu, v);
+    set(q[0], QY + TH, q[1], B.ceiling_panel);
+  }
+
+  // 6) 정박지 준설 — 서해 갯벌은 아주 완만해서 그냥 두면 배가 바닥에 닿는다.
+  //    잔교 오른쪽을 네모지게 파내고 물을 채운다 (실제 항만도 이렇게 판다).
+  const BED = SEA_LEVEL - FT_DEPTH;
+  for (let u = Math.max(12, pier - 52); u <= pier + 24; u++) {
+    for (let v = FT_PIER_HALF + 1; v <= FT_PIER_HALF + 24; v++) {
+      const q = at(u, v);
+      if (w.heightAt(q[0], q[1]) >= SEA_LEVEL) continue;   // 뭍은 건드리지 않는다
+      plan.set(q[0], BED, q[1], B.water, 0, true, FT_DEPTH + 1);
+      plan.set(q[0], SEA_LEVEL + 1, q[1], 0, 0, true, 8);
+    }
+  }
+
+  // 7) 배가 서는 자리 — 잔교 오른쪽에 나란히
+  const mid = at(pier - 6, 0);
+  const berth = at(pier - 10, FT_PIER_HALF + 9);
+  plan.ferry = {
+    name: plan.name + ' 여객선터미널',
+    city: plan.code,
+    x: mid[0], z: mid[1], y: SURF,          // 승선하는 자리 (잔교 위)
+    dock: { x: berth[0], z: berth[1] },     // 배가 뜨는 자리
+    yaw: Math.atan2(dx, dz),                // 뱃머리는 바다 쪽 — 잔교와 나란히 선다
+    dirx: dx, dirz: dz
+  };
+}
+
   cityRestaurant(plan, st);
+  cityCinema(plan, st);
+  cityFerry(plan, st);
 
 
   // ── 공원과 밭 ──

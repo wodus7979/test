@@ -829,3 +829,120 @@ defFurnTex('yt_teakwall', function (p, rnd) {
 defFurnTex('yt_light', function (p, rnd) { p.noise(rnd, '#ffe9b4', 3, 6); });
 defFurnTex('yt_navR', function (p, rnd) { p.noise(rnd, '#ff5f4c', 3, 6); });
 defFurnTex('yt_navG', function (p, rnd) { p.noise(rnd, '#4fe07f', 3, 6); });
+
+// ── 제주행 여객선과 터미널 ────────────────────────────────────────────
+defFurnTex('fy_hull', function (p, rnd) {
+  p.noise(rnd, '#1f4f86', 4, 4);
+  p.rect(0, 6, 16, 1, '#2b64a4');
+});
+defFurnTex('fy_boot', function (p, rnd) {
+  p.noise(rnd, '#7d2b2b', 4, 4);
+  p.rect(0, 0, 16, 1, '#5e1f1f');
+});
+defFurnTex('fy_white', function (p, rnd) {
+  p.noise(rnd, '#eef1f4', 3, 5);
+  p.rect(0, 12, 16, 1, '#dbe1e7');
+});
+defFurnTex('fy_stripe', function (p, rnd) {
+  p.noise(rnd, '#e8622f', 4, 4);
+  p.rect(0, 7, 16, 2, '#ffa15c');
+});
+defFurnTex('fy_win', function (p, rnd) {
+  p.noise(rnd, '#22384f', 3, 4);
+  for (let x = 1; x < 16; x += 4) p.rect(x, 3, 3, 9, '#5c8fb8');
+  p.rect(0, 0, 16, 2, '#e9eef2');
+  p.rect(0, 14, 16, 2, '#e9eef2');
+});
+defFurnTex('fy_funnel', function (p, rnd) {
+  p.noise(rnd, '#d94b3a', 4, 4);
+  p.rect(0, 0, 16, 4, '#22303c');
+});
+defFurnTex('fy_dock', function (p, rnd) {
+  p.noise(rnd, '#9a9ea3', 5, 4);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#7c8085');
+  p.speckle(rnd, '#878b90', 8, 1);
+});
+defFurnTex('fy_edge', function (p, rnd) {
+  p.noise(rnd, '#d8c24a', 4, 4);
+  for (let x = 0; x < 16; x += 6) p.rect(x, 0, 3, 16, '#2b2f34');
+});
+defFurnTex('fy_pile', function (p, rnd) {
+  p.noise(rnd, '#4b4f55', 5, 4);
+  p.rect(7, 0, 2, 16, '#3a3e43');
+});
+
+// 부두 가장자리 — 노란 안전 띠를 두른 낮은 턱
+defFurn('quay_edge', '부두 안전턱', [
+  box(0, 0, 0, 16, 3, 16, 'fy_edge'),
+  box(0, 3, 6, 16, 4, 10, 'fy_pile')
+], { tex: 'fy_edge', facing: false, tool: TOOL_PICKAXE, hardness: 2.0 });
+
+// 계선주 — 배를 묶는 쇠기둥
+defFurn('bollard', '계선주', [
+  box(4, 0, 4, 12, 2, 12, 'fy_pile'),
+  box(5.5, 2, 5.5, 10.5, 10, 10.5, 'fy_pile'),
+  box(4.5, 10, 4.5, 11.5, 13, 11.5, 'fy_edge')
+], { tex: 'fy_pile', facing: false, tool: TOOL_PICKAXE, hardness: 2.4 });
+
+// 여객선 매표소 — 주황 띠를 두른 카운터
+defFurn('ferry_desk', '여객선 매표소', [
+  box(2, 0, 3, 14, 2, 14, 'fy_pile'),
+  box(1, 2, 2, 15, 13, 15, 'fy_white'),
+  box(1, 8, 1.6, 15, 11, 2.4, 'fy_stripe'),
+  box(0, 13, 0, 16, 15, 16, 'fy_dock')
+], { tex: 'fy_white', tool: TOOL_PICKAXE });
+
+// ── 영화관 ────────────────────────────────────────────────────────────
+defFurnTex('cn_screen', function (p, rnd) {
+  p.noise(rnd, '#e9ecef', 3, 3);
+  p.frame(0, 0, 16, 16, '#cfd4da');
+});
+defFurnTex('cn_wall', function (p, rnd) {
+  p.noise(rnd, '#5c1f26', 5, 4);
+  for (let x = 1; x < 16; x += 3) for (let y = 0; y < 16; y++) p.set(x, y, shade('#5c1f26', -16));
+});
+defFurnTex('cn_carpet', function (p, rnd) {
+  p.noise(rnd, '#7a1f2b', 6, 3);
+  for (let y = 2; y < 16; y += 5) p.rect(0, y, 16, 1, '#c9a24a');
+});
+defFurnTex('cn_seat', function (p, rnd) {
+  p.noise(rnd, '#8d222c', 6, 3);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (((x + y) & 3) === 0) p.set(x, y, '#761c25');
+});
+defFurnTex('cn_step', function (p, rnd) {
+  p.noise(rnd, '#2a2c31', 5, 3);
+  p.rect(0, 14, 16, 2, '#c9a24a');
+});
+defFurnTex('cn_sign', function (p, rnd) {
+  p.fill('#1b1d22');
+  p.rect(1, 1, 14, 14, '#f0c85a');
+  p.rect(4, 3, 8, 10, '#1b1d22');
+  for (let y = 4; y < 13; y += 3) { p.rect(3, y, 2, 2, '#f0c85a'); p.rect(11, y, 2, 2, '#f0c85a'); }
+});
+
+// 은막 — 벽 한 면을 이 블록으로 채워 스크린을 만든다
+defBlock('cinema_screen', '영화 스크린', {
+  tex: { all: 'cn_screen' }, hardness: 1.2, tool: TOOL_PICKAXE, light: 6, group: 'furniture'
+});
+defBlock('cinema_wall', '영화관 방음벽', {
+  tex: { all: 'cn_wall' }, hardness: 1.4, tool: TOOL_PICKAXE, group: 'furniture'
+});
+defBlock('cinema_carpet', '영화관 카펫', {
+  tex: { all: 'cn_carpet' }, hardness: 0.8, group: 'furniture'
+});
+defBlock('cinema_step', '영화관 계단단', {
+  tex: { all: 'cn_step' }, hardness: 1.4, tool: TOOL_PICKAXE, group: 'furniture'
+});
+
+// 관람석 — 등받이가 높은 붉은 의자
+defFurn('cinema_seat', '영화관 좌석', [
+  box(2, 0, 5, 4, 5, 11, 'f_metal_dark'), box(12, 0, 5, 14, 5, 11, 'f_metal_dark'),
+  box(1, 5, 3, 15, 8, 14, 'cn_seat'),
+  box(1, 8, 12, 15, 16, 15, 'cn_seat'),
+  box(0, 5, 4, 1.6, 12, 13, 'cn_seat'), box(14.4, 5, 4, 16, 12, 13, 'cn_seat')
+], { tex: 'cn_seat', tool: TOOL_PICKAXE });
+
+// 매표소 간판
+defFurn('cinema_sign', '영화관 간판', [
+  box(0, 2, 14, 16, 14, 16, 'cn_sign')
+], { tex: 'cn_sign', tool: TOOL_PICKAXE, light: 8 });

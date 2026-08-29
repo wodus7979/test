@@ -667,7 +667,7 @@ body.touch .hand { display: none !important; }
 }
 
 /* 운전 계기판 — 속도와 남은 거리 */
-#drive-hud {
+#drive-hud, #ferry-hud {
   display: none;
   position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
   z-index: 40; pointer-events: none;
@@ -678,10 +678,10 @@ body.touch .hand { display: none !important; }
   font: 13px/1.5 ui-monospace, Menlo, monospace;
   color: #cfe0f5; text-align: center; white-space: nowrap;
 }
-#drive-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
+#drive-hud .kmh, #ferry-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
 #drive-hud .over { color: #ff7a6a; }
-#drive-hud .lim { color: #9fb0c8; }
-#drive-hud .ok { color: #7cc44a; }
+#drive-hud .lim, #ferry-hud .lim { color: #9fb0c8; }
+#drive-hud .ok, #ferry-hud .ok { color: #7cc44a; }
 
 /* 공사장 계기판 */
 #dig-hud {
@@ -736,7 +736,7 @@ body.touch .hand { display: none !important; }
 
 #net-hud {
   display: none;
-  position: fixed; right: 16px; top: 250px;   /* "도시로" 버튼 아래로 */
+  position: fixed; right: 16px; top: 286px;   /* "도시로"·"영화" 버튼 아래로 */
   z-index: 40; pointer-events: none; max-width: 220px;
   background: rgba(10,14,22,.66);
   border: 1px solid rgba(150,190,240,.22);
@@ -987,3 +987,104 @@ button.tiny {
   font-size: 10px; font-weight: 700; color: #9fc4f0;
 }
 body.touch #btn-warp b { display: none; }
+
+/* ── 영화관 ────────────────────────────────────────────────────────── */
+#btn-movie {
+  display: none;
+  position: fixed; right: 12px; top: 244px; z-index: 45;
+  align-items: center;
+  background: rgba(18,10,14,.80);
+  border: 1px solid rgba(240,200,90,.38);
+  border-radius: 8px; padding: 6px 12px;
+  font: 13px/1.3 ui-monospace, Menlo, monospace; color: #f4e3b4;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+}
+#btn-movie:hover { background: rgba(48,26,20,.9); border-color: rgba(240,200,90,.65); }
+#btn-movie b {
+  display: inline-block; margin-left: 7px; padding: 0 5px;
+  border: 1px solid rgba(240,200,90,.45); border-radius: 4px;
+  font-size: 10px; font-weight: 700; color: #f0c85a;
+}
+body.touch #btn-movie b { display: none; }
+
+/* 상영 화면 — 은막과 앞자리 관객 뒷모습 */
+#cine {
+  display: none;
+  position: fixed; inset: 0; z-index: 300;
+  flex-direction: column;
+  background: #07080b;
+  font: 13px/1.5 ui-monospace, Menlo, monospace; color: #d8dee8;
+}
+#cine .cine-hall {
+  position: relative; flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 26px 26px 0;
+  background:
+    radial-gradient(120% 80% at 50% 18%, #1a1d25 0%, #0a0b0f 62%, #06070a 100%);
+  overflow: hidden;
+}
+#cine .cine-screen {
+  position: relative;
+  width: min(94%, 1180px); aspect-ratio: 16 / 9;
+  max-height: 64%;
+  margin-bottom: 9%;
+  background: #101216;
+  border: 6px solid #050607;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px #23262d, 0 0 90px 24px rgba(180,205,255,.14), 0 22px 60px rgba(0,0,0,.8);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+#cine .cine-screen img, #cine .cine-screen video {
+  width: 100%; height: 100%; object-fit: contain;
+  display: block; background: #000;
+}
+#cine .cine-blank { text-align: center; padding: 24px; color: #93a0b4; }
+#cine .cine-blank-t { font-size: 20px; color: #e6ecf5; margin-bottom: 10px; letter-spacing: 2px; }
+#cine .cine-blank-s { font-size: 12.5px; line-height: 1.9; }
+
+/* 앞자리 관객 — 아래쪽에 실루엣만 겹쳐 둔다 */
+#cine .cine-rows {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+#cine .cine-row {
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 2.6vw; margin-bottom: -1.4vw;
+}
+#cine .cine-row.r0 { opacity: .82; transform: scale(.72); }
+#cine .cine-row.r1 { opacity: .90; transform: scale(.86); }
+#cine .cine-row.r2 { opacity: 1; transform: scale(1); }
+#cine .cine-head {
+  width: calc(4.6vw * var(--w)); height: 5.0vw;
+  background: #05060a;
+  border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+  position: relative;
+}
+#cine .cine-head::after {
+  content: ''; position: absolute;
+  left: -55%; right: -55%; top: 72%; height: 6vw;
+  background: #040508;
+  border-radius: 14px 14px 0 0;
+}
+
+#cine .cine-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #0d0f14;
+  border-top: 1px solid #1d212a;
+}
+.cine-btn {
+  background: #1a1e27; border: 1px solid #2c3240; border-radius: 7px;
+  padding: 7px 13px; color: #cfd8e6; cursor: pointer;
+  font: 13px/1.2 ui-monospace, Menlo, monospace;
+}
+.cine-btn:hover { background: #242a36; border-color: #3d4557; }
+.cine-btn.main { background: #7a1f2b; border-color: #b8404f; color: #ffe9c9; font-weight: 700; }
+.cine-btn.main:hover { background: #932735; }
+.cine-chk { color: #9aa6b8; display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.cine-note { color: #8b98ab; font-size: 12px; margin-left: auto; margin-right: 8px;
+  max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-row.locked { opacity: .55; cursor: default; }
+.wp-row.locked .wp-dist { color: #c9a24a; }

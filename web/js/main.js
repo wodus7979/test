@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.5';
+const GAME_VERSION = 'v10.6';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -288,9 +288,15 @@ Game.prototype.warpTargets = function () {
     if (!c.spawn) continue;
     const dx = c.spawn.x - p.x, dz = c.spawn.z - p.z;
     const d = Math.hypot(dx, dz);
+    // 섬(제주)은 배나 비행기로 한 번 닿기 전에는 목록에서 잠겨 있다
+    if (d < 90 && c.island) {
+      if (!this._visited) this._visited = {};
+      this._visited[c.code] = 1;
+    }
     out.push({
       code: c.code, name: c.name, dist: Math.round(d),
-      dir: warpBearing(dx, dz), here: d < 90
+      dir: warpBearing(dx, dz), here: d < 90,
+      locked: !!c.island && !(this._visited && this._visited[c.code])
     });
   }
   out.sort(function (a, b) { return a.dist - b.dist; });
@@ -301,7 +307,7 @@ Game.prototype.warpTargets = function () {
 Game.prototype.warpBlocked = function () {
   const p = this.player;
   if (p.dead) return '쓰러져 있는 동안에는 옮겨 갈 수 없습니다';
-  if (p.riding || p.onTrain || p.inCar || p.inDrone || p.inShuttle || p.inDigger || p.inYacht) {
+  if (p.riding || p.onTrain || p.inCar || p.inDrone || p.inShuttle || p.inDigger || p.inYacht || p.onFerry) {
     return '타고 있는 것에서 내린 뒤에 눌러 주세요';
   }
   if (this.cook) return '요리를 마친 뒤에 눌러 주세요';
@@ -368,9 +374,11 @@ Game.prototype.buildWarpList = function () {
     code.textContent = t.code;
     const dist = document.createElement('span');
     dist.className = 'wp-dist';
-    dist.textContent = t.here ? '여기' : (t.dist + '블록 ' + t.dir);
+    dist.textContent = t.here ? '여기'
+      : t.locked ? '배·비행기로만' : (t.dist + '블록 ' + t.dir);
+    if (t.locked) b.className += ' locked';
     b.appendChild(name); b.appendChild(code); b.appendChild(dist);
-    if (!t.here) {
+    if (!t.here && !t.locked) {
       b.addEventListener('click', function () { self.warpToCity(t.code); });
     }
     box.appendChild(b);
@@ -470,6 +478,28 @@ Game.prototype.updateCountdown = function () {
   el.style.display = 'block';
   if (el.className !== cls) el.className = cls;
   const html = '<span class="num">' + num + '</span><span class="lbl">' + lbl + '</span>';
+  if (el.innerHTML !== html) el.innerHTML = html;
+};
+
+// 여객선 계기판 — 다음 항구와 남은 거리
+Game.prototype.updateFerryHud = function () {
+  const el = document.getElementById('ferry-hud');
+  if (!el) return;
+  const f = this.player.onFerry;
+  if (!f) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  let html;
+  if (f.mode === 'dock') {
+    html = '<span class="kmh">' + f.terminal().name + '</span><br>' +
+      (f.wait > 0 ? '<span class="lim">' + Math.ceil(f.wait) + '초 뒤 ' + f.other().name + ' 로 출항</span>'
+        : '<span class="ok">접안 — Shift 로 내리기</span>');
+  } else {
+    const left = Math.round(f.remain());
+    html = '<span class="kmh">' + Math.round(kmh(f.speed)) + '</span> km/h' +
+      '  <span class="lim">' + f.terminal().name + '</span><br>' +
+      '남은 거리 ' + left.toLocaleString('ko-KR') + 'm' +
+      ' <span class="lim">약 ' + Math.max(1, Math.round(left / Math.max(4, f.speed))) + '초</span>';
+  }
   if (el.innerHTML !== html) el.innerHTML = html;
 };
 
@@ -789,7 +819,8 @@ Game.prototype.bindInput = function () {
         if (self.player.inDigger) { self.input.curlOut = true; e.preventDefault(); }
         break;
       case 'Escape':
-        if (self.warpOpen) self.closeWarp();
+        if (self.cineOpen) self.closeCine();
+        else if (self.warpOpen) self.closeWarp();
         else if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
         else if (self.ui.open) self.ui.closeScreen();
         else self.exitPointerLock();
@@ -832,6 +863,9 @@ Game.prototype.bindInput = function () {
         break;
       case 'KeyM':
         if (self.worldMap) { self.worldMap.toggle(); e.preventDefault(); }
+        break;
+      case 'KeyV':
+        if (self.toggleCine) { self.toggleCine(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -1121,6 +1155,14 @@ Game.prototype.bindTouch = function () {
       self.toggleWarp();
     });
   }
+  // 영화 걸기 — 상영관 안에서만 뜬다
+  const mv = document.getElementById('btn-movie');
+  if (mv) {
+    mv.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (self.toggleCine) self.toggleCine();
+    });
+  }
   const panel = document.getElementById('warp-panel');
   if (panel) {
     // 패널 안을 눌러도 화면(캐닝·설치)으로 넘어가지 않게 막는다
@@ -1212,7 +1254,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.inDrone || p.inYacht) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.inDrone || p.inYacht || p.onFerry) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -1263,6 +1305,12 @@ Game.prototype.onUse = function () {
     if (dr) { this.enterDrone(dr); return; }
   }
 
+  // 0-2a) 여객선 타기 (여객선터미널 잔교)
+  if (this.nearestFerry) {
+    const fy = this.nearestFerry();
+    if (fy) { this.enterFerry(fy); return; }
+  }
+
   // 0-2b) 요트 타기 (바다)
   if (this.nearestYacht) {
     const yt = this.nearestYacht();
@@ -1289,6 +1337,12 @@ Game.prototype.onUse = function () {
     if (stn) { this.startCooking(stn); return; }
     const door = this.restaurantDoor();
     if (door) { this.enterRestaurant(door); return; }
+  }
+
+  // 0-0b) 영화관 출입문
+  if (this.cinemaDoor) {
+    const cd = this.cinemaDoor();
+    if (cd) { this.enterCinema(cd); return; }
   }
 
   // 0-1) 주민과 거래 — 블록보다 앞에 있을 때만
@@ -1983,7 +2037,7 @@ Game.prototype.updateUseHint = function () {
   const el = document.getElementById('use-hint');
   if (!el) return;
   const p = this.player;
-  if (this.ui.open || this.cook || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger) {
+  if (this.ui.open || this.cook || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger || p.onFerry) {
     if (el.style.display !== 'none') el.style.display = 'none';
     return;
   }
@@ -2028,6 +2082,14 @@ Game.prototype.updateUseHint = function () {
       const d = this.restaurantDoor();
       if (d) label = d.name + ' 들어가기';
     }
+  }
+  if (!label && this.cinemaDoor) {
+    const cd = this.cinemaDoor();
+    if (cd) label = cd.name + ' 들어가기';
+  }
+  if (!label && this.nearestFerry) {
+    const fy = this.nearestFerry();
+    if (fy) label = fy.other().name + ' 행 여객선 타기';
   }
   if (!label && this.nearestYacht) {
     const yt = this.nearestYacht();
@@ -2619,6 +2681,7 @@ Game.prototype.update = function (dt) {
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
   else if (p.inYacht && this.input.sneak && !this._sneakPrev) this.exitYacht();
+  else if (p.onFerry && this.input.sneak && !this._sneakPrev) this.exitFerry();
   this._sneakPrev = this.input.sneak;
 
   if (p.riding) {
@@ -2658,6 +2721,9 @@ Game.prototype.update = function (dt) {
   } else if (p.inYacht) {
     // 요트 조타석 — 몸은 요트가 붙잡는다 (updateYachts 가 자리를 정한다)
     if (p.dead) this.exitYacht();
+  } else if (p.onFerry) {
+    // 여객선 갑판 — 몸은 배가 붙잡는다 (updateFerries 가 자리를 정한다)
+    if (p.dead) p.onFerry.unboard();
   } else if (p.inCar) {
     // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
     if (p.dead) this.exitCar();
@@ -2686,7 +2752,7 @@ Game.prototype.update = function (dt) {
   // 구름 위에서는 빗소리도 들리지 않는다
   const wy = p.riding ? p.riding.y : p.y;
   // 지붕 아래(역사 안·객실 안)에서는 빗소리도 잦아든다
-  const shelter = (p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle ||
+  const shelter = (p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle || p.onFerry ||
     this.world.sheltered(p.x, p.y + 1.6, p.z)) ? 0.18 : 1;
   this.setRainSound(this.weather.strength * this.weather.skyFade(wy) * shelter *
     (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
@@ -2705,8 +2771,10 @@ Game.prototype.update = function (dt) {
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
   if (this.updateYachts) this.updateYachts(dt);           // 바다 요트
+  if (this.updateFerries) this.updateFerries(dt);         // 제주행 여객선
   if (this.updateDrones) this.updateDrones(dt);           // 드론 택시
   if (this.updateRestaurants) this.updateRestaurants(dt); // 레스토랑
+  if (this.updateCinemas) this.updateCinemas(dt);         // 영화관
   if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
@@ -2724,6 +2792,7 @@ Game.prototype.update = function (dt) {
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
   this.updateDriveHud();
+  this.updateFerryHud();
   this.updateDigHud();
   if (this.updateBusHud) this.updateBusHud();
   if (this.updateUseHint) this.updateUseHint();
@@ -2931,6 +3000,7 @@ Game.prototype.render = function (dt) {
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
   if (r.drawSmoothWays) r.drawSmoothWays(this, this.world, p, opts);   // 굽은 길 잇기
   if (r.drawYachts) r.drawYachts(this, this.world, p, opts);
+  if (r.drawFerries) r.drawFerries(this, this.world, p, opts);
   if (r.drawDrones) r.drawDrones(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);

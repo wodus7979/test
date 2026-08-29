@@ -677,7 +677,7 @@ body.touch .hand { display: none !important; }
 }
 
 /* 운전 계기판 — 속도와 남은 거리 */
-#drive-hud {
+#drive-hud, #ferry-hud {
   display: none;
   position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
   z-index: 40; pointer-events: none;
@@ -688,10 +688,10 @@ body.touch .hand { display: none !important; }
   font: 13px/1.5 ui-monospace, Menlo, monospace;
   color: #cfe0f5; text-align: center; white-space: nowrap;
 }
-#drive-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
+#drive-hud .kmh, #ferry-hud .kmh { font-size: 24px; font-weight: 700; color: #e8f0ff; }
 #drive-hud .over { color: #ff7a6a; }
-#drive-hud .lim { color: #9fb0c8; }
-#drive-hud .ok { color: #7cc44a; }
+#drive-hud .lim, #ferry-hud .lim { color: #9fb0c8; }
+#drive-hud .ok, #ferry-hud .ok { color: #7cc44a; }
 
 /* 공사장 계기판 */
 #dig-hud {
@@ -746,7 +746,7 @@ body.touch .hand { display: none !important; }
 
 #net-hud {
   display: none;
-  position: fixed; right: 16px; top: 250px;   /* "도시로" 버튼 아래로 */
+  position: fixed; right: 16px; top: 286px;   /* "도시로"·"영화" 버튼 아래로 */
   z-index: 40; pointer-events: none; max-width: 220px;
   background: rgba(10,14,22,.66);
   border: 1px solid rgba(150,190,240,.22);
@@ -998,6 +998,107 @@ button.tiny {
 }
 body.touch #btn-warp b { display: none; }
 
+/* ── 영화관 ────────────────────────────────────────────────────────── */
+#btn-movie {
+  display: none;
+  position: fixed; right: 12px; top: 244px; z-index: 45;
+  align-items: center;
+  background: rgba(18,10,14,.80);
+  border: 1px solid rgba(240,200,90,.38);
+  border-radius: 8px; padding: 6px 12px;
+  font: 13px/1.3 ui-monospace, Menlo, monospace; color: #f4e3b4;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+}
+#btn-movie:hover { background: rgba(48,26,20,.9); border-color: rgba(240,200,90,.65); }
+#btn-movie b {
+  display: inline-block; margin-left: 7px; padding: 0 5px;
+  border: 1px solid rgba(240,200,90,.45); border-radius: 4px;
+  font-size: 10px; font-weight: 700; color: #f0c85a;
+}
+body.touch #btn-movie b { display: none; }
+
+/* 상영 화면 — 은막과 앞자리 관객 뒷모습 */
+#cine {
+  display: none;
+  position: fixed; inset: 0; z-index: 300;
+  flex-direction: column;
+  background: #07080b;
+  font: 13px/1.5 ui-monospace, Menlo, monospace; color: #d8dee8;
+}
+#cine .cine-hall {
+  position: relative; flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 26px 26px 0;
+  background:
+    radial-gradient(120% 80% at 50% 18%, #1a1d25 0%, #0a0b0f 62%, #06070a 100%);
+  overflow: hidden;
+}
+#cine .cine-screen {
+  position: relative;
+  width: min(94%, 1180px); aspect-ratio: 16 / 9;
+  max-height: 64%;
+  margin-bottom: 9%;
+  background: #101216;
+  border: 6px solid #050607;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px #23262d, 0 0 90px 24px rgba(180,205,255,.14), 0 22px 60px rgba(0,0,0,.8);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+#cine .cine-screen img, #cine .cine-screen video {
+  width: 100%; height: 100%; object-fit: contain;
+  display: block; background: #000;
+}
+#cine .cine-blank { text-align: center; padding: 24px; color: #93a0b4; }
+#cine .cine-blank-t { font-size: 20px; color: #e6ecf5; margin-bottom: 10px; letter-spacing: 2px; }
+#cine .cine-blank-s { font-size: 12.5px; line-height: 1.9; }
+
+/* 앞자리 관객 — 아래쪽에 실루엣만 겹쳐 둔다 */
+#cine .cine-rows {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+#cine .cine-row {
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 2.6vw; margin-bottom: -1.4vw;
+}
+#cine .cine-row.r0 { opacity: .82; transform: scale(.72); }
+#cine .cine-row.r1 { opacity: .90; transform: scale(.86); }
+#cine .cine-row.r2 { opacity: 1; transform: scale(1); }
+#cine .cine-head {
+  width: calc(4.6vw * var(--w)); height: 5.0vw;
+  background: #05060a;
+  border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+  position: relative;
+}
+#cine .cine-head::after {
+  content: ''; position: absolute;
+  left: -55%; right: -55%; top: 72%; height: 6vw;
+  background: #040508;
+  border-radius: 14px 14px 0 0;
+}
+
+#cine .cine-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #0d0f14;
+  border-top: 1px solid #1d212a;
+}
+.cine-btn {
+  background: #1a1e27; border: 1px solid #2c3240; border-radius: 7px;
+  padding: 7px 13px; color: #cfd8e6; cursor: pointer;
+  font: 13px/1.2 ui-monospace, Menlo, monospace;
+}
+.cine-btn:hover { background: #242a36; border-color: #3d4557; }
+.cine-btn.main { background: #7a1f2b; border-color: #b8404f; color: #ffe9c9; font-weight: 700; }
+.cine-btn.main:hover { background: #932735; }
+.cine-chk { color: #9aa6b8; display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.cine-note { color: #8b98ab; font-size: 12px; margin-left: auto; margin-right: 8px;
+  max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-row.locked { opacity: .55; cursor: default; }
+.wp-row.locked .wp-dist { color: #c9a24a; }
+
 </style>
 </head>
 <body>
@@ -1012,6 +1113,7 @@ body.touch #btn-warp b { display: none; }
 
 <!-- 도시로 돌아가기 (지도가 넓어서 걸어 돌아오기 어렵다) -->
 <button id="btn-warp" type="button" title="도시로 돌아가기 (B)">🏙 도시로<b>B</b></button>
+<button id="btn-movie" type="button" title="영화 걸기 (V)">🎬 영화<b>V</b></button>
 <div id="warp-panel">
   <div class="wp-head">어디로 갈까요</div>
   <div id="warp-list"></div>
@@ -1030,6 +1132,7 @@ body.touch #btn-warp b { display: none; }
 <div id="drive-hud"></div>
 <div id="dig-hud"></div>
 <div id="bus-hud"></div>
+<div id="ferry-hud"></div>
 
 <!-- 터치 조작 -->
 <div id="touch-stick"><div id="touch-knob"></div></div>
@@ -1329,6 +1432,30 @@ body.touch #btn-warp b { display: none; }
               물살을 받아야 잘 돌아가고, 빠를수록 돛이 당겨지며 뱃머리가 들린다.
               얕은 데로는 들어가지 않는다. 내릴 때 가까이 뭍이 있으면 거기 내려 주고,
               없으면 바다에 뛰어든다</li>
+          <li>바닷가 도시에는 <b>여객선터미널</b>이 있다 — 물가를 메운 부두에서
+              긴 <b>잔교</b>가 바다로 뻗고, 그 옆을 깊게 파낸 <b>정박지</b>에
+              흰 <b>여객선</b>이 대어 있다. 잔교 끝에서 <b>우클릭</b>하면 승선하고,
+              몇 초 뒤 스스로 <b>출항</b>한다. 항해 중에는 <b>갑판을 걸어 다닐 수</b> 있고,
+              화면 아래에 다음 항구와 남은 거리가 뜬다. 도착해 배가 부두에 대면
+              <b>Shift</b> 로 내린다. 인천 송도 ↔ 제주시를 서해 앞바다를 따라 잇는데,
+              뱃길은 <b>온통 바다인 자리만</b> 골라 이어 만든다</li>
+          <li><b>제주는 섬</b>이라 걸어서 갈 수 없다 — <b>여객선</b>이나 <b>비행기</b>로
+              한 번 닿기 전에는 "도시로" 목록에서 잠겨 있다 (<b>배·비행기로만</b>)</li>
+          <li>도시마다 <b>영화관</b>도 하나씩 있다 — 레스토랑이 아닌 다른 빌딩 1층을
+              쓰며, 옥상에는 <b>은막에 재생 표시</b>를 그린 커다란 간판이 선다.
+              문 앞에서 <b>우클릭</b>하면 들어간다</li>
+          <li>상영관 안은 붉은 방음벽에 카펫을 깔았고, 바닥이 <b>뒤로 갈수록 한 단씩
+              높아진다</b>. 앞(+Z) 벽은 통째로 <b>은막</b>이고, 붉은 관람석에 주민들이
+              <b>은막 쪽을 보고 앉아</b> 있어 들어서면 <b>관객들의 뒷모습</b>이 보인다</li>
+          <li>안에서 <b>V</b>(또는 오른쪽 위 <b>🎬 영화</b> 버튼)를 누르면 상영 화면이
+              열린다. <b>영화 시작하기</b> 로 기기에서 사진·동영상을 고르면 은막에 걸리고,
+              사진은 5초마다 저절로 넘어가며 동영상은 끝나면 다음으로 넘어간다.
+              휴대전화에서는 이 선택창에 <b>구글 포토</b>가 함께 떠서 거기서 바로 고를 수 있다
+              (이 게임은 파일 하나로 도는 오프라인 빌드라 구글 계정에 직접 접속하지는 않는다)</li>
+          <li><b>영수증 사진은 빼 준다</b> — 파일 이름에 영수증·전표·receipt 따위가
+              들어 있으면 걸러 내고, 이름이 멀쩡해도 <b>하얀 바탕에 검은 글씨뿐이고
+              색이 거의 없는</b> 그림이면 영수증으로 보고 뺀다.
+              몇 장을 뺐는지 아래에 적어 주고, <b>영수증 빼기</b> 체크를 끄면 다 보여 준다</li>
           <li>도시와 도시 사이에는 <b>호수</b>가 하나 있고 고속도로가 그 위를 다리로
               건넌다. 호수는 <b>담을 수 있는 자리</b>를 골라 앉히고, 수면은 테두리 땅보다
               낮게 잡으며, 물가에는 <b>둔덕</b>을 둘러 물이 옆으로 새지 않게 한다</li>
@@ -4016,6 +4143,123 @@ defFurnTex('yt_teakwall', function (p, rnd) {
 defFurnTex('yt_light', function (p, rnd) { p.noise(rnd, '#ffe9b4', 3, 6); });
 defFurnTex('yt_navR', function (p, rnd) { p.noise(rnd, '#ff5f4c', 3, 6); });
 defFurnTex('yt_navG', function (p, rnd) { p.noise(rnd, '#4fe07f', 3, 6); });
+
+// ── 제주행 여객선과 터미널 ────────────────────────────────────────────
+defFurnTex('fy_hull', function (p, rnd) {
+  p.noise(rnd, '#1f4f86', 4, 4);
+  p.rect(0, 6, 16, 1, '#2b64a4');
+});
+defFurnTex('fy_boot', function (p, rnd) {
+  p.noise(rnd, '#7d2b2b', 4, 4);
+  p.rect(0, 0, 16, 1, '#5e1f1f');
+});
+defFurnTex('fy_white', function (p, rnd) {
+  p.noise(rnd, '#eef1f4', 3, 5);
+  p.rect(0, 12, 16, 1, '#dbe1e7');
+});
+defFurnTex('fy_stripe', function (p, rnd) {
+  p.noise(rnd, '#e8622f', 4, 4);
+  p.rect(0, 7, 16, 2, '#ffa15c');
+});
+defFurnTex('fy_win', function (p, rnd) {
+  p.noise(rnd, '#22384f', 3, 4);
+  for (let x = 1; x < 16; x += 4) p.rect(x, 3, 3, 9, '#5c8fb8');
+  p.rect(0, 0, 16, 2, '#e9eef2');
+  p.rect(0, 14, 16, 2, '#e9eef2');
+});
+defFurnTex('fy_funnel', function (p, rnd) {
+  p.noise(rnd, '#d94b3a', 4, 4);
+  p.rect(0, 0, 16, 4, '#22303c');
+});
+defFurnTex('fy_dock', function (p, rnd) {
+  p.noise(rnd, '#9a9ea3', 5, 4);
+  for (let y = 0; y < 16; y += 5) p.rect(0, y, 16, 1, '#7c8085');
+  p.speckle(rnd, '#878b90', 8, 1);
+});
+defFurnTex('fy_edge', function (p, rnd) {
+  p.noise(rnd, '#d8c24a', 4, 4);
+  for (let x = 0; x < 16; x += 6) p.rect(x, 0, 3, 16, '#2b2f34');
+});
+defFurnTex('fy_pile', function (p, rnd) {
+  p.noise(rnd, '#4b4f55', 5, 4);
+  p.rect(7, 0, 2, 16, '#3a3e43');
+});
+
+// 부두 가장자리 — 노란 안전 띠를 두른 낮은 턱
+defFurn('quay_edge', '부두 안전턱', [
+  box(0, 0, 0, 16, 3, 16, 'fy_edge'),
+  box(0, 3, 6, 16, 4, 10, 'fy_pile')
+], { tex: 'fy_edge', facing: false, tool: TOOL_PICKAXE, hardness: 2.0 });
+
+// 계선주 — 배를 묶는 쇠기둥
+defFurn('bollard', '계선주', [
+  box(4, 0, 4, 12, 2, 12, 'fy_pile'),
+  box(5.5, 2, 5.5, 10.5, 10, 10.5, 'fy_pile'),
+  box(4.5, 10, 4.5, 11.5, 13, 11.5, 'fy_edge')
+], { tex: 'fy_pile', facing: false, tool: TOOL_PICKAXE, hardness: 2.4 });
+
+// 여객선 매표소 — 주황 띠를 두른 카운터
+defFurn('ferry_desk', '여객선 매표소', [
+  box(2, 0, 3, 14, 2, 14, 'fy_pile'),
+  box(1, 2, 2, 15, 13, 15, 'fy_white'),
+  box(1, 8, 1.6, 15, 11, 2.4, 'fy_stripe'),
+  box(0, 13, 0, 16, 15, 16, 'fy_dock')
+], { tex: 'fy_white', tool: TOOL_PICKAXE });
+
+// ── 영화관 ────────────────────────────────────────────────────────────
+defFurnTex('cn_screen', function (p, rnd) {
+  p.noise(rnd, '#e9ecef', 3, 3);
+  p.frame(0, 0, 16, 16, '#cfd4da');
+});
+defFurnTex('cn_wall', function (p, rnd) {
+  p.noise(rnd, '#5c1f26', 5, 4);
+  for (let x = 1; x < 16; x += 3) for (let y = 0; y < 16; y++) p.set(x, y, shade('#5c1f26', -16));
+});
+defFurnTex('cn_carpet', function (p, rnd) {
+  p.noise(rnd, '#7a1f2b', 6, 3);
+  for (let y = 2; y < 16; y += 5) p.rect(0, y, 16, 1, '#c9a24a');
+});
+defFurnTex('cn_seat', function (p, rnd) {
+  p.noise(rnd, '#8d222c', 6, 3);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (((x + y) & 3) === 0) p.set(x, y, '#761c25');
+});
+defFurnTex('cn_step', function (p, rnd) {
+  p.noise(rnd, '#2a2c31', 5, 3);
+  p.rect(0, 14, 16, 2, '#c9a24a');
+});
+defFurnTex('cn_sign', function (p, rnd) {
+  p.fill('#1b1d22');
+  p.rect(1, 1, 14, 14, '#f0c85a');
+  p.rect(4, 3, 8, 10, '#1b1d22');
+  for (let y = 4; y < 13; y += 3) { p.rect(3, y, 2, 2, '#f0c85a'); p.rect(11, y, 2, 2, '#f0c85a'); }
+});
+
+// 은막 — 벽 한 면을 이 블록으로 채워 스크린을 만든다
+defBlock('cinema_screen', '영화 스크린', {
+  tex: { all: 'cn_screen' }, hardness: 1.2, tool: TOOL_PICKAXE, light: 6, group: 'furniture'
+});
+defBlock('cinema_wall', '영화관 방음벽', {
+  tex: { all: 'cn_wall' }, hardness: 1.4, tool: TOOL_PICKAXE, group: 'furniture'
+});
+defBlock('cinema_carpet', '영화관 카펫', {
+  tex: { all: 'cn_carpet' }, hardness: 0.8, group: 'furniture'
+});
+defBlock('cinema_step', '영화관 계단단', {
+  tex: { all: 'cn_step' }, hardness: 1.4, tool: TOOL_PICKAXE, group: 'furniture'
+});
+
+// 관람석 — 등받이가 높은 붉은 의자
+defFurn('cinema_seat', '영화관 좌석', [
+  box(2, 0, 5, 4, 5, 11, 'f_metal_dark'), box(12, 0, 5, 14, 5, 11, 'f_metal_dark'),
+  box(1, 5, 3, 15, 8, 14, 'cn_seat'),
+  box(1, 8, 12, 15, 16, 15, 'cn_seat'),
+  box(0, 5, 4, 1.6, 12, 13, 'cn_seat'), box(14.4, 5, 4, 16, 12, 13, 'cn_seat')
+], { tex: 'cn_seat', tool: TOOL_PICKAXE });
+
+// 매표소 간판
+defFurn('cinema_sign', '영화관 간판', [
+  box(0, 2, 14, 16, 14, 16, 'cn_sign')
+], { tex: 'cn_sign', tool: TOOL_PICKAXE, light: 8 });
 
 </script>
 <script>
@@ -11872,7 +12116,8 @@ function initCityStyles() {
 const CITY_DEFS = {
   ICN: { name: '인천 송도', style: 'modern', lat: 37.38, lon: 126.65 },
   GMP: { name: '서울', style: 'skyline', lat: 37.55, lon: 126.99 },
-  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53 }
+  // 제주는 섬이다 — 배나 비행기로 한 번 닿아야 도시 이동 목록에 열린다
+  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53, island: true }
 };
 
 // ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
@@ -13186,15 +13431,19 @@ const RS_MARK = [
 ];
 
 function restaurantRoofSign(plan, r, st) {
+  roofSign(plan, r, RS_MARK, bid('red_concrete'));
+}
+
+// 옥상 간판 한 벌 — 네 면에 같은 무늬를 그리고 꼭대기에 등을 단다
+function roofSign(plan, r, mark, back) {
   const gy = plan.y;
   const set = function (x, y, z, id, meta, run) {
     plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
   };
   const cx = r.cx, cz = r.cz, top = r.top;
-  const W = RS_MARK[0].length, H = RS_MARK.length;
+  const W = mark[0].length, H = mark.length;
   const half = (W - 1) / 2;                       // 5
   const lit = bid('sea_lantern');
-  const back = bid('red_concrete');
   const frame = bid('black_concrete');
 
   // 간판이 설 자리를 치운다 (항공 장애등·난간이 걸린다)
@@ -13212,7 +13461,7 @@ function restaurantRoofSign(plan, r, st) {
   // 네 면에 무늬를 그린다. 면마다 바깥에서 봤을 때 바로 읽히게 방향을 맞춘다.
   const y0 = top + 2;
   for (let row = 0; row < H; row++) {
-    const line = RS_MARK[row];
+    const line = mark[row];
     const y = y0 + (H - 1 - row);
     for (let col = 0; col < W; col++) {
       const on = line[col] === 'X';
@@ -13382,6 +13631,7 @@ function cityRestaurant(plan, st) {
 
   // 7) 옥상 간판 — 멀리서도 어느 빌딩인지 알아보게
   restaurantRoofSign(plan, r, st);
+  plan._takenRoof = r.cx + ',' + r.cz;
 
   plan.restaurant = {
     name: (plan.name || '') + ' 레스토랑',
@@ -13393,6 +13643,140 @@ function cityRestaurant(plan, st) {
     in: { x: plan.x + cx + doorX + 0.5, y: gy + 1, z: plan.z + cz + wz + 1.5 },
     tables: plan.restTables,
     stations: plan.restStations
+  };
+}
+
+
+// ── 영화관 ────────────────────────────────────────────────────────────
+// 빌딩 1층을 통째로 비워 상영관으로 꾸민다. 앞(+Z)이 은막, 뒤(-Z)가 출입구다.
+// 바닥은 뒤로 갈수록 한 단씩 높아져 앞자리에 가리지 않는다.
+const CN_H = 9;              // 실내 높이
+const CN_MIN = 5;            // 이만큼 넓은 빌딩이라야 들어간다
+
+// 옥상 간판 — 은막에 재생 표시
+const CN_MARK = [
+  'XXXXXXXXXXX',
+  'X.........X',
+  'X..X......X',
+  'X..XX.....X',
+  'X..XXX....X',
+  'X..XXXX...X',
+  'X..XXX....X',
+  'X..XX.....X',
+  'X..X......X',
+  'X.........X',
+  'XXXXXXXXXXX'
+];
+
+function cityCinema(plan, st) {
+  const roofs = plan.roofs;
+  if (!roofs || !roofs.length) return;
+  const gy = plan.y;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(plan.x + x, gy + y, plan.z + z, id, meta || 0, true, run || 1);
+  };
+  // 레스토랑·옥상 승강장이 쓰는 빌딩은 피한다
+  const taken = {};
+  if (plan._takenRoof) taken[plan._takenRoof] = 1;
+  const pads = plan.helipads || [];
+  for (let i = 0; i < pads.length; i++) {
+    taken[(pads[i].x - plan.x) + ',' + (pads[i].z - plan.z)] = 1;
+  }
+  let pick = null;
+  for (let i = 0; i < roofs.length; i++) {
+    const r = roofs[i];
+    if (r.hw < CN_MIN || r.hd < CN_MIN) continue;
+    if (taken[r.cx + ',' + r.cz]) continue;
+    const area = Math.min(r.hw, r.hd) * 1000 - Math.hypot(r.cx, r.cz);
+    if (!pick || area > pick.area) pick = { r: r, area: area };
+  }
+  if (!pick) return;
+  const r = pick.r, cx = r.cx, cz = r.cz;
+  const ix = r.hw - 1, iz = r.hd - 1;
+
+  // 뒤로 갈수록 높아지는 바닥 (앞자리 머리에 가리지 않게)
+  const stepOf = function (dz) {
+    const back = (iz - 2) - dz;                 // 은막에서 멀수록 크다
+    return Math.max(0, Math.min(4, Math.floor(back / 4)));
+  };
+
+  // 1) 1층을 비우고 바닥·천장·벽을 마감한다
+  for (let dz = -iz; dz <= iz; dz++) {
+    for (let dx = -ix; dx <= ix; dx++) {
+      const f = stepOf(dz);
+      set(cx + dx, 0, cz + dz, bid('cinema_carpet'), 0, 1);
+      if (f > 0) set(cx + dx, 1, cz + dz, bid('cinema_step'), 0, f);
+      set(cx + dx, 1 + f, cz + dz, 0, 0, CN_H - f);
+      set(cx + dx, 1 + CN_H, cz + dz, B.black_concrete);
+    }
+  }
+  for (let dz = -iz - 1; dz <= iz + 1; dz++) {
+    for (let dx = -ix - 1; dx <= ix + 1; dx++) {
+      if (Math.abs(dx) <= ix && Math.abs(dz) <= iz) continue;
+      for (let y = 1; y <= CN_H; y++) set(cx + dx, y, cz + dz, bid('cinema_wall'));
+    }
+  }
+
+  // 2) 은막 — 앞(+Z) 벽을 가득 채운다
+  const SC_Y0 = 2, SC_Y1 = Math.min(CN_H - 2, 7);
+  for (let dx = -ix + 1; dx <= ix - 1; dx++) {
+    for (let y = SC_Y0; y <= SC_Y1; y++) set(cx + dx, y, cz + iz, bid('cinema_screen'));
+  }
+  // 은막 둘레 검은 테
+  for (let dx = -ix; dx <= ix; dx++) {
+    set(cx + dx, SC_Y0 - 1, cz + iz, B.black_concrete);
+    set(cx + dx, SC_Y1 + 1, cz + iz, B.black_concrete);
+  }
+
+  // 3) 출입구는 뒤(-Z) 구석 — 복도 불빛을 단다
+  const wz = -iz - 1;
+  const doorX = ix - 1;
+  const backF = stepOf(-iz);
+  for (const dx of [doorX, doorX + 1]) {
+    for (let y = 1; y <= 3; y++) set(cx + dx, 1 + backF + y - 1, cz + wz, 0);
+  }
+  set(cx + doorX, 1 + backF + 3, cz + wz, bid('cinema_sign'), 2);
+  set(cx + doorX + 1, 1 + backF + 3, cz + wz, bid('cinema_sign'), 2);
+  // 영사실 창 — 뒷벽 위쪽
+  for (const dx of [-1, 0, 1]) set(cx + dx, CN_H - 2, cz + wz, B.glass_pane);
+  // 천장 조명 (은막에서 먼 쪽만 — 앞쪽은 어둡게 둔다)
+  for (let dz = -iz + 2; dz <= 0; dz += 4) {
+    for (let dx = -ix + 2; dx <= ix - 2; dx += 5) set(cx + dx, CN_H, cz + dz, B.ceiling_panel);
+  }
+  // 계단 옆 통로 등
+  for (let dz = -iz + 1; dz <= iz - 1; dz += 5) {
+    set(cx - ix, 2 + stepOf(dz), cz + dz, B.floor_lamp);
+  }
+
+  // 4) 관람석 — 앞줄부터 뒤로, 가운데 통로를 비운다
+  const seats = [];
+  const aisle = (ix >= 5) ? 0 : 99;
+  for (let dz = iz - 3; dz >= -iz + 2; dz -= 2) {
+    const f = stepOf(dz);
+    for (let dx = -ix + 1; dx <= ix - 1; dx++) {
+      if (dx === aisle) continue;
+      set(cx + dx, 1 + f, cz + dz, bid('cinema_seat'), 0);   // 메타 0 = +Z(은막) 를 본다
+      seats.push({
+        x: plan.x + cx + dx, z: plan.z + cz + dz,
+        sy: gy + 1 + f + 0.62, yaw: 0
+      });
+    }
+  }
+
+  // 5) 옥상 간판
+  roofSign(plan, r, CN_MARK, bid('black_concrete'));
+  plan._takenRoof2 = r.cx + ',' + r.cz;
+
+  plan.cinema = {
+    name: (plan.name || '') + ' 시네마',
+    city: plan.code,
+    x: plan.x + cx, y: gy + 1, z: plan.z + cz,
+    hw: ix, hd: iz,
+    // 문 앞(밖)과 문 안쪽
+    out: { x: plan.x + cx + doorX + 0.5, y: gy + 1 + backF, z: plan.z + cz + wz - 2.5 },
+    in: { x: plan.x + cx + doorX + 0.5, y: gy + 1 + backF, z: plan.z + cz + wz + 1.5 },
+    screen: { x: plan.x + cx, y: gy + (SC_Y0 + SC_Y1) / 2, z: plan.z + cz + iz, hw: ix - 1 },
+    seats: seats
   };
 }
 
@@ -13460,6 +13844,7 @@ function buildCityPlan(world, ap, index) {
   plan.side = best.side;      // 고가철로가 빠져나가는 쪽(-side) 을 알려 준다
   plan.topY = best.y + 24;    // 제일 높은 건물 꼭대기 (cityTower 가 올려 잡는다)
   plan.name = def.name;
+  plan.island = !!def.island;
   plan.styleName = def.style;
   plan.index = index;
   plan.people = [];
@@ -13672,7 +14057,158 @@ function buildCityPlan(world, ap, index) {
 
   citySignals(plan, st);
   cityHelipads(plan, st);
+
+// ── 여객선 터미널 ─────────────────────────────────────────────────────
+// 바다가 가까운 도시에만 짓는다 (인천 송도·제주시). 물가를 메워 부두를 만들고,
+// 대합실을 올린 뒤 바다 쪽으로 잔교를 뻗어 배를 댄다.
+const FT_QUAY_Y = SEA_LEVEL + 4;     // 부두 블록 꼭대기 (걷는 면은 그 위)
+const FT_PIER_HALF = 5;              // 잔교 반폭
+const FT_PIER_MAX = 120;             // 잔교 최대 길이
+const FT_DEPTH = 9;                  // 정박지를 이만큼 파낸다 (배 흘수 3칸)
+const FT_SEA_MAX = 820;              // 도시에서 바다까지 이만큼 안이어야 짓는다
+
+function cityFerry(plan, st) {
+  const w = plan.world;
+  const set = function (x, y, z, id, meta, run) {
+    plan.set(x, y, z, id, meta || 0, true, run || 1);
+  };
+
+  // 1) 제일 가까운 바다 쪽을 찾는다
+  let best = null;
+  for (let i = 0; i < 96; i++) {
+    const a = i / 96 * Math.PI * 2;
+    const cs = Math.cos(a), sn = Math.sin(a);
+    for (let d = CITY_R - 30; d < FT_SEA_MAX + 60; d += 12) {
+      const x = Math.round(plan.x + cs * d), z = Math.round(plan.z + sn * d);
+      if (w.heightAt(x, z) <= SEA_LEVEL - 5) {
+        if (!best || d < best.d) best = { d: d, cs: cs, sn: sn, x: x, z: z };
+        break;
+      }
+    }
+  }
+  if (!best || best.d > FT_SEA_MAX) return;      // 내륙 도시는 그냥 넘어간다
+
+  const dx = best.cs, dz = best.sn;              // 바다 쪽
+  const rx = -dz, rz = dx;                       // 오른쪽 (잔교에서 배가 서는 쪽)
+
+  // 2) 물가 — 바다 지점에서 도시 쪽으로 되짚어 마지막 뭍을 찾는다
+  let sx = best.x, sz = best.z;
+  for (let k = 0; k < 90; k++) {
+    const x = Math.round(best.x - dx * k), z = Math.round(best.z - dz * k);
+    if (w.heightAt(x, z) > SEA_LEVEL + 1) { sx = x; sz = z; break; }
+  }
+
+  const QY = FT_QUAY_Y, SURF = QY + 1;
+  const at = function (u, v) {   // u = 바다 쪽 거리, v = 오른쪽 거리
+    return [Math.round(sx + dx * u + rx * v), Math.round(sz + dz * u + rz * v)];
+  };
+  // 바닥까지 메우고 부두 바닥을 깐다
+  const pave = function (u, v, top) {
+    const q = at(u, v);
+    const g = Math.max(1, Math.min(w.heightAt(q[0], q[1]), top));
+    plan.set(q[0], g, q[1], st.base || st.trim, 0, true, top - g + 1);
+    set(q[0], top, q[1], bid('light_gray_concrete', 'smooth_stone', 'stone_bricks'));
+    plan.set(q[0], top + 1, q[1], 0, 0, true, 12);       // 위를 비운다
+  };
+
+  // 3) 부두 앞마당 — 물가 앞뒤로 넉넉히
+  for (let u = -30; u <= 8; u++) {
+    for (let v = -22; v <= 22; v++) pave(u, v, QY);
+  }
+  // 4) 잔교 — 깊은 데까지 뻗는다
+  let pier = 20;
+  for (let u = 8; u <= FT_PIER_MAX; u++) {
+    const q = at(u, 0);
+    pier = u;
+    if (w.heightAt(q[0], q[1]) <= SEA_LEVEL - 5 && u >= 44) break;
+  }
+  for (let u = 8; u <= pier; u++) {
+    for (let v = -FT_PIER_HALF; v <= FT_PIER_HALF; v++) {
+      pave(u, v, QY);
+      if (Math.abs(v) === FT_PIER_HALF) set(at(u, v)[0], QY + 1, at(u, v)[1], bid('quay_edge'));
+    }
+    // 계선주와 등
+    if (u % 8 === 0) {
+      for (const v of [-FT_PIER_HALF + 1, FT_PIER_HALF - 1]) {
+        const q = at(u, v);
+        set(q[0], QY + 1, q[1], bid('bollard'));
+      }
+    }
+    if (u % 16 === 0) {
+      const q = at(u, -FT_PIER_HALF + 1);
+      set(q[0], QY + 2, q[1], B.sea_lantern !== undefined ? B.sea_lantern : bid('bollard'), 0, 3);
+    }
+  }
+
+  // 5) 대합실 — 물가 뒤에 앉힌다
+  const TH = 9, HW = 13, HD = 7;
+  const cu = -17;
+  for (let u = cu - HD; u <= cu + HD; u++) {
+    for (let v = -HW; v <= HW; v++) {
+      const q = at(u, v);
+      const edge = (u === cu - HD || u === cu + HD || v === -HW || v === HW);
+      if (edge) {
+        for (let y = 1; y <= TH; y++) {
+          const bl = (u === cu + HD && Math.abs(v) <= HW - 2 && y >= 2 && y <= TH - 3)
+            ? B.glass_pane : (st.wall || st.trim);
+          set(q[0], QY + y, q[1], bl);
+        }
+      }
+      set(q[0], QY + TH + 1, q[1], st.roof || st.trim);
+    }
+  }
+  // 바다 쪽 출입구
+  for (const v of [-1, 0, 1]) {
+    const q = at(cu + HD, v);
+    for (let y = 1; y <= 3; y++) plan.set(q[0], QY + y, q[1], 0, 0, true);
+  }
+  // 도시 쪽 출입구
+  for (const v of [-1, 0, 1]) {
+    const q = at(cu - HD, v);
+    for (let y = 1; y <= 3; y++) plan.set(q[0], QY + y, q[1], 0, 0, true);
+  }
+  // 매표소와 의자, 천장 조명
+  const tick = at(cu - 2, 0);
+  set(tick[0], QY + 1, tick[1], bid('ferry_desk'));
+  for (const v of [-8, -4, 4, 8]) {
+    for (const u of [cu - 3, cu + 2]) {
+      const q = at(u, v);
+      set(q[0], QY + 1, q[1], B.airport_bench, 0);
+    }
+  }
+  for (let v = -8; v <= 8; v += 8) {
+    const q = at(cu, v);
+    set(q[0], QY + TH, q[1], B.ceiling_panel);
+  }
+
+  // 6) 정박지 준설 — 서해 갯벌은 아주 완만해서 그냥 두면 배가 바닥에 닿는다.
+  //    잔교 오른쪽을 네모지게 파내고 물을 채운다 (실제 항만도 이렇게 판다).
+  const BED = SEA_LEVEL - FT_DEPTH;
+  for (let u = Math.max(12, pier - 52); u <= pier + 24; u++) {
+    for (let v = FT_PIER_HALF + 1; v <= FT_PIER_HALF + 24; v++) {
+      const q = at(u, v);
+      if (w.heightAt(q[0], q[1]) >= SEA_LEVEL) continue;   // 뭍은 건드리지 않는다
+      plan.set(q[0], BED, q[1], B.water, 0, true, FT_DEPTH + 1);
+      plan.set(q[0], SEA_LEVEL + 1, q[1], 0, 0, true, 8);
+    }
+  }
+
+  // 7) 배가 서는 자리 — 잔교 오른쪽에 나란히
+  const mid = at(pier - 6, 0);
+  const berth = at(pier - 10, FT_PIER_HALF + 9);
+  plan.ferry = {
+    name: plan.name + ' 여객선터미널',
+    city: plan.code,
+    x: mid[0], z: mid[1], y: SURF,          // 승선하는 자리 (잔교 위)
+    dock: { x: berth[0], z: berth[1] },     // 배가 뜨는 자리
+    yaw: Math.atan2(dx, dz),                // 뱃머리는 바다 쪽 — 잔교와 나란히 선다
+    dirx: dx, dirz: dz
+  };
+}
+
   cityRestaurant(plan, st);
+  cityCinema(plan, st);
+  cityFerry(plan, st);
 
 
   // ── 공원과 밭 ──
@@ -19689,6 +20225,42 @@ Renderer.prototype.drawYachts = function (game, world, player, opts) {
   this.flushEntityGeom(opts);
 };
 
+// ── 제주행 여객선 ─────────────────────────────────────────────────────
+const FERRY_OPTS = { glow: { yt_light: 1, yt_navR: 1, yt_navG: 1, fy_win: 0.35 } };
+
+Renderer.prototype.drawFerries = function (game, world, player, opts) {
+  const list = game.ferries;
+  if (!list || !list.length) return;
+  _geom.reset();
+  let any = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i];
+    const dx = f.x - player.x, dz = f.z - player.z;
+    if (dx * dx + dz * dz > 900 * 900) continue;
+    if (!this.boxInFrustum(f.x - 32, f.y - 6, f.z - 32, f.x + 32, f.y + 26, f.z + 32)) continue;
+    any++;
+
+    const bx = Math.floor(f.x), bz = Math.floor(f.z);
+    const by = Math.min(CHUNK_Y - 1, Math.floor(f.y) + 6);
+    // 바다 한복판이라 하늘이 늘 열려 있다
+    const light = [Math.max(0.9, world.getSky(bx, by, bz) / 15), world.getBlockLight(bx, by, bz) / 15];
+
+    const cr = Math.cos(f.roll), sr = Math.sin(f.roll);
+    const cp = Math.cos(f.pitch), sp = Math.sin(f.pitch);
+    const cy = Math.cos(f.yaw), sy = Math.sin(f.yaw);
+    const rot = function (lx, ly, lz, out) {
+      const x1 = lx * cr - ly * sr, y1 = lx * sr + ly * cr;
+      const y2 = y1 * cp + lz * sp, z2 = -y1 * sp + lz * cp;
+      out[0] = x1 * cy + z2 * sy; out[1] = y2; out[2] = -x1 * sy + z2 * cy;
+    };
+    this.emitMesh(ferryMesh(), f.x, f.y, f.z, rot, 1, light, FERRY_OPTS);
+  }
+
+  if (!any || !_geom.inn) return;
+  this.flushEntityGeom(opts);
+};
+
 // ── 드론 택시 ─────────────────────────────────────────────────────────
 const DRONE_OPTS = { glow: { dr_light: 1 } };
 
@@ -22116,6 +22688,114 @@ let _yachtMesh = null, _yachtSail = null;
 function yachtMesh() { return _yachtMesh || (_yachtMesh = buildYachtMesh()); }
 function yachtSailMesh() { return _yachtSail || (_yachtSail = buildYachtSailMesh()); }
 
+// ── 제주행 여객선 ─────────────────────────────────────────────────────
+// 자동차도 싣는 큰 연안 여객선. 축은 요트와 같다 (+Z 뱃머리, y=0 흘수선).
+const FY_L = 54, FY_W = 13;
+
+function buildFerryMesh() {
+  const m = new Mesh3D();
+  const HL = FY_L / 2;
+
+  // 1) 선체 — 흘수선 아래 붉은 바닥, 위는 남색, 그 위 흰 갑판벽
+  const hull = [
+    [-HL, 5.2, -2.4, 3.6],
+    [-HL + 3, 6.0, -2.9, 3.7],
+    [-16, 6.5, -3.2, 3.8],
+    [-4, 6.5, -3.2, 3.9],
+    [8, 6.3, -3.1, 4.0],
+    [16, 5.6, -2.9, 4.2],
+    [22, 4.0, -2.4, 4.5],
+    [25, 2.4, -1.7, 4.8],
+    [HL, 0.7, -0.9, 5.1]
+  ];
+  carLoft(m, hull, 3.4, function (my) {
+    if (my < -0.05) return 'fy_boot';
+    if (my < 2.6) return 'fy_hull';
+    if (my < 3.1) return 'fy_stripe';
+    return 'fy_white';
+  }, 'fy_hull', 14);
+  deckStrip(m, hull, 4.0, 0.90, 'fy_dock');
+
+  // 2) 선미 램프 (자동차가 오르내린다)
+  m.box(0, 0.5, -HL - 1.6, 7.0, 0.4, 3.4, 'fy_dock');
+  m.box(0, 2.3, -HL - 0.1, 8.0, 4.0, 0.3, 'fy_hull');
+
+  // 3) 객실 — 두 층, 창문 띠를 두른다
+  const deckA = [
+    [-22, 5.6, 4.0, 7.4], [-14, 6.0, 4.0, 7.6], [2, 6.0, 4.0, 7.7],
+    [14, 5.6, 4.0, 7.5], [20, 4.4, 4.0, 7.1]
+  ];
+  carLoft(m, deckA, 5.0, function (my) {
+    return (my > 4.9 && my < 6.6) ? 'fy_win' : 'fy_white';
+  }, 'fy_white', 12);
+  deckStrip(m, deckA, 7.66, 0.92, 'fy_dock');
+
+  const deckB = [
+    [-16, 4.6, 7.6, 10.6], [-8, 5.0, 7.6, 10.8], [6, 5.0, 7.6, 10.8],
+    [15, 4.4, 7.6, 10.4]
+  ];
+  carLoft(m, deckB, 5.0, function (my) {
+    return (my > 8.4 && my < 9.9) ? 'fy_win' : 'fy_white';
+  }, 'fy_white', 12);
+  deckStrip(m, deckB, 10.7, 0.92, 'fy_dock');
+
+  // 4) 조타실 — 제일 앞 위쪽, 앞으로 기운 통유리
+  const brg = [
+    [10, 4.2, 10.7, 13.0], [15, 4.4, 10.7, 13.2], [19, 3.4, 10.7, 12.8]
+  ];
+  carLoft(m, brg, 5.0, function (my) {
+    return (my > 11.3 && my < 12.7) ? 'fy_win' : 'fy_white';
+  }, 'fy_white', 10);
+  deckStrip(m, brg, 13.15, 0.92, 'fy_dock');
+  // 조타실 날개
+  for (const s of [-1, 1]) m.box(s * 5.6, 11.6, 15.5, 2.4, 0.3, 3.0, 'fy_dock');
+
+  // 5) 연돌과 돛대
+  taperPole(m, [0, 10.8, -11], [0, 16.6, -12.4], 2.5, 2.1, 12, 'fy_funnel');
+  m.box(0, 16.8, -12.4, 4.2, 0.4, 4.2, 'fy_funnel');
+  taperPole(m, [0, 13.2, 17.5], [0, 20.5, 16.6], 0.28, 0.12, 8, 'fy_white');
+  m.box(0, 20.8, 16.5, 0.24, 0.26, 0.24, 'yt_light');
+
+  // 6) 구명정 — 양옆 상갑판에 매단다
+  for (const s of [-1, 1]) {
+    for (const z of [-6, 0, 6]) {
+      m.box(s * 5.4, 8.6, z, 1.5, 1.1, 4.0, 'fy_stripe');
+      taperPole(m, [s * 4.6, 7.7, z - 1.6], [s * 4.6, 9.8, z - 1.6], 0.10, 0.10, 6, 'yt_rail');
+      taperPole(m, [s * 4.6, 7.7, z + 1.6], [s * 4.6, 9.8, z + 1.6], 0.10, 0.10, 6, 'yt_rail');
+    }
+  }
+
+  // 7) 난간
+  for (const s of [-1, 1]) {
+    for (let z = -24; z <= 24; z += 4) {
+      const w = ferryBeamAt(hull, z) * 0.92;
+      taperPole(m, [s * w, 4.0, z], [s * w, 5.1, z], 0.07, 0.07, 6, 'yt_rail');
+    }
+    const w0 = 5.9;
+    taperPole(m, [s * w0, 5.05, -24], [s * w0, 5.05, 24], 0.06, 0.06, 6, 'yt_rail');
+  }
+
+  // 8) 항해등과 배 이름판
+  m.box(-5.6, 11.9, 15.6, 0.22, 0.24, 0.22, 'yt_navR');
+  m.box(5.6, 11.9, 15.6, 0.22, 0.24, 0.22, 'yt_navG');
+  for (const s of [-1, 1]) m.box(s * 6.3, 3.2, 12, 0.16, 1.0, 5.0, 'fy_stripe');
+  return m.build();
+}
+
+function ferryBeamAt(hull, z) {
+  for (let i = 0; i + 1 < hull.length; i++) {
+    const a = hull[i], b = hull[i + 1];
+    if (z >= a[0] && z <= b[0]) {
+      const t = (z - a[0]) / (b[0] - a[0] || 1);
+      return a[1] + (b[1] - a[1]) * t;
+    }
+  }
+  return hull[hull.length - 1][1];
+}
+
+let _ferryMesh = null;
+function ferryMesh() { return _ferryMesh || (_ferryMesh = buildFerryMesh()); }
+
 </script>
 <script>
 /* ==== js/particles.js ==== */
@@ -23940,7 +24620,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.5';
+const GAME_VERSION = 'v10.6';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -24200,9 +24880,15 @@ Game.prototype.warpTargets = function () {
     if (!c.spawn) continue;
     const dx = c.spawn.x - p.x, dz = c.spawn.z - p.z;
     const d = Math.hypot(dx, dz);
+    // 섬(제주)은 배나 비행기로 한 번 닿기 전에는 목록에서 잠겨 있다
+    if (d < 90 && c.island) {
+      if (!this._visited) this._visited = {};
+      this._visited[c.code] = 1;
+    }
     out.push({
       code: c.code, name: c.name, dist: Math.round(d),
-      dir: warpBearing(dx, dz), here: d < 90
+      dir: warpBearing(dx, dz), here: d < 90,
+      locked: !!c.island && !(this._visited && this._visited[c.code])
     });
   }
   out.sort(function (a, b) { return a.dist - b.dist; });
@@ -24213,7 +24899,7 @@ Game.prototype.warpTargets = function () {
 Game.prototype.warpBlocked = function () {
   const p = this.player;
   if (p.dead) return '쓰러져 있는 동안에는 옮겨 갈 수 없습니다';
-  if (p.riding || p.onTrain || p.inCar || p.inDrone || p.inShuttle || p.inDigger || p.inYacht) {
+  if (p.riding || p.onTrain || p.inCar || p.inDrone || p.inShuttle || p.inDigger || p.inYacht || p.onFerry) {
     return '타고 있는 것에서 내린 뒤에 눌러 주세요';
   }
   if (this.cook) return '요리를 마친 뒤에 눌러 주세요';
@@ -24280,9 +24966,11 @@ Game.prototype.buildWarpList = function () {
     code.textContent = t.code;
     const dist = document.createElement('span');
     dist.className = 'wp-dist';
-    dist.textContent = t.here ? '여기' : (t.dist + '블록 ' + t.dir);
+    dist.textContent = t.here ? '여기'
+      : t.locked ? '배·비행기로만' : (t.dist + '블록 ' + t.dir);
+    if (t.locked) b.className += ' locked';
     b.appendChild(name); b.appendChild(code); b.appendChild(dist);
-    if (!t.here) {
+    if (!t.here && !t.locked) {
       b.addEventListener('click', function () { self.warpToCity(t.code); });
     }
     box.appendChild(b);
@@ -24382,6 +25070,28 @@ Game.prototype.updateCountdown = function () {
   el.style.display = 'block';
   if (el.className !== cls) el.className = cls;
   const html = '<span class="num">' + num + '</span><span class="lbl">' + lbl + '</span>';
+  if (el.innerHTML !== html) el.innerHTML = html;
+};
+
+// 여객선 계기판 — 다음 항구와 남은 거리
+Game.prototype.updateFerryHud = function () {
+  const el = document.getElementById('ferry-hud');
+  if (!el) return;
+  const f = this.player.onFerry;
+  if (!f) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  let html;
+  if (f.mode === 'dock') {
+    html = '<span class="kmh">' + f.terminal().name + '</span><br>' +
+      (f.wait > 0 ? '<span class="lim">' + Math.ceil(f.wait) + '초 뒤 ' + f.other().name + ' 로 출항</span>'
+        : '<span class="ok">접안 — Shift 로 내리기</span>');
+  } else {
+    const left = Math.round(f.remain());
+    html = '<span class="kmh">' + Math.round(kmh(f.speed)) + '</span> km/h' +
+      '  <span class="lim">' + f.terminal().name + '</span><br>' +
+      '남은 거리 ' + left.toLocaleString('ko-KR') + 'm' +
+      ' <span class="lim">약 ' + Math.max(1, Math.round(left / Math.max(4, f.speed))) + '초</span>';
+  }
   if (el.innerHTML !== html) el.innerHTML = html;
 };
 
@@ -24701,7 +25411,8 @@ Game.prototype.bindInput = function () {
         if (self.player.inDigger) { self.input.curlOut = true; e.preventDefault(); }
         break;
       case 'Escape':
-        if (self.warpOpen) self.closeWarp();
+        if (self.cineOpen) self.closeCine();
+        else if (self.warpOpen) self.closeWarp();
         else if (self.worldMap && self.worldMap.open) self.worldMap.toggle();
         else if (self.ui.open) self.ui.closeScreen();
         else self.exitPointerLock();
@@ -24744,6 +25455,9 @@ Game.prototype.bindInput = function () {
         break;
       case 'KeyM':
         if (self.worldMap) { self.worldMap.toggle(); e.preventDefault(); }
+        break;
+      case 'KeyV':
+        if (self.toggleCine) { self.toggleCine(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -25033,6 +25747,14 @@ Game.prototype.bindTouch = function () {
       self.toggleWarp();
     });
   }
+  // 영화 걸기 — 상영관 안에서만 뜬다
+  const mv = document.getElementById('btn-movie');
+  if (mv) {
+    mv.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (self.toggleCine) self.toggleCine();
+    });
+  }
   const panel = document.getElementById('warp-panel');
   if (panel) {
     // 패널 안을 눌러도 화면(캐닝·설치)으로 넘어가지 않게 막는다
@@ -25124,7 +25846,7 @@ Game.prototype.breakBlock = function (x, y, z) {
 Game.prototype.onUse = function () {
   const p = this.player;
   if (p.dead || this.ui.open) return;
-  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.inDrone || p.inYacht) return; // 타고 있는 동안에는 블록을 만지지 않는다
+  if (p.riding || p.onTrain || p.inCar || p.inDigger || p.inDrone || p.inYacht || p.onFerry) return; // 타고 있는 동안에는 블록을 만지지 않는다
   this.swingTimer = 0.25;
 
   const hit = p.pick(5);
@@ -25175,6 +25897,12 @@ Game.prototype.onUse = function () {
     if (dr) { this.enterDrone(dr); return; }
   }
 
+  // 0-2a) 여객선 타기 (여객선터미널 잔교)
+  if (this.nearestFerry) {
+    const fy = this.nearestFerry();
+    if (fy) { this.enterFerry(fy); return; }
+  }
+
   // 0-2b) 요트 타기 (바다)
   if (this.nearestYacht) {
     const yt = this.nearestYacht();
@@ -25201,6 +25929,12 @@ Game.prototype.onUse = function () {
     if (stn) { this.startCooking(stn); return; }
     const door = this.restaurantDoor();
     if (door) { this.enterRestaurant(door); return; }
+  }
+
+  // 0-0b) 영화관 출입문
+  if (this.cinemaDoor) {
+    const cd = this.cinemaDoor();
+    if (cd) { this.enterCinema(cd); return; }
   }
 
   // 0-1) 주민과 거래 — 블록보다 앞에 있을 때만
@@ -25895,7 +26629,7 @@ Game.prototype.updateUseHint = function () {
   const el = document.getElementById('use-hint');
   if (!el) return;
   const p = this.player;
-  if (this.ui.open || this.cook || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger) {
+  if (this.ui.open || this.cook || p.dead || p.riding || p.onTrain || p.inCar || p.inDigger || p.onFerry) {
     if (el.style.display !== 'none') el.style.display = 'none';
     return;
   }
@@ -25940,6 +26674,14 @@ Game.prototype.updateUseHint = function () {
       const d = this.restaurantDoor();
       if (d) label = d.name + ' 들어가기';
     }
+  }
+  if (!label && this.cinemaDoor) {
+    const cd = this.cinemaDoor();
+    if (cd) label = cd.name + ' 들어가기';
+  }
+  if (!label && this.nearestFerry) {
+    const fy = this.nearestFerry();
+    if (fy) label = fy.other().name + ' 행 여객선 타기';
   }
   if (!label && this.nearestYacht) {
     const yt = this.nearestYacht();
@@ -26531,6 +27273,7 @@ Game.prototype.update = function (dt) {
   else if (p.onTrain && this.input.sneak && !this._sneakPrev) this.exitTrain();
   else if (p.inCar && this.input.sneak && !this._sneakPrev) this.exitCar();
   else if (p.inYacht && this.input.sneak && !this._sneakPrev) this.exitYacht();
+  else if (p.onFerry && this.input.sneak && !this._sneakPrev) this.exitFerry();
   this._sneakPrev = this.input.sneak;
 
   if (p.riding) {
@@ -26570,6 +27313,9 @@ Game.prototype.update = function (dt) {
   } else if (p.inYacht) {
     // 요트 조타석 — 몸은 요트가 붙잡는다 (updateYachts 가 자리를 정한다)
     if (p.dead) this.exitYacht();
+  } else if (p.onFerry) {
+    // 여객선 갑판 — 몸은 배가 붙잡는다 (updateFerries 가 자리를 정한다)
+    if (p.dead) p.onFerry.unboard();
   } else if (p.inCar) {
     // 운전 중에는 몸이 운전석에 붙는다 (차가 자리를 정한다)
     if (p.dead) this.exitCar();
@@ -26598,7 +27344,7 @@ Game.prototype.update = function (dt) {
   // 구름 위에서는 빗소리도 들리지 않는다
   const wy = p.riding ? p.riding.y : p.y;
   // 지붕 아래(역사 안·객실 안)에서는 빗소리도 잦아든다
-  const shelter = (p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle ||
+  const shelter = (p.onTrain || p.inCar || p.riding || p.inDrone || p.inShuttle || p.onFerry ||
     this.world.sheltered(p.x, p.y + 1.6, p.z)) ? 0.18 : 1;
   this.setRainSound(this.weather.strength * this.weather.skyFade(wy) * shelter *
     (this.weather.isSnowAt(p.x, p.z) ? 0.25 : 1));
@@ -26617,8 +27363,10 @@ Game.prototype.update = function (dt) {
   if (this.updateSiteTrucks) this.updateSiteTrucks(dt);   // 덤프트럭 오가기
   if (this.updateShuttles) this.updateShuttles(dt);       // 우주왕복선
   if (this.updateYachts) this.updateYachts(dt);           // 바다 요트
+  if (this.updateFerries) this.updateFerries(dt);         // 제주행 여객선
   if (this.updateDrones) this.updateDrones(dt);           // 드론 택시
   if (this.updateRestaurants) this.updateRestaurants(dt); // 레스토랑
+  if (this.updateCinemas) this.updateCinemas(dt);         // 영화관
   if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
@@ -26636,6 +27384,7 @@ Game.prototype.update = function (dt) {
   this.streamChunks(p.riding ? 13 : 7);
   this.ui.updateHUD(dt);
   this.updateDriveHud();
+  this.updateFerryHud();
   this.updateDigHud();
   if (this.updateBusHud) this.updateBusHud();
   if (this.updateUseHint) this.updateUseHint();
@@ -26843,6 +27592,7 @@ Game.prototype.render = function (dt) {
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
   if (r.drawSmoothWays) r.drawSmoothWays(this, this.world, p, opts);   // 굽은 길 잇기
   if (r.drawYachts) r.drawYachts(this, this.world, p, opts);
+  if (r.drawFerries) r.drawFerries(this, this.world, p, opts);
   if (r.drawDrones) r.drawDrones(this, this.world, p, opts);
   if (r.drawPlayers && this.net) r.drawPlayers(this.net.peerList(), this.world, p, opts);
   r.drawParachute(p, this.world, opts);
@@ -30554,6 +31304,816 @@ Game.prototype.yachtCamera = function (y, dt) {
   // 마우스로 위아래 각도만 조금 조절한다
   const pitch = Math.max(-0.95, Math.min(0.15, -0.26 + this.player.pitch * 0.5));
   return { eye: [ex, ey, ez], yaw: this._ytCam + Math.PI, pitch: pitch, roll: 0 };
+};
+
+</script>
+<script>
+/* ==== js/ferry.js ==== */
+// ferry.js - 제주를 오가는 여객선. 여객선터미널 잔교 옆에 대어 두었다가
+// 손님이 타면 출항해 건너편 터미널에 댄다. 항해 중에는 갑판을 걸어 다닐 수
+// 있다. 뱃길은 두 터미널 사이를 바다만 골라 이어 만든다.
+'use strict';
+
+const FY_WATER_TOP = 0.88;      // 물 블록 윗면 (요트와 같은 규약)
+const FY_SPEED = 55;            // 순항 속도 (블록/초 ≈ 198km/h — 쾌속 여객선)
+const FY_ACC = 4.0;             // 가속
+const FY_BRAKE = 3.2;           // 접안 감속 (남은 거리로 목표 속도를 정한다)
+const FY_TURN = 0.30;           // 항해 중 선회 (라디안/초)
+const FY_DOCK_TURN = 0.42;      // 접안해서 뱃머리를 돌릴 때
+const FY_REACH = 16;            // 잔교에서 이 안이면 탈 수 있다
+const FY_WAIT = 4.0;            // 타고 나서 출항까지 (초)
+const FY_KEEP = 1400;           // 이보다 멀어지면 치운다
+const FY_NEAR = 900;            // 이 안에 들면 터미널에 한 척 대어 둔다
+const FY_LEG = 26;              // 뱃길을 이만큼씩 나눠 바다인지 살핀다
+const FY_DEPTH = 4;             // 이만큼 깊어야 뱃길로 친다 (해수면 아래)
+
+// 산책 갑판 — 선실 지붕 위 (buildFerryMesh 의 deckA 지붕과 같은 높이)
+const FY_DECK_Y = 7.66;
+const FY_PROM = [[-22, 5.6], [-14, 6.0], [2, 6.0], [14, 5.6], [20, 4.4]];
+const FY_CABIN_X = 5.02, FY_CABIN_Z0 = -16.6, FY_CABIN_Z1 = 15.6;   // 위층 선실 자리
+
+// 서해 앞바다를 따라 내려가는 길잡이 점 (위도, 경도)
+const FY_WAY = [[36.5, 126.0], [35.8, 125.85], [35.0, 125.9], [34.35, 125.95], [33.9, 126.3]];
+
+function ferryWaterY() { return SEA_LEVEL + FY_WATER_TOP; }
+
+// 그 자리가 배가 다닐 만큼 깊은가 (자연 지형만 보므로 청크가 없어도 된다)
+function ferrySea(world, x, z) {
+  return world.heightAt(Math.round(x), Math.round(z)) <= SEA_LEVEL - FY_DEPTH;
+}
+
+// 뭍에 걸린 점을 서쪽 먼바다로 밀어낸다
+function ferryPushOut(world, x, z) {
+  if (ferrySea(world, x, z)) return [x, z];
+  for (let r = 40; r <= 1600; r += 40) {
+    for (const a of [Math.PI, Math.PI * 0.8, Math.PI * 1.2, Math.PI * 0.6, Math.PI * 1.4]) {
+      const nx = x + Math.cos(a) * r, nz = z + Math.sin(a) * r;
+      if (ferrySea(world, nx, nz)) return [nx, nz];
+    }
+  }
+  return [x, z];
+}
+
+// 두 점 사이가 온통 바다인지 살피고, 막히면 먼바다 쪽으로 우회점을 끼운다
+function ferryRefine(world, pts) {
+  for (let pass = 0; pass < 4; pass++) {
+    const out = [pts[0]];
+    let fixed = false;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const n = Math.max(1, Math.ceil(len / FY_LEG));
+      let worst = -1, worstT = 0;
+      for (let k = 1; k < n; k++) {
+        const t = k / n;
+        const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
+        if (!ferrySea(world, x, z)) {
+          const d = Math.min(t, 1 - t);
+          if (d > worst) { worst = d; worstT = t; }
+        }
+      }
+      if (worst >= 0) {
+        const x = a[0] + (b[0] - a[0]) * worstT, z = a[1] + (b[1] - a[1]) * worstT;
+        out.push(ferryPushOut(world, x, z));
+        fixed = true;
+      }
+      out.push(b);
+    }
+    pts = out;
+    if (!fixed) break;
+  }
+  return pts;
+}
+
+// ── 뱃길 ──────────────────────────────────────────────────────────────
+// a, b 는 plan.ferry (터미널). 정박지에서 곧장 앞바다로 나갔다가
+// 길잡이 점을 지나 건너편 정박지로 들어온다.
+function FerryRoute(world, a, b) {
+  this.world = world;
+  this.ends = [a, b];
+  this.name = a.city + '↔' + b.city;
+
+  const raw = [[a.dock.x, a.dock.z], [a.dock.x + a.dirx * 150, a.dock.z + a.dirz * 150]];
+  // 두 터미널 사이(남북)에 놓인 길잡이 점만 차례로 쓴다
+  const way = [];
+  for (let i = 0; i < FY_WAY.length; i++) {
+    const w = korToWorld(FY_WAY[i][0], FY_WAY[i][1]);
+    const t = (w[1] - a.dock.z) / ((b.dock.z - a.dock.z) || 1);
+    if (t > 0.08 && t < 0.92) way.push([t, ferryPushOut(world, w[0], w[1])]);
+  }
+  way.sort(function (p, q) { return p[0] - q[0]; });
+  for (let i = 0; i < way.length; i++) raw.push(way[i][1]);
+  raw.push([b.dock.x + b.dirx * 150, b.dock.z + b.dirz * 150]);
+  raw.push([b.dock.x, b.dock.z]);
+
+  // 가운데 구간만 바다 검사를 한다 (양 끝은 준설한 정박지라 얕아도 된다)
+  const head = raw.slice(0, 2), tail = raw.slice(raw.length - 2);
+  const mid = ferryRefine(world, raw.slice(1, raw.length - 1));
+  this.pts = [head[0]].concat(mid, [tail[1]]);
+
+  this.segs = [];
+  this.len = 0;
+  for (let i = 0; i + 1 < this.pts.length; i++) {
+    const x0 = this.pts[i][0], z0 = this.pts[i][1];
+    const dx = this.pts[i + 1][0] - x0, dz = this.pts[i + 1][1] - z0;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.5) continue;
+    this.segs.push({ x0: x0, z0: z0, dx: dx / len, dz: dz / len, len: len, yaw: Math.atan2(dx, dz) });
+    this.len += len;
+  }
+}
+
+FerryRoute.prototype.at = function (s) {
+  if (!this.segs.length) return { x: 0, z: 0, yaw: 0 };
+  s = Math.max(0, Math.min(this.len, s));
+  let rest = s;
+  for (let i = 0; i < this.segs.length; i++) {
+    const g = this.segs[i];
+    if (rest <= g.len || i === this.segs.length - 1) {
+      const t = Math.min(rest, g.len);
+      return { x: g.x0 + g.dx * t, z: g.z0 + g.dz * t, yaw: g.yaw };
+    }
+    rest -= g.len;
+  }
+  return { x: this.segs[0].x0, z: this.segs[0].z0, yaw: this.segs[0].yaw };
+};
+
+// ── 여객선 한 척 ──────────────────────────────────────────────────────
+function Ferry(world, route, end) {
+  this.world = world;
+  this.route = route;
+  this.end = end;                    // 지금 대어 둔(또는 향하는) 터미널 0/1
+  this.mode = 'dock';                // dock | sail
+  this.s = end ? route.len : 0;
+  this.dir = end ? -1 : 1;
+  this.speed = 0;
+  this.wait = 0;
+  this.rider = null;
+  this.t = 0;
+  const t = route.ends[end];
+  this.x = t.dock.x; this.z = t.dock.z; this.y = ferryWaterY();
+  this.yaw = t.yaw;
+  this.roll = 0; this.pitch = 0;
+}
+
+Ferry.prototype.terminal = function () { return this.route.ends[this.end]; };
+Ferry.prototype.other = function () { return this.route.ends[this.end ? 0 : 1]; };
+
+// 남은 항해 거리 (블록)
+Ferry.prototype.remain = function () {
+  if (this.mode !== 'sail') return 0;
+  return this.dir > 0 ? (this.route.len - this.s) : this.s;
+};
+
+Ferry.prototype.docked = function () { return this.mode === 'dock' && this.speed < 0.6; };
+
+Ferry.prototype.depart = function () {
+  if (this.mode !== 'dock') return false;
+  this.mode = 'sail';
+  this.dir = this.end ? -1 : 1;
+  this.end = this.end ? 0 : 1;       // 이제 건너편이 목적지다
+  this.wait = 0;
+  return true;
+};
+
+// 목표 방향으로 조금씩 돌린다
+Ferry.prototype.turnTo = function (target, rate, dt) {
+  let d = target - this.yaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  const step = rate * dt;
+  this.yaw += Math.max(-step, Math.min(step, d));
+  // 도는 만큼 살짝 기운다
+  const want = Math.max(-0.10, Math.min(0.10, -d * 0.20));
+  this.roll += (want - this.roll) * Math.min(1, dt * 2.0);
+};
+
+Ferry.prototype.update = function (dt, game) {
+  this.t += dt;
+  const r = this.route;
+
+  if (this.mode === 'dock') {
+    const t = this.terminal();
+    this.speed += (0 - this.speed) * Math.min(1, dt * 2.2);
+    this.x += (t.dock.x - this.x) * Math.min(1, dt * 1.2);
+    this.z += (t.dock.z - this.z) * Math.min(1, dt * 1.2);
+    this.turnTo(t.yaw, FY_DOCK_TURN, dt);
+    if (this.rider) {
+      this.wait -= dt;
+      if (this.wait <= 0) {
+        this.depart();
+        if (game && game.ui) game.ui.toast(this.other().name + ' 로 출항합니다');
+      }
+    }
+  } else {
+    const left = this.remain();
+    // 남은 거리에 맞춰 목표 속도를 낮춘다 — 부두 앞에서 스르르 선다
+    const cap = Math.sqrt(Math.max(0, 2 * FY_BRAKE * Math.max(0, left - 2)));
+    const want = Math.min(FY_SPEED, cap);
+    if (this.speed < want) this.speed = Math.min(want, this.speed + FY_ACC * dt);
+    else this.speed = Math.max(want, this.speed - FY_BRAKE * 1.6 * dt);
+
+    this.s += this.speed * this.dir * dt;
+    this.s = Math.max(0, Math.min(r.len, this.s));
+    const p = r.at(this.s);
+    this.x = p.x; this.z = p.z;
+    this.turnTo(p.yaw + (this.dir > 0 ? 0 : Math.PI), FY_TURN, dt);
+
+    if (left <= 3.0 && this.speed < 1.2) {
+      this.mode = 'dock';
+      this.wait = FY_WAIT;
+      if (game && game.ui && this.rider) {
+        game.ui.toast(this.terminal().name + ' 도착 — Shift 로 내리세요');
+      }
+    }
+  }
+
+  // 파도에 흔들린다 (달릴수록 뱃머리가 들린다)
+  this.y = ferryWaterY() + Math.sin(this.t * 0.55) * 0.20;
+  this.pitch = Math.sin(this.t * 0.41) * 0.012 + this.speed * 0.0014;
+};
+
+// 갑판 안으로 가둔다 (선실은 못 뚫고 지나간다)
+function ferryPromHalf(lz) {
+  const s = FY_PROM;
+  if (lz <= s[0][0]) return s[0][1];
+  if (lz >= s[s.length - 1][0]) return s[s.length - 1][1];
+  for (let i = 0; i + 1 < s.length; i++) {
+    if (lz <= s[i + 1][0]) {
+      const t = (lz - s[i][0]) / (s[i + 1][0] - s[i][0]);
+      return s[i][1] + (s[i + 1][1] - s[i][1]) * t;
+    }
+  }
+  return s[0][1];
+}
+
+function ferryDeckClamp(lx, lz) {
+  lz = Math.max(FY_PROM[0][0] + 0.6, Math.min(FY_PROM[FY_PROM.length - 1][0] - 0.6, lz));
+  const w = ferryPromHalf(lz) - 0.45;
+  lx = Math.max(-w, Math.min(w, lx));
+  // 선실 상자 안이면 제일 가까운 바깥면으로 민다
+  if (Math.abs(lx) < FY_CABIN_X && lz > FY_CABIN_Z0 && lz < FY_CABIN_Z1) {
+    const dx = FY_CABIN_X - Math.abs(lx);
+    const dz0 = lz - FY_CABIN_Z0, dz1 = FY_CABIN_Z1 - lz;
+    if (dx <= dz0 && dx <= dz1) lx = (lx < 0 ? -1 : 1) * FY_CABIN_X;
+    else if (dz0 <= dz1) lz = FY_CABIN_Z0;
+    else lz = FY_CABIN_Z1;
+  }
+  return [lx, lz];
+}
+
+Ferry.prototype.toWorld = function (lx, ly, lz) {
+  const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+  return [this.x + lx * c + lz * s, this.y + ly, this.z - lx * s + lz * c];
+};
+
+Ferry.prototype.board = function (player) {
+  if (this.rider) return false;
+  this.rider = player;
+  player.onFerry = this;
+  const d = ferryDeckClamp(0, FY_CABIN_Z0 - 2.6);
+  player.ferryX = d[0]; player.ferryZ = d[1];
+  player.vx = player.vy = player.vz = 0;
+  this.wait = FY_WAIT;
+  return true;
+};
+
+// 접안했을 때만 잔교로 내려 준다
+Ferry.prototype.unboard = function () {
+  const p = this.rider;
+  if (!p) return false;
+  if (!this.docked()) return false;
+  const t = this.terminal();
+  const w = this.world;
+  for (const back of [0, 8, -8, 16, -16]) {
+    const bx = t.x + t.dirx * -back, bz = t.z + t.dirz * -back;
+    // 청크가 아직 안 자란 자리면 도면이 적어 둔 잔교 높이를 그대로 쓴다
+    const top = w.topSolidY(Math.floor(bx), Math.floor(bz));
+    const ty = (top >= SEA_LEVEL) ? top + 1 : t.y;
+    if (back !== 0 && top < SEA_LEVEL) continue;
+    this.rider = null;
+    p.onFerry = null;
+    p.x = bx + 0.5; p.y = ty; p.z = bz + 0.5;
+    p.ferryX = p.ferryZ = 0;
+    p.vx = p.vy = p.vz = 0;
+    p.fallStart = p.y;
+    if (p.unstick) p.unstick();
+    return true;
+  }
+  return false;
+};
+
+// 타고 있는 동안 — 갑판 위를 걸어 다닌다
+Ferry.prototype.ridePlayer = function (p, dt, game) {
+  if (p.ferryX === undefined) { p.ferryX = 0; p.ferryZ = FY_CABIN_Z0 - 2.6; }
+
+  if (this._prevYaw !== undefined) {
+    let d = this.yaw - this._prevYaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    p.yaw += d;
+  }
+  this._prevYaw = this.yaw;
+
+  const inp = game && game.input ? game.input : null;
+  if (inp && !(game.ui && game.ui.open) && !p.dead) {
+    let fx = 0, fz = 0;
+    if (inp.forward) fz += 1;
+    if (inp.back) fz -= 1;
+    if (inp.left) fx -= 1;
+    if (inp.right) fx += 1;
+    const len = Math.hypot(fx, fz);
+    if (len > 0) {
+      fx /= len; fz /= len;
+      const rel = p.yaw - this.yaw;
+      const sr = Math.sin(rel), cr = Math.cos(rel);
+      const dz = fz * -cr + fx * -sr;
+      const dx = fz * -sr + fx * cr;
+      const spd = (inp.sprint ? 4.6 : 2.9) * dt;
+      p.ferryX += dx * spd;
+      p.ferryZ += dz * spd;
+    }
+  }
+  const d = ferryDeckClamp(p.ferryX, p.ferryZ);
+  p.ferryX = d[0]; p.ferryZ = d[1];
+
+  const w = this.toWorld(p.ferryX, FY_DECK_Y, p.ferryZ);
+  p.x = w[0]; p.y = w[1]; p.z = w[2];
+  p.vx = p.vy = p.vz = 0;
+  p.onGround = true;
+  p.fallStart = p.y;
+};
+
+// ── 게임 연결 ─────────────────────────────────────────────────────────
+Game.prototype.ferryRoutes = function () {
+  if (this._ferryRoutes) return this._ferryRoutes;
+  this._ferryRoutes = [];
+  const w = this.world;
+  if (!w.cities) return this._ferryRoutes;
+  const ports = [];
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) if (list[i].ferry) ports.push(list[i].ferry);
+  // 항구가 둘 이상이면 남북으로 가장 멀리 떨어진 두 곳을 잇는다 (인천 ↔ 제주)
+  if (ports.length >= 2) {
+    let a = ports[0], b = ports[1], bd = -1;
+    for (let i = 0; i < ports.length; i++) {
+      for (let k = i + 1; k < ports.length; k++) {
+        const d = Math.hypot(ports[i].x - ports[k].x, ports[i].z - ports[k].z);
+        if (d > bd) { bd = d; a = ports[i]; b = ports[k]; }
+      }
+    }
+    try { this._ferryRoutes.push(new FerryRoute(w, a, b)); }
+    catch (e) { console.warn('뱃길 생성 실패', e); }
+  }
+  return this._ferryRoutes;
+};
+
+Game.prototype.updateFerries = function (dt) {
+  if (!this.ferries) this.ferries = [];
+  const routes = this.ferryRoutes();
+  const p = this.player;
+
+  // 가까운 터미널에는 한 척 대어 둔다
+  for (let i = 0; i < routes.length; i++) {
+    const r = routes[i];
+    for (let e = 0; e < 2; e++) {
+      const t = r.ends[e];
+      if (Math.hypot(t.dock.x - p.x, t.dock.z - p.z) > FY_NEAR) continue;
+      let here = false;
+      for (let k = 0; k < this.ferries.length; k++) {
+        const f = this.ferries[k];
+        if (f.route === r && (f.end === e || f.mode === 'sail')) here = true;
+      }
+      if (!here) this.ferries.push(new Ferry(this.world, r, e));
+    }
+  }
+
+  for (let i = this.ferries.length - 1; i >= 0; i--) {
+    const f = this.ferries[i];
+    f.update(dt, this);
+    if (f.rider) f.ridePlayer(f.rider, dt, this);
+    else if (Math.hypot(f.x - p.x, f.z - p.z) > FY_KEEP) this.ferries.splice(i, 1);
+  }
+};
+
+// 잔교에서 손 닿는 배
+Game.prototype.nearestFerry = function () {
+  if (!this.ferries) return null;
+  const p = this.player;
+  let best = null, bd = FY_REACH;
+  for (let i = 0; i < this.ferries.length; i++) {
+    const f = this.ferries[i];
+    if (f.rider || !f.docked()) continue;
+    const d = Math.hypot(f.x - p.x, f.z - p.z);
+    if (d < bd && Math.abs(f.y - p.y) < 12) { bd = d; best = f; }
+  }
+  return best;
+};
+
+Game.prototype.enterFerry = function (f) {
+  if (!f.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  this.ui.toast('여객선 승선 — ' + f.other().name + ' 행. ' +
+    Math.round(FY_WAIT) + '초 뒤 출항합니다 (갑판을 걸어 다닐 수 있어요 · Shift 하선)');
+  this.playSound('place');
+  this._ferryLast = null;
+};
+
+Game.prototype.exitFerry = function () {
+  const f = this.player.onFerry;
+  if (!f) return;
+  if (!f.unboard()) {
+    this.ui.toast('배가 부두에 대어야 내릴 수 있습니다');
+    return;
+  }
+  this.ui.toast(f.terminal().name + ' 에 내렸습니다');
+};
+
+</script>
+<script>
+/* ==== js/cinema.js ==== */
+// cinema.js - 도시 빌딩 1층 영화관.
+// 들어가면 은막과 관객들의 뒷모습이 보이고, "영화 시작하기" 를 누르면
+// 기기에 있는 사진·동영상을 은막에 띄운다. 영수증 사진은 걸러 낸다.
+//
+// 구글 포토 이야기 — 이 게임은 파일 하나(file://)로 도는 오프라인 빌드라
+// 구글 포토 API 를 직접 부를 수 없다. OAuth 승인 출처(https 도메인)를
+// 등록해야 하고, 2025년 3월부터는 사진 목록을 앱이 통째로 읽어 갈 수도
+// 없어 구글이 띄우는 선택창(Picker)을 거쳐야 하기 때문이다.
+// 대신 기기 선택창을 연다 — 안드로이드·아이폰에서는 이 창에 구글 포토가
+// 그대로 뜨므로, 거기서 고른 사진과 동영상이 은막에 걸린다.
+'use strict';
+
+const CN_ENTER_R = 7;        // 문에서 이 안이면 들어갈 수 있다
+const CN_AUD_MIN = 8;        // 관객 최소
+const CN_AUD_MAX = 22;       // 관객 최대
+const CN_SLIDE = 5.0;        // 사진 한 장을 이만큼 보여 준다 (초)
+
+// 영수증·전표로 보이는 파일 이름
+const CN_RECEIPT_NAME = /(영수증|receipt|invoice|전표|세금계산서|거래명세|카드매출|bill|주문서|결제)/i;
+
+// ── 상영관 하나 ───────────────────────────────────────────────────────
+function Cinema(world, city, def) {
+  this.world = world;
+  this.city = city;
+  this.def = def;
+  this.name = def.name;
+  this.seats = def.seats;
+  this.audience = [];
+  this.spawned = false;
+}
+
+Cinema.prototype.inside = function (x, z) {
+  return Math.abs(x - this.def.x) <= this.def.hw + 1 &&
+    Math.abs(z - this.def.z) <= this.def.hd + 1;
+};
+
+// 관객을 앉힌다 — 은막(+Z)을 보므로 들어온 사람에게는 뒷모습이 보인다
+Cinema.prototype.fill = function (game) {
+  const keys = Object.keys(MOB_TYPES).filter(function (k) {
+    return MOB_TYPES[k].brain === 'villager';
+  });
+  if (!keys.length || !this.seats.length) return;
+  const n = Math.min(this.seats.length,
+    CN_AUD_MIN + ((Math.random() * (CN_AUD_MAX - CN_AUD_MIN + 1)) | 0));
+  const order = this.seats.slice().sort(function () { return Math.random() - 0.5; });
+  for (let i = 0; i < n; i++) {
+    const s = order[i];
+    const type = keys[(Math.random() * keys.length) | 0];
+    const drop = mobHipY(MOB_TYPES[type]);
+    const e = game.entities.spawnMob(type, s.x + 0.5, s.sy, s.z + 0.5);
+    if (!e) continue;
+    e.y = s.sy - drop;
+    e.diner = true;            // 자리에 앉아 움직이지 않는 두뇌
+    e.sitting = true;
+    e.sitDrop = drop;
+    e.sitYaw = s.yaw;
+    e.yaw = e.targetYaw = s.yaw;
+    e.cineSeat = s;
+    this.audience.push(e);
+  }
+};
+
+Cinema.prototype.clear = function () {
+  for (let i = 0; i < this.audience.length; i++) {
+    const e = this.audience[i];
+    e.dead = true; e.despawned = true;
+  }
+  this.audience.length = 0;
+};
+
+Cinema.prototype.update = function (dt, game) {
+  const p = game.player;
+  const near = this.inside(p.x, p.z) ||
+    Math.hypot(p.x - this.def.x, p.z - this.def.z) < 48;
+  if (!near) {
+    if (this.spawned) { this.clear(); this.spawned = false; }
+    return;
+  }
+  if (!this.spawned) { this.spawned = true; this.fill(game); return; }
+  // 자리에 붙잡아 둔다 (밀려나거나 의자 밑으로 가라앉지 않게)
+  for (let i = this.audience.length - 1; i >= 0; i--) {
+    const e = this.audience[i];
+    if (e.dead) { this.audience.splice(i, 1); continue; }
+    const s = e.cineSeat;
+    e.x = s.x + 0.5; e.z = s.z + 0.5;
+    e.y = s.sy - (e.sitDrop || 0);
+    e.vx = e.vy = e.vz = 0;
+    e.onGround = true;
+  }
+};
+
+// ── 게임 쪽 연결 ──────────────────────────────────────────────────────
+Game.prototype.ensureCinemas = function () {
+  const w = this.world;
+  if (!w.cities) return null;
+  if (!this.cinemas) this.cinemas = [];
+  if (!this._cineCities) this._cineCities = new Set();
+  const list = w.cities();
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (this._cineCities.has(c.code)) continue;
+    if (!c.cinema) continue;
+    this._cineCities.add(c.code);
+    this.cinemas.push(new Cinema(w, c, c.cinema));
+  }
+  return this.cinemas;
+};
+
+Game.prototype.updateCinemas = function (dt) {
+  const list = this.ensureCinemas();
+  if (!list) return;
+  for (let i = 0; i < list.length; i++) list[i].update(dt, this);
+  this.cineTick(dt);
+  // 상영관 안에서만 버튼을 띄운다
+  const btn = document.getElementById('btn-movie');
+  if (btn) {
+    const show = !!this.cinemaHere() && !this.cineOpen;
+    const want = show ? 'flex' : 'none';
+    if (btn.style.display !== want) btn.style.display = want;
+  }
+};
+
+Game.prototype.cinemaHere = function () {
+  const list = this.ensureCinemas();
+  if (!list) return null;
+  const p = this.player;
+  for (let i = 0; i < list.length; i++) if (list[i].inside(p.x, p.z)) return list[i];
+  return null;
+};
+
+Game.prototype.cinemaDoor = function () {
+  const list = this.ensureCinemas();
+  if (!list) return null;
+  const p = this.player;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (c.inside(p.x, p.z)) continue;
+    const o = c.def.out;
+    if (Math.hypot(p.x - o.x, p.z - o.z) < CN_ENTER_R && Math.abs(p.y - o.y) < 6) return c;
+  }
+  return null;
+};
+
+Game.prototype.enterCinema = function (c) {
+  const p = this.player;
+  const s = c.def.in;
+  p.x = s.x; p.y = s.y; p.z = s.z;
+  p.yaw = Math.PI;                 // 앞 = (-sin, -cos) — +Z(은막) 를 본다
+  p.pitch = 0;
+  p.vx = p.vy = p.vz = 0;
+  p.fallStart = p.y;
+  if (p.unstick) p.unstick();
+  this.ui.toast(c.name + ' — 은막 앞자리로 들어왔습니다. V 를 누르면 영화를 걸 수 있어요');
+  this.playSound('place');
+};
+
+// ── 상영 화면 ─────────────────────────────────────────────────────────
+Game.prototype.buildCineUI = function () {
+  if (this._cineEl) return this._cineEl;
+  const root = document.createElement('div');
+  root.id = 'cine';
+  root.innerHTML =
+    '<div class="cine-hall">' +
+      '<div class="cine-screen"><div class="cine-blank">' +
+        '<div class="cine-blank-t">상영 준비 완료</div>' +
+        '<div class="cine-blank-s">아래 <b>영화 시작하기</b> 를 눌러 기기에서 사진과 동영상을 고르세요.<br>' +
+        '휴대전화에서는 선택창에 <b>구글 포토</b> 가 함께 뜹니다. 영수증 사진은 자동으로 빼 둡니다.</div>' +
+      '</div></div>' +
+      '<div class="cine-rows"></div>' +
+    '</div>' +
+    '<div class="cine-bar">' +
+      '<button id="cine-pick" class="cine-btn main">영화 시작하기</button>' +
+      '<button id="cine-play" class="cine-btn">⏸ 멈춤</button>' +
+      '<button id="cine-prev" class="cine-btn">◀ 이전</button>' +
+      '<button id="cine-next" class="cine-btn">다음 ▶</button>' +
+      '<label class="cine-chk"><input type="checkbox" id="cine-filter" checked> 영수증 빼기</label>' +
+      '<span id="cine-note" class="cine-note"></span>' +
+      '<button id="cine-close" class="cine-btn">닫기 (Esc)</button>' +
+    '</div>' +
+    '<input type="file" id="cine-file" accept="image/*,video/*" multiple style="display:none">';
+  // 지도·버튼 위에 온전히 덮이도록 문서 맨 바깥에 붙인다
+  document.body.appendChild(root);
+
+  // 관객 뒷모습 — 앞자리 실루엣을 CSS 로 깐다
+  const rows = root.querySelector('.cine-rows');
+  for (let r = 0; r < 3; r++) {
+    const row = document.createElement('div');
+    row.className = 'cine-row r' + r;
+    const n = 7 + r * 2;
+    for (let i = 0; i < n; i++) {
+      const h = document.createElement('div');
+      h.className = 'cine-head';
+      h.style.setProperty('--w', (0.86 + ((i * 7 + r * 3) % 5) * 0.06).toFixed(2));
+      row.appendChild(h);
+    }
+    rows.appendChild(row);
+  }
+
+  const self = this;
+  root.querySelector('#cine-pick').onclick = function () {
+    root.querySelector('#cine-file').click();
+  };
+  root.querySelector('#cine-file').onchange = function (e) {
+    self.cineLoad(e.target.files);
+    e.target.value = '';
+  };
+  root.querySelector('#cine-close').onclick = function () { self.closeCine(); };
+  root.querySelector('#cine-next').onclick = function () { self.cineStep(1); };
+  root.querySelector('#cine-prev').onclick = function () { self.cineStep(-1); };
+  root.querySelector('#cine-play').onclick = function () { self.cinePlayPause(); };
+  this._cineEl = root;
+  return root;
+};
+
+Game.prototype.openCine = function () {
+  const c = this.cinemaHere();
+  if (!c) { this.ui.toast('영화관 안에서만 열 수 있습니다'); return; }
+  const el = this.buildCineUI();
+  el.style.display = 'flex';
+  this.cineOpen = true;
+  this.cineName = c.name;
+  this.exitPointerLock();
+};
+
+Game.prototype.closeCine = function () {
+  if (!this._cineEl) return;
+  this._cineEl.style.display = 'none';
+  this.cineOpen = false;
+  const v = this._cineEl.querySelector('video');
+  if (v) v.pause();
+};
+
+Game.prototype.toggleCine = function () {
+  if (this.cineOpen) this.closeCine();
+  else this.openCine();
+};
+
+// 고른 파일을 걸러 목록으로 만든다
+Game.prototype.cineLoad = function (files) {
+  const self = this;
+  const list = Array.prototype.slice.call(files || []);
+  if (!list.length) return;
+  const note = this._cineEl.querySelector('#cine-note');
+  const filterOn = this._cineEl.querySelector('#cine-filter').checked;
+  note.textContent = '고르는 중… ' + list.length + '개';
+
+  const keep = [], drop = [];
+  let left = list.length;
+  const done = function () {
+    if (--left > 0) return;
+    // 이름순으로 (찍은 차례에 가깝다)
+    keep.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    self.cineClear();
+    self.cineList = keep.map(function (f) {
+      return {
+        name: f.name,
+        video: /^video\//.test(f.type) || /\.(mp4|mov|m4v|webm|3gp)$/i.test(f.name),
+        url: URL.createObjectURL(f)
+      };
+    });
+    self.cineIdx = -1;
+    self.cinePlaying = true;
+    note.textContent = self.cineList.length + '개 상영' +
+      (drop.length ? ' · 영수증 ' + drop.length + '장 제외' : '');
+    if (!self.cineList.length) {
+      note.textContent = '고른 것이 모두 영수증으로 보여 걸렀습니다';
+      self.cineShowBlank();
+    } else {
+      self.cineStep(1);
+    }
+  };
+
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i];
+    if (filterOn && CN_RECEIPT_NAME.test(f.name)) { drop.push(f); done(); continue; }
+    if (!filterOn || !/^image\//.test(f.type)) { keep.push(f); done(); continue; }
+    cineLooksLikeReceipt(f, function (yes) {
+      if (yes) drop.push(f); else keep.push(f);
+      done();
+    });
+  }
+};
+
+// 영수증인지 그림으로 짐작한다 — 하얀 바탕에 검은 글씨뿐이고 색이 거의 없다
+function cineLooksLikeReceipt(file, cb) {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  let called = false;
+  const finish = function (v) {
+    if (called) return;
+    called = true;
+    URL.revokeObjectURL(url);
+    cb(v);
+  };
+  img.onerror = function () { finish(false); };
+  img.onload = function () {
+    try {
+      const N = 48;
+      const cv = document.createElement('canvas');
+      cv.width = N; cv.height = N;
+      const g = cv.getContext('2d');
+      g.drawImage(img, 0, 0, N, N);
+      const d = g.getImageData(0, 0, N, N).data;
+      let gray = 0, bright = 0, dark = 0, sum = 0;
+      const n = N * N;
+      for (let i = 0; i < n; i++) {
+        const r = d[i * 4], gg = d[i * 4 + 1], b = d[i * 4 + 2];
+        const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+        if (mx - mn < 26) gray++;                 // 색이 거의 없다
+        const l = (r * 0.299 + gg * 0.587 + b * 0.114) / 255;
+        sum += l;
+        if (l > 0.80) bright++;
+        if (l < 0.30) dark++;
+      }
+      const gf = gray / n, bf = bright / n, df = dark / n, mean = sum / n;
+      // 무채색이 아주 많고, 밝은 바탕이 넓고, 글씨만큼의 어두운 점이 조금
+      finish(gf > 0.90 && mean > 0.60 && bf > 0.45 && df > 0.01 && df < 0.40);
+    } catch (e) { finish(false); }
+  };
+  img.src = url;
+}
+
+Game.prototype.cineClear = function () {
+  if (this.cineList) {
+    for (let i = 0; i < this.cineList.length; i++) URL.revokeObjectURL(this.cineList[i].url);
+  }
+  this.cineList = [];
+  this.cineIdx = -1;
+  this.cineT = 0;
+};
+
+Game.prototype.cineShowBlank = function () {
+  const sc = this._cineEl.querySelector('.cine-screen');
+  sc.innerHTML = '<div class="cine-blank"><div class="cine-blank-t">보여 줄 것이 없습니다</div>' +
+    '<div class="cine-blank-s">영화 시작하기를 눌러 사진을 골라 주세요.</div></div>';
+};
+
+// n 칸 옮겨 건다
+Game.prototype.cineStep = function (n) {
+  const list = this.cineList;
+  if (!list || !list.length) { this.ui.toast('먼저 영화 시작하기로 사진을 고르세요'); return; }
+  this.cineIdx = ((this.cineIdx + n) % list.length + list.length) % list.length;
+  const it = list[this.cineIdx];
+  const sc = this._cineEl.querySelector('.cine-screen');
+  const self = this;
+  this.cineT = 0;
+  if (it.video) {
+    sc.innerHTML = '';
+    const v = document.createElement('video');
+    v.src = it.url;
+    v.autoplay = true;
+    v.controls = true;
+    v.playsInline = true;
+    v.onended = function () { if (self.cinePlaying) self.cineStep(1); };
+    sc.appendChild(v);
+    v.play().catch(function () { });
+  } else {
+    sc.innerHTML = '';
+    const im = document.createElement('img');
+    im.src = it.url;
+    sc.appendChild(im);
+  }
+  const cap = this._cineEl.querySelector('#cine-note');
+  cap.textContent = (this.cineIdx + 1) + ' / ' + list.length + ' · ' + it.name;
+};
+
+Game.prototype.cinePlayPause = function () {
+  this.cinePlaying = !this.cinePlaying;
+  const b = this._cineEl.querySelector('#cine-play');
+  b.textContent = this.cinePlaying ? '⏸ 멈춤' : '▶ 이어보기';
+  const v = this._cineEl.querySelector('video');
+  if (v) { if (this.cinePlaying) v.play().catch(function () { }); else v.pause(); }
+};
+
+// 사진은 스스로 넘어간다 (동영상은 끝날 때 넘어간다)
+Game.prototype.cineTick = function (dt) {
+  if (!this.cineOpen || !this.cinePlaying) return;
+  const list = this.cineList;
+  if (!list || list.length < 2) return;
+  const it = list[this.cineIdx];
+  if (!it || it.video) return;
+  this.cineT = (this.cineT || 0) + dt;
+  if (this.cineT >= CN_SLIDE) this.cineStep(1);
 };
 
 </script>
