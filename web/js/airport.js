@@ -4,10 +4,11 @@
 'use strict';
 
 // 세 공항. 서로 아주 멀리 떨어뜨려 비행이 여행처럼 느껴지게 한다.
+// 실제 자리(위도·경도)에 놓는다. korea.js 가 그 좌표를 세계 좌표로 옮긴다.
 const AIRPORT_DEFS = [
-  { code: 'ICN', name: '인천국제공항', dist: 800, angle: 0.55, tint: 'blue' },
-  { code: 'GMP', name: '김포국제공항', dist: 4600, angle: 2.45, tint: 'green' },
-  { code: 'CJU', name: '제주국제공항', dist: 8600, angle: 4.55, tint: 'orange' }
+  { code: 'ICN', name: '인천국제공항', lat: 37.45, lon: 126.45, tint: 'blue' },
+  { code: 'GMP', name: '김포국제공항', lat: 37.56, lon: 126.80, tint: 'green' },
+  { code: 'CJU', name: '제주국제공항', lat: 33.51, lon: 126.49, tint: 'orange' }
 ];
 
 const AP_X = 150;           // 부지 절반 (활주로 방향)
@@ -559,32 +560,55 @@ function buildAirportPlan(world, def, index) {
   initAirportMaterials();
   const rnd = makeRandom(hashSeed('airport:' + world.seed + ':' + def.code));
 
-  // 목표 지점 주변에서 평평하고 넓은 자리를 찾는다
-  const tx = Math.round(Math.cos(def.angle) * def.dist);
-  const tz = Math.round(Math.sin(def.angle) * def.dist);
+  // 목표 지점 언저리에서 자리를 고른다.
+  //
+  // 예전에는 "쓸 만한 자리"를 만나는 즉시 채택하면서 고리를 22겹(2860칸)까지
+  // 넓혔다. 공항을 실제 위경도에 놓기 시작하니, 물가에 있는 인천·제주가
+  // 조건을 못 맞추고 수백~수천 칸씩 떠내려가 서로 겹쳐 버렸다.
+  // 이제는 가까운 데만(720칸) 훑되 전부 점수를 매겨 제일 나은 곳을 쓴다.
+  // 부지는 어차피 평탄화하므로 굴곡보다 "바다가 아닐 것"이 훨씬 중요하다.
+  const tp = korToWorld(def.lat, def.lon);
+  const tx = Math.round(tp[0]);
+  const tz = Math.round(tp[1]);
   let best = null;
-  for (let ring = 0; ring <= 22 && !best; ring++) {
-    const step = ring * 130;
-    const tries = ring === 0 ? 1 : ring * 6;
+  for (let ring = 0; ring <= 8; ring++) {
+    const step = ring * 90;
+    const tries = ring === 0 ? 1 : ring * 8;
     for (let k = 0; k < tries; k++) {
       const a = (k / tries) * Math.PI * 2 + ring * 1.3;
       const cx = tx + Math.round(Math.cos(a) * step);
       const cz = tz + Math.round(Math.sin(a) * step);
-      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0;
+      let lo = 1e9, hi = -1e9, sum = 0, n = 0, wet = 0, rock = 0, snowy = 0;
       for (let dz = -AP_Z; dz <= AP_Z; dz += 12) {
         for (let dx = -AP_X; dx <= AP_X; dx += 12) {
           const h = world.heightAt(cx + dx, cz + dz);
           const b = world.biomeAt(cx + dx, cz + dz, h);
-          if (h <= SEA_LEVEL + 1 || b === BIOME.OCEAN || b === BIOME.MOUNTAINS) bad++;
+          if (h <= SEA_LEVEL + 1 || b === BIOME.OCEAN) wet++;
+          if (b === BIOME.MOUNTAINS) rock++;
           if (b === BIOME.SNOWY) snowy++;
           lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
         }
       }
-      if (!n || bad > n * 0.08 || hi - lo > 18) continue;
-      if (snowy > n * (0.25 + ring * 0.14)) continue;   // 눈밭은 뒤로 미룬다
-      best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3) };
-      break;
+      if (!n) continue;
+      if (wet > n * 0.34) continue;              // 절반 넘게 물이면 아예 못 쓴다
+      // 이미 앉힌 공항과 겹치지 않게 (인천과 김포는 실제로도 가깝다)
+      let clash = false;
+      const done = world._airports || [];
+      for (let q = 0; q < done.length; q++) {
+        if (Math.hypot(done[q].x - cx, done[q].z - cz) < AP_X * 2 + 120) { clash = true; break; }
+      }
+      if (clash) continue;
+      // 물 > 산 > 굴곡 > 목표에서 먼 정도 차례로 싫어한다
+      // 실제 자리에서 멀어지는 것을 꽤 싫어해야 한다 — 안 그러면 굴곡이
+      // 조금만 있어도 수백 칸씩 떠내려가 지도가 틀어진다
+      const score = (wet / n) * 900 + (rock / n) * 260 + (snowy / n) * 90
+        + Math.max(0, hi - lo - 10) * 6 + step * 0.95;
+      if (!best || score < best.score) {
+        best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), score: score };
+      }
     }
+    // 아주 좋은 자리를 이미 찾았으면 더 넓히지 않는다
+    if (best && best.score < 40) break;
   }
   if (!best) return null;
 

@@ -165,7 +165,7 @@ Excavator.prototype.overTruck = function () {
   return l[1] > 0.9 && l[1] < 5.5;
 };
 
-// 받침에 따라 '로/으로' 를 골라 붙인다 (김포 도심으로, 제주시로)
+// 받침에 따라 “로/으로” 를 골라 붙인다 (서울로, 제주시로)
 function euroJosa(word) {
   const c = String(word || '').charCodeAt(String(word).length - 1) - 0xAC00;
   if (c < 0 || c > 11171) return '로';

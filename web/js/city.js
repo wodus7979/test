@@ -38,7 +38,7 @@ function initCityStyles() {
       accent: B.cyan_concrete,
       heights: [16, 38], tall: 4, tallH: [40, 56]
     }),
-    // 김포 도심 — 롯데타워와 고층 빌딩들
+    // 서울 도심 — 롯데타워와 고층 빌딩들
     skyline: Object.assign({}, common, {
       kr: '도심',
       wall: B.light_gray_concrete, trim: B.smooth_quartz,
@@ -61,10 +61,12 @@ function initCityStyles() {
 }
 
 // 공항마다 붙는 도시
+// 도시도 실제 자리(위도·경도)에 앉힌다. 공항에서 떨어진 자리를 찾던 예전
+// 방식으로는 서울이 인천 서쪽으로 넘어가 버렸다.
 const CITY_DEFS = {
-  ICN: { name: '인천 송도', style: 'modern' },
-  GMP: { name: '김포 도심', style: 'skyline' },
-  CJU: { name: '제주시', style: 'jeju' }
+  ICN: { name: '인천 송도', style: 'modern', lat: 37.38, lon: 126.65 },
+  GMP: { name: '서울', style: 'skyline', lat: 37.55, lon: 126.99 },
+  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53 }
 };
 
 // ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
@@ -1595,39 +1597,52 @@ function buildCityPlan(world, ap, index) {
   const st = CSTYLE[def.style];
   const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + ap.code));
 
-  // 활주로 축을 따라(±X) 공항에서 떨어진 자리를 찾는다.
-  // 도시가 넓어지면서 "바다 한 점 없는 평지"는 이 세계에 아예 없으므로
-  // (물이 지면의 6할이다) 조건에 맞는 첫 자리를 고르는 대신,
-  // 여러 후보에 점수를 매겨 가장 나은 곳을 고른다.
+  // 실제 자리 언저리에서 도시를 앉힐 곳을 고른다.
+  // "바다 한 점 없는 평지" 는 이 세계에 아예 없으므로(물이 지면의 6할이다)
+  // 조건에 맞는 첫 자리 대신 여러 후보에 점수를 매겨 가장 나은 곳을 쓴다.
   // 남는 바다는 도시를 찍을 때 메운다 — 송도처럼 매립한 땅인 셈이다.
+  const tp = (def.lat !== undefined) ? korToWorld(def.lat, def.lon) : [ap.x + CITY_DIST, ap.z];
+  const tx = Math.round(tp[0]), tz = Math.round(tp[1]);
   let best = null, bestScore = 1e9;
-  for (let ring = 0; ring <= 6; ring++) {
-    const dist = CITY_DIST + ring * 70;
-    for (let k = 0; k < 9; k++) {
-      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 70);
-      for (const sx of [1, -1]) {
-        const cx = ap.x + sx * dist;
-        const cz = ap.z + lateral;
-        let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
-        for (let dz = -CITY_R; dz <= CITY_R; dz += 16) {
-          for (let dx = -CITY_R; dx <= CITY_R; dx += 16) {
-            if (Math.hypot(dx, dz) > CITY_R) continue;
-            const h = world.heightAt(cx + dx, cz + dz);
-            const bi = world.biomeAt(cx + dx, cz + dz, h);
-            if (h <= SEA_LEVEL + 1 || bi === BIOME.OCEAN || bi === BIOME.MOUNTAINS) bad++;
-            if (h < SEA_LEVEL - 12) deep++;              // 아주 깊은 바다는 메우기 벅차다
-            if (bi === BIOME.SNOWY) snowy++;
-            lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
-          }
+  for (let ring = 0; ring <= 7; ring++) {
+    const step = ring * 110;
+    const tries = ring === 0 ? 1 : ring * 8;
+    for (let k = 0; k < tries; k++) {
+      const a = (k / tries) * Math.PI * 2 + ring * 0.9;
+      const cx = tx + Math.round(Math.cos(a) * step);
+      const cz = tz + Math.round(Math.sin(a) * step);
+      // 이미 앉힌 도시와 겹치면 못 쓴다 (서울과 인천은 실제로도 붙어 있다)
+      let clash = false;
+      const done = world._cities || [];
+      for (let q = 0; q < done.length; q++) {
+        if (Math.hypot(done[q].x - cx, done[q].z - cz) < CITY_R * 2 + 60) { clash = true; break; }
+      }
+      // 공항 부지와도 겹치면 안 된다 (김포공항은 서울 바로 옆이다)
+      const aps = world._airports || [];
+      for (let q = 0; q < aps.length && !clash; q++) {
+        if (Math.hypot(aps[q].x - cx, aps[q].z - cz) < CITY_R + AP_X + 70) clash = true;
+      }
+      if (clash) continue;
+      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
+      for (let dz = -CITY_R; dz <= CITY_R; dz += 16) {
+        for (let dx = -CITY_R; dx <= CITY_R; dx += 16) {
+          if (Math.hypot(dx, dz) > CITY_R) continue;
+          const h = world.heightAt(cx + dx, cz + dz);
+          const bi = world.biomeAt(cx + dx, cz + dz, h);
+          if (h <= SEA_LEVEL + 1 || bi === BIOME.OCEAN || bi === BIOME.MOUNTAINS) bad++;
+          if (h < SEA_LEVEL - 12) deep++;              // 아주 깊은 바다는 메우기 벅차다
+          if (bi === BIOME.SNOWY) snowy++;
+          lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
         }
-        if (!n) continue;
-        // 바다·산이 적고, 얕고, 평평하고, 눈이 없고, 공항에서 가까울수록 좋다
-        const score = (bad / n) * 2.0 + (deep / n) * 2.5 + (snowy / n) * 0.8
-          + Math.max(0, hi - lo - 18) * 0.03 + ring * 0.06;
-        if (score < bestScore) {
-          bestScore = score;
-          best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
-        }
+      }
+      if (!n) continue;
+      const score = (bad / n) * 2.0 + (deep / n) * 2.5 + (snowy / n) * 0.8
+        + Math.max(0, hi - lo - 18) * 0.03 + step * 0.0009;
+      if (score < bestScore) {
+        bestScore = score;
+        // 고가 철로가 빠져나가는 쪽 — 공항이 있는 방향
+        best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3),
+          side: (ap.x >= cx) ? 1 : -1 };
       }
     }
   }

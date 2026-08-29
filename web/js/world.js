@@ -268,24 +268,59 @@ World.prototype.updateHeightMap = function (c, lx, lz) {
 const BIOME = { OCEAN: 0, BEACH: 1, PLAINS: 2, FOREST: 3, DESERT: 4, MOUNTAINS: 5, SNOWY: 6 };
 const BIOME_NAMES = ['바다', '해변', '평원', '숲', '사막', '산', '설원'];
 
+// 땅 높이. 대한민국 해안선을 밑그림으로 삼는다 — korea.js 가 구워 둔
+// 거리밭에서 "뭍 안쪽으로 얼마"를 읽어, 바다와 뭍을 가르고 물가를 이어 붙인다.
+// 산은 동쪽으로 갈수록 높다 (태백산맥).
 World.prototype.heightAt = function (x, z) {
+  const km = this.korea || (this.korea = new KoreaMap());
+  const d = km.at(x, z);
   const base = this.pHeight.fbm2(x / 220, z / 220, 5, 2, 0.5);
   const detail = this.pDetail.fbm2(x / 48, z / 48, 3, 2, 0.5);
   let mount = this.pMount.fbm2(x / 340, z / 340, 3, 2, 0.5);
   mount = Math.max(0, mount - 0.15) / 0.85;
-  const h = SEA_LEVEL + base * 16 + detail * 3.5 + mount * mount * 42;
+
+  // 물가에서 뭍으로 부드럽게 (0 바다 ~ 1 뭍)
+  let t = (d + 90) / 260;
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  t = t * t * (3 - 2 * t);
+
+  // 바다 — 뭍에서 멀수록 깊어진다
+  const off = d < 0 ? -d : 0;
+  const seaH = SEA_LEVEL - 3 - Math.min(30, off / 40) + detail * 1.6;
+
+  // 뭍 — 동쪽일수록, 안쪽일수록 산이 높다
+  // base 를 그대로 더하면 음수 쪽에서 뭍이 바다 밑으로 꺼진다.
+  // 예전에는 그게 바다를 파는 방법이었지만, 이제 바다는 해안선이 정한다.
+  const eastK = Math.max(0, Math.min(1, (korToLon(x) - 126.6) / 2.4));
+  const inland = Math.max(0, Math.min(1, d / 900));
+  const roll = base * 0.5 + 0.5;                       // 0 ~ 1
+  let landH = SEA_LEVEL + 3 + roll * 15 + detail * 2.6
+    + mount * mount * (22 + 38 * eastK) * (0.25 + 0.75 * inland);
+  if (landH < SEA_LEVEL + 2) landH = SEA_LEVEL + 2;
+
+  const h = seaH + (landH - seaH) * t;
   return Math.max(4, Math.min(TERRAIN_MAX_Y, Math.round(h)));
+};
+
+// 기온 — 잡음에 위도를 얹는다. 남쪽(제주)은 따뜻하고 북쪽(강원)은 춥다.
+// 예전처럼 잡음만 쓰면 눈밭이 전국에 무작위로 흩어진다.
+World.prototype.tempAt = function (x, z) {
+  const byLat = (KOR_LAT0 - korToLat(z)) * 0.14;
+  // +0.18 은 전체를 조금 따뜻한 쪽으로 밀어 둔 것 — 이게 없으면 중부까지
+  // 눈밭이 되어 지도가 온통 하얘진다. 눈은 북쪽과 높은 산에만 남는다.
+  return this.pTemp.fbm2(x / 520, z / 520, 3, 2, 0.5) * 0.50 + byLat + 0.18;
 };
 
 World.prototype.biomeAt = function (x, z, h) {
   if (h === undefined) h = this.heightAt(x, z);
-  const t = this.pTemp.fbm2(x / 520, z / 520, 3, 2, 0.5);
+  const t = this.tempAt(x, z);
   const hum = this.pHum.fbm2(x / 460, z / 460, 3, 2, 0.5);
   if (h <= SEA_LEVEL - 2) return BIOME.OCEAN;
   if (h <= SEA_LEVEL + 1) return BIOME.BEACH;
   if (h > SEA_LEVEL + 26) return BIOME.MOUNTAINS;
   if (t < -0.28) return BIOME.SNOWY;
-  if (t > 0.26 && hum < 0.05) return BIOME.DESERT;
+  // 사막은 이 나라에 없다 — 아주 메마른 모래땅만 드물게 남긴다
+  if (t > 0.80 && hum < 0.02) return BIOME.DESERT;
   if (hum > 0.10) return BIOME.FOREST;
   return BIOME.PLAINS;
 };

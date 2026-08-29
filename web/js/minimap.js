@@ -297,8 +297,8 @@ Minimap.prototype.draw = function () {
 // ── 전체 지도 (M 키) ──────────────────────────────────────────────────
 // 청크를 띄우지 않고도 지형 함수를 그대로 물어보면 세계 어디든 그릴 수 있다.
 // 한 번 그려서 담아 두고, 표식(나·탈것)만 프레임마다 다시 얹는다.
-const WORLD_MAP_NAME = '다도월드';
-const WORLD_MAP_ZOOMS = [4, 8, 16, 32, 64];   // 1px = 몇 블록
+const WORLD_MAP_NAME = '대한민국';
+const WORLD_MAP_ZOOMS = [2, 4, 8, 16, 32, 64];   // 1px = 몇 블록
 
 // 지형 색을 경계 없이 이어서 낸다.
 // 생물군계(평원/사막/…)로 딱 잘라 칠하면, 넓게 볼 때 경계 근처에서 칸마다
@@ -389,6 +389,11 @@ WorldMap.prototype.buildTerrain = function (w, h) {
   const d = img.data;
   const x0 = this.cx - (gw / 2) * cell, z0 = this.cz - (gh / 2) * cell;
   const step = cell / ss;
+  // 칸마다 어느 시·도인지 (뭍만). 경계선을 그으려면 이웃과 견줘야 한다.
+  const reg = new Int8Array(gw * gh);
+  const land = new Uint8Array(gw * gh);
+  this.grid = { gw: gw, gh: gh, cell: cell, x0: x0, z0: z0, reg: reg, land: land };
+
   for (let py = 0; py < gh; py++) {
     for (let px = 0; px < gw; px++) {
       let sum = 0, st = 0, sh2 = 0, n = 0;
@@ -396,19 +401,43 @@ WorldMap.prototype.buildTerrain = function (w, h) {
         for (let sx = 0; sx < ss; sx++) {
           const wx = x0 + px * cell + sx * step, wz = z0 + py * cell + sy * step;
           sum += world.heightAt(wx, wz);
-          st += world.pTemp.fbm2(wx / 520, wz / 520, 3, 2, 0.5);
+          st += world.tempAt(wx, wz);
           sh2 += world.pHum.fbm2(wx / 460, wz / 460, 3, 2, 0.5);
           n++;
         }
       }
       const hh = sum / n;
-      const col = wmapColor(hh, st / n, sh2 / n);
+      const i = py * gw + px;
+      const onLand = hh > SEA_LEVEL + 1;
+      land[i] = onLand ? 1 : 0;
+      reg[i] = onLand ? korRegionAt(x0 + px * cell + cell / 2, z0 + py * cell + cell / 2) : -1;
+      let col = wmapColor(hh, st / n, sh2 / n);
+      // 시·도 색을 엷게 입힌다 — 지형은 살리고 지방만 구별되게
+      if (onLand) {
+        const rc = KOR_REGIONS[reg[i]].col;
+        col = wmapLerp(col, rc, 0.30);
+      }
       const sh = 0.82 + Math.max(-0.18, Math.min(0.20, (hh - SEA_LEVEL) / 60));
-      const o = (py * gw + px) * 4;
+      const o = i * 4;
       d[o] = Math.min(255, col[0] * sh);
       d[o + 1] = Math.min(255, col[1] * sh);
       d[o + 2] = Math.min(255, col[2] * sh);
       d[o + 3] = 255;
+    }
+  }
+  // 시·도 경계 — 이웃 칸과 지방이 다르면 어둡게 긋는다
+  for (let py = 0; py < gh; py++) {
+    for (let px = 0; px < gw; px++) {
+      const i = py * gw + px;
+      if (!land[i]) continue;
+      const r0 = reg[i];
+      const right = px + 1 < gw ? i + 1 : -1;
+      const down = py + 1 < gh ? i + gw : -1;
+      if ((right >= 0 && land[right] && reg[right] !== r0) ||
+          (down >= 0 && land[down] && reg[down] !== r0)) {
+        const o = i * 4;
+        d[o] = d[o] * 0.30; d[o + 1] = d[o + 1] * 0.30; d[o + 2] = d[o + 2] * 0.34;
+      }
     }
   }
   this.tctx.putImageData(img, 0, 0);
@@ -430,6 +459,24 @@ WorldMap.prototype.draw = function () {
   const toMap = function (x, z) {
     return [w / 2 + (x - self.cx) / b, h / 2 + (z - self.cz) / b];
   };
+
+  // ── 시·도 이름 ──
+  // 너무 좁혀 보면 글씨가 지형을 덮으므로 넓게 볼 때만 얹는다
+  if (b >= 8) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold ' + (b >= 32 ? 15 : 13) + 'px ui-monospace, Menlo, monospace';
+    for (let i = 0; i < KOR_REGIONS.length; i++) {
+      const mid = KOR_REGION_MID[i];
+      const m = toMap(mid[0], mid[1]);
+      if (m[0] < 30 || m[0] > w - 30 || m[1] < 20 || m[1] > h - 20) continue;
+      const nm = KOR_REGIONS[i].kr;
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = 'rgba(8,12,20,.72)';
+      ctx.strokeText(nm, m[0], m[1]);
+      ctx.fillStyle = 'rgba(255,255,255,.88)';
+      ctx.fillText(nm, m[0], m[1]);
+    }
+  }
 
   // ── 공항과 도시 ──
   const marks = [];
@@ -509,18 +556,55 @@ WorldMap.prototype.draw = function () {
 
   // ── 제목과 안내 ──
   ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(10,14,22,.78)';
-  ctx.fillRect(12, 12, 250, 54);
+  ctx.fillStyle = 'rgba(10,14,22,.80)';
+  ctx.fillRect(12, 12, 288, 70);
   ctx.fillStyle = '#e8f0ff';
   ctx.font = 'bold 18px ui-monospace, Menlo, monospace';
   ctx.fillText(WORLD_MAP_NAME, 22, 34);
   ctx.font = '11px ui-monospace, Menlo, monospace';
   ctx.fillStyle = '#9fb0c8';
   ctx.fillText('1px = ' + b + '블록  ·  나 ' + Math.round(p.x) + ', ' + Math.round(p.z), 22, 52);
+  // 내가 선 자리의 위경도와 시·도
+  const lat = korToLat(p.z), lon = korToLon(p.x);
+  const rg = KOR_REGIONS[korRegionAt(p.x, p.z)];
+  ctx.fillText('북위 ' + lat.toFixed(2) + '° 동경 ' + lon.toFixed(2) + '°  ·  ' + rg.kr, 22, 68);
+
+  // ── 시·도 범례 ──
+  const LG_W = 116, LG_H = 17;
+  const lx = 12, ly = 92;
+  ctx.fillStyle = 'rgba(10,14,22,.80)';
+  ctx.fillRect(lx, ly, LG_W, KOR_REGIONS.length * LG_H + 10);
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  for (let i = 0; i < KOR_REGIONS.length; i++) {
+    const r = KOR_REGIONS[i];
+    const y = ly + 8 + i * LG_H;
+    ctx.fillStyle = 'rgb(' + r.col[0] + ',' + r.col[1] + ',' + r.col[2] + ')';
+    ctx.fillRect(lx + 8, y + 3, 10, 10);
+    ctx.fillStyle = '#cfe0f5';
+    ctx.fillText(r.kr, lx + 24, y + 12);
+  }
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(10,14,22,.78)';
-  ctx.fillRect(w - 262, 12, 250, 38);
+  ctx.fillStyle = 'rgba(10,14,22,.80)';
+  ctx.fillRect(w - 330, 12, 318, 38);
   ctx.fillStyle = '#9fb0c8';
-  ctx.fillText('M 닫기 · +/− 배율 · 방향키 이동 · 0 내 자리로', w - 22, 36);
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  ctx.fillText('M 닫기 · +/− 배율 · 방향키 이동 · 0 내 자리 · 9 전국', w - 22, 36);
+};
+
+// 전국이 한눈에 들어오게 — 남한 전체를 화면에 담는다
+WorldMap.prototype.wholeCountry = function () {
+  const km = this.game.world.korea;
+  if (!km) return;
+  this.cx = (km.lx0 + km.lx1) / 2;
+  this.cz = (km.lz0 + km.lz1) / 2;
+  const cv = this.canvas;
+  const w = Math.max(320, cv ? cv.clientWidth : 1200);
+  const h = Math.max(240, cv ? cv.clientHeight : 800);
+  const M = 1.12;      // 바다를 조금 두른다
+  const need = Math.max((km.lx1 - km.lx0) * M / w, (km.lz1 - km.lz0) * M / h);
+  let z = 0;
+  while (z + 1 < WORLD_MAP_ZOOMS.length && WORLD_MAP_ZOOMS[z] < need) z++;
+  this.zoom = z;
+  this.key = '';
 };

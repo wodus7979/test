@@ -230,7 +230,7 @@ Weather.prototype.label = function (player) {
 // 생물 군계가 아니라 기온 자체로 판단해야 추운 지방의 호수와 해변도 언다
 // (설원 판정은 물가에서 바다·해변으로 밀려나기 때문).
 World.prototype.isCold = function (x, z, h) {
-  const t = this.pTemp.fbm2(x / 520, z / 520, 3, 2, 0.5);
+  const t = this.tempAt(x, z);
   if (t < -0.28) return true;
   if (h === undefined) h = this.heightAt(x, z);
   return h > SEA_LEVEL + 32 && this.biomeAt(x, z, h) === BIOME.MOUNTAINS;
@@ -290,7 +290,7 @@ World.prototype.snowChunk = function (c) {
       }
       if (y < 1) continue;
       // 기온이 낮거나 아주 높은 곳이면 춥다
-      const t = this.pTemp.fbm2(wx / 520, wz / 520, 3, 2, 0.5);
+      const t = this.tempAt(wx, wz);
       if (!(t < -0.28 || y > SEA_LEVEL + 36)) continue;
 
       const id = c.blocks[idx(lx, y, lz)];

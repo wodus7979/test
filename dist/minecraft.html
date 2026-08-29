@@ -1085,7 +1085,7 @@ body.touch #btn-warp b { display: none; }
     <p class="row-label">도시에서 바로 시작</p>
     <div class="btn-row city-row">
       <button id="btn-city-ICN" type="button">인천 송도<small>유리 신도시</small></button>
-      <button id="btn-city-GMP" type="button">김포 도심<small>롯데타워</small></button>
+      <button id="btn-city-GMP" type="button">서울<small>롯데타워</small></button>
       <button id="btn-city-CJU" type="button">제주시<small>현무암 돌담</small></button>
     </div>
 
@@ -1236,7 +1236,7 @@ body.touch #btn-warp b { display: none; }
               <b>10초</b> 뒤에 빈 트럭이 같은 길로 들어와 제자리에 선다 —
               그동안은 퍼도 부을 데가 없다</li>
           <li>공항마다 <b>도시</b>가 하나씩 딸려 있고 <b>생김새가 저마다 다르다</b> —
-              유리 신도시 <b>인천 송도</b>, <b>롯데타워</b>와 벽돌 상가 거리가 섞인 <b>김포 도심</b>,
+              유리 신도시 <b>인천 송도</b>, <b>롯데타워</b>와 벽돌 상가 거리가 섞인 <b>서울</b>,
               현무암 기단에 주황 기와를 얹은 <b>제주시</b>. 횡단보도와 가로수도 있다.
               지도에 네모로 표시된다</li>
           <li>터미널 옆 <b>공항철도역</b>에서 <b>3량짜리 전동차</b>가 도시까지 오간다.
@@ -8767,6 +8767,212 @@ PostFX.prototype.blurPass = function (src, dst, dx, dy) {
 
 </script>
 <script>
+/* ==== js/korea.js ==== */
+// korea.js - 세계를 대한민국 모양으로 만든다.
+//   · 위경도 ↔ 세계 좌표 옮기기
+//   · 해안선(뭍 폴리곤)에서 부호 있는 거리밭을 미리 구워, heightAt 이 싸게 읽는다
+//   · 행정구역은 시·도마다 씨앗 점을 몇 개씩 두고 제일 가까운 씨앗으로 가른다
+// 해안선과 경계는 실제 지도를 눈대중으로 옮긴 것이라 정확하지 않다.
+// 모양이 알아볼 만하고, 도시들이 서로 맞는 자리에 놓이는 것이 목적이다.
+'use strict';
+
+const KOR_LAT0 = 36.30;      // 세계 원점(0,0)이 놓이는 자리 — 충청 언저리
+const KOR_LON0 = 127.75;
+const KOR_DEG = 2000;        // 위도 1도 = 몇 블록
+const KOR_LONK = Math.cos(KOR_LAT0 * Math.PI / 180);   // 경도는 위도만큼 안 벌어진다
+
+function korToWorld(lat, lon) {
+  return [(lon - KOR_LON0) * KOR_DEG * KOR_LONK, (KOR_LAT0 - lat) * KOR_DEG];
+}
+function korToLat(z) { return KOR_LAT0 - z / KOR_DEG; }
+function korToLon(x) { return KOR_LON0 + x / (KOR_DEG * KOR_LONK); }
+
+// ── 해안선 ────────────────────────────────────────────────────────────
+// 남한 본토를 시계 방향으로 훑는다 (위도, 경도).
+const KOR_MAINLAND = [
+  [38.60, 128.35], [38.30, 128.60], [37.80, 129.05], [37.40, 129.15],
+  [36.90, 129.42], [36.40, 129.45], [35.95, 129.55], [35.50, 129.40],
+  [35.10, 129.10], [34.90, 128.65], [34.75, 128.10], [34.80, 127.75],
+  [34.60, 127.50], [34.70, 127.05], [34.35, 126.70], [34.35, 126.30],
+  [34.80, 126.25], [35.20, 126.35], [35.60, 126.45], [36.00, 126.55],
+  [36.35, 126.40], [36.75, 126.15], [36.95, 126.55], [37.30, 126.45],
+  [37.65, 126.35], [37.95, 126.55], [38.25, 127.10], [38.45, 127.70]
+];
+
+// 제주도 — 동서로 길쭉한 타원
+const KOR_JEJU = (function () {
+  const cl = 33.38, cn = 126.53, rl = 0.200, rn = 0.470;
+  const pts = [];
+  for (let i = 0; i < 20; i++) {
+    const t = i / 20 * Math.PI * 2;
+    // 서쪽이 조금 더 뭉툭하다
+    const k = 1 + Math.cos(t) * 0.06;
+    pts.push([cl + Math.sin(t) * rl * k, cn + Math.cos(t) * rn]);
+  }
+  return pts;
+})();
+
+// 큰 섬 몇 개 더 (거제·진도·강화)
+const KOR_ISLES = [
+  { lat: 34.86, lon: 128.62, rl: 0.115, rn: 0.105 },   // 거제도
+  { lat: 34.48, lon: 126.27, rl: 0.090, rn: 0.100 },   // 진도
+  { lat: 37.72, lon: 126.44, rl: 0.095, rn: 0.085 },   // 강화도
+  { lat: 33.32, lon: 126.30, rl: 0.030, rn: 0.030 }    // 가파도쯤
+];
+
+function korIsleRing(o, n) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n * Math.PI * 2;
+    pts.push([o.lat + Math.sin(t) * o.rl, o.lon + Math.cos(t) * o.rn]);
+  }
+  return pts;
+}
+
+// 위경도 폴리곤을 세계 좌표로
+function korPolyToWorld(poly) {
+  return poly.map(function (p) { return korToWorld(p[0], p[1]); });
+}
+
+// ── 부호 있는 거리 ────────────────────────────────────────────────────
+// 점이 폴리곤 안이면 +, 밖이면 −. 값은 가장 가까운 변까지의 거리(블록).
+function korPointInPoly(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a[1] > z) !== (b[1] > z) &&
+        x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+
+function korDistToPoly(x, z, poly) {
+  let best = 1e18;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const ax = poly[j][0], az = poly[j][1], bx = poly[i][0], bz = poly[i][1];
+    const dx = bx - ax, dz = bz - az;
+    const l2 = dx * dx + dz * dz;
+    let t = l2 > 0 ? ((x - ax) * dx + (z - az) * dz) / l2 : 0;
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    const px = ax + dx * t, pz = az + dz * t;
+    const d = (x - px) * (x - px) + (z - pz) * (z - pz);
+    if (d < best) best = d;
+  }
+  return Math.sqrt(best);
+}
+
+// ── 거리밭 ────────────────────────────────────────────────────────────
+// heightAt 은 블록마다 불리므로 폴리곤을 매번 훑을 수 없다.
+// 세계를 성긴 격자로 한 번 구워 두고 겹선형으로 읽는다.
+const KOR_CELL = 72;          // 격자 한 칸이 덮는 블록 수
+const KOR_PAD = 2600;         // 뭍 바깥으로 이만큼 더 굽는다
+
+function KoreaMap() {
+  const shapes = [korPolyToWorld(KOR_MAINLAND), korPolyToWorld(KOR_JEJU)];
+  for (let i = 0; i < KOR_ISLES.length; i++) {
+    shapes.push(korPolyToWorld(korIsleRing(KOR_ISLES[i], 14)));
+  }
+  this.shapes = shapes;
+
+  let x0 = 1e18, x1 = -1e18, z0 = 1e18, z1 = -1e18;
+  for (const s of shapes) {
+    for (const p of s) {
+      if (p[0] < x0) x0 = p[0];
+      if (p[0] > x1) x1 = p[0];
+      if (p[1] < z0) z0 = p[1];
+      if (p[1] > z1) z1 = p[1];
+    }
+  }
+  this.lx0 = x0; this.lz0 = z0; this.lx1 = x1; this.lz1 = z1;   // 뭍만
+  this.x0 = x0 - KOR_PAD; this.z0 = z0 - KOR_PAD;
+  this.x1 = x1 + KOR_PAD; this.z1 = z1 + KOR_PAD;
+  this.w = Math.ceil((this.x1 - this.x0) / KOR_CELL) + 1;
+  this.h = Math.ceil((this.z1 - this.z0) / KOR_CELL) + 1;
+  this.dist = new Float32Array(this.w * this.h);
+
+  for (let j = 0; j < this.h; j++) {
+    const wz = this.z0 + j * KOR_CELL;
+    for (let i = 0; i < this.w; i++) {
+      const wx = this.x0 + i * KOR_CELL;
+      let inside = false, near = 1e18;
+      for (let k = 0; k < shapes.length; k++) {
+        const d = korDistToPoly(wx, wz, shapes[k]);
+        if (d < near) near = d;
+        if (korPointInPoly(wx, wz, shapes[k])) inside = true;
+      }
+      this.dist[j * this.w + i] = inside ? near : -near;
+    }
+  }
+}
+
+// 뭍 안쪽이면 +, 바다면 − (블록 단위). 격자 밖은 먼 바다로 친다.
+KoreaMap.prototype.at = function (x, z) {
+  const fx = (x - this.x0) / KOR_CELL, fz = (z - this.z0) / KOR_CELL;
+  if (fx < 0 || fz < 0 || fx >= this.w - 1 || fz >= this.h - 1) return -KOR_PAD;
+  const i = fx | 0, j = fz | 0;
+  const tx = fx - i, tz = fz - j;
+  const d = this.dist, w = this.w;
+  const a = d[j * w + i], b = d[j * w + i + 1];
+  const c = d[(j + 1) * w + i], e = d[(j + 1) * w + i + 1];
+  return (a + (b - a) * tx) * (1 - tz) + (c + (e - c) * tx) * tz;
+};
+
+// ── 행정구역 ──────────────────────────────────────────────────────────
+// 시·도마다 씨앗을 두어 제일 가까운 씨앗으로 가른다. 실제 경계는 아니지만
+// 해안선과 늘 들어맞고, 어느 지방인지 한눈에 들어온다.
+const KOR_REGIONS = [
+  { name: '경기', kr: '경기도', col: [126, 168, 208],
+    seeds: [[37.45, 127.05], [37.85, 127.30], [37.10, 126.90], [37.55, 126.60]] },
+  { name: '강원', kr: '강원도', col: [122, 176, 150],
+    seeds: [[37.85, 128.30], [38.25, 128.15], [37.35, 128.45], [37.70, 127.85]] },
+  { name: '충남', kr: '충청남도', col: [214, 186, 128],
+    seeds: [[36.60, 126.80], [36.30, 126.55], [36.85, 126.90], [36.38, 127.35]] },
+  { name: '충북', kr: '충청북도', col: [196, 172, 202],
+    seeds: [[36.85, 127.80], [36.45, 127.95], [37.10, 128.10]] },
+  { name: '전북', kr: '전라북도', col: [206, 154, 132],
+    seeds: [[35.80, 127.10], [35.62, 126.80], [35.85, 127.55]] },
+  { name: '전남', kr: '전라남도', col: [148, 190, 132],
+    seeds: [[34.95, 126.85], [34.75, 127.40], [35.25, 126.60], [34.60, 126.45]] },
+  { name: '경북', kr: '경상북도', col: [212, 168, 118],
+    seeds: [[36.40, 128.70], [36.95, 129.00], [35.95, 128.60], [36.60, 128.15]] },
+  { name: '경남', kr: '경상남도', col: [178, 158, 206],
+    seeds: [[35.30, 128.35], [35.20, 128.95], [34.95, 128.05], [35.55, 128.55]] },
+  { name: '제주', kr: '제주특별자치도', col: [222, 158, 146],
+    seeds: [[33.38, 126.53]] }
+];
+
+// 씨앗을 세계 좌표로 미리 옮겨 둔다
+const KOR_SEEDS = (function () {
+  const out = [];
+  for (let i = 0; i < KOR_REGIONS.length; i++) {
+    const r = KOR_REGIONS[i];
+    for (let k = 0; k < r.seeds.length; k++) {
+      const p = korToWorld(r.seeds[k][0], r.seeds[k][1]);
+      out.push({ x: p[0], z: p[1], r: i });
+    }
+  }
+  return out;
+})();
+
+function korRegionAt(x, z) {
+  let best = -1, bd = 1e18;
+  for (let i = 0; i < KOR_SEEDS.length; i++) {
+    const s = KOR_SEEDS[i];
+    const d = (s.x - x) * (s.x - x) + (s.z - z) * (s.z - z);
+    if (d < bd) { bd = d; best = s.r; }
+  }
+  return best;
+}
+
+// 지도에 이름을 얹을 자리 — 그 시·도 씨앗들의 한가운데
+const KOR_REGION_MID = KOR_REGIONS.map(function (r) {
+  let sx = 0, sz = 0;
+  for (const s of r.seeds) { const p = korToWorld(s[0], s[1]); sx += p[0]; sz += p[1]; }
+  return [sx / r.seeds.length, sz / r.seeds.length];
+});
+
+</script>
+<script>
 /* ==== js/world.js ==== */
 // world.js - 청크, 지형 생성, 빛 전파, 메시 생성, 레이캐스트.
 'use strict';
@@ -9038,24 +9244,59 @@ World.prototype.updateHeightMap = function (c, lx, lz) {
 const BIOME = { OCEAN: 0, BEACH: 1, PLAINS: 2, FOREST: 3, DESERT: 4, MOUNTAINS: 5, SNOWY: 6 };
 const BIOME_NAMES = ['바다', '해변', '평원', '숲', '사막', '산', '설원'];
 
+// 땅 높이. 대한민국 해안선을 밑그림으로 삼는다 — korea.js 가 구워 둔
+// 거리밭에서 "뭍 안쪽으로 얼마"를 읽어, 바다와 뭍을 가르고 물가를 이어 붙인다.
+// 산은 동쪽으로 갈수록 높다 (태백산맥).
 World.prototype.heightAt = function (x, z) {
+  const km = this.korea || (this.korea = new KoreaMap());
+  const d = km.at(x, z);
   const base = this.pHeight.fbm2(x / 220, z / 220, 5, 2, 0.5);
   const detail = this.pDetail.fbm2(x / 48, z / 48, 3, 2, 0.5);
   let mount = this.pMount.fbm2(x / 340, z / 340, 3, 2, 0.5);
   mount = Math.max(0, mount - 0.15) / 0.85;
-  const h = SEA_LEVEL + base * 16 + detail * 3.5 + mount * mount * 42;
+
+  // 물가에서 뭍으로 부드럽게 (0 바다 ~ 1 뭍)
+  let t = (d + 90) / 260;
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  t = t * t * (3 - 2 * t);
+
+  // 바다 — 뭍에서 멀수록 깊어진다
+  const off = d < 0 ? -d : 0;
+  const seaH = SEA_LEVEL - 3 - Math.min(30, off / 40) + detail * 1.6;
+
+  // 뭍 — 동쪽일수록, 안쪽일수록 산이 높다
+  // base 를 그대로 더하면 음수 쪽에서 뭍이 바다 밑으로 꺼진다.
+  // 예전에는 그게 바다를 파는 방법이었지만, 이제 바다는 해안선이 정한다.
+  const eastK = Math.max(0, Math.min(1, (korToLon(x) - 126.6) / 2.4));
+  const inland = Math.max(0, Math.min(1, d / 900));
+  const roll = base * 0.5 + 0.5;                       // 0 ~ 1
+  let landH = SEA_LEVEL + 3 + roll * 15 + detail * 2.6
+    + mount * mount * (22 + 38 * eastK) * (0.25 + 0.75 * inland);
+  if (landH < SEA_LEVEL + 2) landH = SEA_LEVEL + 2;
+
+  const h = seaH + (landH - seaH) * t;
   return Math.max(4, Math.min(TERRAIN_MAX_Y, Math.round(h)));
+};
+
+// 기온 — 잡음에 위도를 얹는다. 남쪽(제주)은 따뜻하고 북쪽(강원)은 춥다.
+// 예전처럼 잡음만 쓰면 눈밭이 전국에 무작위로 흩어진다.
+World.prototype.tempAt = function (x, z) {
+  const byLat = (KOR_LAT0 - korToLat(z)) * 0.14;
+  // +0.18 은 전체를 조금 따뜻한 쪽으로 밀어 둔 것 — 이게 없으면 중부까지
+  // 눈밭이 되어 지도가 온통 하얘진다. 눈은 북쪽과 높은 산에만 남는다.
+  return this.pTemp.fbm2(x / 520, z / 520, 3, 2, 0.5) * 0.50 + byLat + 0.18;
 };
 
 World.prototype.biomeAt = function (x, z, h) {
   if (h === undefined) h = this.heightAt(x, z);
-  const t = this.pTemp.fbm2(x / 520, z / 520, 3, 2, 0.5);
+  const t = this.tempAt(x, z);
   const hum = this.pHum.fbm2(x / 460, z / 460, 3, 2, 0.5);
   if (h <= SEA_LEVEL - 2) return BIOME.OCEAN;
   if (h <= SEA_LEVEL + 1) return BIOME.BEACH;
   if (h > SEA_LEVEL + 26) return BIOME.MOUNTAINS;
   if (t < -0.28) return BIOME.SNOWY;
-  if (t > 0.26 && hum < 0.05) return BIOME.DESERT;
+  // 사막은 이 나라에 없다 — 아주 메마른 모래땅만 드물게 남긴다
+  if (t > 0.80 && hum < 0.02) return BIOME.DESERT;
   if (hum > 0.10) return BIOME.FOREST;
   return BIOME.PLAINS;
 };
@@ -10736,7 +10977,7 @@ Weather.prototype.label = function (player) {
 // 생물 군계가 아니라 기온 자체로 판단해야 추운 지방의 호수와 해변도 언다
 // (설원 판정은 물가에서 바다·해변으로 밀려나기 때문).
 World.prototype.isCold = function (x, z, h) {
-  const t = this.pTemp.fbm2(x / 520, z / 520, 3, 2, 0.5);
+  const t = this.tempAt(x, z);
   if (t < -0.28) return true;
   if (h === undefined) h = this.heightAt(x, z);
   return h > SEA_LEVEL + 32 && this.biomeAt(x, z, h) === BIOME.MOUNTAINS;
@@ -10796,7 +11037,7 @@ World.prototype.snowChunk = function (c) {
       }
       if (y < 1) continue;
       // 기온이 낮거나 아주 높은 곳이면 춥다
-      const t = this.pTemp.fbm2(wx / 520, wz / 520, 3, 2, 0.5);
+      const t = this.tempAt(wx, wz);
       if (!(t < -0.28 || y > SEA_LEVEL + 36)) continue;
 
       const id = c.blocks[idx(lx, y, lz)];
@@ -10822,10 +11063,11 @@ World.prototype.snowChunk = function (c) {
 'use strict';
 
 // 세 공항. 서로 아주 멀리 떨어뜨려 비행이 여행처럼 느껴지게 한다.
+// 실제 자리(위도·경도)에 놓는다. korea.js 가 그 좌표를 세계 좌표로 옮긴다.
 const AIRPORT_DEFS = [
-  { code: 'ICN', name: '인천국제공항', dist: 800, angle: 0.55, tint: 'blue' },
-  { code: 'GMP', name: '김포국제공항', dist: 4600, angle: 2.45, tint: 'green' },
-  { code: 'CJU', name: '제주국제공항', dist: 8600, angle: 4.55, tint: 'orange' }
+  { code: 'ICN', name: '인천국제공항', lat: 37.45, lon: 126.45, tint: 'blue' },
+  { code: 'GMP', name: '김포국제공항', lat: 37.56, lon: 126.80, tint: 'green' },
+  { code: 'CJU', name: '제주국제공항', lat: 33.51, lon: 126.49, tint: 'orange' }
 ];
 
 const AP_X = 150;           // 부지 절반 (활주로 방향)
@@ -11377,32 +11619,55 @@ function buildAirportPlan(world, def, index) {
   initAirportMaterials();
   const rnd = makeRandom(hashSeed('airport:' + world.seed + ':' + def.code));
 
-  // 목표 지점 주변에서 평평하고 넓은 자리를 찾는다
-  const tx = Math.round(Math.cos(def.angle) * def.dist);
-  const tz = Math.round(Math.sin(def.angle) * def.dist);
+  // 목표 지점 언저리에서 자리를 고른다.
+  //
+  // 예전에는 "쓸 만한 자리"를 만나는 즉시 채택하면서 고리를 22겹(2860칸)까지
+  // 넓혔다. 공항을 실제 위경도에 놓기 시작하니, 물가에 있는 인천·제주가
+  // 조건을 못 맞추고 수백~수천 칸씩 떠내려가 서로 겹쳐 버렸다.
+  // 이제는 가까운 데만(720칸) 훑되 전부 점수를 매겨 제일 나은 곳을 쓴다.
+  // 부지는 어차피 평탄화하므로 굴곡보다 "바다가 아닐 것"이 훨씬 중요하다.
+  const tp = korToWorld(def.lat, def.lon);
+  const tx = Math.round(tp[0]);
+  const tz = Math.round(tp[1]);
   let best = null;
-  for (let ring = 0; ring <= 22 && !best; ring++) {
-    const step = ring * 130;
-    const tries = ring === 0 ? 1 : ring * 6;
+  for (let ring = 0; ring <= 8; ring++) {
+    const step = ring * 90;
+    const tries = ring === 0 ? 1 : ring * 8;
     for (let k = 0; k < tries; k++) {
       const a = (k / tries) * Math.PI * 2 + ring * 1.3;
       const cx = tx + Math.round(Math.cos(a) * step);
       const cz = tz + Math.round(Math.sin(a) * step);
-      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0;
+      let lo = 1e9, hi = -1e9, sum = 0, n = 0, wet = 0, rock = 0, snowy = 0;
       for (let dz = -AP_Z; dz <= AP_Z; dz += 12) {
         for (let dx = -AP_X; dx <= AP_X; dx += 12) {
           const h = world.heightAt(cx + dx, cz + dz);
           const b = world.biomeAt(cx + dx, cz + dz, h);
-          if (h <= SEA_LEVEL + 1 || b === BIOME.OCEAN || b === BIOME.MOUNTAINS) bad++;
+          if (h <= SEA_LEVEL + 1 || b === BIOME.OCEAN) wet++;
+          if (b === BIOME.MOUNTAINS) rock++;
           if (b === BIOME.SNOWY) snowy++;
           lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
         }
       }
-      if (!n || bad > n * 0.08 || hi - lo > 18) continue;
-      if (snowy > n * (0.25 + ring * 0.14)) continue;   // 눈밭은 뒤로 미룬다
-      best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3) };
-      break;
+      if (!n) continue;
+      if (wet > n * 0.34) continue;              // 절반 넘게 물이면 아예 못 쓴다
+      // 이미 앉힌 공항과 겹치지 않게 (인천과 김포는 실제로도 가깝다)
+      let clash = false;
+      const done = world._airports || [];
+      for (let q = 0; q < done.length; q++) {
+        if (Math.hypot(done[q].x - cx, done[q].z - cz) < AP_X * 2 + 120) { clash = true; break; }
+      }
+      if (clash) continue;
+      // 물 > 산 > 굴곡 > 목표에서 먼 정도 차례로 싫어한다
+      // 실제 자리에서 멀어지는 것을 꽤 싫어해야 한다 — 안 그러면 굴곡이
+      // 조금만 있어도 수백 칸씩 떠내려가 지도가 틀어진다
+      const score = (wet / n) * 900 + (rock / n) * 260 + (snowy / n) * 90
+        + Math.max(0, hi - lo - 10) * 6 + step * 0.95;
+      if (!best || score < best.score) {
+        best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), score: score };
+      }
     }
+    // 아주 좋은 자리를 이미 찾았으면 더 넓히지 않는다
+    if (best && best.score < 40) break;
   }
   if (!best) return null;
 
@@ -11579,7 +11844,7 @@ function initCityStyles() {
       accent: B.cyan_concrete,
       heights: [16, 38], tall: 4, tallH: [40, 56]
     }),
-    // 김포 도심 — 롯데타워와 고층 빌딩들
+    // 서울 도심 — 롯데타워와 고층 빌딩들
     skyline: Object.assign({}, common, {
       kr: '도심',
       wall: B.light_gray_concrete, trim: B.smooth_quartz,
@@ -11602,10 +11867,12 @@ function initCityStyles() {
 }
 
 // 공항마다 붙는 도시
+// 도시도 실제 자리(위도·경도)에 앉힌다. 공항에서 떨어진 자리를 찾던 예전
+// 방식으로는 서울이 인천 서쪽으로 넘어가 버렸다.
 const CITY_DEFS = {
-  ICN: { name: '인천 송도', style: 'modern' },
-  GMP: { name: '김포 도심', style: 'skyline' },
-  CJU: { name: '제주시', style: 'jeju' }
+  ICN: { name: '인천 송도', style: 'modern', lat: 37.38, lon: 126.65 },
+  GMP: { name: '서울', style: 'skyline', lat: 37.55, lon: 126.99 },
+  CJU: { name: '제주시', style: 'jeju', lat: 33.50, lon: 126.53 }
 };
 
 // ── 땅 고르기 (청크를 찍을 때 그 자리에서 계산) ────────────────────────
@@ -13136,39 +13403,52 @@ function buildCityPlan(world, ap, index) {
   const st = CSTYLE[def.style];
   const rnd = makeRandom(hashSeed('city:' + world.seed + ':' + ap.code));
 
-  // 활주로 축을 따라(±X) 공항에서 떨어진 자리를 찾는다.
-  // 도시가 넓어지면서 "바다 한 점 없는 평지"는 이 세계에 아예 없으므로
-  // (물이 지면의 6할이다) 조건에 맞는 첫 자리를 고르는 대신,
-  // 여러 후보에 점수를 매겨 가장 나은 곳을 고른다.
+  // 실제 자리 언저리에서 도시를 앉힐 곳을 고른다.
+  // "바다 한 점 없는 평지" 는 이 세계에 아예 없으므로(물이 지면의 6할이다)
+  // 조건에 맞는 첫 자리 대신 여러 후보에 점수를 매겨 가장 나은 곳을 쓴다.
   // 남는 바다는 도시를 찍을 때 메운다 — 송도처럼 매립한 땅인 셈이다.
+  const tp = (def.lat !== undefined) ? korToWorld(def.lat, def.lon) : [ap.x + CITY_DIST, ap.z];
+  const tx = Math.round(tp[0]), tz = Math.round(tp[1]);
   let best = null, bestScore = 1e9;
-  for (let ring = 0; ring <= 6; ring++) {
-    const dist = CITY_DIST + ring * 70;
-    for (let k = 0; k < 9; k++) {
-      const lateral = (k === 0 ? 0 : ((k & 1) ? -1 : 1) * Math.ceil(k / 2) * 70);
-      for (const sx of [1, -1]) {
-        const cx = ap.x + sx * dist;
-        const cz = ap.z + lateral;
-        let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
-        for (let dz = -CITY_R; dz <= CITY_R; dz += 16) {
-          for (let dx = -CITY_R; dx <= CITY_R; dx += 16) {
-            if (Math.hypot(dx, dz) > CITY_R) continue;
-            const h = world.heightAt(cx + dx, cz + dz);
-            const bi = world.biomeAt(cx + dx, cz + dz, h);
-            if (h <= SEA_LEVEL + 1 || bi === BIOME.OCEAN || bi === BIOME.MOUNTAINS) bad++;
-            if (h < SEA_LEVEL - 12) deep++;              // 아주 깊은 바다는 메우기 벅차다
-            if (bi === BIOME.SNOWY) snowy++;
-            lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
-          }
+  for (let ring = 0; ring <= 7; ring++) {
+    const step = ring * 110;
+    const tries = ring === 0 ? 1 : ring * 8;
+    for (let k = 0; k < tries; k++) {
+      const a = (k / tries) * Math.PI * 2 + ring * 0.9;
+      const cx = tx + Math.round(Math.cos(a) * step);
+      const cz = tz + Math.round(Math.sin(a) * step);
+      // 이미 앉힌 도시와 겹치면 못 쓴다 (서울과 인천은 실제로도 붙어 있다)
+      let clash = false;
+      const done = world._cities || [];
+      for (let q = 0; q < done.length; q++) {
+        if (Math.hypot(done[q].x - cx, done[q].z - cz) < CITY_R * 2 + 60) { clash = true; break; }
+      }
+      // 공항 부지와도 겹치면 안 된다 (김포공항은 서울 바로 옆이다)
+      const aps = world._airports || [];
+      for (let q = 0; q < aps.length && !clash; q++) {
+        if (Math.hypot(aps[q].x - cx, aps[q].z - cz) < CITY_R + AP_X + 70) clash = true;
+      }
+      if (clash) continue;
+      let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = 0, snowy = 0, deep = 0;
+      for (let dz = -CITY_R; dz <= CITY_R; dz += 16) {
+        for (let dx = -CITY_R; dx <= CITY_R; dx += 16) {
+          if (Math.hypot(dx, dz) > CITY_R) continue;
+          const h = world.heightAt(cx + dx, cz + dz);
+          const bi = world.biomeAt(cx + dx, cz + dz, h);
+          if (h <= SEA_LEVEL + 1 || bi === BIOME.OCEAN || bi === BIOME.MOUNTAINS) bad++;
+          if (h < SEA_LEVEL - 12) deep++;              // 아주 깊은 바다는 메우기 벅차다
+          if (bi === BIOME.SNOWY) snowy++;
+          lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
         }
-        if (!n) continue;
-        // 바다·산이 적고, 얕고, 평평하고, 눈이 없고, 공항에서 가까울수록 좋다
-        const score = (bad / n) * 2.0 + (deep / n) * 2.5 + (snowy / n) * 0.8
-          + Math.max(0, hi - lo - 18) * 0.03 + ring * 0.06;
-        if (score < bestScore) {
-          bestScore = score;
-          best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3), side: sx };
-        }
+      }
+      if (!n) continue;
+      const score = (bad / n) * 2.0 + (deep / n) * 2.5 + (snowy / n) * 0.8
+        + Math.max(0, hi - lo - 18) * 0.03 + step * 0.0009;
+      if (score < bestScore) {
+        bestScore = score;
+        // 고가 철로가 빠져나가는 쪽 — 공항이 있는 방향
+        best = { x: cx, z: cz, y: Math.max(Math.round(sum / n), SEA_LEVEL + 3),
+          side: (ap.x >= cx) ? 1 : -1 };
       }
     }
   }
@@ -22416,8 +22696,8 @@ Minimap.prototype.draw = function () {
 // ── 전체 지도 (M 키) ──────────────────────────────────────────────────
 // 청크를 띄우지 않고도 지형 함수를 그대로 물어보면 세계 어디든 그릴 수 있다.
 // 한 번 그려서 담아 두고, 표식(나·탈것)만 프레임마다 다시 얹는다.
-const WORLD_MAP_NAME = '다도월드';
-const WORLD_MAP_ZOOMS = [4, 8, 16, 32, 64];   // 1px = 몇 블록
+const WORLD_MAP_NAME = '대한민국';
+const WORLD_MAP_ZOOMS = [2, 4, 8, 16, 32, 64];   // 1px = 몇 블록
 
 // 지형 색을 경계 없이 이어서 낸다.
 // 생물군계(평원/사막/…)로 딱 잘라 칠하면, 넓게 볼 때 경계 근처에서 칸마다
@@ -22508,6 +22788,11 @@ WorldMap.prototype.buildTerrain = function (w, h) {
   const d = img.data;
   const x0 = this.cx - (gw / 2) * cell, z0 = this.cz - (gh / 2) * cell;
   const step = cell / ss;
+  // 칸마다 어느 시·도인지 (뭍만). 경계선을 그으려면 이웃과 견줘야 한다.
+  const reg = new Int8Array(gw * gh);
+  const land = new Uint8Array(gw * gh);
+  this.grid = { gw: gw, gh: gh, cell: cell, x0: x0, z0: z0, reg: reg, land: land };
+
   for (let py = 0; py < gh; py++) {
     for (let px = 0; px < gw; px++) {
       let sum = 0, st = 0, sh2 = 0, n = 0;
@@ -22515,19 +22800,43 @@ WorldMap.prototype.buildTerrain = function (w, h) {
         for (let sx = 0; sx < ss; sx++) {
           const wx = x0 + px * cell + sx * step, wz = z0 + py * cell + sy * step;
           sum += world.heightAt(wx, wz);
-          st += world.pTemp.fbm2(wx / 520, wz / 520, 3, 2, 0.5);
+          st += world.tempAt(wx, wz);
           sh2 += world.pHum.fbm2(wx / 460, wz / 460, 3, 2, 0.5);
           n++;
         }
       }
       const hh = sum / n;
-      const col = wmapColor(hh, st / n, sh2 / n);
+      const i = py * gw + px;
+      const onLand = hh > SEA_LEVEL + 1;
+      land[i] = onLand ? 1 : 0;
+      reg[i] = onLand ? korRegionAt(x0 + px * cell + cell / 2, z0 + py * cell + cell / 2) : -1;
+      let col = wmapColor(hh, st / n, sh2 / n);
+      // 시·도 색을 엷게 입힌다 — 지형은 살리고 지방만 구별되게
+      if (onLand) {
+        const rc = KOR_REGIONS[reg[i]].col;
+        col = wmapLerp(col, rc, 0.30);
+      }
       const sh = 0.82 + Math.max(-0.18, Math.min(0.20, (hh - SEA_LEVEL) / 60));
-      const o = (py * gw + px) * 4;
+      const o = i * 4;
       d[o] = Math.min(255, col[0] * sh);
       d[o + 1] = Math.min(255, col[1] * sh);
       d[o + 2] = Math.min(255, col[2] * sh);
       d[o + 3] = 255;
+    }
+  }
+  // 시·도 경계 — 이웃 칸과 지방이 다르면 어둡게 긋는다
+  for (let py = 0; py < gh; py++) {
+    for (let px = 0; px < gw; px++) {
+      const i = py * gw + px;
+      if (!land[i]) continue;
+      const r0 = reg[i];
+      const right = px + 1 < gw ? i + 1 : -1;
+      const down = py + 1 < gh ? i + gw : -1;
+      if ((right >= 0 && land[right] && reg[right] !== r0) ||
+          (down >= 0 && land[down] && reg[down] !== r0)) {
+        const o = i * 4;
+        d[o] = d[o] * 0.30; d[o + 1] = d[o + 1] * 0.30; d[o + 2] = d[o + 2] * 0.34;
+      }
     }
   }
   this.tctx.putImageData(img, 0, 0);
@@ -22549,6 +22858,24 @@ WorldMap.prototype.draw = function () {
   const toMap = function (x, z) {
     return [w / 2 + (x - self.cx) / b, h / 2 + (z - self.cz) / b];
   };
+
+  // ── 시·도 이름 ──
+  // 너무 좁혀 보면 글씨가 지형을 덮으므로 넓게 볼 때만 얹는다
+  if (b >= 8) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold ' + (b >= 32 ? 15 : 13) + 'px ui-monospace, Menlo, monospace';
+    for (let i = 0; i < KOR_REGIONS.length; i++) {
+      const mid = KOR_REGION_MID[i];
+      const m = toMap(mid[0], mid[1]);
+      if (m[0] < 30 || m[0] > w - 30 || m[1] < 20 || m[1] > h - 20) continue;
+      const nm = KOR_REGIONS[i].kr;
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = 'rgba(8,12,20,.72)';
+      ctx.strokeText(nm, m[0], m[1]);
+      ctx.fillStyle = 'rgba(255,255,255,.88)';
+      ctx.fillText(nm, m[0], m[1]);
+    }
+  }
 
   // ── 공항과 도시 ──
   const marks = [];
@@ -22628,20 +22955,57 @@ WorldMap.prototype.draw = function () {
 
   // ── 제목과 안내 ──
   ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(10,14,22,.78)';
-  ctx.fillRect(12, 12, 250, 54);
+  ctx.fillStyle = 'rgba(10,14,22,.80)';
+  ctx.fillRect(12, 12, 288, 70);
   ctx.fillStyle = '#e8f0ff';
   ctx.font = 'bold 18px ui-monospace, Menlo, monospace';
   ctx.fillText(WORLD_MAP_NAME, 22, 34);
   ctx.font = '11px ui-monospace, Menlo, monospace';
   ctx.fillStyle = '#9fb0c8';
   ctx.fillText('1px = ' + b + '블록  ·  나 ' + Math.round(p.x) + ', ' + Math.round(p.z), 22, 52);
+  // 내가 선 자리의 위경도와 시·도
+  const lat = korToLat(p.z), lon = korToLon(p.x);
+  const rg = KOR_REGIONS[korRegionAt(p.x, p.z)];
+  ctx.fillText('북위 ' + lat.toFixed(2) + '° 동경 ' + lon.toFixed(2) + '°  ·  ' + rg.kr, 22, 68);
+
+  // ── 시·도 범례 ──
+  const LG_W = 116, LG_H = 17;
+  const lx = 12, ly = 92;
+  ctx.fillStyle = 'rgba(10,14,22,.80)';
+  ctx.fillRect(lx, ly, LG_W, KOR_REGIONS.length * LG_H + 10);
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  for (let i = 0; i < KOR_REGIONS.length; i++) {
+    const r = KOR_REGIONS[i];
+    const y = ly + 8 + i * LG_H;
+    ctx.fillStyle = 'rgb(' + r.col[0] + ',' + r.col[1] + ',' + r.col[2] + ')';
+    ctx.fillRect(lx + 8, y + 3, 10, 10);
+    ctx.fillStyle = '#cfe0f5';
+    ctx.fillText(r.kr, lx + 24, y + 12);
+  }
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(10,14,22,.78)';
-  ctx.fillRect(w - 262, 12, 250, 38);
+  ctx.fillStyle = 'rgba(10,14,22,.80)';
+  ctx.fillRect(w - 330, 12, 318, 38);
   ctx.fillStyle = '#9fb0c8';
-  ctx.fillText('M 닫기 · +/− 배율 · 방향키 이동 · 0 내 자리로', w - 22, 36);
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  ctx.fillText('M 닫기 · +/− 배율 · 방향키 이동 · 0 내 자리 · 9 전국', w - 22, 36);
+};
+
+// 전국이 한눈에 들어오게 — 남한 전체를 화면에 담는다
+WorldMap.prototype.wholeCountry = function () {
+  const km = this.game.world.korea;
+  if (!km) return;
+  this.cx = (km.lx0 + km.lx1) / 2;
+  this.cz = (km.lz0 + km.lz1) / 2;
+  const cv = this.canvas;
+  const w = Math.max(320, cv ? cv.clientWidth : 1200);
+  const h = Math.max(240, cv ? cv.clientHeight : 800);
+  const M = 1.12;      // 바다를 조금 두른다
+  const need = Math.max((km.lx1 - km.lx0) * M / w, (km.lz1 - km.lz0) * M / h);
+  let z = 0;
+  while (z + 1 < WORLD_MAP_ZOOMS.length && WORLD_MAP_ZOOMS[z] < need) z++;
+  this.zoom = z;
+  this.key = '';
 };
 
 </script>
@@ -24403,6 +24767,13 @@ Game.prototype.bindInput = function () {
       case 'Digit0':
         if (self.worldMap && self.worldMap.open) {
           self.worldMap.cx = self.player.x; self.worldMap.cz = self.player.z;
+          e.preventDefault();
+        }
+        break;
+      case 'Digit9':
+        // 전국이 한눈에
+        if (self.worldMap && self.worldMap.open) {
+          self.worldMap.wholeCountry();
           e.preventDefault();
         }
         break;
@@ -27506,7 +27877,7 @@ Excavator.prototype.overTruck = function () {
   return l[1] > 0.9 && l[1] < 5.5;
 };
 
-// 받침에 따라 '로/으로' 를 골라 붙인다 (김포 도심으로, 제주시로)
+// 받침에 따라 “로/으로” 를 골라 붙인다 (서울로, 제주시로)
 function euroJosa(word) {
   const c = String(word || '').charCodeAt(String(word).length - 1) - 0xAC00;
   if (c < 0 || c > 11171) return '로';

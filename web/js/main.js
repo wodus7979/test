@@ -858,6 +858,13 @@ Game.prototype.bindInput = function () {
           e.preventDefault();
         }
         break;
+      case 'Digit9':
+        // 전국이 한눈에
+        if (self.worldMap && self.worldMap.open) {
+          self.worldMap.wholeCountry();
+          e.preventDefault();
+        }
+        break;
       case 'KeyR': {
         // 날씨 고정 돌려 가며 바꾸기 (자동 → 맑음 → 비 → 눈 → 천둥번개)
         const order = [null, 'clear', 'rain', 'snow', 'thunder'];
