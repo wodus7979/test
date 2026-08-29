@@ -1464,6 +1464,11 @@ body.touch #btn-autofly b { display: none; }
               물살을 받아야 잘 돌아가고, 빠를수록 돛이 당겨지며 뱃머리가 들린다.
               얕은 데로는 들어가지 않는다. 내릴 때 가까이 뭍이 있으면 거기 내려 주고,
               없으면 바다에 뛰어든다</li>
+          <li>고가 철로 상판은 <b>반 칸씩</b> 훑어 깐다. 한 칸씩 깔면 선로가
+              비스듬한 데서 반올림 때문에 칸이 주기적으로 빠져 <b>바닥에 구멍</b>이 뚫렸다.
+              양옆 <b>난간은 상판 가장자리를 그대로 따라간다</b> — 일정 거리에 찍기만 하면
+              난간이 안쪽으로 들어가 바깥에 걷는 자리가 남거나, 대각선으로 튀어
+              사이가 뚫렸다</li>
           <li>공항철도는 <b>터미널 옆 계류장 축</b>(두 활주로 사이)에서 출발해,
               그 축을 따라 <b>활주로 끝을 지나 부지 밖으로 나간 다음에야</b> 방향을 꺾는다.
               고가가 활주로를 가로지르거나 교각이 노면에 박히지 않는다.
@@ -13222,19 +13227,48 @@ function smoothPath(pts, radius, step) {
 }
 
 // 굽은 길을 따라 상판을 깐다. 진행 방향과 직각으로 폭만큼 찍는다.
-function paintAlong(path, half, cb) {
+// 길 위 한 점에서의 옆 방향 (단위 벡터)
+function pathNormal(path, i) {
+  const b = path[Math.min(path.length - 1, i + 1)];
+  const c = path[Math.max(0, i - 1)];
+  let dx = b[0] - c[0], dz = b[1] - c[1];
+  const l = Math.hypot(dx, dz) || 1;
+  dx /= l; dz /= l;
+  return [dz, -dx, dx, dz];        // [nx, nz, dx, dz]
+}
+
+// 길을 따라 폭 half 인 띠를 칠한다.
+//
+// step 은 옆으로 훑는 간격이다. 1 로 두면 길이 비스듬할 때 반올림 때문에
+// 세계 좌표 칸이 군데군데 빠진다 — 철로 상판에 주기적으로 구멍이 뚫렸다.
+// 0.5 이하로 두면 한 걸음이 한 칸을 넘지 않아 빠지는 칸이 없다.
+function paintAlong(path, half, cb, step) {
+  const st = step || 1;
   for (let i = 0; i < path.length; i++) {
     const a = path[i];
-    const b = path[Math.min(path.length - 1, i + 1)];
-    const c = path[Math.max(0, i - 1)];
-    let dx = b[0] - c[0], dz = b[1] - c[1];
-    const l = Math.hypot(dx, dz) || 1;
-    dx /= l; dz /= l;
-    // 직각(법선)
-    const nx = dz, nz = -dx;
-    for (let d = -half; d <= half; d++) {
-      cb(Math.round(a[0] + nx * d), Math.round(a[1] + nz * d), d, i, dx, dz);
+    const n = pathNormal(path, i);
+    const nx = n[0], nz = n[1];
+    for (let d = -half; d <= half + 1e-9; d += st) {
+      cb(Math.round(a[0] + nx * d), Math.round(a[1] + nz * d), d, i, n[2], n[3]);
     }
+  }
+}
+
+// 길 옆 off 만큼 떨어진 자리를 따라가는 "이어진 한 줄".
+//
+// 칸을 그냥 찍기만 하면 길이 비스듬한 데서 한 칸씩 대각선으로 튀어
+// 사이가 뚫린다 (난간이 일직선으로 안 보이는 까닭). 앞 칸과 대각선으로
+// 어긋나면 사이 칸을 하나 끼워 4방향으로 이어 붙인다.
+function pathLine(path, off, cb) {
+  let px = null, pz = null;
+  for (let i = 0; i < path.length; i++) {
+    const a = path[i];
+    const n = pathNormal(path, i);
+    const x = Math.round(a[0] + n[0] * off);
+    const z = Math.round(a[1] + n[1] * off);
+    if (px !== null && x !== px && z !== pz) cb(px, z, i);
+    if (px !== x || pz !== z) cb(x, z, i);
+    px = x; pz = z;
   }
 }
 
@@ -13285,23 +13319,39 @@ function railRun(plan, x0, z0, x1, z1, ry, st) {
 }
 
 // 굽은 철로 — 코너를 호로 돌아 나간다. 상판·레일·난간·교각을 한 번에 깐다.
+// 상판 가장자리에 난간을 세운다.
+// 길 옆 일정 거리에 찍기만 하면 반올림 때문에 난간이 상판 안쪽에 들어가
+// 바깥에 걷는 자리가 한 칸 남거나, 대각선으로 튀어 사이가 뚫린다.
+// 그래서 실제로 깔린 상판 칸 가운데 "바깥과 맞닿은 칸" 을 골라 세운다.
+function railEdge(deck, put) {
+  deck.forEach(function (ry, key) {
+    const c = key.indexOf(',');
+    const x = +key.slice(0, c), z = +key.slice(c + 1);
+    if (deck.has((x + 1) + ',' + z) && deck.has((x - 1) + ',' + z) &&
+        deck.has(x + ',' + (z + 1)) && deck.has(x + ',' + (z - 1))) return;
+    put(x, ry, z);
+  });
+}
+
 function railCurve(plan, path, ry, st) {
   const w = plan.world;
-  const seen = new Set();
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
-  paintAlong(path, RAIL_HALF, function (x, z, d, i) {
+  // 1) 상판 — 반 칸씩 훑어 구멍이 남지 않게
+  const deck = new Map();
+  paintAlong(path, RAIL_HALF, function (x, z) {
     const key = x + ',' + z;
-    const first = !seen.has(key);
-    if (first) seen.add(key);
-    const ad = Math.abs(d);
-    set(x, ry, z, ad === RAIL_HALF ? st.trim : st.walk);
+    if (deck.has(key)) return;           // 같은 칸을 몇 번씩 덮지 않는다
+    deck.set(key, ry);
+    set(x, ry, z, st.walk);
     plan.set(x, ry + 1, z, 0, 0, true, 9);
-    if (ad === RAIL_HALF) {
-      set(x, ry + 1, z, B.iron_bars);
-      set(x, ry + 2, z, B.iron_bars);
-    } else if (d === 0) {
-      set(x, ry, z, st.dash);
-    }
+  }, 0.5);
+  // 2) 가운데 가름선
+  pathLine(path, 0, function (x, z) { set(x, ry, z, st.dash); });
+  // 3) 난간 — 상판 가장자리를 그대로 따라간다
+  railEdge(deck, function (x, y, z) {
+    set(x, y, z, st.trim);
+    set(x, y + 1, z, B.iron_bars);
+    set(x, y + 2, z, B.iron_bars);
   });
   // 교각 — 길을 따라 일정 간격으로
   const stepPier = 9;
@@ -17793,20 +17843,23 @@ function ktxViaduct(plan, path, ys, st) {
   const w = plan.world;
   const done = new Map();
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
+  // 1) 상판 — 반 칸씩 훑는다. 한 칸씩 훑으면 노선이 비스듬한 데서
+  //    세계 좌표 칸이 주기적으로 빠져 상판에 구멍이 뚫린다.
   paintAlong(path, RAIL_HALF, function (x, z, d, i) {
     const ry = ys[i];
     const key = x + ',' + z;
     if (done.get(key) === ry) return;      // 같은 자리를 몇 번씩 덮지 않는다
     done.set(key, ry);
-    const ad = Math.abs(d);
-    set(x, ry, z, ad === RAIL_HALF ? st.trim : st.walk);
+    set(x, ry, z, st.walk);
     plan.set(x, ry + 1, z, 0, 0, true, 16);       // 언덕을 만나면 뚫고 지나간다
-    if (ad === RAIL_HALF) {
-      set(x, ry + 1, z, B.iron_bars);
-      set(x, ry + 2, z, B.iron_bars);
-    } else if (d === 0) {
-      set(x, ry, z, st.dash);
-    }
+  }, 0.5);
+  // 2) 가운데 가름선
+  pathLine(path, 0, function (x, z, i) { set(x, ys[i], z, st.dash); });
+  // 3) 난간 — 상판 가장자리를 그대로 따라간다
+  railEdge(done, function (x, y, z) {
+    set(x, y, z, st.trim);
+    set(x, y + 1, z, B.iron_bars);
+    set(x, y + 2, z, B.iron_bars);
   });
   // 교각
   // 고속도로와 만나는 자리에는 세우지 않는다 — 예전에는 기둥이 노면
@@ -25579,7 +25632,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.8.1';
+const GAME_VERSION = 'v10.8.2';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 

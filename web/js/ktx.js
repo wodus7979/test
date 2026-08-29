@@ -215,20 +215,23 @@ function ktxViaduct(plan, path, ys, st) {
   const w = plan.world;
   const done = new Map();
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
+  // 1) 상판 — 반 칸씩 훑는다. 한 칸씩 훑으면 노선이 비스듬한 데서
+  //    세계 좌표 칸이 주기적으로 빠져 상판에 구멍이 뚫린다.
   paintAlong(path, RAIL_HALF, function (x, z, d, i) {
     const ry = ys[i];
     const key = x + ',' + z;
     if (done.get(key) === ry) return;      // 같은 자리를 몇 번씩 덮지 않는다
     done.set(key, ry);
-    const ad = Math.abs(d);
-    set(x, ry, z, ad === RAIL_HALF ? st.trim : st.walk);
+    set(x, ry, z, st.walk);
     plan.set(x, ry + 1, z, 0, 0, true, 16);       // 언덕을 만나면 뚫고 지나간다
-    if (ad === RAIL_HALF) {
-      set(x, ry + 1, z, B.iron_bars);
-      set(x, ry + 2, z, B.iron_bars);
-    } else if (d === 0) {
-      set(x, ry, z, st.dash);
-    }
+  }, 0.5);
+  // 2) 가운데 가름선
+  pathLine(path, 0, function (x, z, i) { set(x, ys[i], z, st.dash); });
+  // 3) 난간 — 상판 가장자리를 그대로 따라간다
+  railEdge(done, function (x, y, z) {
+    set(x, y, z, st.trim);
+    set(x, y + 1, z, B.iron_bars);
+    set(x, y + 2, z, B.iron_bars);
   });
   // 교각
   // 고속도로와 만나는 자리에는 세우지 않는다 — 예전에는 기둥이 노면
