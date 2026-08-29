@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.7.1';
+const GAME_VERSION = 'v10.8';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -897,6 +897,9 @@ Game.prototype.bindInput = function () {
         e.preventDefault();
         return;
       }
+      // 스페이스 두 번 = 비행 전환. 예전에는 이 시각을 _lastSpace 에 담았는데
+      // 그리기 고리가 같은 이름에 "우주 가까움 정도"를 매 틀 덮어써서
+      // 더블탭이 아예 먹히지 않았다.
       if (e.code === 'Space' && !self.input.jump) {
         const now = performance.now();
         if (self.player.creative && self._lastSpace && now - self._lastSpace < 320) {
@@ -3105,13 +3108,17 @@ Game.prototype.render = function (dt) {
   else if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
   else if (p.inYacht) opts.cam = this.yachtCamera(p.inYacht, dt);
+  // 크루즈는 항해하는 동안 위에서 뱃머리를 내려다본다
+  else if (p.onFerry && p.onFerry.cruise && p.onFerry.mode === 'sail' && this.ferryCamera) {
+    opts.cam = this.ferryCamera(p.onFerry, dt);
+  }
   else if (p.inDigger) opts.cam = this.diggerCamera(p.inDigger, dt);
 
   // 구름 위로 올라가면 성층권 — 별과 오로라. 더 오르면 우주.
   const camY = (opts.cam ? opts.cam.eye[1] : p.y);
   opts.high = Math.max(0, Math.min(1, (camY - (CLOUD_Y - 8)) / 18));
   opts.space = Math.max(0, Math.min(1, (camY - SPACE_START) / SPACE_FADE));
-  this._lastSpace = opts.space;
+  this._spaceFade = opts.space;
   // 오로라는 높이 올라가야 보이고, 밤일수록 진해진다. 우주에서는 옅어진다.
   opts.aurora = opts.high * (0.26 + 0.74 * fx.night) * (1 - wet * 0.9) * (1 - opts.space * 0.8);
   if (opts.space > 0.01) {

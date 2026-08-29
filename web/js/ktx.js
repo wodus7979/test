@@ -231,6 +231,16 @@ function ktxViaduct(plan, path, ys, st) {
     }
   });
   // 교각
+  // 고속도로와 만나는 자리에는 세우지 않는다 — 예전에는 기둥이 노면
+  // 한복판에 박혀 길을 막았다. 실제 고가도 교차 구간은 한 칸 건너뛴다.
+  const hwy = w.highway ? w.highway() : null;
+  const onRoad = function (x, z) {
+    if (!hwy || !hwy.at) return false;
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) if (hwy.at(x + dx, z + dz)) return true;
+    }
+    return false;
+  };
   const step = Math.max(1, Math.round(KTX_PIER / KTX_STEP));
   for (let i = 0; i < path.length; i += step) {
     const a = path[i];
@@ -241,14 +251,18 @@ function ktxViaduct(plan, path, ys, st) {
     const ry = ys[i];
     const px0 = Math.round(a[0]), pz0 = Math.round(a[1]);
     const gr = Math.max(1, w.heightAt(px0, pz0));
+    if (onRoad(px0, pz0)) continue;      // 길 위는 그대로 건너뛴다
     for (const d of [-4, 4]) {
       const px = Math.round(a[0] + nx * d), pz = Math.round(a[1] + nz * d);
+      if (onRoad(px, pz)) continue;
       const g2 = Math.max(1, w.heightAt(px, pz));
       const h = ry - 1 - g2;
       if (h > 0) plan.set(px, g2, pz, st.post, 0, true, h + 1);
     }
     for (const d of [-6, 6]) {
-      set(Math.round(a[0] + nx * d), ry - 1, Math.round(a[1] + nz * d), st.post);
+      const qx = Math.round(a[0] + nx * d), qz = Math.round(a[1] + nz * d);
+      if (onRoad(qx, qz)) continue;
+      set(qx, ry - 1, qz, st.post);
     }
     // 바다를 건널 때는 물속까지 기둥을 박는다
     if (gr <= SEA_LEVEL) {

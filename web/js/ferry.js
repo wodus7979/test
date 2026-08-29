@@ -35,9 +35,6 @@ const CR_SPEC = {
   spawn: [0, 10.5]
 };
 
-// 서해 앞바다를 따라 내려가는 길잡이 점 (위도, 경도)
-const FY_WAY = [[36.5, 126.0], [35.8, 125.85], [35.0, 125.9], [34.35, 125.95], [33.9, 126.3]];
-
 function ferryWaterY() { return SEA_LEVEL + FY_WATER_TOP; }
 
 // 그 자리가 배가 다닐 만큼 깊은가 (자연 지형만 보므로 청크가 없어도 된다)
@@ -45,47 +42,130 @@ function ferrySea(world, x, z) {
   return world.heightAt(Math.round(x), Math.round(z)) <= SEA_LEVEL - FY_DEPTH;
 }
 
-// 뭍에 걸린 점을 서쪽 먼바다로 밀어낸다
-function ferryPushOut(world, x, z) {
-  if (ferrySea(world, x, z)) return [x, z];
-  for (let r = 40; r <= 1600; r += 40) {
-    for (const a of [Math.PI, Math.PI * 0.8, Math.PI * 1.2, Math.PI * 0.6, Math.PI * 1.4]) {
-      const nx = x + Math.cos(a) * r, nz = z + Math.sin(a) * r;
-      if (ferrySea(world, nx, nz)) return [nx, nz];
+// ── 바닷길 찾기 ───────────────────────────────────────────────────────
+// 예전에는 "뭍에 걸리면 서쪽으로 밀어낸다" 는 어림짐작으로 길을 폈는데,
+// 제주처럼 배가 남쪽에서 섬으로 파고드는 자리에서는 밀어낼 방향이 맞지 않아
+// 배가 해안을 그대로 뚫고 지나갔다. 그래서 바다를 성긴 격자로 나눠
+// 실제로 물길이 이어지는 칸만 골라 A* 로 길을 찾는다.
+const FY_CELL = 48;             // 격자 한 칸
+const FY_PAD_X = 2200;          // 격자를 항구 바깥으로 이만큼 넓힌다
+const FY_PAD_Z = 1200;
+const FY_ENTRY = 520;           // 부두에서 바다로 나가며 이만큼까지 찾아본다
+
+function ferryGrid(world, a, b) {
+  const x0 = Math.min(a.x, b.x) - FY_PAD_X, x1 = Math.max(a.x, b.x) + FY_PAD_X;
+  const z0 = Math.min(a.z, b.z) - FY_PAD_Z, z1 = Math.max(a.z, b.z) + FY_PAD_Z;
+  const W = Math.ceil((x1 - x0) / FY_CELL) + 1;
+  const H = Math.ceil((z1 - z0) / FY_CELL) + 1;
+  const ok = new Uint8Array(W * H);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      ok[j * W + i] = ferrySea(world, x0 + i * FY_CELL, z0 + j * FY_CELL) ? 1 : 0;
     }
   }
-  return [x, z];
-}
-
-// 두 점 사이가 온통 바다인지 살피고, 막히면 먼바다 쪽으로 우회점을 끼운다
-function ferryRefine(world, pts) {
-  for (let pass = 0; pass < 4; pass++) {
-    const out = [pts[0]];
-    let fixed = false;
-    for (let i = 0; i + 1 < pts.length; i++) {
-      const a = pts[i], b = pts[i + 1];
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const n = Math.max(1, Math.ceil(len / FY_LEG));
-      let worst = -1, worstT = 0;
-      for (let k = 1; k < n; k++) {
-        const t = k / n;
-        const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
-        if (!ferrySea(world, x, z)) {
-          const d = Math.min(t, 1 - t);
-          if (d > worst) { worst = d; worstT = t; }
+  // 물가에 바짝 붙은 칸은 비싸게 매겨 배가 해안을 스치지 않게 한다
+  const cost = new Uint8Array(W * H);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      if (!ok[j * W + i]) continue;
+      let near = 0;
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          const ii = i + di, jj = j + dj;
+          if (ii < 0 || jj < 0 || ii >= W || jj >= H || !ok[jj * W + ii]) near = 1;
         }
       }
-      if (worst >= 0) {
-        const x = a[0] + (b[0] - a[0]) * worstT, z = a[1] + (b[1] - a[1]) * worstT;
-        out.push(ferryPushOut(world, x, z));
-        fixed = true;
-      }
-      out.push(b);
+      cost[j * W + i] = near ? 4 : 1;
     }
-    pts = out;
-    if (!fixed) break;
   }
-  return pts;
+  return { x0: x0, z0: z0, W: W, H: H, ok: ok, cost: cost };
+}
+
+// 이 배가 이 터미널에서 대는 선석 (크루즈는 잔교 건너편)
+function ferryBerth(t, cruise) {
+  return (cruise && t.dockBig) ? t.dockBig : t.dock;
+}
+
+// 선석에서 바다 쪽으로 나가 처음 만나는 "다닐 만한 물"
+function ferryEntry(world, t, cruise) {
+  const d0 = ferryBerth(t, cruise);
+  for (let d = 20; d <= FY_ENTRY; d += 8) {
+    const x = d0.x + t.dirx * d, z = d0.z + t.dirz * d;
+    if (ferrySea(world, x, z)) return [x, z];
+  }
+  return [d0.x + t.dirx * FY_ENTRY, d0.z + t.dirz * FY_ENTRY];
+}
+
+// 두 점 사이가 온통 바다인가 (칸 단위로 훑는다)
+function ferryClear(world, ax, az, bx, bz) {
+  const len = Math.hypot(bx - ax, bz - az);
+  const n = Math.max(1, Math.ceil(len / 16));
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    if (!ferrySea(world, ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+  }
+  return true;
+}
+
+// 격자 위 A*
+function ferryAStar(gr, si, sj, ti, tj) {
+  const W = gr.W, H = gr.H, N = W * H;
+  const g = new Float32Array(N).fill(Infinity);
+  const f = new Float32Array(N).fill(Infinity);
+  const prev = new Int32Array(N).fill(-1);
+  const open = [];
+  const push = function (idx2) { open.push(idx2); };
+  const hOf = function (i, j) { return Math.hypot(i - ti, j - tj); };
+  const s0 = sj * W + si, t0 = tj * W + ti;
+  g[s0] = 0; f[s0] = hOf(si, sj); push(s0);
+  const seen = new Uint8Array(N);
+  while (open.length) {
+    // 작은 격자라 그냥 훑어 고른다 (힙을 따로 두지 않는다)
+    let bi = 0;
+    for (let k = 1; k < open.length; k++) if (f[open[k]] < f[open[bi]]) bi = k;
+    const cur = open[bi];
+    open.splice(bi, 1);
+    if (cur === t0) break;
+    if (seen[cur]) continue;
+    seen[cur] = 1;
+    const ci = cur % W, cj = (cur / W) | 0;
+    for (let dj = -1; dj <= 1; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const ni = ci + di, nj = cj + dj;
+        if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
+        const nk = nj * W + ni;
+        if (!gr.ok[nk] && nk !== t0) continue;
+        const step = (di && dj) ? 1.4142 : 1;
+        const ng = g[cur] + step * gr.cost[nk];
+        if (ng < g[nk]) {
+          g[nk] = ng; prev[nk] = cur; f[nk] = ng + hOf(ni, nj);
+          push(nk);
+        }
+      }
+    }
+  }
+  if (prev[t0] < 0 && t0 !== s0) return null;
+  const out = [];
+  let k2 = t0;
+  while (k2 >= 0) { out.push([gr.x0 + (k2 % W) * FY_CELL, gr.z0 + (((k2 / W) | 0)) * FY_CELL]); k2 = prev[k2]; }
+  out.reverse();
+  return out;
+}
+
+// 격자 길을 곧게 편다 — 바다만 지나가는 한 가운데 점을 지운다
+function ferrySimplify(world, pts) {
+  const out = [pts[0]];
+  let i = 0;
+  while (i < pts.length - 1) {
+    let j = pts.length - 1;
+    for (; j > i + 1; j--) {
+      if (ferryClear(world, pts[i][0], pts[i][1], pts[j][0], pts[j][1])) break;
+    }
+    out.push(pts[j]);
+    i = j;
+  }
+  return out;
 }
 
 // ── 뱃길 ──────────────────────────────────────────────────────────────
@@ -99,23 +179,21 @@ function FerryRoute(world, a, b, opts) {
   this.spec = this.cruise ? CR_SPEC : FY_SPEC;
   this.name = a.city + '↔' + b.city;
 
-  const raw = [[a.dock.x, a.dock.z], [a.dock.x + a.dirx * 150, a.dock.z + a.dirz * 150]];
-  // 두 터미널 사이(남북)에 놓인 길잡이 점만 차례로 쓴다
-  const way = [];
-  for (let i = 0; i < FY_WAY.length; i++) {
-    const w = korToWorld(FY_WAY[i][0], FY_WAY[i][1]);
-    const t = (w[1] - a.dock.z) / ((b.dock.z - a.dock.z) || 1);
-    if (t > 0.08 && t < 0.92) way.push([t, ferryPushOut(world, w[0], w[1])]);
-  }
-  way.sort(function (p, q) { return p[0] - q[0]; });
-  for (let i = 0; i < way.length; i++) raw.push(way[i][1]);
-  raw.push([b.dock.x + b.dirx * 150, b.dock.z + b.dirz * 150]);
-  raw.push([b.dock.x, b.dock.z]);
-
-  // 가운데 구간만 바다 검사를 한다 (양 끝은 준설한 정박지라 얕아도 된다)
-  const head = raw.slice(0, 2), tail = raw.slice(raw.length - 2);
-  const mid = ferryRefine(world, raw.slice(1, raw.length - 1));
-  this.pts = [head[0]].concat(mid, [tail[1]]);
+  // 부두 → 앞바다 어귀 → (격자 길찾기) → 건너편 어귀 → 부두
+  const ba = ferryBerth(a, this.cruise), bb = ferryBerth(b, this.cruise);
+  const ea = ferryEntry(world, a, this.cruise), eb = ferryEntry(world, b, this.cruise);
+  const gr = ferryGrid(world, { x: ea[0], z: ea[1] }, { x: eb[0], z: eb[1] });
+  const ci = function (p) {
+    return [Math.max(0, Math.min(gr.W - 1, Math.round((p[0] - gr.x0) / FY_CELL))),
+      Math.max(0, Math.min(gr.H - 1, Math.round((p[1] - gr.z0) / FY_CELL)))];
+  };
+  const ca = ci(ea), cb = ci(eb);
+  gr.ok[ca[1] * gr.W + ca[0]] = 1;
+  gr.ok[cb[1] * gr.W + cb[0]] = 1;
+  let mid = ferryAStar(gr, ca[0], ca[1], cb[0], cb[1]);
+  if (!mid || mid.length < 2) mid = [ea, eb];
+  else mid = ferrySimplify(world, mid);
+  this.pts = [[ba.x, ba.z], ea].concat(mid, [eb, [bb.x, bb.z]]);
 
   this.segs = [];
   this.len = 0;
@@ -165,10 +243,8 @@ function Ferry(world, route, end) {
   this.roll = 0; this.pitch = 0;
 }
 
-// 이 배가 이 터미널에서 서는 자리 (크루즈는 잔교에서 더 떨어져 선다)
-Ferry.prototype.berthOf = function (t) {
-  return (this.cruise && t.dockBig) ? t.dockBig : t.dock;
-};
+// 이 배가 이 터미널에서 서는 자리 (크루즈는 잔교 건너편 선석)
+Ferry.prototype.berthOf = function (t) { return ferryBerth(t, this.cruise); };
 
 Ferry.prototype.terminal = function () { return this.route.ends[this.end]; };
 Ferry.prototype.other = function () { return this.route.ends[this.end ? 0 : 1]; };
@@ -325,8 +401,11 @@ Ferry.prototype.unboard = function () {
   if (!this.docked()) return false;
   const t = this.terminal();
   const w = this.world;
-  for (const back of [0, 8, -8, 16, -16]) {
-    const bx = t.x + t.dirx * -back, bz = t.z + t.dirz * -back;
+  // 배가 서 있는 자리를 잔교 중심선에 내려 찍는다 — 배 바로 옆에 내려 준다
+  const along0 = (this.x - t.x) * t.dirx + (this.z - t.z) * t.dirz;
+  const px0 = t.x + t.dirx * along0, pz0 = t.z + t.dirz * along0;
+  for (const back of [0, 10, -10, 22, -22, 40, -40]) {
+    const bx = px0 - t.dirx * back, bz = pz0 - t.dirz * back;
     // 청크가 아직 안 자란 자리면 도면이 적어 둔 잔교 높이를 그대로 쓴다
     const top = w.topSolidY(Math.floor(bx), Math.floor(bz));
     const ty = (top >= SEA_LEVEL) ? top + 1 : t.y;
@@ -382,6 +461,33 @@ Ferry.prototype.ridePlayer = function (p, dt, game) {
   p.vx = p.vy = p.vz = 0;
   p.onGround = true;
   p.fallStart = p.y;
+};
+
+
+// ── 크루즈 카메라 ─────────────────────────────────────────────────────
+// 항해 중에는 배 위에서 뱃머리를 내려다본다 (부두에 대어 있을 때는
+// 갑판을 걸어 다녀야 하므로 1인칭으로 돌려준다).
+Game.prototype.ferryCamera = function (f, dt) {
+  if (this._fyCam === undefined || this._fyCam === null) this._fyCam = f.yaw;
+  let d = f.yaw - this._fyCam;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  this._fyCam += d * Math.min(1, (dt || 0.016) * 2.4);
+
+  const sp = f.spec;
+  const back = sp.len * 0.26;          // 배 가운데에서 이만큼 뒤
+  const up = sp.deck + sp.len * 0.30;  // 갑판보다 이만큼 위
+  const s = Math.sin(this._fyCam), c = Math.cos(this._fyCam);
+  const ex = f.x - s * back, ez = f.z - c * back;
+  const ey = f.y + up;
+  // 뱃머리를 겨눈다
+  const tx = f.x + s * sp.len * 0.42, tz = f.z + c * sp.len * 0.42;
+  const ty = f.y + sp.deck;
+  const flat = Math.hypot(tx - ex, tz - ez);
+  let pitch = -Math.atan2(ey - ty, flat);
+  // 마우스로 위아래를 조금 조절한다
+  pitch = Math.max(-1.20, Math.min(-0.22, pitch + this.player.pitch * 0.35));
+  return { eye: [ex, ey, ez], yaw: this._fyCam + Math.PI, pitch: pitch, roll: 0 };
 };
 
 // ── 게임 연결 ─────────────────────────────────────────────────────────
@@ -447,15 +553,23 @@ Game.prototype.nearestFerry = function () {
   for (let i = 0; i < this.ferries.length; i++) {
     const f = this.ferries[i];
     if (f.rider || !f.docked()) continue;
-    const reach = f.spec.reach || FY_REACH;
-    const d = Math.hypot(f.x - p.x, f.z - p.z);
-    if (d < reach && d < bd && Math.abs(f.y - p.y) < 26) { bd = d; best = f; }
+    // 배가 길어서 가운데까지의 거리로 재면 뱃머리 옆에 서도 못 탄다.
+    // 배 몸통(앞뒤 · 좌우)을 기준으로 잰다.
+    const c = Math.cos(f.yaw), sn = Math.sin(f.yaw);
+    const rx = p.x - f.x, rz = p.z - f.z;
+    const along = rx * sn + rz * c;             // 앞 = (sin, cos)
+    const side = rx * c - rz * sn;
+    const dA = Math.max(0, Math.abs(along) - f.spec.len * 0.5);
+    const dS = Math.max(0, Math.abs(side) - f.spec.half);
+    const d = Math.hypot(dA, dS);
+    if (d < FY_REACH && d < bd && Math.abs(f.y - p.y) < 26) { bd = d; best = f; }
   }
   return best;
 };
 
 Game.prototype.enterFerry = function (f) {
   if (!f.board(this.player)) { this.ui.toast('이미 누가 타고 있습니다'); return; }
+  this._fyCam = null;
   this.ui.toast(f.spec.kr + ' 승선 — ' + f.other().name + ' 행. ' +
     Math.round(FY_WAIT) + '초 뒤 출항합니다 (갑판을 걸어 다닐 수 있어요 · Shift 하선)');
   this.playSound('place');

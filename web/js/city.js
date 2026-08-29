@@ -2056,7 +2056,8 @@ function buildCityPlan(world, ap, index, code) {
 // 대합실을 올린 뒤 바다 쪽으로 잔교를 뻗어 배를 댄다.
 const FT_QUAY_Y = SEA_LEVEL + 4;     // 부두 블록 꼭대기 (걷는 면은 그 위)
 const FT_PIER_HALF = 5;              // 잔교 반폭
-const FT_PIER_MAX = 120;             // 잔교 최대 길이
+const FT_PIER_MAX = 200;             // 잔교 최대 길이
+const FT_PIER_MIN = 136;             // 크루즈(108칸)가 통째로 붙을 만큼은 뻗는다
 const FT_DEPTH = 9;                  // 정박지를 이만큼 파낸다 (배 흘수 3칸)
 const FT_SEA_MAX = 820;              // 도시에서 바다까지 이만큼 안이어야 짓는다
 
@@ -2104,19 +2105,20 @@ function cityFerry(plan, st) {
     plan.set(q[0], top + 1, q[1], 0, 0, true, 12);       // 위를 비운다
   };
 
-  // 3) 부두 앞마당 — 물가 앞뒤로 넉넉히
-  for (let u = -30; u <= 8; u++) {
-    for (let v = -22; v <= 22; v++) pave(u, v, QY);
+  // 3) 부두 앞마당 — 물가 앞뒤로 넉넉히.
+  //    비스듬한 자리에서 칸이 빠지지 않게 반 칸씩 훑는다.
+  for (let u = -30; u <= 8; u += 0.5) {
+    for (let v = -22; v <= 22; v += 0.5) pave(u, v, QY);
   }
   // 4) 잔교 — 깊은 데까지 뻗는다
   let pier = 20;
   for (let u = 8; u <= FT_PIER_MAX; u++) {
     const q = at(u, 0);
     pier = u;
-    if (w.heightAt(q[0], q[1]) <= SEA_LEVEL - 5 && u >= 44) break;
+    if (w.heightAt(q[0], q[1]) <= SEA_LEVEL - 5 && u >= FT_PIER_MIN) break;
   }
-  for (let u = 8; u <= pier; u++) {
-    for (let v = -FT_PIER_HALF; v <= FT_PIER_HALF; v++) {
+  for (let u = 8; u <= pier; u += 0.5) {
+    for (let v = -FT_PIER_HALF; v <= FT_PIER_HALF; v += 0.5) {
       pave(u, v, QY);
       if (Math.abs(v) === FT_PIER_HALF) set(at(u, v)[0], QY + 1, at(u, v)[1], bid('quay_edge'));
     }
@@ -2177,24 +2179,51 @@ function cityFerry(plan, st) {
   // 6) 정박지 준설 — 서해 갯벌은 아주 완만해서 그냥 두면 배가 바닥에 닿는다.
   //    잔교 오른쪽을 네모지게 파내고 물을 채운다 (실제 항만도 이렇게 판다).
   const BED = SEA_LEVEL - FT_DEPTH;
-  for (let u = Math.max(12, pier - 74); u <= pier + 40; u++) {
-    for (let v = FT_PIER_HALF + 1; v <= FT_PIER_HALF + 32; v++) {
-      const q = at(u, v);
-      if (w.heightAt(q[0], q[1]) >= SEA_LEVEL) continue;   // 뭍은 건드리지 않는다
-      plan.set(q[0], BED, q[1], B.water, 0, true, FT_DEPTH + 1);
-      plan.set(q[0], SEA_LEVEL + 1, q[1], 0, 0, true, 8);
+  // 잔교 양쪽을 판다 — 여객선은 오른쪽, 크루즈는 왼쪽 선석에 댄다.
+  // 한쪽만 파 두면 배 두 척이 같은 자리에 겹쳐 선다.
+  //
+  // 훑는 차례가 중요하다. (u, v) 를 정수로 돌면서 at() 으로 옮기면,
+  // 잔교가 비스듬할 때 세계 좌표 칸이 군데군데 빠진다 — 반올림 때문이다.
+  // 그렇게 빠진 칸은 바닥이 한 칸 솟은 채로 남아 배 밑이 걸렸다.
+  // 그래서 세계 좌표 네모를 통째로 훑고, 그 자리를 (u, v) 로 되돌려 잰다.
+  const U0 = Math.max(12, pier - 124), U1 = pier + 50;
+  const V0 = FT_PIER_HALF + 1, V1 = FT_PIER_HALF + 34;
+  let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
+  for (const cu of [U0, U1]) {
+    for (const cv of [-V1, V1]) {
+      const q = at(cu, cv);
+      bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]);
+      bz0 = Math.min(bz0, q[1]); bz1 = Math.max(bz1, q[1]);
+    }
+  }
+  for (let x = bx0; x <= bx1; x++) {
+    for (let z = bz0; z <= bz1; z++) {
+      const ux = x - sx, uz = z - sz;
+      const u = ux * dx + uz * dz;
+      const v = ux * rx + uz * rz;
+      if (u < U0 || u > U1) continue;
+      const av = Math.abs(v);
+      if (av < V0 || av > V1) continue;
+      // 갯벌과 모래톱은 파낸다 (항만은 원래 준설해서 쓴다).
+      // 다만 제대로 솟은 뭍은 건드리지 않는다 — 해안을 파먹으면 흉하다.
+      if (w.heightAt(x, z) > SEA_LEVEL + 4) continue;
+      plan.set(x, BED, z, B.water, 0, true, FT_DEPTH + 1);
+      plan.set(x, SEA_LEVEL + 1, z, 0, 0, true, 8);
     }
   }
 
   // 7) 배가 서는 자리 — 잔교 오른쪽에 나란히
   const mid = at(pier - 6, 0);
-  const berth = at(pier - 10, FT_PIER_HALF + 9);
-  // 크루즈는 배가 훨씬 커서 잔교에서 더 떨어져 선다
-  const berthBig = at(pier - 22, FT_PIER_HALF + 17);
+  // 배는 잔교에 나란히 댄다. 여객선(54칸)은 잔교 앞쪽 오른편,
+  // 크루즈(108칸)는 건너편 왼쪽에 통째로 붙는다.
+  const berth = at(pier - 34, FT_PIER_HALF + 9);           // 여객선 선석 (오른쪽)
+  // 크루즈는 물이 제일 깊은 잔교 끝머리에 붙인다 (뱃머리가 잔교 밖으로 나간다)
+  const berthBig = at(pier - 20, -(FT_PIER_HALF + 16));    // 크루즈 선석 (왼쪽)
   plan.ferry = {
     name: plan.name + ' 여객선터미널',
     city: plan.code,
     x: mid[0], z: mid[1], y: SURF,          // 승선하는 자리 (잔교 위)
+    pier: pier,                             // 잔교 길이 (물가에서 끝까지)
     dock: { x: berth[0], z: berth[1] },     // 여객선이 뜨는 자리
     dockBig: { x: berthBig[0], z: berthBig[1] },   // 크루즈가 뜨는 자리
     yaw: Math.atan2(dx, dz),                // 뱃머리는 바다 쪽 — 잔교와 나란히 선다

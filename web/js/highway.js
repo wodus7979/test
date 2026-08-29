@@ -481,10 +481,20 @@ World.prototype.paintHighway = function (c) {
       }
       c.blocks[idx(lx, y, lz)] = surf;
       c.meta[idx(lx, y, lz)] = 0;
-      // 노반 — 아래를 받친다
-      for (let yy = Math.max(1, y - 6); yy < y; yy++) {
-        const j = idx(lx, yy, lz);
-        if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
+      // 노반 — 아래를 받친다.
+      // 다만 다리처럼 바닥에서 크게 뜬 구간은 받치지 않는다. 예전에는 여기서
+      // 호수 위에까지 돌을 여섯 켜 깔아, 다리가 물 위에 뜬 콘크리트 판처럼
+      // 보였다. 뜬 구간은 paintBridge 의 교각이 받친다.
+      let gnd = this.heightAt(wx, wz);
+      if (lk) {
+        const dl = Math.hypot(wx - lk.x, wz - lk.z);
+        if (dl < LAKE_R + LAKE_MARGIN) gnd = Math.round(lakeBed(dl, gnd, lk.y));
+      }
+      if (y - gnd <= 6) {
+        for (let yy = Math.max(1, y - 6); yy < y; yy++) {
+          const j = idx(lx, yy, lz);
+          if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
+        }
       }
       // 가드레일 — 빈틈 없이 두 칸 높이로 세운다.
       // 예전에는 한 칸 높이에 군데군데 끊겨 있어 차가 그냥 타고 넘어
@@ -503,21 +513,26 @@ World.prototype.paintHighway = function (c) {
   return touched;
 };
 
-// ── 다리 (시드니 하버브리지 꼴 강교) ──────────────────────────────────
-// 노면 위로 큰 포물선 아치를 걸고, 아치에서 노면으로 수직 행어를 내린다.
-// 양 끝에는 석조 교탑을 세운다.
-const BR_ARCH_RISE = 46;      // 노면에서 아치 꼭대기까지
-const BR_PYLON_H = 30;        // 교탑 높이
-const BR_HANG_GAP = 7;        // 행어 간격
+// ── 다리 (인천대교 꼴 사장교) ─────────────────────────────────────────
+// 예전에는 노면 위에 포물선 아치를 걸고 양 끝에 석탑을 세웠는데,
+// 아치는 노면에서 곧장 솟고 석탑은 그와 따로 노는 데다 물속으로 내려가는
+// 다리가 아예 없어서, 상판도 교탑도 호수 위에 떠 있는 꼴이었다.
+// 그래서 교각이 바닥까지 닿고 케이블이 교탑에서 상판으로 부챗살처럼
+// 내려오는 사장교로 다시 세운다.
+const BR_PYLON_H = 40;        // 노면 위 교탑 높이
+const BR_PIER_GAP = 13;       // 교각 간격 (길 위 점 기준 — 한 점이 HW_STEP 칸)
+const BR_STAY_GAP = 3;        // 케이블 간격 (점 기준)
+const BR_STAY_N = 9;          // 교탑 한쪽에 매다는 케이블 수
 
 World.prototype.paintBridge = function (c) {
   const hw = this.highway();
   if (!hw || !hw.bridges.length) return false;
   const bx = c.cx * CHUNK_X, bz = c.cz * CHUNK_Z;
+  const lk = hw.lake;
   let touched = false;
 
   const put = function (wx, wy, wz, id) {
-    const lx = wx - bx, lz = wz - bz;
+    const lx = Math.round(wx) - bx, lz = Math.round(wz) - bz;
     if (lx < 0 || lx >= CHUNK_X || lz < 0 || lz >= CHUNK_Z) return;
     if (wy < 1 || wy >= CHUNK_Y) return;
     c.blocks[idx(lx, wy, lz)] = id;
@@ -525,99 +540,143 @@ World.prototype.paintBridge = function (c) {
     touched = true;
   };
   const clear = function (wx, wy, wz) { put(wx, wy, wz, 0); };
+  const self = this;
+  // 이 자리의 물밑 바닥 (호수 안이면 파낸 바닥, 밖이면 원래 땅)
+  const bedAt = function (x, z) {
+    const nat = self.heightAt(Math.round(x), Math.round(z));
+    if (!lk) return nat;
+    const d = Math.hypot(x - lk.x, z - lk.z);
+    if (d >= LAKE_R + LAKE_MARGIN) return nat;
+    return Math.round(lakeBed(d, nat, lk.y));
+  };
+  // 길 위 한 점에서의 직각 방향
+  const normalAt = function (rec, i) {
+    const j = Math.min(rec.pts.length - 1, i + 1), q = Math.max(0, i - 1);
+    let tx = rec.pts[j][0] - rec.pts[q][0], tz = rec.pts[j][1] - rec.pts[q][1];
+    const tl = Math.hypot(tx, tz) || 1;
+    return [tz / tl, -tx / tl];
+  };
+  // 두 점 사이를 한 칸씩 이어 그린다 (케이블)
+  const line = function (a, b2, id) {
+    const n = Math.max(1, Math.ceil(Math.hypot(b2[0] - a[0], b2[1] - a[1], b2[2] - a[2])));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      put(a[0] + (b2[0] - a[0]) * t, Math.round(a[1] + (b2[1] - a[1]) * t),
+        a[2] + (b2[2] - a[2]) * t, id);
+    }
+  };
 
   for (let b = 0; b < hw.bridges.length; b++) {
     const br = hw.bridges[b];
     const rec = hw.paths[br.pi];
     const n = br.i1 - br.i0;
-    // 이 청크가 다리 근처인가 (거칠게 걸러낸다)
+    const y = br.y;
     const midp = rec.pts[Math.floor((br.i0 + br.i1) / 2)];
     const span = Math.hypot(rec.pts[br.i1][0] - rec.pts[br.i0][0],
-                            rec.pts[br.i1][1] - rec.pts[br.i0][1]);
-    if (Math.abs(bx + 8 - midp[0]) > span / 2 + 40) continue;
-    if (Math.abs(bz + 8 - midp[1]) > span / 2 + 40) continue;
+      rec.pts[br.i1][1] - rec.pts[br.i0][1]);
+    if (Math.abs(bx + 8 - midp[0]) > span / 2 + 90) continue;
+    if (Math.abs(bz + 8 - midp[1]) > span / 2 + 90) continue;
 
+    // 교탑 자리 — 가운데 큰 경간을 두고 양쪽에 하나씩
+    const pyl = [br.i0 + Math.round(n * 0.28), br.i0 + Math.round(n * 0.72)];
+
+    // ── 1) 상판·난간·교각 ──
     for (let i = br.i0; i <= br.i1; i++) {
       const p = rec.pts[i];
       if (Math.abs(p[0] - (bx + 8)) > 40 || Math.abs(p[1] - (bz + 8)) > 40) continue;
-      const j = Math.min(rec.pts.length - 1, i + 1), q = Math.max(0, i - 1);
-      let tx = rec.pts[j][0] - rec.pts[q][0], tz = rec.pts[j][1] - rec.pts[q][1];
-      const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-      const nx = tz, nz = -tx;                 // 직각
-      const t = (i - br.i0) / n;               // 0..1
-      const y = br.y;
+      const nn = normalAt(rec, i);
+      const nx = nn[0], nz = nn[1];
 
-      // 아치 — 가운데가 가장 높은 포물선. 노면 양옆 두 줄.
-      // 끝쪽은 한 칸 가는 동안 높이가 여러 칸 뛰므로, 이전 높이와 사이를
-      // 채워 줘야 끊기지 않고 이어진 아치로 보인다.
-      const rise = Math.round(BR_ARCH_RISE * 4 * t * (1 - t));
-      const tPrev = (i - 1 - br.i0) / n;
-      const risePrev = (i > br.i0) ? Math.round(BR_ARCH_RISE * 4 * tPrev * (1 - tPrev)) : rise;
-      const lo = Math.min(rise, risePrev), hi2 = Math.max(rise, risePrev);
-      const pp = rec.pts[Math.max(br.i0, i - 1)];
-      for (const s of [-1, 1]) {
-        const ax = p[0] + nx * (HW_HALF + 1) * s;
-        const az = p[1] + nz * (HW_HALF + 1) * s;
-        // 앞 점과 이 점 사이를 한 칸씩 채운다. 길 위 점이 두 칸 간격이라
-        // 점마다 한 덩이만 놓으면 아치가 점선처럼 끊긴다.
-        const bx2 = pp[0] + nx * (HW_HALF + 1) * s;
-        const bz2 = pp[1] + nz * (HW_HALF + 1) * s;
-        const seg = Math.max(1, Math.ceil(Math.hypot(ax - bx2, az - bz2)));
-        for (let k = 0; k <= seg; k++) {
-          const f = k / seg;
-          const qx = Math.round(bx2 + (ax - bx2) * f);
-          const qz = Math.round(bz2 + (az - bz2) * f);
-          const qr = Math.round(risePrev + (rise - risePrev) * f);
-          put(qx, y + qr, qz, B.light_gray_concrete);
-          put(qx, y + qr + 1, qz, B.smooth_stone);
-          put(qx, y + qr + 2, qz, B.light_gray_concrete);
-          // 안쪽으로 한 칸 더 — 멀리서도 굵게 보이게
-          put(Math.round(qx - nx * s), y + qr + 1, Math.round(qz - nz * s), B.smooth_stone);
-        }
-        // 행어 — 아치에서 노면으로
-        const hx = Math.round(ax), hz = Math.round(az);
-        if (rise > 3 && (i - br.i0) % BR_HANG_GAP === 0) {
-          for (let yy = y + 2; yy < y + rise; yy++) put(hx, yy, hz, B.iron_bars);
-        }
-        // 아치 두 줄을 가로로 묶는 보강재
-        if (rise > 8 && (i - br.i0) % (BR_HANG_GAP * 2) === 0) {
-          for (let d = -(HW_HALF + 1); d <= HW_HALF + 1; d++) {
-            put(Math.round(p[0] + nx * d), y + rise + 1, Math.round(p[1] + nz * d), B.iron_bars);
-          }
-        }
+      // 상판 — 두 켜로 두껍게 깐다 (한 켜면 종잇장처럼 보인다)
+      for (let d = -(HW_HALF + 2); d <= HW_HALF + 2; d++) {
+        const sx = p[0] + nx * d, sz = p[1] + nz * d;
+        const edge = Math.abs(d) > HW_HALF + 0.5;
+        put(sx, y - 1, sz, edge ? B.stone_bricks : B.smooth_stone);
+        put(sx, y - 2, sz, B.smooth_stone);
+        for (let yy = y + 1; yy <= y + 8; yy++) clear(sx, yy, sz);
       }
+      // 난간 — 위를 치우면서 가드레일까지 지워지므로 여기서 다시 세운다
+      for (const sgn of [-1, 1]) {
+        const sx = p[0] + nx * (HW_HALF + 1) * sgn, sz = p[1] + nz * (HW_HALF + 1) * sgn;
+        for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.iron_bars);
+      }
+      // 상판 밑을 튼다 — 고속도로 노반이 남아 있으면 물 위에 판이 뜬 꼴이 된다.
+      // (물은 그대로 두고, 물 위 공간만 비운다)
+      for (let d = -(HW_HALF + 3); d <= HW_HALF + 3; d++) {
+        const sx = p[0] + nx * d, sz = p[1] + nz * d;
+        const wy = lk ? lk.y : SEA_LEVEL;
+        for (let yy = y - 3; yy > wy; yy--) clear(sx, yy, sz);
+      }
+    }
 
-      // 노면을 받치는 상판 (물 위에 떠 있게)
-      for (let d = -(HW_HALF + 1); d <= HW_HALF + 1; d++) {
-        const sx = Math.round(p[0] + nx * d), sz = Math.round(p[1] + nz * d);
-        put(sx, y - 1, sz, B.smooth_stone);
-        for (let yy = y + 1; yy <= y + 6; yy++) clear(sx, yy, sz);
-      }
-      // 다리 난간 — 위를 치우면서 가드레일까지 지워지므로 여기서 다시 세운다.
-      // 이게 없으면 다리 위에서 호수로 떨어진다.
-      for (const s of [-1, 1]) {
-        for (const d of [HW_HALF - 0.4, HW_HALF + 0.6]) {
-          const sx = Math.round(p[0] + nx * d * s), sz = Math.round(p[1] + nz * d * s);
-          for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.iron_bars);
-        }
-      }
-
-      // 교탑 — 양 끝에 네모난 석탑
-      const atEnd = (i === br.i0 + 4) || (i === br.i1 - 4);
-      if (atEnd) {
-        for (const s of [-1, 1]) {
-          const px = Math.round(p[0] + nx * (HW_HALF + 3) * s);
-          const pz = Math.round(p[1] + nz * (HW_HALF + 3) * s);
-          for (let dy = -10; dy <= BR_PYLON_H; dy++) {
-            for (let ddx = -2; ddx <= 2; ddx++) {
-              for (let ddz = -2; ddz <= 2; ddz++) {
-                const edge = Math.abs(ddx) === 2 || Math.abs(ddz) === 2;
-                put(px + ddx, y + dy, pz + ddz,
-                  edge ? B.smooth_stone : (dy > 0 ? 0 : B.stone_bricks));
-              }
+    // ── 1-2) 교각 ── 상판 밑을 다 튼 뒤에 세운다
+    for (let i = br.i0; i <= br.i1; i++) {
+      const p = rec.pts[i];
+      if (Math.abs(p[0] - (bx + 8)) > 40 || Math.abs(p[1] - (bz + 8)) > 40) continue;
+      const nearPylon = Math.min(Math.abs(i - pyl[0]), Math.abs(i - pyl[1])) < 4;
+      const midSpan = i > pyl[0] + 4 && i < pyl[1] - 4;
+      if (nearPylon || midSpan || (i - br.i0) % BR_PIER_GAP !== 0) continue;
+      const nn = normalAt(rec, i);
+      const nx = nn[0], nz = nn[1];
+      for (const sgn of [-1, 1]) {
+        const px = p[0] + nx * (HW_HALF - 1) * sgn, pz = p[1] + nz * (HW_HALF - 1) * sgn;
+        const bed = Math.max(1, bedAt(px, pz));
+        for (let yy = bed; yy < y - 2; yy++) {
+          for (let ddx = -1; ddx <= 1; ddx++) {
+            for (let ddz = -1; ddz <= 1; ddz++) {
+              put(px + ddx, yy, pz + ddz, B.stone_bricks);
             }
           }
-          put(px, y + BR_PYLON_H + 1, pz, B.sea_lantern);
+        }
+      }
+    }
+
+    // ── 2) 교탑과 케이블 ──
+    // 케이블은 여러 청크에 걸쳐 뻗으므로, 다리 근처 청크에서는 통째로
+    // 그려 두고 put 이 청크 밖을 잘라 내게 둔다.
+    for (let k = 0; k < pyl.length; k++) {
+      const pi = pyl[k];
+      const p = rec.pts[pi];
+      if (!p) continue;
+      const nn = normalAt(rec, pi);
+      const nx = nn[0], nz = nn[1];
+      const topY = y + BR_PYLON_H;
+
+      for (const sgn of [-1, 1]) {
+        const px = p[0] + nx * (HW_HALF + 3) * sgn, pz = p[1] + nz * (HW_HALF + 3) * sgn;
+        const bed = Math.max(1, bedAt(px, pz));
+        // 물밑 바닥부터 노면까지는 굵은 기둥, 그 위는 조금 가늘게
+        for (let yy = bed; yy <= topY; yy++) {
+          const wide = yy < y + 2;
+          const r = wide ? 2 : 1;
+          for (let ddx = -r; ddx <= r; ddx++) {
+            for (let ddz = -r; ddz <= r; ddz++) {
+              const edge = Math.abs(ddx) === r || Math.abs(ddz) === r;
+              put(px + ddx, yy, pz + ddz,
+                (wide && !edge) ? B.stone_bricks : B.light_gray_concrete);
+            }
+          }
+        }
+        put(px, topY + 1, pz, B.sea_lantern);
+
+        // 케이블 — 교탑 꼭대기에서 상판 가장자리로 부챗살처럼 내려온다
+        for (let q = 1; q <= BR_STAY_N; q++) {
+          for (const dir of [-1, 1]) {
+            const ai = pi + dir * q * BR_STAY_GAP;
+            if (ai < br.i0 + 2 || ai > br.i1 - 2) continue;
+            const ap = rec.pts[ai];
+            if (!ap) continue;
+            const an = normalAt(rec, ai);
+            const axx = ap[0] + an[0] * (HW_HALF + 1) * sgn;
+            const azz = ap[1] + an[1] * (HW_HALF + 1) * sgn;
+            line([px, topY - 1 - q, pz], [axx, y + 1, azz], B.iron_bars);
+          }
+        }
+      }
+      // 두 교탑 기둥을 잇는 가로보
+      for (const yy of [y + BR_PYLON_H - 4, y + Math.round(BR_PYLON_H * 0.45)]) {
+        for (let d = -(HW_HALF + 3); d <= HW_HALF + 3; d++) {
+          put(p[0] + nx * d, yy, p[1] + nz * d, B.light_gray_concrete);
         }
       }
     }
