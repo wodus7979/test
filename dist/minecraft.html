@@ -1464,6 +1464,15 @@ body.touch #btn-autofly b { display: none; }
               물살을 받아야 잘 돌아가고, 빠를수록 돛이 당겨지며 뱃머리가 들린다.
               얕은 데로는 들어가지 않는다. 내릴 때 가까이 뭍이 있으면 거기 내려 주고,
               없으면 바다에 뛰어든다</li>
+          <li>도시를 한 바퀴 도는 <b>순환도로</b>에도 매끄러운 띠를 덧그린다.
+              블록으로만 깔면 둥근 길이 계단처럼 층져 보였다. 포장·연석·갓길 흰 선·
+              가운데 노란 점선까지 이어 그린다</li>
+          <li>역마다 지붕 위에 <b>이름판</b>이 선다 — 노선 표시와 역 이름을 빛나는
+              글자로 새겨, 어느 노선의 어느 역인지 멀리서도 열차 안에서도 읽힌다.
+              <b>공항철도는 청록 판에 AREX</b>, <b>KTX 는 파랑 판에 KTX</b> 다.
+              같은 도시에 두 역이 있어도 바로 구별된다 (예: <b>AREX SONGDO</b> 와
+              <b>KTX SONGDO</b>). 지상 입구 바닥에도 노선 표시를 적어 둔다.
+              한글은 3×5 점 글꼴로 그릴 수 없어 실제 역 이름판처럼 로마자를 쓴다</li>
           <li>고가 철로 상판은 <b>반 칸씩</b> 훑어 깐다. 한 칸씩 깔면 선로가
               비스듬한 데서 반올림 때문에 칸이 주기적으로 빠져 <b>바닥에 구멍</b>이 뚫렸다.
               양옆 <b>난간은 상판 가장자리를 그대로 따라간다</b> — 일정 거리에 찍기만 하면
@@ -11511,7 +11520,14 @@ const AP_FONT = {
   '9': [7, 5, 7, 1, 7], 'A': [2, 5, 7, 5, 5], 'C': [7, 4, 4, 4, 7],
   'G': [7, 4, 5, 5, 7], 'I': [7, 2, 2, 2, 7], 'J': [1, 1, 1, 5, 7],
   'L': [4, 4, 4, 4, 7], 'M': [5, 7, 7, 5, 5], 'N': [5, 7, 7, 7, 5],
-  'P': [7, 5, 7, 4, 4], 'R': [7, 5, 7, 6, 5], 'U': [5, 5, 5, 5, 7]
+  'P': [7, 5, 7, 4, 4], 'R': [7, 5, 7, 6, 5], 'U': [5, 5, 5, 5, 7],
+  // 역 이름판에 쓰려고 늘린 글자들
+  'B': [6, 5, 6, 5, 6], 'D': [6, 5, 5, 5, 6], 'E': [7, 4, 7, 4, 7],
+  'F': [7, 4, 6, 4, 4], 'H': [5, 5, 7, 5, 5], 'K': [5, 5, 6, 5, 5],
+  'O': [7, 5, 5, 5, 7], 'S': [7, 4, 7, 1, 7], 'T': [7, 2, 2, 2, 2],
+  'V': [5, 5, 5, 5, 2], 'W': [5, 5, 5, 7, 5], 'X': [5, 5, 2, 5, 5],
+  'Y': [5, 5, 2, 2, 2], 'Z': [7, 1, 2, 4, 7], 'Q': [7, 5, 5, 7, 3],
+  '-': [0, 0, 7, 0, 0], ' ': [0, 0, 0, 0, 0]
 };
 
 let APMAT = null;
@@ -13373,6 +13389,47 @@ function railCurve(plan, path, ry, st) {
   }
 }
 
+// ── 역 이름판 ─────────────────────────────────────────────────────────
+// 도시 이름을 블록 글꼴로 적는다. 한글은 3×5 점 글꼴로 그릴 수 없어
+// 실제 역 이름판처럼 로마자를 쓴다.
+const CITY_ROMAN = {
+  ICN: 'SONGDO', GMP: 'SEOUL', CJU: 'JEJU', MPO: 'MOKPO'
+};
+function cityRoman(code, fallback) {
+  return CITY_ROMAN[code] || String(fallback || code || '').toUpperCase();
+}
+
+// 노선 표시 — 공항철도는 청록, KTX 는 파랑
+function lineStyle(kind) {
+  return (kind === 'ktx')
+    ? { mark: 'KTX', col: bid('blue_concrete'), edge: bid('light_blue_concrete') }
+    : { mark: 'AREX', col: bid('cyan_concrete'), edge: bid('light_blue_concrete') };
+}
+
+// 벽에 세워 쓰는 글자. apText 는 바닥에 눕히는 용도라 따로 둔다.
+// 좌표는 세계 좌표 그대로 받는다.
+function signText(plan, text, x, y, z, id, alongX, dir) {
+  const gw = 3, gh = 5, gap = 1;
+  const total = text.length * (gw + gap) - gap;
+  let cur = -Math.floor(total / 2);
+  const d = dir || 1;
+  for (let i = 0; i < text.length; i++) {
+    const rows = AP_FONT[text[i]];
+    if (rows) {
+      for (let r = 0; r < gh; r++) {
+        for (let c = 0; c < gw; c++) {
+          if (!((rows[r] >> (gw - 1 - c)) & 1)) continue;
+          const a = (cur + c) * d;
+          const yy = y + (gh - 1 - r);
+          if (alongX) plan.set(x + a, yy, z, id, 0, true);
+          else plan.set(x, yy, z + a, id, 0, true);
+        }
+      }
+    }
+    cur += gw + gap;
+  }
+}
+
 // ── 승강장 치수 ──
 // 가운데 선로(|d| <= ST_TRACK), 그 옆으로 한 칸 높은 승강장(ST_EDGE 까지),
 // 바깥에 유리벽(ST_WALL). 전동차 옆면이 |d| = 4.75 라 안전선이 딱 붙는다.
@@ -13381,7 +13438,8 @@ const ST_EDGE = 10;
 const ST_WALL = 11;
 
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
-function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
+function railStation(plan, cx, cz, ry, gy, st, name, faceX, line) {
+  line = line || lineStyle('arex');
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
   // 5량 편성은 95칸이라 예전 길이(69칸)로는 앞뒤가 삐져나왔다
   const L = 50;   // 승강장 반길이 (철로 방향) — 5량 편성이 다 선다
@@ -13415,6 +13473,38 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
       set(x, ry + 7, z, st.roof || st.trim);
     }
   }
+  // ── 역 이름판 ──
+  // 지붕 위로 큰 판을 세우고 노선 표시(AREX/KTX)와 역 이름을 새긴다.
+  // 어느 노선의 어느 역인지 멀리서도, 열차 안에서도 바로 읽힌다.
+  {
+    const BW = 30;                 // 판 반길이
+    const y0 = ry + 8, y1 = ry + 14;
+    for (const side2 of [1, -1]) {
+      const d = side2 * (ST_WALL + 1);
+      for (let a = -BW; a <= BW; a++) {
+        for (let y = y0; y <= y1; y++) {
+          const edge = (a === -BW || a === BW || y === y0 || y === y1);
+          const x = faceX ? cx + a : cx + d;
+          const z = faceX ? cz + d : cz + a;
+          set(x, y, z, edge ? line.edge : line.col);
+        }
+      }
+      // 판을 받치는 기둥
+      for (const a of [-BW + 1, 0, BW - 1]) {
+        const x = faceX ? cx + a : cx + d;
+        const z = faceX ? cz + d : cz + a;
+        plan.set(x, ry + 8, z, st.trim, 0, true);
+      }
+      // 글자 — 바깥에서 바로 읽히게 면마다 방향을 맞춘다.
+      // 앞 = (-sin yaw, -cos yaw) 규약이라, -z 를 보는 사람의 오른쪽이 +x,
+      // -x 를 보는 사람의 오른쪽이 -z 다.
+      const tx = faceX ? cx : cx + d;
+      const tz = faceX ? cz + d : cz;
+      signText(plan, line.mark + ' ' + name, tx, ry + 9, tz, B.sea_lantern,
+        faceX, faceX ? side2 : -side2);
+    }
+  }
+
   // 조명·의자·발권기 — 승강장 위에 놓는다
   for (let a = -L + 3; a <= L - 3; a += 4) {
     for (const d of [-ST_EDGE + 1, ST_EDGE - 1]) {
@@ -13521,10 +13611,31 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
     for (let v = gv - 1; v <= gv + 4; v++) {
       for (let u = STAIR_U - 2; u <= ESC_U + WIDE + 1; u++) at(u, gy, side * v, st.plaza);
     }
-    // 입구 표지
-    apText(plan, label || 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + side * (gv + 3),
-      faceX ? cz + side * (gv + 3) : cz + (STAIR_U + ESC_U) / 2 + 2,
-      1, st.accent, !faceX, gy, faceX);
+    // 입구 표지 — 바닥에 노선 이름을 적는다.
+    // 예전에는 apText 를 썼는데, apText 가 plan.x 를 한 번 더 더하는 바람에
+    // 글자가 역에서 수천 칸 떨어진 허허벌판에 찍히고 있었다.
+    {
+      const u0 = (STAIR_U + ESC_U) / 2 + 2;
+      const gx = faceX ? cx + u0 : cx + side * (gv + 3);
+      const gz = faceX ? cz + side * (gv + 3) : cz + u0;
+      const gw2 = 3, gap2 = 1, txt = line.mark;
+      let cur = -Math.floor((txt.length * (gw2 + gap2) - gap2) / 2);
+      for (let i = 0; i < txt.length; i++) {
+        const rows = AP_FONT[txt[i]];
+        if (rows) {
+          for (let r = 0; r < 5; r++) {
+            for (let c2 = 0; c2 < gw2; c2++) {
+              if (!((rows[r] >> (gw2 - 1 - c2)) & 1)) continue;
+              const a = cur + c2, bb = 4 - r;
+              const ox = faceX ? a : bb * side;
+              const oz = faceX ? bb * side : a;
+              plan.set(gx + ox, gy, gz + oz, line.col, 0, true);
+            }
+          }
+        }
+        cur += gw2 + gap2;
+      }
+    }
     // 조명
     for (let k = 2; k <= rise; k += 4) {
       at(STAIR_U - 1, ry - k + 3, side * (V0 + k), B.sea_lantern);
@@ -14527,8 +14638,11 @@ function cityFerry(plan, st) {
   const railPath = smoothPath(corners, RAIL_CURVE_R, 0.8);
   railCurve(plan, railPath, railY, st);
 
-  const apGate = railStation(plan, apStX, apStZ, railY, ap.y, st, ap.code, true);
-  const cityGate = railStation(plan, cityStX, cityStZ, railY, gy, st, def.name, true);
+  // 공항철도 — 이름판에 노선 표시(AREX)와 역 이름을 새긴다
+  const arex = lineStyle('arex');
+  const apGate = railStation(plan, apStX, apStZ, railY, ap.y, st, ap.code, true, arex);
+  const cityGate = railStation(plan, cityStX, cityStZ, railY, gy, st,
+    cityRoman(code, def.name), true, arex);
 
   // 열차가 따라갈 길 — 승강장까지 이어 붙인다.
   // 점이 촘촘하면 노선 구간이 너무 많아지므로 몇 칸씩 건너뛴다.
@@ -17804,7 +17918,8 @@ function buildKtxPlan(world) {
   for (let k = 0; k < stas.length; k++) {
     const s = stas[k];
     const gy = Math.max(1, world.heightAt(s.x, s.z));
-    const gate = railStation(plan, s.x, s.z, s.y, Math.min(gy, s.y - 4), st, s.name, false, 'KTX');
+    const gate = railStation(plan, s.x, s.z, s.y, Math.min(gy, s.y - 4), st,
+      cityRoman(s.code, s.city.name), false, lineStyle('ktx'));
     plan.stations.push({
       x: s.x, z: s.z, y: s.y + 1, platformY: s.y + 2, faceX: false, half: 34,
       name: s.name, gate: gate, code: s.code, city: s.city
@@ -25632,7 +25747,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.8.2';
+const GAME_VERSION = 'v10.9';
 const GAME_BUILD = '2026-08-23';
 const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
 
@@ -32202,6 +32317,31 @@ function swBuildRoad(pts, hs, i0, i1) {
   return m.build();
 }
 
+// ── 도시 순환도로 ─────────────────────────────────────────────────────
+// 도시를 한 바퀴 도는 길이라 블록으로 깔면 둘레가 계단처럼 층진다.
+// 그 위에 둥근 띠를 덧그려 매끄럽게 잇는다.
+function swBuildRing(pts, y, half, st) {
+  const m = new Mesh3D();
+  const yOf = function () { return y + 1; };
+  const curb = blockTexName(st.curb || st.walk, 2);
+  return function (i0, i1) {
+    const mm = new Mesh3D();
+    // 1) 포장
+    swBand(mm, pts, i0, i1, yOf, -half - 0.5, half + 0.5, SW_LIFT, 'sw_asphalt');
+    // 2) 연석 — 양쪽 한 칸
+    swBand(mm, pts, i0, i1, yOf, -half - 1.5, -half - 0.5, SW_LIFT + 0.01, curb);
+    swBand(mm, pts, i0, i1, yOf, half + 0.5, half + 1.5, SW_LIFT + 0.01, curb);
+    // 3) 갓길 흰 선
+    swBand(mm, pts, i0, i1, yOf, -half - 0.4, -half + 0.1, SW_LIFT + 0.02, 'sw_line');
+    swBand(mm, pts, i0, i1, yOf, half - 0.1, half + 0.4, SW_LIFT + 0.02, 'sw_line');
+    // 4) 중앙선 — 두 칸 긋고 두 칸 쉰다
+    for (let i = i0; i < i1 - 1; i += 4) {
+      swBand(mm, pts, i, Math.min(i1, i + 2), yOf, -0.28, 0.28, SW_LIFT + 0.02, 'sw_center');
+    }
+    return mm.build();
+  };
+}
+
 // ── 조각 만들기 ───────────────────────────────────────────────────────
 function swSegments(pts, make) {
   const segs = [];
@@ -32245,6 +32385,25 @@ Game.prototype.ensureSmoothWays = function () {
       });
       segs.forEach(function (s) { s.y = ys[Math.min(ys.length - 1, s.i0)]; });
       out.rail = out.rail.concat(segs);
+    }
+  }
+  // 도시 순환도로 — 둥근 띠로 덧그린다
+  if (w.cities) {
+    const list = w.cities();
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (c.y === undefined) continue;
+      const R = CITY_RING;
+      const n = Math.max(96, Math.round(2 * Math.PI * R / 2));
+      const pts = [];
+      for (let k = 0; k <= n; k++) {
+        const a = (k / n) * Math.PI * 2;
+        pts.push([c.x + Math.cos(a) * R, c.z + Math.sin(a) * R]);
+      }
+      const make = swBuildRing(pts, c.y, ROAD_HALF, c.style || c.st);
+      const segs = swSegments(pts, make);
+      segs.forEach(function (s2) { s2.y = c.y; });
+      out.road = out.road.concat(segs);
     }
   }
   if (w.highway) {

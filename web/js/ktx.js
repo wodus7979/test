@@ -176,7 +176,8 @@ function buildKtxPlan(world) {
   for (let k = 0; k < stas.length; k++) {
     const s = stas[k];
     const gy = Math.max(1, world.heightAt(s.x, s.z));
-    const gate = railStation(plan, s.x, s.z, s.y, Math.min(gy, s.y - 4), st, s.name, false, 'KTX');
+    const gate = railStation(plan, s.x, s.z, s.y, Math.min(gy, s.y - 4), st,
+      cityRoman(s.code, s.city.name), false, lineStyle('ktx'));
     plan.stations.push({
       x: s.x, z: s.z, y: s.y + 1, platformY: s.y + 2, faceX: false, half: 34,
       name: s.name, gate: gate, code: s.code, city: s.city

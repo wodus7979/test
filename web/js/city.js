@@ -1163,6 +1163,47 @@ function railCurve(plan, path, ry, st) {
   }
 }
 
+// ── 역 이름판 ─────────────────────────────────────────────────────────
+// 도시 이름을 블록 글꼴로 적는다. 한글은 3×5 점 글꼴로 그릴 수 없어
+// 실제 역 이름판처럼 로마자를 쓴다.
+const CITY_ROMAN = {
+  ICN: 'SONGDO', GMP: 'SEOUL', CJU: 'JEJU', MPO: 'MOKPO'
+};
+function cityRoman(code, fallback) {
+  return CITY_ROMAN[code] || String(fallback || code || '').toUpperCase();
+}
+
+// 노선 표시 — 공항철도는 청록, KTX 는 파랑
+function lineStyle(kind) {
+  return (kind === 'ktx')
+    ? { mark: 'KTX', col: bid('blue_concrete'), edge: bid('light_blue_concrete') }
+    : { mark: 'AREX', col: bid('cyan_concrete'), edge: bid('light_blue_concrete') };
+}
+
+// 벽에 세워 쓰는 글자. apText 는 바닥에 눕히는 용도라 따로 둔다.
+// 좌표는 세계 좌표 그대로 받는다.
+function signText(plan, text, x, y, z, id, alongX, dir) {
+  const gw = 3, gh = 5, gap = 1;
+  const total = text.length * (gw + gap) - gap;
+  let cur = -Math.floor(total / 2);
+  const d = dir || 1;
+  for (let i = 0; i < text.length; i++) {
+    const rows = AP_FONT[text[i]];
+    if (rows) {
+      for (let r = 0; r < gh; r++) {
+        for (let c = 0; c < gw; c++) {
+          if (!((rows[r] >> (gw - 1 - c)) & 1)) continue;
+          const a = (cur + c) * d;
+          const yy = y + (gh - 1 - r);
+          if (alongX) plan.set(x + a, yy, z, id, 0, true);
+          else plan.set(x, yy, z + a, id, 0, true);
+        }
+      }
+    }
+    cur += gw + gap;
+  }
+}
+
 // ── 승강장 치수 ──
 // 가운데 선로(|d| <= ST_TRACK), 그 옆으로 한 칸 높은 승강장(ST_EDGE 까지),
 // 바깥에 유리벽(ST_WALL). 전동차 옆면이 |d| = 4.75 라 안전선이 딱 붙는다.
@@ -1171,7 +1212,8 @@ const ST_EDGE = 10;
 const ST_WALL = 11;
 
 // 승강장 — 지붕과 계단, 벤치와 발권기까지
-function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
+function railStation(plan, cx, cz, ry, gy, st, name, faceX, line) {
+  line = line || lineStyle('arex');
   const set = function (x, y, z, id, meta) { plan.set(x, y, z, id, meta || 0, true); };
   // 5량 편성은 95칸이라 예전 길이(69칸)로는 앞뒤가 삐져나왔다
   const L = 50;   // 승강장 반길이 (철로 방향) — 5량 편성이 다 선다
@@ -1205,6 +1247,38 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
       set(x, ry + 7, z, st.roof || st.trim);
     }
   }
+  // ── 역 이름판 ──
+  // 지붕 위로 큰 판을 세우고 노선 표시(AREX/KTX)와 역 이름을 새긴다.
+  // 어느 노선의 어느 역인지 멀리서도, 열차 안에서도 바로 읽힌다.
+  {
+    const BW = 30;                 // 판 반길이
+    const y0 = ry + 8, y1 = ry + 14;
+    for (const side2 of [1, -1]) {
+      const d = side2 * (ST_WALL + 1);
+      for (let a = -BW; a <= BW; a++) {
+        for (let y = y0; y <= y1; y++) {
+          const edge = (a === -BW || a === BW || y === y0 || y === y1);
+          const x = faceX ? cx + a : cx + d;
+          const z = faceX ? cz + d : cz + a;
+          set(x, y, z, edge ? line.edge : line.col);
+        }
+      }
+      // 판을 받치는 기둥
+      for (const a of [-BW + 1, 0, BW - 1]) {
+        const x = faceX ? cx + a : cx + d;
+        const z = faceX ? cz + d : cz + a;
+        plan.set(x, ry + 8, z, st.trim, 0, true);
+      }
+      // 글자 — 바깥에서 바로 읽히게 면마다 방향을 맞춘다.
+      // 앞 = (-sin yaw, -cos yaw) 규약이라, -z 를 보는 사람의 오른쪽이 +x,
+      // -x 를 보는 사람의 오른쪽이 -z 다.
+      const tx = faceX ? cx : cx + d;
+      const tz = faceX ? cz + d : cz;
+      signText(plan, line.mark + ' ' + name, tx, ry + 9, tz, B.sea_lantern,
+        faceX, faceX ? side2 : -side2);
+    }
+  }
+
   // 조명·의자·발권기 — 승강장 위에 놓는다
   for (let a = -L + 3; a <= L - 3; a += 4) {
     for (const d of [-ST_EDGE + 1, ST_EDGE - 1]) {
@@ -1311,10 +1385,31 @@ function railStation(plan, cx, cz, ry, gy, st, name, faceX, label) {
     for (let v = gv - 1; v <= gv + 4; v++) {
       for (let u = STAIR_U - 2; u <= ESC_U + WIDE + 1; u++) at(u, gy, side * v, st.plaza);
     }
-    // 입구 표지
-    apText(plan, label || 'METRO', faceX ? cx + (STAIR_U + ESC_U) / 2 + 2 : cx + side * (gv + 3),
-      faceX ? cz + side * (gv + 3) : cz + (STAIR_U + ESC_U) / 2 + 2,
-      1, st.accent, !faceX, gy, faceX);
+    // 입구 표지 — 바닥에 노선 이름을 적는다.
+    // 예전에는 apText 를 썼는데, apText 가 plan.x 를 한 번 더 더하는 바람에
+    // 글자가 역에서 수천 칸 떨어진 허허벌판에 찍히고 있었다.
+    {
+      const u0 = (STAIR_U + ESC_U) / 2 + 2;
+      const gx = faceX ? cx + u0 : cx + side * (gv + 3);
+      const gz = faceX ? cz + side * (gv + 3) : cz + u0;
+      const gw2 = 3, gap2 = 1, txt = line.mark;
+      let cur = -Math.floor((txt.length * (gw2 + gap2) - gap2) / 2);
+      for (let i = 0; i < txt.length; i++) {
+        const rows = AP_FONT[txt[i]];
+        if (rows) {
+          for (let r = 0; r < 5; r++) {
+            for (let c2 = 0; c2 < gw2; c2++) {
+              if (!((rows[r] >> (gw2 - 1 - c2)) & 1)) continue;
+              const a = cur + c2, bb = 4 - r;
+              const ox = faceX ? a : bb * side;
+              const oz = faceX ? bb * side : a;
+              plan.set(gx + ox, gy, gz + oz, line.col, 0, true);
+            }
+          }
+        }
+        cur += gw2 + gap2;
+      }
+    }
     // 조명
     for (let k = 2; k <= rise; k += 4) {
       at(STAIR_U - 1, ry - k + 3, side * (V0 + k), B.sea_lantern);
@@ -2317,8 +2412,11 @@ function cityFerry(plan, st) {
   const railPath = smoothPath(corners, RAIL_CURVE_R, 0.8);
   railCurve(plan, railPath, railY, st);
 
-  const apGate = railStation(plan, apStX, apStZ, railY, ap.y, st, ap.code, true);
-  const cityGate = railStation(plan, cityStX, cityStZ, railY, gy, st, def.name, true);
+  // 공항철도 — 이름판에 노선 표시(AREX)와 역 이름을 새긴다
+  const arex = lineStyle('arex');
+  const apGate = railStation(plan, apStX, apStZ, railY, ap.y, st, ap.code, true, arex);
+  const cityGate = railStation(plan, cityStX, cityStZ, railY, gy, st,
+    cityRoman(code, def.name), true, arex);
 
   // 열차가 따라갈 길 — 승강장까지 이어 붙인다.
   // 점이 촘촘하면 노선 구간이 너무 많아지므로 몇 칸씩 건너뛴다.

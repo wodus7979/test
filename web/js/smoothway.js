@@ -132,6 +132,31 @@ function swBuildRoad(pts, hs, i0, i1) {
   return m.build();
 }
 
+// ── 도시 순환도로 ─────────────────────────────────────────────────────
+// 도시를 한 바퀴 도는 길이라 블록으로 깔면 둘레가 계단처럼 층진다.
+// 그 위에 둥근 띠를 덧그려 매끄럽게 잇는다.
+function swBuildRing(pts, y, half, st) {
+  const m = new Mesh3D();
+  const yOf = function () { return y + 1; };
+  const curb = blockTexName(st.curb || st.walk, 2);
+  return function (i0, i1) {
+    const mm = new Mesh3D();
+    // 1) 포장
+    swBand(mm, pts, i0, i1, yOf, -half - 0.5, half + 0.5, SW_LIFT, 'sw_asphalt');
+    // 2) 연석 — 양쪽 한 칸
+    swBand(mm, pts, i0, i1, yOf, -half - 1.5, -half - 0.5, SW_LIFT + 0.01, curb);
+    swBand(mm, pts, i0, i1, yOf, half + 0.5, half + 1.5, SW_LIFT + 0.01, curb);
+    // 3) 갓길 흰 선
+    swBand(mm, pts, i0, i1, yOf, -half - 0.4, -half + 0.1, SW_LIFT + 0.02, 'sw_line');
+    swBand(mm, pts, i0, i1, yOf, half - 0.1, half + 0.4, SW_LIFT + 0.02, 'sw_line');
+    // 4) 중앙선 — 두 칸 긋고 두 칸 쉰다
+    for (let i = i0; i < i1 - 1; i += 4) {
+      swBand(mm, pts, i, Math.min(i1, i + 2), yOf, -0.28, 0.28, SW_LIFT + 0.02, 'sw_center');
+    }
+    return mm.build();
+  };
+}
+
 // ── 조각 만들기 ───────────────────────────────────────────────────────
 function swSegments(pts, make) {
   const segs = [];
@@ -175,6 +200,25 @@ Game.prototype.ensureSmoothWays = function () {
       });
       segs.forEach(function (s) { s.y = ys[Math.min(ys.length - 1, s.i0)]; });
       out.rail = out.rail.concat(segs);
+    }
+  }
+  // 도시 순환도로 — 둥근 띠로 덧그린다
+  if (w.cities) {
+    const list = w.cities();
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (c.y === undefined) continue;
+      const R = CITY_RING;
+      const n = Math.max(96, Math.round(2 * Math.PI * R / 2));
+      const pts = [];
+      for (let k = 0; k <= n; k++) {
+        const a = (k / n) * Math.PI * 2;
+        pts.push([c.x + Math.cos(a) * R, c.z + Math.sin(a) * R]);
+      }
+      const make = swBuildRing(pts, c.y, ROAD_HALF, c.style || c.st);
+      const segs = swSegments(pts, make);
+      segs.forEach(function (s2) { s2.y = c.y; });
+      out.road = out.road.concat(segs);
     }
   }
   if (w.highway) {
