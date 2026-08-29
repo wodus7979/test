@@ -1143,10 +1143,16 @@ function railCurve(plan, path, ry, st) {
     set(x, y + 1, z, B.iron_bars);
     set(x, y + 2, z, B.iron_bars);
   });
-  // 교각 — 길을 따라 일정 간격으로
+  // 교각 — 길을 따라 일정 간격으로.
+  // 순환도로 노면 위에는 세우지 않는다 (기둥이 길을 막는다).
   const stepPier = 9;
+  const onRingRoad = function (x, z) {
+    const d2 = Math.hypot(x - plan.x, z - plan.z);
+    return Math.abs(d2 - CITY_RING) <= ROAD_HALF + 3;
+  };
   for (let i = 0; i < path.length; i += stepPier) {
     const a = path[i];
+    if (onRingRoad(a[0], a[1])) continue;
     const b = path[Math.min(path.length - 1, i + 1)];
     let dx = b[0] - a[0], dz = b[1] - a[1];
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
@@ -2232,6 +2238,28 @@ function cityFerry(plan, st) {
     if (w.heightAt(x, z) > SEA_LEVEL + 1) { sx = x; sz = z; break; }
   }
 
+  // 2-2) 부두를 도시 도로망 밖으로 밀어낸다.
+  //
+  // 목포처럼 시가지가 물가에 바짝 붙은 도시에서는 물가가 순환도로 안쪽에
+  // 들어온다. 그대로 지으면 부두 앞마당이 도로 밑을 파고들며 위를 비워
+  // 순환도로가 통째로 끊긴다 (목포에서 61칸이 끊겨 있었다).
+  // 앞마당 네 귀퉁이가 모두 도로 바깥으로 나갈 때까지 바다 쪽으로 민다.
+  const KEEP_R = ROAD_EDGE + 8;
+  const outsideRoads = function (ox, oz) {
+    // -46 은 도시 쪽으로 내려오는 경사로가 닿는 자리다
+    for (const u of [-46, -30, -12, 8]) {
+      for (const v of [-22, 0, 22]) {
+        const px = ox + dx * u + rx * v, pz = oz + dz * u + rz * v;
+        if (Math.hypot(px - plan.x, pz - plan.z) < KEEP_R) return false;
+      }
+    }
+    return true;
+  };
+  for (let k = 0; k < 200 && !outsideRoads(sx, sz); k++) {
+    sx = Math.round(sx + dx * 2);
+    sz = Math.round(sz + dz * 2);
+  }
+
   const QY = FT_QUAY_Y, SURF = QY + 1;
   const at = function (u, v) {   // u = 바다 쪽 거리, v = 오른쪽 거리
     return [Math.round(sx + dx * u + rx * v), Math.round(sz + dz * u + rz * v)];
@@ -2249,6 +2277,21 @@ function cityFerry(plan, st) {
   //    비스듬한 자리에서 칸이 빠지지 않게 반 칸씩 훑는다.
   for (let u = -30; u <= 8; u += 0.5) {
     for (let v = -22; v <= 22; v += 0.5) pave(u, v, QY);
+  }
+  // 3-2) 도시 쪽 경사로 — 부두는 시가지보다 다섯 칸 낮아, 그냥 두면 앞마당
+  //      뒤가 절벽이 되어 걸어 들어갈 수도 나올 수도 없다. 뭍 높이에서
+  //      부두 높이까지 완만하게 깎아 잇는다.
+  {
+    const q0 = at(-46, 0);
+    const nat = w.heightAt(q0[0], q0[1]);
+    const wgt = cityFlatWeight(q0[0] - plan.x, q0[1] - plan.z);
+    const backY = Math.round(nat + (plan.y - nat) * wgt);
+    const RAMP = 16;                     // 경사로 길이 (-46 ~ -30)
+    for (let u = -46; u <= -30; u += 0.5) {
+      const tt = (u + 46) / RAMP;        // 0(뭍) → 1(부두)
+      const top = Math.round(backY + (QY - backY) * tt);
+      for (let v = -14; v <= 14; v += 0.5) pave(u, v, top);
+    }
   }
   // 4) 잔교 — 깊은 데까지 뻗는다
   let pier = 20;

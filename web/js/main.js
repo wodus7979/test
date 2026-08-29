@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.9';
-const GAME_BUILD = '2026-08-23';
-const GAME_FEATURES = '두 배로 커진 도시 · 막힌 고속도로 · 곡면 3D 탈것';
+const GAME_VERSION = 'v10.9.1';
+const GAME_BUILD = '2026-08-29';
+const GAME_FEATURES = '순환도로 밖으로 나간 부두 · 부두 경사로 · 역 이름판';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
