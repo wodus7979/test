@@ -1,3 +1,12 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>:root{color-scheme:light}html,body{margin:0}body{font:14px system-ui,sans-serif}
+img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
 <title>우리 여행 발자국</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
 <style>
@@ -491,6 +500,12 @@ const blank = () => ({ d: {}, m: { files: 0, gps: 0, seoul: 0, abroad: 0 } });
 let LOG = blank();
 try { const s = localStorage.getItem(KEY); if (s){ const p = JSON.parse(s); if (p && p.d) LOG = { d: p.d, m: Object.assign(blank().m, p.m || {}) }; } } catch (e) {}
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(LOG)); } catch (e) {} }
+// scan_photos.py --html 로 뽑은 페이지는 집계가 미리 심어져 온다.
+// 이 브라우저에 이미 쌓인 기록이 있으면 그쪽을 우선한다.
+if (!Object.keys(LOG.d).length && window.__PRESET__ && window.__PRESET__.d){
+  LOG = { d: window.__PRESET__.d, m: Object.assign(blank().m, window.__PRESET__.m || {}) };
+  save();
+}
 
 function bucket(n){ return n >= 25 ? 4 : n >= 10 ? 3 : n >= 5 ? 2 : n >= 2 ? 1 : 0; }
 const BUCKETS = [['1장','--s0'],['2–4','--s1'],['5–9','--s2'],['10–24','--s3'],['25+','--s4']];
@@ -762,3 +777,6 @@ document.getElementById('resetBtn').onclick = () => {
 
 render();
 </script>
+
+</body>
+</html>

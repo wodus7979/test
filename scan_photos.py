@@ -373,6 +373,8 @@ def main():
     ap = argparse.ArgumentParser(description='사진 폴더에서 다녀온 국내 시·군·구를 집계합니다 (서울 제외).')
     ap.add_argument('folders', nargs='+', help='사진이 있는 폴더 (하위 폴더까지 훑습니다). 예: DCIM')
     ap.add_argument('-o', '--out', default='record.json', help='결과 JSON 경로 (기본: record.json)')
+    ap.add_argument('--html', default=None,
+                    help='집계를 심은 지도 HTML 도 함께 만듭니다. 폰에서 바로 열면 지도가 채워져 있습니다')
     ap.add_argument('--geo', default=None, help='geo.json 경로 (기본: 이 스크립트 옆)')
     args = ap.parse_args()
 
@@ -444,8 +446,26 @@ def main():
         if i % 200 == 0 or i == len(targets):
             print('  %d / %d 읽는 중...' % (i, len(targets)), file=sys.stderr)
 
+    record = {'d': log, 'm': m}
     with open(args.out, 'w', encoding='utf-8') as f:
-        json.dump({'d': log, 'm': m}, f, ensure_ascii=False, separators=(',', ':'))
+        json.dump(record, f, ensure_ascii=False, separators=(',', ':'))
+
+    html_made = None
+    if args.html:
+        here = os.path.dirname(os.path.abspath(__file__))
+        tpl = os.path.join(here, 'travel_map.html')
+        if not os.path.exists(tpl):
+            print('travel_map.html 을 이 스크립트 옆에서 찾지 못해 HTML 은 만들지 못했습니다.', file=sys.stderr)
+        else:
+            with open(tpl, encoding='utf-8') as f:
+                page = f.read()
+            blob = json.dumps(record, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
+            tag = '<script>window.__PRESET__=%s;</script>' % blob
+            # 페이지 본문 스크립트보다 먼저 실행되어야 하므로 <body> 바로 뒤에 넣는다
+            page = page.replace('<body>', '<body>\n' + tag, 1) if '<body>' in page else tag + page
+            with open(args.html, 'w', encoding='utf-8') as f:
+                f.write(page)
+            html_made = args.html
 
     names = {c: n for c, n, _b, _r in reg.d}
     by_sido = OrderedDict()
@@ -466,7 +486,12 @@ def main():
             print('  %-24s %d개' % (k, v))
         print('  스크린샷·다운로드·캡처는 원래 위치가 없으니 정상입니다.')
     print()
-    print('→ %s 를 열어 내용을 복사한 뒤, 지도 페이지의 [붙여넣기로 복원]에 붙여넣으세요.' % args.out)
+    if html_made:
+        print('→ %s 를 브라우저로 열면 지도가 이미 채워져 있습니다.' % html_made)
+        print('  (%s 는 다른 기기로 옮길 때 [붙여넣기로 복원]에 씁니다)' % args.out)
+    else:
+        print('→ %s 를 열어 내용을 복사한 뒤, 지도 페이지의 [붙여넣기로 복원]에 붙여넣으세요.' % args.out)
+        print('  --html 내지도.html 을 붙이면 지도가 채워진 HTML 을 바로 만들어 줍니다.')
 
 
 if __name__ == '__main__':
