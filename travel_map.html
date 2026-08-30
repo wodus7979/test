@@ -221,29 +221,35 @@ body.touch-only #pickDir, body.touch-only .devhint .fine{display:none}
         <label class="drop" id="drop" for="fileIn" tabindex="0" role="button">
           <span class="big">파일에서 고르기</span>
           <span class="small">여기를 누르거나 사진을 끌어다 놓으세요</span>
-          <span class="small ok">위치 정보가 그대로 남는 방법입니다</span>
+          <span class="small">JPG · HEIC · 동영상 · 구글 테이크아웃 JSON</span>
         </label>
         <div class="btnrow">
-          <label class="btn" for="albumIn" tabindex="0" role="button">앨범에서 고르기</label>
           <label class="btn" for="dirIn" id="pickDir" tabindex="0" role="button">폴더 선택</label>
         </div>
         <div class="devhint">
-          <span class="warn">안드로이드는 <b>앨범에서 고르면 위치 정보가 지워집니다.</b>
-            파일에서 <b>DCIM › Camera</b> 로 들어가 고르세요.</span>
+          <span class="warn"><b>안드로이드에서 위치가 하나도 안 잡히면 브라우저로는 안 됩니다.</b>
+            폰이 갤러리 사진을 앱에 넘길 때 위치를 지우기 때문입니다. 아래 안내를 보세요.</span>
           <span class="fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
         </div>
         <details class="io" id="pickHelp">
-          <summary>사진 선택 창이 안 열리나요?</summary>
+          <summary>안 열리거나, 위치 정보가 없나요?</summary>
           <div class="helpbody">
             <p><b>앱에 내장된 브라우저에서는 파일 선택이 막혀 있습니다.</b> 카카오톡·인스타그램 등에서
             링크를 바로 열었거나 앱 안의 브라우저로 보고 있다면, 눌러도 아무 반응이 없습니다.</p>
             <p>화면 오른쪽 위 <b>⋮ → 다른 브라우저에서 열기</b> 로 Chrome 에서 여시면 정상 동작합니다.</p>
-            <p><b>창은 열리는데 위치 정보가 하나도 없다면</b> 안드로이드 사진 선택 도구를 거친 것입니다.
-            이 경로는 사진을 넘겨주기 전에 위치를 지웁니다. <b>[파일에서 고르기]</b> 로
-            <b>DCIM › Camera</b> 폴더에 들어가 직접 고르면 원본이 그대로 전달됩니다.</p>
-            <p>그래도 안 되면 사진 선택 없이 채우는 방법이 있습니다. 안드로이드에서 Termux 로
-            <code>scan_photos.py</code> 를 돌리면 지도가 이미 채워진 HTML 이 나옵니다.</p>
-            <code class="cmd">python3 scan_photos.py DCIM --html 내지도.html</code>
+            <p><b>창은 열리는데 위치 정보가 하나도 없다면</b> — 안드로이드는 갤러리에 있는 사진을
+            앱에 넘길 때 위치를 지웁니다. 앨범으로 고르든 파일로 고르든 마찬가지입니다.
+            그 자리에서 카메라로 새로 찍은 사진만 위치가 남는데, 이건 갤러리를 거치지 않기 때문입니다.
+            <b>브라우저로는 우회할 방법이 없습니다.</b></p>
+            <p>대신 폰에서 파일을 직접 읽으면 위치가 그대로 있습니다. Termux 를 설치하고
+            <code>scan_photos.py</code>, <code>geo.json</code>, <code>travel_map.html</code> 을
+            같은 폴더에 둔 뒤:</p>
+            <code class="cmd">pkg install python
+termux-setup-storage
+cd ~/storage/shared
+python3 scan_photos.py DCIM --html 내지도.html</code>
+            <p>만들어진 <b>내지도.html</b> 을 브라우저로 열면 지도가 이미 채워져 있습니다.
+            사진 선택 창이 아예 필요 없습니다.</p>
           </div>
         </details>
         <div class="prog" id="prog">
@@ -251,7 +257,6 @@ body.touch-only #pickDir, body.touch-only .devhint .fine{display:none}
           <div class="txt" id="progTxt"></div>
         </div>
         <input type="file" id="fileIn" class="vh" tabindex="-1" multiple>
-        <input type="file" id="albumIn" class="vh" tabindex="-1" multiple accept="image/*">
         <input type="file" id="dirIn" class="vh" tabindex="-1" multiple webkitdirectory directory>
       </div>
 
@@ -678,9 +683,9 @@ function render(){
   if (nogps > 0){
     let s = '위치 정보가 없는 사진 <b>' + nogps.toLocaleString('ko-KR') + '장</b>은 건너뛰었습니다.';
     if (LOG.m.files >= 2 && nogps / LOG.m.files >= 0.8)
-      s += ' 안드로이드에서 <b>앨범</b>으로 고르면 사진을 넘겨주기 전에 위치가 지워집니다. ' +
-           '<b>[파일에서 고르기]</b>로 <b>DCIM › Camera</b> 에 들어가 다시 골라 보세요. ' +
-           '그래도 없다면 촬영 당시 위치 태그가 꺼져 있던 사진입니다.';
+      s += ' 안드로이드는 갤러리 사진을 앱에 넘길 때 위치를 지웁니다 — 파일로 골라도 같습니다. ' +
+           '아래 <b>[안 열리거나, 위치 정보가 없나요?]</b> 의 Termux 방법을 쓰면 ' +
+           '파일을 직접 읽어 위치가 그대로 남습니다.';
     bits.push(s);
   }
   document.getElementById('note').innerHTML = bits.join('<br>') || '사진을 올리면 여기에 처리 결과가 정리됩니다.';
@@ -769,7 +774,7 @@ async function ingest(files){
 
 /* ---------- controls ---------- */
 const drop = document.getElementById('drop'), fileIn = document.getElementById('fileIn'),
-      albumIn = document.getElementById('albumIn'), dirIn = document.getElementById('dirIn');
+      dirIn = document.getElementById('dirIn');
 for (const lb of document.querySelectorAll('label[for]')){
   lb.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -798,10 +803,10 @@ function watchPicker(){
     pickHelp.classList.add('flag');
   }, 2500);
 }
-for (const inp of [fileIn, albumIn, dirIn]) inp.addEventListener('click', watchPicker);
+for (const inp of [fileIn, dirIn]) inp.addEventListener('click', watchPicker);
 
 const onPicked = inp => { changeAt = Date.now(); pickHelp.classList.remove('flag'); ingest(inp.files); inp.value = ''; };
-for (const inp of [fileIn, albumIn, dirIn]) inp.onchange = () => onPicked(inp);
+for (const inp of [fileIn, dirIn]) inp.onchange = () => onPicked(inp);
 ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); if (t === 'dragleave' && drop.contains(e.relatedTarget)) return; drop.classList.remove('over'); }));
 drop.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) ingest(e.dataTransfer.files); });
