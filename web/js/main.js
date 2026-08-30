@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.11';
+const GAME_VERSION = 'v10.12';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '빌딩을 비켜 가는 고가 철로 · 재질별 효과음 · 발소리';
+const GAME_FEATURES = '열차 주행음과 이음매 소리 · 배 기관 맥동 · 뱃고동';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -2912,6 +2912,7 @@ Game.prototype.update = function (dt) {
   if (this.updateCountdown) this.updateCountdown();
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
+  if (this.updateVehicleAudio) this.updateVehicleAudio(dt);   // 열차·배
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);
   this.updateTrainInfo(dt);

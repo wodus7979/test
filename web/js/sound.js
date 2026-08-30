@@ -362,3 +362,223 @@ Game.prototype.sndGroundMatId = function () {
   return 0;
 };
 Game.prototype.sndGroundMat = function () { return sndMatOf(this.sndGroundMatId()); };
+
+// ── 열차 소리 ─────────────────────────────────────────────────────────
+// 실제 전동차 소리는 네 가지가 겹쳐 있다.
+//   1) 구름소리 — 바퀴가 레일 위를 구르며 나는 넓은 잡음. 속도가 붙을수록
+//      높은 쪽까지 열린다.
+//   2) 주행음(VVVF) — 인버터가 모터를 돌리며 내는 "우웅—" 하는 금속성
+//      울림. 속도에 따라 음이 오른다. 한국 전동차와 KTX 의 특징이다.
+//   3) 이음매 소리 — 레일 이음매를 지날 때 나는 "덜컹". 대차가 둘이라
+//      두 번씩 짝지어 난다. 열차 소리라고 하면 제일 먼저 떠오르는 소리다.
+//   4) 공기 제동 — 설 때 "치익" 하고 공기가 빠진다.
+// 여기서도 그대로 쌓는다. 밖에서 들으면 이음매가, 안에서 들으면
+// 구름소리와 주행음이 크게 들린다.
+const SND_JOINT = 25;        // 레일 이음매 간격 (블록)
+
+Game.prototype.setTrainSound = function (level, speed, ktx, inside) {
+  const ctx = this.sndCtx();
+  if (!ctx) return;
+  try {
+    if (!this._trGain) {
+      if (level < 0.01) return;
+      const g = ctx.createGain(); g.gain.value = 0;
+      g.connect(this._sndBus);
+      // 구름소리
+      const src = ctx.createBufferSource();
+      src.buffer = this.sndNoise('brown'); src.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 300; lp.Q.value = 0.8;
+      const rg = ctx.createGain(); rg.gain.value = 0.35;
+      src.connect(lp); lp.connect(rg); rg.connect(g); src.start();
+      // 주행음 — 톱니파를 좁은 대역으로 걸러 금속성으로 만든다
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth'; osc.frequency.value = 90;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 5;
+      const mg = ctx.createGain(); mg.gain.value = 0;
+      osc.connect(bp); bp.connect(mg); mg.connect(g); osc.start();
+      this._trGain = g; this._trLp = lp; this._trOsc = osc;
+      this._trBp = bp; this._trMotor = mg;
+    }
+    const t = ctx.currentTime;
+    const v = Math.max(0, Math.min(1, level));
+    const sp = Math.abs(speed || 0);
+    // 계속 나는 소리라 한 방 소리보다 훨씬 낮게 깔아야 한다
+    this._trGain.gain.setTargetAtTime(v * (inside ? 0.030 : 0.021), t, 0.25);
+    this._trLp.frequency.setTargetAtTime(180 + sp * (ktx ? 26 : 34), t, 0.35);
+    // 인버터 음 — 속도에 비례해 오른다. KTX 는 더 높고 매끈하다.
+    const f = (ktx ? 34 : 26) + sp * (ktx ? 5.2 : 7.4);
+    this._trOsc.frequency.setTargetAtTime(f, t, 0.3);
+    this._trBp.frequency.setTargetAtTime(f * 8, t, 0.3);
+    this._trMotor.gain.setTargetAtTime(
+      Math.min(1, sp / (ktx ? 30 : 14)) * (inside ? 0.26 : 0.16), t, 0.3);
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 레일 이음매 — 대차 둘이 지나며 "덜컹—덜컹"
+Game.prototype.trainClack = function (vol, ktx) {
+  const ctx = this.sndCtx();
+  if (!ctx) return;
+  const v = Math.max(0, Math.min(1, vol));
+  if (v < 0.02) return;
+  for (const at of [0, 0.055 + Math.random() * 0.02]) {
+    this.sndBurst({ noise: 'white', filter: 'bandpass',
+      freq: (ktx ? 260 : 180) * (0.9 + Math.random() * 0.25), q: 2.2,
+      dur: 0.055, vol: 0.11 * v, at: at, atk: 0.001 });
+    this.sndTone({ type: 'sine', freq: (ktx ? 95 : 72) * (0.92 + Math.random() * 0.16),
+      freq2: 42, dur: 0.09, vol: 0.09 * v, at: at, atk: 0.002 });
+  }
+};
+
+// 공기 제동 — 설 때 치익
+Game.prototype.trainBrakeHiss = function (vol) {
+  if (!this.sndCtx()) return;
+  this.sndBurst({ noise: 'white', filter: 'highpass', freq: 2200, freq2: 3600,
+    q: 0.7, dur: 0.7, vol: 0.075 * vol, atk: 0.04 });
+};
+
+// 출입문 — 열리고 닫힐 때의 안내음과 공기 소리
+Game.prototype.trainDoorChime = function (vol) {
+  if (!this.sndCtx()) return;
+  for (let i = 0; i < 2; i++) {
+    this.sndTone({ type: 'sine', freq: i ? 660 : 880, dur: 0.24,
+      vol: 0.07 * vol, at: i * 0.22, atk: 0.006 });
+  }
+  this.sndBurst({ noise: 'white', filter: 'highpass', freq: 2800, q: 0.7,
+    dur: 0.35, vol: 0.05 * vol, at: 0.44, atk: 0.03 });
+};
+
+// ── 배 소리 ───────────────────────────────────────────────────────────
+// 큰 배는 낮은 디젤 기관이 배 전체를 두드린다. 회전수가 낮아서 "웅—웅—"
+// 하고 초당 예닐곱 번 맥이 뛰는데, 그 맥동이 여객선과 크루즈를 가른다.
+// 거기에 뱃머리가 물을 가르는 소리(쏴—)를 얹는다.
+Game.prototype.setShipSound = function (level, speed, big) {
+  const ctx = this.sndCtx();
+  if (!ctx) return;
+  try {
+    if (!this._shGain) {
+      if (level < 0.01) return;
+      const g = ctx.createGain(); g.gain.value = 0;
+      g.connect(this._sndBus);
+      // 기관 — 아주 낮은 잡음에 초저음을 더한다
+      const src = ctx.createBufferSource();
+      src.buffer = this.sndNoise('brown'); src.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 140; lp.Q.value = 1.2;
+      const eg = ctx.createGain(); eg.gain.value = 0.40;
+      src.connect(lp); lp.connect(eg); eg.connect(g); src.start();
+      const sub = ctx.createOscillator();
+      sub.type = 'sine'; sub.frequency.value = 38;
+      const sg = ctx.createGain(); sg.gain.value = 0.30;
+      sub.connect(sg); sg.connect(g); sub.start();
+      // 맥동 — 기관이 배를 두드리는 리듬. 저주파 오실레이터로 세기를 흔든다.
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 6.5;
+      const ld = ctx.createGain(); ld.gain.value = 0.24;
+      lfo.connect(ld); ld.connect(eg.gain); lfo.start();
+      // 물살 — 뱃머리가 가르는 소리
+      const wsrc = ctx.createBufferSource();
+      wsrc.buffer = this.sndNoise('white'); wsrc.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 0.5;
+      const wg = ctx.createGain(); wg.gain.value = 0;
+      wsrc.connect(bp); bp.connect(wg); wg.connect(g); wsrc.start();
+      this._shGain = g; this._shLp = lp; this._shSub = sub;
+      this._shLfo = lfo; this._shWash = wg; this._shBp = bp;
+    }
+    const t = ctx.currentTime;
+    const v = Math.max(0, Math.min(1, level));
+    const sp = Math.abs(speed || 0);
+    this._shGain.gain.setTargetAtTime(v * (big ? 0.036 : 0.027), t, 0.6);
+    // 큰 배일수록 기관이 느리고 낮게 돈다
+    this._shLfo.frequency.setTargetAtTime((big ? 4.6 : 7.2) + sp * 0.28, t, 0.8);
+    this._shSub.frequency.setTargetAtTime((big ? 29 : 41) + sp * 0.9, t, 0.8);
+    this._shLp.frequency.setTargetAtTime((big ? 105 : 145) + sp * 9, t, 0.8);
+    this._shWash.gain.setTargetAtTime(Math.min(1, sp / 9) * 0.22, t, 0.7);
+    this._shBp.frequency.setTargetAtTime(520 + sp * 55, t, 0.7);
+  } catch (e) { /* 소리는 없어도 그만 */ }
+};
+
+// 뱃고동 — 낮은 화음을 길게. 크루즈는 더 낮고 더 오래 운다.
+Game.prototype.shipHorn = function (big) {
+  const ctx = this.sndCtx();
+  if (!ctx) return;
+  const dur = big ? 3.2 : 2.0;
+  const base = big ? 62 : 96;
+  // 살짝 어긋난 음을 겹쳐야 뱃고동처럼 두껍게 울린다
+  const parts = big ? [1, 1.005, 1.5, 2.02] : [1, 1.006, 1.49, 2.01, 3.0];
+  for (let i = 0; i < parts.length; i++) {
+    this.sndTone({ type: 'sawtooth', freq: base * parts[i],
+      dur: dur, vol: (i === 0 ? 0.085 : 0.045) , atk: big ? 0.35 : 0.22 });
+  }
+  this.sndBurst({ noise: 'brown', filter: 'lowpass', freq: base * 4, q: 0.8,
+    dur: dur, vol: 0.05, atk: 0.3 });
+};
+
+// ── 매 틱 ─────────────────────────────────────────────────────────────
+Game.prototype.updateVehicleAudio = function (dt) {
+  const p = this.player;
+  if (!p) return;
+
+  // 열차 — 타고 있으면 그 열차, 아니면 제일 가까운 열차
+  const list = (this.entities && this.entities.trains) || [];
+  let near = null, nd = 1e9, inside = false;
+  if (p.onTrain) { near = p.onTrain; nd = 0; inside = true; }
+  else {
+    for (let i = 0; i < list.length; i++) {
+      const d = Math.hypot(list[i].x - p.x, list[i].z - p.z) +
+                Math.abs(list[i].y - p.y) * 1.5;
+      if (d < nd) { nd = d; near = list[i]; }
+    }
+  }
+  const TR_HEAR = 110;
+  if (near && nd < TR_HEAR) {
+    const lv = inside ? 1 : (1 - nd / TR_HEAR) * (1 - nd / TR_HEAR);
+    this.setTrainSound(lv, near.speed, near.ktx, inside);
+    // 이음매 — 열차가 굴러간 거리로 센다
+    this._trRoll = (this._trRoll || 0) + Math.abs(near.speed) * dt;
+    if (this._trRoll >= SND_JOINT) {
+      this._trRoll = 0;
+      if (near.speed > 1.5) this.trainClack(lv * (inside ? 0.8 : 1), near.ktx);
+    }
+    // 섰다 떠날 때의 문 소리와 제동음
+    const stopped = near.speed < 0.4;
+    if (this._trStop === undefined) this._trStop = stopped;
+    if (stopped !== this._trStop) {
+      this._trStop = stopped;
+      if (stopped) { this.trainBrakeHiss(lv); this.trainDoorChime(lv * 0.9); }
+      else this.trainDoorChime(lv * 0.7);
+    }
+  } else if (this._trGain) {
+    this.setTrainSound(0, 0, false, false);
+    this._trRoll = 0;
+  }
+
+  // 배 — 타고 있으면 그 배, 아니면 가까운 배
+  const ships = this.ferries || [];
+  let sh = null, sd = 1e9, aboard = false;
+  if (p.onFerry) { sh = p.onFerry; sd = 0; aboard = true; }
+  else {
+    for (let i = 0; i < ships.length; i++) {
+      const d = Math.hypot(ships[i].x - p.x, ships[i].z - p.z);
+      if (d < sd) { sd = d; sh = ships[i]; }
+    }
+  }
+  const SH_HEAR = 190;                 // 큰 기관 소리는 멀리 간다
+  if (sh && sd < SH_HEAR) {
+    const lv = aboard ? 1 : (1 - sd / SH_HEAR) * (1 - sd / SH_HEAR);
+    // 부두에 대어 있으면 기관을 낮춘다 (멈춰 있어도 발전기는 돈다)
+    const idle = sh.mode === 'dock' ? 0.35 : 1;
+    this.setShipSound(lv * idle, sh.speed, sh.cruise);
+    // 출항할 때 뱃고동을 한 번 운다
+    const sailing = sh.mode === 'sail';
+    if (this._shSail === undefined) this._shSail = sailing;
+    if (sailing !== this._shSail) {
+      this._shSail = sailing;
+      if (sailing) this.shipHorn(sh.cruise);
+    }
+  } else if (this._shGain) {
+    this.setShipSound(0, 0, false);
+  }
+};
