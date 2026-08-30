@@ -133,6 +133,9 @@ body.touch-only .only-touch.blk{display:block}
   justify-content:center; font-family:"IBM Plex Mono",ui-monospace,monospace}
 .steps b{color:var(--ink); font-weight:600}
 .steps .q{color:var(--muted); font-size:12px}
+.gotcha{margin:11px 0 0; font-size:12.5px; line-height:1.6; color:var(--muted);
+  background:var(--paper); border:1px solid var(--line2); border-radius:8px; padding:10px 12px}
+.gotcha b{color:var(--ink2); font-weight:600}
 .devhint{display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); margin-top:10px}
 .devhint .warn{padding-left:9px; border-left:2px solid var(--s2)}
 .prog{margin-top:13px; display:none}
@@ -244,11 +247,15 @@ body.touch-only #pickDir{display:none}
           <label class="btn" for="dirIn" id="pickDir" tabindex="0" role="button">폴더 선택</label>
         </div>
         <ol class="steps only-touch blk">
-          <li>파일 관리자 앱을 엽니다 <span class="q">내 파일 · Files</span></li>
+          <li><b>내 파일</b> 앱을 열고 <b>내장 저장공간</b> 을 누릅니다
+            <span class="q">맨 위 이미지 · 동영상 같은 분류 아이콘 말고, 아래쪽 저장공간</span></li>
           <li><b>DCIM › Camera</b> 폴더로 들어갑니다</li>
-          <li>사진을 길게 눌러 고른 뒤 <b>압축</b> 을 누릅니다</li>
+          <li>사진을 길게 눌러 고른 뒤 <b>더보기(⋮) › 압축</b></li>
           <li>위 <b>사진 넣기</b> 를 눌러 만들어진 ZIP 을 고릅니다</li>
         </ol>
+        <p class="gotcha only-touch blk"><b>압축 메뉴가 안 보이면</b> 분류 화면(이미지 · 동영상)에
+          있는 것입니다. 거기서는 더보기에 압축이 나오지 않습니다. 반드시
+          <b>내장 저장공간 › DCIM › Camera</b> 폴더 안에서 고르세요.</p>
         <div class="devhint">
           <span class="warn">갤러리에서 바로 고르면 <b>안드로이드가 위치를 지웁니다.</b>
             ZIP 은 사진이 아니라 일반 파일이라 폰이 손대지 않아 위치가 그대로 들어옵니다.</span>
@@ -264,10 +271,14 @@ body.touch-only #pickDir{display:none}
             앱에 넘길 때 위치를 지웁니다. 앨범으로 고르든 파일로 고르든 마찬가지입니다.
             그 자리에서 카메라로 새로 찍은 사진만 위치가 남는데, 이건 갤러리를 거치지 않기 때문입니다.
             <b>브라우저로는 우회할 방법이 없습니다.</b></p>
-            <p><b>가장 쉬운 해결책 — 압축해서 넣기.</b> 폰의 파일 관리자 앱에서
-            <b>DCIM › Camera</b> 폴더의 사진을 골라 <b>압축(ZIP)</b> 한 뒤, 그 ZIP 파일 하나를
-            여기에 넣으세요. 압축 파일은 사진이 아니라 일반 파일이라 폰이 내용을 건드리지 않아
-            위치가 그대로 살아 있습니다. 앱 설치도 PC 도 필요 없습니다.</p>
+            <p><b>가장 쉬운 해결책 — 압축해서 넣기.</b> <b>내 파일</b> 앱에서
+            <b>내장 저장공간 › DCIM › Camera</b> 폴더로 들어가 사진을 고른 뒤
+            <b>더보기 › 압축</b> 을 누르고, 만들어진 ZIP 하나를 여기에 넣으세요.
+            압축 파일은 사진이 아니라 일반 파일이라 폰이 내용을 건드리지 않아 위치가 그대로
+            살아 있습니다. 앱 설치도 PC 도 필요 없습니다.</p>
+            <p><b>압축 메뉴가 없다면</b> 홈 화면의 <b>이미지</b>·<b>동영상</b> 같은 분류 화면에서
+            고른 것입니다. 그 화면에서는 더보기에 압축이 나오지 않습니다.
+            실제 폴더(<b>내장 저장공간</b> → DCIM → Camera)로 들어가야 나옵니다.</p>
             <p>더 많은 사진을 한 번에 처리하려면 Termux 로 파일을 직접 읽는 방법도 있습니다.
             <code>scan_photos.py</code>, <code>geo.json</code>, <code>travel_map.html</code> 을
             같은 폴더에 둔 뒤:</p>
