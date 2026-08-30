@@ -22,6 +22,14 @@
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
 
+  // 작은 화면에서는 캐릭터·함께 놀기 칸을 접어 둔다. 펼친 채로 두면
+  // 시작 화면이 화면보다 훨씬 길어져서, 정작 눌러야 할 "새 세계 만들기"·
+  // 도시 단추·창작 모드가 화면 밖으로 밀려났다.
+  const charBox = document.getElementById('char-box');
+  if (charBox && (window.innerWidth <= 720 || window.innerHeight <= 560)) {
+    charBox.open = false;
+  }
+
   // ── 캐릭터 만들기 ──
   const PROFILE_KEY = 'webcraft.profile.v1';
   const nameInput = document.getElementById('char-name');

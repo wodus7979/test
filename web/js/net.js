@@ -251,6 +251,12 @@ Game.prototype.updateNetHud = function () {
   if (!el) return;
   if (!this.net) { el.style.display = 'none'; return; }
   const list = this.net.peerList();
+  // 손바닥만 한 화면에서는 혼자 놀 때 이 칸을 감춘다 — 혼자면 알려 줄
+  // 것도 없는데 자리만 차지해서 밑에 있는 것을 가렸다.
+  if (!list.length && document.body.classList.contains('touch')) {
+    el.style.display = 'none';
+    return;
+  }
   el.style.display = 'block';
   let html = '<b>같이 노는 사람 ' + (list.length + 1) + '명</b><br>' +
     '<span class="me">' + netEscape(this.profile.name) + ' (나)</span>';

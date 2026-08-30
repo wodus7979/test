@@ -338,18 +338,39 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 body.touch #touch-buttons { display: flex; }
 #touch-buttons button.on { background: #4b7d29; border-color: #7cc44a; }
+#touch-buttons button.dim { opacity: .45; }
 body.touch .hand { display: none !important; }
+/* 가로로 눕힌 스마트폰은 화면이 낮아서 단추 일곱 개를 한 줄로 세우면
+   위쪽 두어 개가 화면 밖으로 밀려 나갔다. 두 줄로 접어 넣는다. */
+@media (max-height: 560px) {
+  #touch-buttons {
+    right: 8px; bottom: 74px;
+    grid-template-columns: repeat(2, 66px); gap: 6px;
+  }
+  body.touch #touch-buttons { display: grid; }
+  #touch-buttons button { width: 66px; height: 36px; font-size: 11px; }
+}
 
 /* ── 시작 화면 ──────────────────────────────────────────────────── */
 #title {
   position: fixed; inset: 0;
   z-index: 100;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; justify-content: center;
+  /* 가운데 정렬(align-items:center)은 상자가 화면보다 길면 위쪽이 넘쳐
+     스크롤로도 닿지 않는다 — 스마트폰 가로 화면에서 "새 세계 만들기"와
+     도시 단추가 화면 위로 잘려 나가 아예 누를 수 없었다.
+     그래서 기본은 위 맞춤으로 두고, safe center 를 아는 브라우저에서만
+     가운데로 놓는다 (넘칠 때는 저절로 위 맞춤이 된다). */
+  align-items: flex-start;
   padding: 18px;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   background:
     radial-gradient(circle at 30% 20%, rgba(120,190,255,.35), transparent 60%),
     linear-gradient(180deg, #14203a, #0a0d16 60%, #05070c);
+}
+@supports (align-items: safe center) {
+  #title { align-items: safe center; }
 }
 .title-box {
   width: min(560px, 100%);
@@ -772,6 +793,20 @@ body.touch .hand { display: none !important; }
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(150,190,240,.18); border-radius: 10px;
 }
+/* 접었다 폈다 — 작은 화면에서는 접어 두어야 아래 단추가 화면에 들어온다 */
+.char-box > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex; align-items: center; gap: 6px;
+  margin: 0; padding: 2px 0;
+}
+.char-box > summary::-webkit-details-marker { display: none; }
+.char-box > summary::before {
+  content: '▸'; font-size: 11px; color: #7fb2ff; transition: transform .15s;
+}
+.char-box[open] > summary::before { transform: rotate(90deg); }
+.char-box > summary:hover { color: #b9c9de; }
+.char-box[open] > summary { margin-bottom: 8px; }
 .char-main { display: flex; gap: 14px; align-items: flex-start; }
 #char-preview {
   flex: 0 0 auto; width: 150px; height: 220px;
@@ -808,6 +843,15 @@ button.tiny {
 @media (max-width: 560px) {
   .char-main { flex-direction: column; align-items: center; }
   .char-opts { width: 100%; }
+}
+/* 스마트폰 — 시작 화면을 짧게 줄여 단추가 한 화면에 들어오게 한다 */
+@media (max-width: 720px), (max-height: 560px) {
+  .title-box { padding: 16px 16px 14px; }
+  .title-box h1 { font-size: 30px; }
+  .title-box .sub { font-size: 12px; }
+  #char-preview { width: 104px; height: 152px; }
+  .char-box { margin: 8px 0 4px; padding: 9px 11px; }
+  .char-box .hint { font-size: 11px; }
 }
 
 /* 발사 카운트다운 — 화면 가운데 위에 크게 */
@@ -982,6 +1026,7 @@ button.tiny {
   #btn-movie { top: 218px; right: 8px; padding: 5px 10px; font-size: 12px; }
   #warp-panel, #fly-panel { top: 256px; right: 8px; width: 210px; }
 }
+
 /* PC 에서는 조준 중에 마우스가 잠겨 있어 버튼을 누를 수 없다 — 단축키를 같이 적어 둔다 */
 #btn-warp b {
   display: inline-block; margin-left: 7px; padding: 0 5px;
@@ -1111,3 +1156,31 @@ body.touch #btn-movie b { display: none; }
   font-size: 10px; font-weight: 700; color: #7fd0ff;
 }
 body.touch #btn-autofly b { display: none; }
+
+/* ── 터치 기기 화면 배치 ──────────────────────────────────────────────
+   오른쪽 아래는 터치 단추(가방·비행·창작·점프…) 차지고, 오른쪽 위는
+   지도 차지다. 그 사이에 "도시로 / 자동비행 / 영화" 줄까지 끼워 넣으면
+   화면이 조금만 낮아도 서로 올라타서, 밑에 깔린 단추가 아예 눌리지
+   않았다 (눕힌 스마트폰에서 "빨리 뛰기"·"대화"·"점프"가 그랬다).
+   터치 기기에서는 이 줄을 통째로 왼쪽 위로 보낸다 — 그쪽은 비어 있다.
+   body.touch 를 붙여 두어서 화면 크기별 규칙보다 늘 우선한다. */
+body.touch #btn-warp    { top: 8px;  left: 8px; right: auto; }
+body.touch #btn-autofly { top: 44px; left: 8px; right: auto; }
+body.touch #btn-movie   { top: 80px; left: 8px; right: auto; }
+body.touch #warp-panel,
+body.touch #fly-panel {
+  top: 116px; left: 8px; right: auto;
+  width: min(240px, 62vw);
+  max-height: calc(100vh - 132px); overflow-y: auto;
+}
+
+/* 눕힌 스마트폰은 세로가 짧다 — 지도를 줄이고, 접속자 칸을 터치 단추
+   아래로 내려 서로 올라타지 않게 한다. */
+@media (max-height: 560px) {
+  #minimap { width: 116px; height: 116px; right: 8px; top: 8px; }
+  #net-hud {
+    top: auto; bottom: 116px; right: 8px;
+    max-width: 176px; padding: 5px 9px; font-size: 11px; line-height: 1.5;
+  }
+  #chat-log { bottom: 128px; max-width: 40vw; }
+}

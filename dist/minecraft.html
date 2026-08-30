@@ -348,18 +348,39 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 body.touch #touch-buttons { display: flex; }
 #touch-buttons button.on { background: #4b7d29; border-color: #7cc44a; }
+#touch-buttons button.dim { opacity: .45; }
 body.touch .hand { display: none !important; }
+/* 가로로 눕힌 스마트폰은 화면이 낮아서 단추 일곱 개를 한 줄로 세우면
+   위쪽 두어 개가 화면 밖으로 밀려 나갔다. 두 줄로 접어 넣는다. */
+@media (max-height: 560px) {
+  #touch-buttons {
+    right: 8px; bottom: 74px;
+    grid-template-columns: repeat(2, 66px); gap: 6px;
+  }
+  body.touch #touch-buttons { display: grid; }
+  #touch-buttons button { width: 66px; height: 36px; font-size: 11px; }
+}
 
 /* ── 시작 화면 ──────────────────────────────────────────────────── */
 #title {
   position: fixed; inset: 0;
   z-index: 100;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; justify-content: center;
+  /* 가운데 정렬(align-items:center)은 상자가 화면보다 길면 위쪽이 넘쳐
+     스크롤로도 닿지 않는다 — 스마트폰 가로 화면에서 "새 세계 만들기"와
+     도시 단추가 화면 위로 잘려 나가 아예 누를 수 없었다.
+     그래서 기본은 위 맞춤으로 두고, safe center 를 아는 브라우저에서만
+     가운데로 놓는다 (넘칠 때는 저절로 위 맞춤이 된다). */
+  align-items: flex-start;
   padding: 18px;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   background:
     radial-gradient(circle at 30% 20%, rgba(120,190,255,.35), transparent 60%),
     linear-gradient(180deg, #14203a, #0a0d16 60%, #05070c);
+}
+@supports (align-items: safe center) {
+  #title { align-items: safe center; }
 }
 .title-box {
   width: min(560px, 100%);
@@ -782,6 +803,20 @@ body.touch .hand { display: none !important; }
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(150,190,240,.18); border-radius: 10px;
 }
+/* 접었다 폈다 — 작은 화면에서는 접어 두어야 아래 단추가 화면에 들어온다 */
+.char-box > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex; align-items: center; gap: 6px;
+  margin: 0; padding: 2px 0;
+}
+.char-box > summary::-webkit-details-marker { display: none; }
+.char-box > summary::before {
+  content: '▸'; font-size: 11px; color: #7fb2ff; transition: transform .15s;
+}
+.char-box[open] > summary::before { transform: rotate(90deg); }
+.char-box > summary:hover { color: #b9c9de; }
+.char-box[open] > summary { margin-bottom: 8px; }
 .char-main { display: flex; gap: 14px; align-items: flex-start; }
 #char-preview {
   flex: 0 0 auto; width: 150px; height: 220px;
@@ -818,6 +853,15 @@ button.tiny {
 @media (max-width: 560px) {
   .char-main { flex-direction: column; align-items: center; }
   .char-opts { width: 100%; }
+}
+/* 스마트폰 — 시작 화면을 짧게 줄여 단추가 한 화면에 들어오게 한다 */
+@media (max-width: 720px), (max-height: 560px) {
+  .title-box { padding: 16px 16px 14px; }
+  .title-box h1 { font-size: 30px; }
+  .title-box .sub { font-size: 12px; }
+  #char-preview { width: 104px; height: 152px; }
+  .char-box { margin: 8px 0 4px; padding: 9px 11px; }
+  .char-box .hint { font-size: 11px; }
 }
 
 /* 발사 카운트다운 — 화면 가운데 위에 크게 */
@@ -992,6 +1036,7 @@ button.tiny {
   #btn-movie { top: 218px; right: 8px; padding: 5px 10px; font-size: 12px; }
   #warp-panel, #fly-panel { top: 256px; right: 8px; width: 210px; }
 }
+
 /* PC 에서는 조준 중에 마우스가 잠겨 있어 버튼을 누를 수 없다 — 단축키를 같이 적어 둔다 */
 #btn-warp b {
   display: inline-block; margin-left: 7px; padding: 0 5px;
@@ -1122,6 +1167,34 @@ body.touch #btn-movie b { display: none; }
 }
 body.touch #btn-autofly b { display: none; }
 
+/* ── 터치 기기 화면 배치 ──────────────────────────────────────────────
+   오른쪽 아래는 터치 단추(가방·비행·창작·점프…) 차지고, 오른쪽 위는
+   지도 차지다. 그 사이에 "도시로 / 자동비행 / 영화" 줄까지 끼워 넣으면
+   화면이 조금만 낮아도 서로 올라타서, 밑에 깔린 단추가 아예 눌리지
+   않았다 (눕힌 스마트폰에서 "빨리 뛰기"·"대화"·"점프"가 그랬다).
+   터치 기기에서는 이 줄을 통째로 왼쪽 위로 보낸다 — 그쪽은 비어 있다.
+   body.touch 를 붙여 두어서 화면 크기별 규칙보다 늘 우선한다. */
+body.touch #btn-warp    { top: 8px;  left: 8px; right: auto; }
+body.touch #btn-autofly { top: 44px; left: 8px; right: auto; }
+body.touch #btn-movie   { top: 80px; left: 8px; right: auto; }
+body.touch #warp-panel,
+body.touch #fly-panel {
+  top: 116px; left: 8px; right: auto;
+  width: min(240px, 62vw);
+  max-height: calc(100vh - 132px); overflow-y: auto;
+}
+
+/* 눕힌 스마트폰은 세로가 짧다 — 지도를 줄이고, 접속자 칸을 터치 단추
+   아래로 내려 서로 올라타지 않게 한다. */
+@media (max-height: 560px) {
+  #minimap { width: 116px; height: 116px; right: 8px; top: 8px; }
+  #net-hud {
+    top: auto; bottom: 116px; right: 8px;
+    max-width: 176px; padding: 5px 9px; font-size: 11px; line-height: 1.5;
+  }
+  #chat-log { bottom: 128px; max-width: 40vw; }
+}
+
 </style>
 </head>
 <body>
@@ -1173,6 +1246,7 @@ body.touch #btn-autofly b { display: none; }
   <button id="btn-sneak" type="button">웅크리기</button>
   <button id="btn-sprint" type="button">빨리 뛰기</button>
   <button id="btn-chat" type="button">대화</button>
+  <button id="btn-mode" type="button">창작</button>
   <button id="btn-jump" type="button">점프</button>
 </div>
 
@@ -1185,8 +1259,8 @@ body.touch #btn-autofly b { display: none; }
     <p class="sub">웹뷰에서 도는 자바 마인크래프트 스타일 복셀 게임<br>외부 라이브러리 없이 순수 WebGL로 처음부터 제작</p>
     <p class="version" id="version-line"></p>
 
-    <div class="char-box">
-      <p class="row-label">내 캐릭터</p>
+    <details class="char-box" id="char-box" open>
+      <summary class="row-label">내 캐릭터 · 함께 놀기</summary>
       <div class="char-main">
         <canvas id="char-preview" width="150" height="220"></canvas>
         <div class="char-opts">
@@ -1204,7 +1278,7 @@ body.touch #btn-autofly b { display: none; }
       </div>
       <p class="hint">같이 놀려면 <b>같은 시드</b>로 이 파일을 창(또는 탭)마다 하나씩 열면 됩니다.
         같은 세계에서 서로 만나고 <b>T</b> 키로 대화할 수 있습니다.</p>
-    </div>
+    </details>
 
     <label class="seed-row">
       <span>시드</span>
@@ -1618,7 +1692,27 @@ body.touch #btn-autofly b { display: none; }
         <ul>
           <li>화면 <b>왼쪽</b>을 끌면 조이스틱, <b>오른쪽</b>을 끌면 시점 이동</li>
           <li>오른쪽 <b>짧게 탭</b> = 설치/사용, <b>길게 누르기</b> = 캐기</li>
-          <li>오른쪽 아래 버튼으로 점프·웅크리기·가방</li>
+          <li>오른쪽 아래 버튼으로 점프·웅크리기·가방·대화, 그리고
+              <b>창작</b>(생존 ↔ 창작 전환)과 <b>비행</b>이다.
+              스마트폰에는 <b>G</b> 키가 없어서 창작 모드를 켤 방법이 없었다 —
+              이제 버튼 하나로 오간다. 누르면 글씨가 <b>창작 ↔ 생존</b>으로
+              바뀌어 지금 어느 쪽인지 알 수 있고, 생존 모드에서는
+              <b>비행</b> 버튼이 흐리게 보인다</li>
+          <li>가로로 눕히면 화면이 낮아 버튼 일곱 개가 한 줄에 들어가지 않았다.
+              낮은 화면에서는 <b>두 줄</b>로 접어 넣는다</li>
+        </ul>
+        <h4>스마트폰 시작 화면</h4>
+        <ul>
+          <li>시작 화면이 화면보다 길면 <b>위쪽이 잘린 채 스크롤로도 닿지
+              않았다</b> (가운데 정렬한 상자가 넘칠 때 생기는 일이다).
+              스마트폰 가로 화면에서는 <b>새 세계 만들기</b>와 도시 단추가
+              화면 위로 밀려나 아예 누를 수 없었다. 이제 넘칠 때는 위에
+              맞춰 붙어 끝까지 스크롤된다</li>
+          <li><b>내 캐릭터 · 함께 놀기</b> 칸은 작은 화면에서 <b>접힌 채로</b>
+              시작한다. 펼쳐 두면 그 한 칸이 화면을 다 차지해서 아래 단추가
+              보이지 않았다. 눌러서 펴면 예전처럼 꾸밀 수 있다</li>
+          <li>그래서 세로 화면에서는 <b>스크롤 없이</b> 새 세계 만들기 ·
+              도시 단추 · <b>창작 모드로 시작</b> 이 한 화면에 다 들어온다</li>
         </ul>
         <h4>진행 순서 (원본과 동일)</h4>
         <ul>
@@ -25853,9 +25947,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.9.2';
+const GAME_VERSION = 'v10.10';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '차로를 비운 버스 정거장 · 더 오래 서는 열차 · 문 잡아 주기';
+const GAME_FEATURES = '스마트폰 시작 화면 · 창작 모드 단추 · 두 줄 터치 버튼';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -26350,6 +26444,28 @@ Game.prototype.closeWarp = function () {
   this.warpOpen = false;
 };
 
+// ── 창작 / 생존 전환 ──────────────────────────────────────────────────
+// G 키와 터치 화면의 "창작" 단추가 같이 쓴다.
+Game.prototype.toggleCreative = function () {
+  this.player.creative = !this.player.creative;
+  this.player.flying = false;
+  this.syncModeButton();
+  this.ui.toast(this.player.creative
+    ? '창작 모드 — 블록이 무한하고 다치지 않습니다 (비행 단추로 납니다)'
+    : '생존 모드');
+};
+
+// 터치 단추에 지금 모드를 비춘다
+Game.prototype.syncModeButton = function () {
+  const el = document.getElementById('btn-mode');
+  if (!el) return;
+  const on = !!this.player.creative;
+  el.classList.toggle('on', on);
+  el.textContent = on ? '생존' : '창작';
+  const fly = document.getElementById('btn-fly');
+  if (fly) fly.classList.toggle('dim', !on);
+};
+
 Game.prototype.toggleWarp = function () {
   if (this.warpOpen) this.closeWarp();
   else this.openWarp();
@@ -26776,9 +26892,7 @@ Game.prototype.bindInput = function () {
         self.ui.toggleDebug(); e.preventDefault();
         break;
       case 'KeyG':
-        self.player.creative = !self.player.creative;
-        self.player.flying = false;
-        self.ui.toast(self.player.creative ? '창작 모드' : '생존 모드');
+        self.toggleCreative();
         break;
       case 'KeyF':
         if (self.player.creative) {
@@ -27087,7 +27201,10 @@ Game.prototype.bindTouch = function () {
   });
   btn('btn-fly', function () {
     if (self.player.creative) self.player.flying = !self.player.flying;
+    else self.ui.toast('창작 모드에서만 날 수 있습니다 — 창작 단추를 누르세요');
   });
+  // 창작/생존 전환 — 스마트폰에는 G 키가 없어서 단추로 넣는다
+  btn('btn-mode', function () { self.toggleCreative(); });
   btn('btn-chat', function () {
     if (self.chatOpen) self.closeChat();
     else if (self.openChat) self.openChat();
@@ -28614,6 +28731,7 @@ Game.prototype.start = function () {
   const self = this;
   let last = performance.now();
   this.running = true;
+  this.syncModeButton();     // 시작할 때 고른 모드를 터치 단추에 비춘다
 
   function frame(now) {
     if (!self.running) return;
@@ -34084,6 +34202,12 @@ Game.prototype.updateNetHud = function () {
   if (!el) return;
   if (!this.net) { el.style.display = 'none'; return; }
   const list = this.net.peerList();
+  // 손바닥만 한 화면에서는 혼자 놀 때 이 칸을 감춘다 — 혼자면 알려 줄
+  // 것도 없는데 자리만 차지해서 밑에 있는 것을 가렸다.
+  if (!list.length && document.body.classList.contains('touch')) {
+    el.style.display = 'none';
+    return;
+  }
   el.style.display = 'block';
   let html = '<b>같이 노는 사람 ' + (list.length + 1) + '명</b><br>' +
     '<span class="me">' + netEscape(this.profile.name) + ' (나)</span>';
@@ -34124,6 +34248,14 @@ Game.prototype.updateNetHud = function () {
 
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
+
+  // 작은 화면에서는 캐릭터·함께 놀기 칸을 접어 둔다. 펼친 채로 두면
+  // 시작 화면이 화면보다 훨씬 길어져서, 정작 눌러야 할 "새 세계 만들기"·
+  // 도시 단추·창작 모드가 화면 밖으로 밀려났다.
+  const charBox = document.getElementById('char-box');
+  if (charBox && (window.innerWidth <= 720 || window.innerHeight <= 560)) {
+    charBox.open = false;
+  }
 
   // ── 캐릭터 만들기 ──
   const PROFILE_KEY = 'webcraft.profile.v1';

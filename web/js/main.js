@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.9.2';
+const GAME_VERSION = 'v10.10';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '차로를 비운 버스 정거장 · 더 오래 서는 열차 · 문 잡아 주기';
+const GAME_FEATURES = '스마트폰 시작 화면 · 창작 모드 단추 · 두 줄 터치 버튼';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -525,6 +525,28 @@ Game.prototype.closeWarp = function () {
   this.warpOpen = false;
 };
 
+// ── 창작 / 생존 전환 ──────────────────────────────────────────────────
+// G 키와 터치 화면의 "창작" 단추가 같이 쓴다.
+Game.prototype.toggleCreative = function () {
+  this.player.creative = !this.player.creative;
+  this.player.flying = false;
+  this.syncModeButton();
+  this.ui.toast(this.player.creative
+    ? '창작 모드 — 블록이 무한하고 다치지 않습니다 (비행 단추로 납니다)'
+    : '생존 모드');
+};
+
+// 터치 단추에 지금 모드를 비춘다
+Game.prototype.syncModeButton = function () {
+  const el = document.getElementById('btn-mode');
+  if (!el) return;
+  const on = !!this.player.creative;
+  el.classList.toggle('on', on);
+  el.textContent = on ? '생존' : '창작';
+  const fly = document.getElementById('btn-fly');
+  if (fly) fly.classList.toggle('dim', !on);
+};
+
 Game.prototype.toggleWarp = function () {
   if (this.warpOpen) this.closeWarp();
   else this.openWarp();
@@ -951,9 +973,7 @@ Game.prototype.bindInput = function () {
         self.ui.toggleDebug(); e.preventDefault();
         break;
       case 'KeyG':
-        self.player.creative = !self.player.creative;
-        self.player.flying = false;
-        self.ui.toast(self.player.creative ? '창작 모드' : '생존 모드');
+        self.toggleCreative();
         break;
       case 'KeyF':
         if (self.player.creative) {
@@ -1262,7 +1282,10 @@ Game.prototype.bindTouch = function () {
   });
   btn('btn-fly', function () {
     if (self.player.creative) self.player.flying = !self.player.flying;
+    else self.ui.toast('창작 모드에서만 날 수 있습니다 — 창작 단추를 누르세요');
   });
+  // 창작/생존 전환 — 스마트폰에는 G 키가 없어서 단추로 넣는다
+  btn('btn-mode', function () { self.toggleCreative(); });
   btn('btn-chat', function () {
     if (self.chatOpen) self.closeChat();
     else if (self.openChat) self.openChat();
@@ -2789,6 +2812,7 @@ Game.prototype.start = function () {
   const self = this;
   let last = performance.now();
   this.running = true;
+  this.syncModeButton();     // 시작할 때 고른 모드를 터치 단추에 비춘다
 
   function frame(now) {
     if (!self.running) return;
