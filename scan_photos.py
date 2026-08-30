@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""사진 폴더를 통째로 훑어 다녀온 국내 시·군·구를 집계합니다 (서울 제외).
+"""사진·동영상 폴더를 통째로 훑어 다녀온 국내 시·군·구를 집계합니다 (서울 제외).
 
 사용법:
     python3 scan_photos.py <사진폴더> [<사진폴더> ...] [-o record.json]
@@ -7,11 +7,15 @@
 표준 라이브러리만 사용하며, 사진을 읽기만 하고 어디에도 전송하지 않습니다.
 결과 JSON을 '우리 여행 발자국' 페이지의 [붙여넣기로 복원]에 넣으면 지도가 채워집니다.
 """
-import argparse, json, math, os, struct, sys
+import argparse, json, math, os, re, struct, sys
 from collections import OrderedDict
 
 IMG_EXT = {'.jpg', '.jpeg', '.heic', '.heif', '.png', '.tif', '.tiff', '.webp', '.dng'}
+VID_EXT = {'.mp4', '.mov', '.3gp', '.m4v'}
+# DCIM 안의 .thumbnails 에는 같은 사진의 축소본이 수천 장 들어 있어 그대로 세면 중복된다.
+SKIP_DIRS = {'.thumbnails', '.trashed', '.trash', 'cache', '.cache'}
 TSIZE = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8}
+MP4_EPOCH = 2082844800  # 1904-01-01 -> 1970-01-01
 
 
 # ---------------------------------------------------------------- EXIF
@@ -206,6 +210,57 @@ def read_photo(path):
     return None
 
 
+def _mp4_point(buf):
+    """MP4/MOV 의 udta '\xa9xyz' 원자에서 ISO6709 좌표, mvhd 에서 생성시각."""
+    i = buf.find(b'\xa9xyz')
+    if i < 0 or i + 8 > len(buf):
+        return None
+    n = struct.unpack_from('>H', buf, i + 4)[0]
+    s = buf[i + 8:i + 8 + n].decode('ascii', 'ignore')
+    m = re.match(r'([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)', s)
+    if not m:
+        return None
+    lat, lon = float(m.group(1)), float(m.group(2))
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180) or (lat == 0 and lon == 0):
+        return None
+
+    t = None
+    j = buf.find(b'mvhd')
+    if j >= 0 and j + 20 <= len(buf):
+        ver = buf[j + 4]
+        try:
+            if ver == 0:
+                ct = struct.unpack_from('>I', buf, j + 8)[0]
+            else:
+                ct = struct.unpack_from('>Q', buf, j + 8)[0]
+            ct -= MP4_EPOCH
+            if 0 < ct < 4102444800:      # 1970 ~ 2100 사이만 신뢰
+                t = ct * 1000
+        except Exception:
+            t = None
+    return (lat, lon, t)
+
+
+def read_video(path):
+    """동영상 한 편에서 (위도, 경도, 촬영시각ms) 또는 None.
+
+    moov 는 파일 앞이나 뒤에 있으므로 양끝만 읽는다 (동영상 전체를 읽지 않음)."""
+    try:
+        size = os.path.getsize(path)
+        chunk = 4 * 1024 * 1024
+        with open(path, 'rb') as f:
+            head = f.read(chunk)
+            r = _mp4_point(head)
+            if r:
+                return r
+            if size > chunk:
+                f.seek(max(0, size - chunk))
+                return _mp4_point(f.read(chunk))
+    except Exception:
+        return None
+    return None
+
+
 def read_takeout(path):
     """구글 테이크아웃 메타데이터 JSON에서 좌표 목록."""
     try:
@@ -316,7 +371,7 @@ class Regions:
 # ---------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description='사진 폴더에서 다녀온 국내 시·군·구를 집계합니다 (서울 제외).')
-    ap.add_argument('folders', nargs='+', help='사진이 있는 폴더 (하위 폴더까지 훑습니다)')
+    ap.add_argument('folders', nargs='+', help='사진이 있는 폴더 (하위 폴더까지 훑습니다). 예: DCIM')
     ap.add_argument('-o', '--out', default='record.json', help='결과 JSON 경로 (기본: record.json)')
     ap.add_argument('--geo', default=None, help='geo.json 경로 (기본: 이 스크립트 옆)')
     args = ap.parse_args()
@@ -327,29 +382,48 @@ def main():
     with open(geo_path, encoding='utf-8') as f:
         reg = Regions(json.load(f))
 
+    def _walk_err(err):
+        print('  읽지 못해 건너뜀: %s' % err, file=sys.stderr)
+
     targets = []
     for folder in args.folders:
         if os.path.isfile(folder):
             targets.append(folder)
             continue
-        for root, _dirs, names in os.walk(folder):
+        if not os.path.isdir(folder):
+            sys.exit('폴더를 찾을 수 없습니다: %s\n'
+                     '휴대폰을 USB로 연결했을 때 보이는 MTP 경로는 실제 폴더가 아니라 읽을 수 없습니다.\n'
+                     'DCIM 을 PC 안으로 복사한 뒤 그 경로를 넘겨주세요.' % folder)
+        for root, dirs, names in os.walk(folder, onerror=_walk_err):
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d.lower() not in SKIP_DIRS]
             for nm in names:
                 ext = os.path.splitext(nm)[1].lower()
-                if ext in IMG_EXT or ext == '.json':
+                if ext in IMG_EXT or ext in VID_EXT or ext == '.json':
                     targets.append(os.path.join(root, nm))
     if not targets:
-        sys.exit('사진을 찾지 못했습니다.')
+        sys.exit('읽을 수 있는 사진이나 동영상을 찾지 못했습니다: %s' % ', '.join(args.folders))
 
     log = {}
     m = {'files': 0, 'gps': 0, 'seoul': 0, 'abroad': 0}
+    nvideo = 0
+    noloc = {}
     for i, path in enumerate(targets, 1):
-        if os.path.splitext(path)[1].lower() == '.json':
+        ext = os.path.splitext(path)[1].lower()
+        if ext == '.json':
             pts = read_takeout(path)
             m['files'] += max(len(pts), 1)
+        elif ext in VID_EXT:
+            r = read_video(path)
+            pts = [r] if r else []
+            m['files'] += 1
+            nvideo += 1
         else:
             r = read_photo(path)
             pts = [r] if r else []
             m['files'] += 1
+        if not pts:
+            key = os.path.basename(os.path.dirname(path)) or '.'
+            noloc[key] = noloc.get(key, 0) + 1
         for lat, lon, t in pts:
             m['gps'] += 1
             hit = reg.find(lat, lon)
@@ -379,12 +453,18 @@ def main():
         by_sido.setdefault(code[:2], []).append((code, e))
     print()
     print('다녀온 시·군·구 %d곳 · 시·도 %d곳 (서울 제외)' % (len(log), len(by_sido)))
-    print('사진 %d장 중 위치 있는 사진 %d장 · 서울 %d장 제외 · 국내 밖 %d장'
-          % (m['files'], m['gps'], m['seoul'], m['abroad']))
+    print('훑은 파일 %d개(동영상 %d개 포함) 중 위치 있는 것 %d개 · 서울 %d개 제외 · 국내 밖 %d개'
+          % (m['files'], nvideo, m['gps'], m['seoul'], m['abroad']))
     print()
     for sc, items in sorted(by_sido.items(), key=lambda kv: -sum(e['n'] for _c, e in kv[1])):
         tot = sum(e['n'] for _c, e in items)
         print('%-10s %4d장  %s' % (reg.name[sc], tot, ', '.join('%s(%d)' % (names[c], e['n']) for c, e in items)))
+    if noloc:
+        print()
+        print('위치 정보가 없어 건너뛴 파일 (폴더별):')
+        for k, v in sorted(noloc.items(), key=lambda kv: -kv[1])[:8]:
+            print('  %-24s %d개' % (k, v))
+        print('  스크린샷·다운로드·캡처는 원래 위치가 없으니 정상입니다.')
     print()
     print('→ %s 를 열어 내용을 복사한 뒤, 지도 페이지의 [붙여넣기로 복원]에 붙여넣으세요.' % args.out)
 
