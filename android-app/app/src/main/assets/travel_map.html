@@ -215,6 +215,13 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
 /* 미디어쿼리가 안 잡히는 기기가 있어 JS 로도 한 번 더 판정한다 */
 body.touch-only #pickDir{display:none}
 
+/* 앱(WebView) 안에서는 이미 앱이 사진을 훑어 왔다. 파일을 넣는 UI 는 의미가 없으므로
+   감추고, 지도를 맨 위로 올린다. */
+body.app-mode #cDrop{display:none}
+body.app-mode .mast .sub .web-only{display:none}
+body.app-mode .mast .sub .app-only{display:inline}
+.mast .sub .app-only{display:none}
+
 /* Responsive overrides live last so they win over the component rules above. */
 @media (max-width:900px){
   .shell{padding:20px 14px 48px}
@@ -222,6 +229,7 @@ body.touch-only #pickDir{display:none}
   main{display:flex; flex-direction:column; gap:18px}
   .rail{display:contents}
   #cDrop{order:1} .mapcol{order:2} #cSum{order:3} #cLed{order:4} #cTodo{order:5}
+  body.app-mode .mapcol{order:0}
 }
 </style>
 
@@ -230,7 +238,9 @@ body.touch-only #pickDir{display:none}
     <div>
       <div class="eyebrow">사진 GPS로 그린 국내 여행 기록</div>
       <h1>우리 여행 발자국</h1>
-      <p class="sub">사진을 올리면 촬영 위치를 읽어 시·군·구 단위로 지도에 칠합니다. 사진은 이 브라우저 안에서만 열리고 어디에도 전송되지 않습니다.</p>
+      <p class="sub"><span class="web-only">사진을 올리면 촬영 위치를 읽어 시·군·구 단위로 지도에 칠합니다.
+        사진은 이 브라우저 안에서만 열리고 어디에도 전송되지 않습니다.</span><span class="app-only">이 폰의 사진과
+        동영상에서 읽은 촬영 위치입니다. 사진은 기기 밖으로 나가지 않았습니다.</span></p>
     </div>
     <div class="excl"><span class="sw" id="seoulSw"></span>서울은 기록에서 제외</div>
   </header>
@@ -1182,6 +1192,7 @@ document.getElementById('resetBtn').onclick = () => {
 };
 
 if (SCAN_PENDING){
+  document.body.classList.add('app-mode');
   LOG = blank();
   LOG.m.files = SCAN_PENDING.files || SCAN_PENDING.points.length;
   recordPoints(SCAN_PENDING.points);
