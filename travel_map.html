@@ -99,12 +99,15 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
 .card h2{font-size:15px; margin-bottom:2px}
 .card .hint{font-size:12.5px; color:var(--muted); margin-bottom:12px}
 
-.drop{border:1.5px dashed var(--line2); border-radius:var(--r); background:var(--paper);
-  padding:20px 16px; text-align:center; transition:border-color .15s ease, background .15s ease}
+.drop{display:flex; flex-direction:column; gap:3px; border:1.5px dashed var(--line2);
+  border-radius:var(--r); background:var(--paper); padding:22px 16px; text-align:center; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease}
+.drop:hover{border-color:var(--accent)}
+.drop .small:last-child{font-size:11.5px; opacity:.8}
 .drop.over{border-color:var(--accent); background:var(--accent-soft)}
 .drop .big{font-family:"Gowun Batang",serif; font-size:17px; font-weight:700}
-.drop .small{font-size:12.5px; color:var(--muted); margin-top:4px}
-.btnrow{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:14px}
+.drop .small{font-size:12.5px; color:var(--muted)}
+.btnrow{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:12px}
 .vh{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
   clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0}
 .btn{display:inline-block; border:1px solid var(--line2); background:var(--paper); border-radius:7px; padding:7px 13px; font-size:13px;
@@ -163,6 +166,16 @@ details.io summary:hover{color:var(--accent)}
 details.io textarea{width:100%; margin-top:9px; min-height:76px; resize:vertical; font-family:"IBM Plex Mono",monospace;
   font-size:11.5px; border:1px solid var(--line2); border-radius:7px; padding:8px; background:var(--paper); color:var(--ink)}
 .msg{font-size:12.5px; color:var(--accent); min-height:19px; margin-top:7px}
+#pickHelp{margin-top:12px}
+#pickHelp[open] summary{color:var(--accent)}
+#pickHelp.flag summary{color:var(--accent); font-weight:600}
+.helpbody{font-size:12.5px; color:var(--muted); line-height:1.7; margin-top:8px}
+.helpbody p{margin:0 0 8px}
+.helpbody b{color:var(--ink2)}
+.helpbody code{font-family:"IBM Plex Mono",monospace; font-size:11.5px; background:var(--paper);
+  border:1px solid var(--line); border-radius:4px; padding:1px 5px; word-break:break-word}
+.helpbody code.cmd{display:block; padding:8px 10px; margin-top:2px; white-space:pre-wrap;
+  overflow-x:auto; line-height:1.6}
 
 footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.7}
 /* Folder pickers do nothing useful on phones; point at the album picker instead. */
@@ -206,18 +219,29 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
 
     <aside class="rail">
       <div class="card" id="cDrop">
-        <div class="drop" id="drop">
-          <div class="big">사진을 여기에 놓으세요</div>
-          <div class="small">JPG · HEIC · 구글 테이크아웃 JSON</div>
-          <div class="btnrow">
-            <label class="btn primary" for="fileIn" tabindex="0" role="button">사진 선택</label>
-            <label class="btn" for="dirIn" id="pickDir" tabindex="0" role="button">폴더 선택</label>
-          </div>
-          <div class="devhint">
-            <span class="fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
-            <span class="touch">앨범에서 여러 장을 한 번에 골라도 됩니다</span>
-          </div>
+        <label class="drop" id="drop" for="fileIn" tabindex="0" role="button">
+          <span class="big">사진 선택</span>
+          <span class="small">여기를 누르거나 사진을 끌어다 놓으세요</span>
+          <span class="small">JPG · HEIC · 구글 테이크아웃 JSON</span>
+        </label>
+        <div class="btnrow">
+          <label class="btn" for="dirIn" id="pickDir" tabindex="0" role="button">폴더 선택</label>
         </div>
+        <div class="devhint">
+          <span class="fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
+          <span class="touch">앨범에서 여러 장을 한 번에 골라도 됩니다</span>
+        </div>
+        <details class="io" id="pickHelp">
+          <summary>사진 선택 창이 안 열리나요?</summary>
+          <div class="helpbody">
+            <p><b>앱에 내장된 브라우저에서는 파일 선택이 막혀 있습니다.</b> 카카오톡·인스타그램 등에서
+            링크를 바로 열었거나 앱 안의 브라우저로 보고 있다면, 눌러도 아무 반응이 없습니다.</p>
+            <p>화면 오른쪽 위 <b>⋮ → 다른 브라우저에서 열기</b> 로 Chrome 에서 여시면 정상 동작합니다.</p>
+            <p>그래도 안 되면 사진 선택 없이 채우는 방법이 있습니다. 안드로이드에서 Termux 로
+            <code>scan_photos.py</code> 를 돌리면 지도가 이미 채워진 HTML 이 나옵니다.</p>
+            <code class="cmd">python3 scan_photos.py DCIM --html 내지도.html</code>
+          </div>
+        </details>
         <div class="prog" id="prog">
           <div class="track"><i class="fill" id="progFill"></i></div>
           <div class="txt" id="progTxt"></div>
@@ -738,7 +762,7 @@ async function ingest(files){
 
 /* ---------- controls ---------- */
 const drop = document.getElementById('drop'), fileIn = document.getElementById('fileIn'), dirIn = document.getElementById('dirIn');
-for (const lb of document.querySelectorAll('label.btn')){
+for (const lb of document.querySelectorAll('label[for]')){
   lb.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
@@ -746,8 +770,29 @@ for (const lb of document.querySelectorAll('label.btn')){
     if (inp) inp.click();
   });
 }
-fileIn.onchange = () => { ingest(fileIn.files); fileIn.value = ''; };
-dirIn.onchange  = () => { ingest(dirIn.files);  dirIn.value  = ''; };
+
+// 앱에 내장된 브라우저(안드로이드 WebView)는 파일 입력을 눌러도 아무 일이 없다 - 오류도 없다.
+// 선택기가 실제로 열리면 페이지가 포커스를 잃거나 화면에서 물러나므로,
+// 그 신호도 없고 파일도 오지 않으면 안내를 펼친다.
+const pickHelp = document.getElementById('pickHelp');
+let awayAt = 0, changeAt = 0;
+const markAway = () => { awayAt = Date.now(); };
+window.addEventListener('blur', markAway);
+document.addEventListener('visibilitychange', () => { if (document.hidden) markAway(); });
+function watchPicker(){
+  const at = Date.now();
+  setTimeout(() => {
+    if (busy || awayAt >= at || changeAt >= at) return;
+    pickHelp.open = true;
+    pickHelp.classList.add('flag');
+  }, 2500);
+}
+fileIn.addEventListener('click', watchPicker);
+dirIn.addEventListener('click', watchPicker);
+
+const onPicked = inp => { changeAt = Date.now(); pickHelp.classList.remove('flag'); ingest(inp.files); inp.value = ''; };
+fileIn.onchange = () => onPicked(fileIn);
+dirIn.onchange  = () => onPicked(dirIn);
 ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); if (t === 'dragleave' && drop.contains(e.relatedTarget)) return; drop.classList.remove('over'); }));
 drop.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) ingest(e.dataTransfer.files); });
