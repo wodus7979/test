@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.10';
+const GAME_VERSION = 'v10.11';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '스마트폰 시작 화면 · 창작 모드 단추 · 두 줄 터치 버튼';
+const GAME_FEATURES = '빌딩을 비켜 가는 고가 철로 · 재질별 효과음 · 발소리';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -1405,7 +1405,7 @@ Game.prototype.breakBlock = function (x, y, z) {
     const held = p.heldDef();
     if (held && held.tool && d.hardness > 0) p.damageHeld(1);
   }
-  this.playSound('break');
+  this.playSound('break', { block: id });
 };
 
 Game.prototype.onUse = function () {
@@ -2025,7 +2025,7 @@ Game.prototype.placeBlock = function (hit, blockId) {
   }
 
   p.consumeHeld(1);
-  this.playSound('place');
+  this.playSound('place', { block: blockId });
 };
 
 Game.prototype.dropHeld = function (all) {
@@ -2046,38 +2046,7 @@ Game.prototype.ensureProfile = function () {
   return this.profile;
 };
 
-Game.prototype.playSound = function (kind) {
-  // 오디오는 사용자 조작 후에만 만들 수 있어 지연 생성한다
-  try {
-    if (!this.audio) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      this.audio = new AC();
-    }
-    const ctx = this.audio;
-    if (ctx.state === 'suspended') ctx.resume();
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    const now = ctx.currentTime;
-    let dur = 0.13, vol = 0.06;
-    if (kind === 'break') { o.frequency.value = 180; o.type = 'square'; }
-    else if (kind === 'place') { o.frequency.value = 320; o.type = 'triangle'; }
-    else if (kind === 'hiss') {
-      o.type = 'sawtooth';
-      o.frequency.setValueAtTime(900, now);
-      o.frequency.exponentialRampToValueAtTime(200, now + 0.35);
-      dur = 0.36; vol = 0.045;
-    } else if (kind === 'boom') {
-      o.type = 'square';
-      o.frequency.setValueAtTime(120, now);
-      o.frequency.exponentialRampToValueAtTime(28, now + 0.6);
-      dur = 0.62; vol = 0.14;
-    } else { o.frequency.value = 240; o.type = 'sine'; }
-    g.gain.setValueAtTime(vol, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    o.connect(g); g.connect(ctx.destination);
-    o.start(now); o.stop(now + dur + 0.01);
-  } catch (err) { /* 소리는 없어도 그만 */ }
-};
+// 효과음은 sound.js 가 맡는다 (재질별 절차적 합성).
 
 // ── 발사 소리 ─────────────────────────────────────────────────────────
 // 로켓 굉음 — 하얀 잡음을 낮게 걸러 우르릉거리게 만들고, 그 아래에
@@ -2901,6 +2870,7 @@ Game.prototype.update = function (dt) {
   } else if (!this.ui.open && !p.dead) {
     this.updateEscalators();
     p.update(dt, this.input);
+    this.updateFootsteps(dt);
     this.updateMining(dt);
     // 우클릭 유지 = 연속 설치
     if (this.input.use) {

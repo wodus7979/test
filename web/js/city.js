@@ -2003,6 +2003,61 @@ function buildCityPlan(world, ap, index, code) {
   lots.sort(function (a, b) { return a.d - b.d; });
   const half = Math.floor((CITY_GRID - (ROAD_HALF + 2) * 2) / 2);   // 구획 반폭
 
+  // ── 고가 철로가 지날 자리를 미리 비워 둔다 ──
+  //
+  // 예전에는 건물을 다 세운 뒤에 철로를 깔았다. 도면은 나중에 적은 것이
+  // 이기므로 상판이 건물을 파고들며 지나가, 열차가 빌딩을 관통했다
+  // (인천 송도 16 · 서울 10 · 제주 11 구획). 이제 길을 먼저 그어 두고,
+  // 그 회랑에 걸리는 구획에는 건물을 세우지 않는다 — 실제 고가철도
+  // 아래처럼 선형 공원으로 남긴다.
+  let railPath = null, railY = 0, railEnds = null;
+  if (ap) {
+    const rside = best.side || 1;
+    railY = Math.max(ap.y, gy) + RAIL_UP;
+    const toCity = -rside;                     // 도시가 있는 쪽 (+1 이면 +X)
+    const apStX = ap.x + toCity * 86, apStZ = ap.z;
+    const cityStX = best.x - rside * CITY_GRID * 2, cityStZ = best.z;
+    // 활주로 끝(RW_LEN/2)과 부지 울타리(AP_X) 를 모두 지나야 안전하다
+    const outX = ap.x + toCity * (Math.max(AP_X, RW_LEN / 2) + 46);
+    const corners = (cityStZ === apStZ)
+      ? [[apStX + toCity * 15, apStZ], [cityStX, cityStZ]]
+      : [[apStX + toCity * 15, apStZ], [outX, apStZ], [outX, cityStZ], [cityStX, cityStZ]];
+    railPath = smoothPath(corners, RAIL_CURVE_R, 0.8);
+    railEnds = { apStX: apStX, apStZ: apStZ, cityStX: cityStX, cityStZ: cityStZ };
+  }
+  // 회랑에 든 칸 — 상판 반폭에 세 칸을 더 띄운다 (난간과 처마 몫)
+  const RAIL_KEEP = RAIL_HALF + 3;
+  const railCells = new Set();
+  if (railPath) {
+    for (let i = 0; i < railPath.length; i += 3) {
+      const a = railPath[i];
+      const ax = Math.round(a[0]), az = Math.round(a[1]);
+      for (let dz = -RAIL_KEEP; dz <= RAIL_KEEP; dz++) {
+        for (let dx = -RAIL_KEEP; dx <= RAIL_KEEP; dx++) {
+          if (dx * dx + dz * dz > RAIL_KEEP * RAIL_KEEP) continue;
+          railCells.add((ax + dx) + ',' + (az + dz));
+        }
+      }
+    }
+    // 역 승강장도 통째로 비운다 (지붕과 이름판이 건물에 파묻히지 않게)
+    for (const e of [[railEnds.apStX, railEnds.apStZ], [railEnds.cityStX, railEnds.cityStZ]]) {
+      for (let dz = -38; dz <= 38; dz++) {
+        for (let dx = -14; dx <= 14; dx++) railCells.add((e[0] + dx) + ',' + (e[1] + dz));
+      }
+    }
+  }
+  // 이 구획에 건물을 세워도 되나 — 네모가 회랑에 한 칸이라도 걸리면 안 된다
+  const lotOnRail = function (lot) {
+    if (!railCells.size) return false;
+    const bx = Math.round(best.x + lot.x), bz = Math.round(best.z + lot.z);
+    for (let dz = -half - 2; dz <= half + 2; dz++) {
+      for (let dx = -half - 2; dx <= half + 2; dx++) {
+        if (railCells.has((bx + dx) + ',' + (bz + dz))) return true;
+      }
+    }
+    return false;
+  };
+
   // ── 중앙 광장 ──
   const plaza = lots.shift();
   for (let dz = -half; dz <= half; dz++) {
@@ -2024,6 +2079,12 @@ function buildCityPlan(world, ap, index, code) {
 
   let tallLeft = st.tall;
   const parks = [];
+  plan.lotsBuilt = [];       // 건물이 실제로 선 구획 (검사용)
+  // 회랑에 걸린 구획을 통째로 빼낸다. 뒤에 나오는 경찰서·소방서 자리가
+  // 번호로 정해지므로, 건물 배치가 시작되기 전에 걸러 두어야 한다.
+  for (let i = lots.length - 1; i >= 0; i--) {
+    if (lotOnRail(lots[i])) parks.push(lots.splice(i, 1)[0]);
+  }
   // 도심 가까운 두 구획은 경찰서와 소방서 — 아래 두 반복문 모두 이 자리를 비워 둔다
   const POLICE_LOT = 1, FIRE_LOT = 2;
   for (let i = 0; i < lots.length; i++) {
@@ -2060,6 +2121,8 @@ function buildCityPlan(world, ap, index, code) {
       h = st.heights[0] + Math.round(rnd() * (st.heights[1] - st.heights[0]));
     }
 
+    // 세운 자리를 적어 둔다 — 철로 회랑을 침범하지 않았는지 검사할 때 쓴다
+    plan.lotsBuilt.push([Math.round(best.x + lot.x), Math.round(best.z + lot.z)]);
     if (kind === 'row') {
       cityRowBlock(plan, lot.x, lot.z, half, rnd, rowPal);
     } else if (kind === 'balcony') {
@@ -2081,6 +2144,7 @@ function buildCityPlan(world, ap, index, code) {
     if (archList[i % archList.length] === 'glass') continue;
     const h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
     cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, { pal: glassPals[(rnd() * glassPals.length) | 0] });
+    plan.lotsBuilt.push([Math.round(best.x + lot.x), Math.round(best.z + lot.z)]);
     tallLeft--;
   }
 
@@ -2449,25 +2513,11 @@ function cityFerry(plan, st) {
     plan.freeze();
     return plan;
   }
-  const side = best.side || 1;
-  const railY = Math.max(ap.y, gy) + RAIL_UP;
-  // 공항역은 터미널 옆 계류장 축(두 활주로 사이)에 세우고,
-  // 노선은 그 축을 따라 활주로 "끝" 을 지나 부지 밖으로 나간 다음에야
-  // 방향을 꺾는다.
-  //
-  // 예전에는 역을 도시 반대쪽에 두고 부지 한가운데에서 z 로 꺾었다.
-  // 그러면 고가가 활주로를 가로질러 지나가고 교각이 노면에 박혔다.
-  const toCity = -side;                     // 도시가 있는 쪽 (+1 이면 +X)
-  const apStX = ap.x + toCity * 86, apStZ = ap.z;
-  const cityStX = best.x - side * CITY_GRID * 2, cityStZ = best.z;
-  // 활주로 끝(RW_LEN/2)과 부지 울타리(AP_X) 를 모두 지나야 안전하다
-  const outX = ap.x + toCity * (Math.max(AP_X, RW_LEN / 2) + 46);
-
-  // 꺾이는 자리를 호로 둥글려 깐다 — 열차가 코너에서 홱 돌지 않게
-  const corners = (cityStZ === apStZ)
-    ? [[apStX + toCity * 15, apStZ], [cityStX, cityStZ]]
-    : [[apStX + toCity * 15, apStZ], [outX, apStZ], [outX, cityStZ], [cityStX, cityStZ]];
-  const railPath = smoothPath(corners, RAIL_CURVE_R, 0.8);
+  // 길과 역 자리는 구획을 나눌 때 이미 정해 두었다 (위쪽 참고).
+  // 공항역은 터미널 옆 계류장 축(두 활주로 사이)에 세우고, 노선은 그 축을
+  // 따라 활주로 "끝" 을 지나 부지 밖으로 나간 다음에야 방향을 꺾는다.
+  const apStX = railEnds.apStX, apStZ = railEnds.apStZ;
+  const cityStX = railEnds.cityStX, cityStZ = railEnds.cityStZ;
   railCurve(plan, railPath, railY, st);
 
   // 공항철도 — 이름판에 노선 표시(AREX)와 역 이름을 새긴다

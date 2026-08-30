@@ -582,7 +582,7 @@ UI.prototype.doTradeClick = function (i) {
   if (r === 'partial') this.toast('가방이 가득 찼습니다');
   else if (r) {
     this.toast(itemDisplayName(offer.get.name) + ' ×' + offer.get.count + ' 을(를) 받았습니다');
-    if (this.game && this.game.playSound) this.game.playSound('place');
+    if (this.game && this.game.playSound) this.game.playSound('click');
   }
   this.refreshTrade();
   this.refreshScreen();
