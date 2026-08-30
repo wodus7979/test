@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.9.1';
-const GAME_BUILD = '2026-08-29';
-const GAME_FEATURES = '순환도로 밖으로 나간 부두 · 부두 경사로 · 역 이름판';
+const GAME_VERSION = 'v10.9.2';
+const GAME_BUILD = '2026-08-30';
+const GAME_FEATURES = '차로를 비운 버스 정거장 · 더 오래 서는 열차 · 문 잡아 주기';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -2189,7 +2189,11 @@ Game.prototype.updateUseHint = function () {
     if (h) {
       if (!this.onPlatform()) label = '승강장에서만 탈 수 있습니다';
       else if (!h.train.doorsOpen()) label = '문이 열리기를 기다리세요';
-      else label = '열차 타기';
+      else {
+        // 남은 정차 시간을 같이 보여 준다 — 탈 시간이 있는지 알 수 있게
+        const left = Math.max(1, Math.ceil(h.train.dwell));
+        label = h.train.kindName() + ' 타기 (출발까지 ' + left + '초)';
+      }
     }
   }
   if (!label && em.pickCar) {

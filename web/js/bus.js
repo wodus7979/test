@@ -4,7 +4,9 @@
 'use strict';
 
 const BUS_FARE = 50;          // 한 사람 태울 때 받는 돈
-const BUS_STOP_RANGE = 8;     // 정거장으로 치는 거리
+// 정거장으로 치는 거리. 정거장은 연석 바깥(도로 중심에서 7~9칸)에 서고
+// 버스는 차선을 따라 안팎으로 흔들리므로 넉넉히 잡는다.
+const BUS_STOP_RANGE = 12;
 const BUS_DWELL = 1.0;        // 문을 여는 데 걸리는 시간(초)
 const BUS_WAIT_MAX = 3;       // 정거장 하나에 서 있는 손님 수
 const BUS_LIVE_R = 240;       // 이 안에 들어오면 손님이 나타난다

@@ -1,0 +1,8 @@
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+page.waitForTimeout: Target page, context or browser has been closed
+    at /home/user/test/busdrive.js:30:15
+
+Node.js v22.22.2

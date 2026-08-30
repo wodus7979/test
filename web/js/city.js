@@ -910,10 +910,25 @@ function busRoute(plan, st) {
     // 22.5도씩 비틀어 놓아 고속도로가 물리는 ±X·±Z 축을 피한다
     const ang = (k + 0.5) * (Math.PI * 2 / BUS_STOP_N);
     const ca = Math.cos(ang), sa = Math.sin(ang);
-    const cx = Math.round(ca * BUS_STOP_R), cz = Math.round(sa * BUS_STOP_R);
     // 도로를 바라보는 방향 (안쪽이 앞)
     const ax = Math.abs(ca) >= Math.abs(sa) ? 1 : 0;   // 1 = 정거장이 X축 쪽
     const hw = ax ? 2 : 4, hd = ax ? 4 : 2;            // 도로와 나란한 쪽이 길다
+    // 정거장 상자는 x·z 축에 나란한 네모인데 순환도로는 원이다. 중심
+    // 반지름만 재고 놓으면 대각선(45도) 자리에서 안쪽 모서리가 차로
+    // 안으로 들어왔다 — 기둥이 노면에 박히고 지붕이 도로를 덮어,
+    // 버스가 그 밑에 걸린 채 빠져나오지 못했다 (도시마다 네 곳).
+    // 상자가 통째로 포장 밖으로 나갈 때까지 바깥으로 민다.
+    let cx = Math.round(ca * BUS_STOP_R), cz = Math.round(sa * BUS_STOP_R);
+    for (let R = BUS_STOP_R; R <= BUS_STOP_R + 24; R++) {
+      cx = Math.round(ca * R); cz = Math.round(sa * R);
+      let near = Infinity;
+      for (let dz = -hd; dz <= hd; dz++) {
+        for (let dx = -hw; dx <= hw; dx++) {
+          near = Math.min(near, Math.hypot(cx + dx, cz + dz));
+        }
+      }
+      if (near > CITY_RING + ROAD_HALF) break;   // 연석 밖으로 나갔다
+    }
     for (let dz = -hd; dz <= hd; dz++) {
       for (let dx = -hw; dx <= hw; dx++) {
         set(cx + dx, 0, cz + dz, bid('smooth_quartz', 'smooth_stone'));

@@ -1467,6 +1467,24 @@ body.touch #btn-autofly b { display: none; }
           <li>도시를 한 바퀴 도는 <b>순환도로</b>에도 매끄러운 띠를 덧그린다.
               블록으로만 깔면 둥근 길이 계단처럼 층져 보였다. 포장·연석·갓길 흰 선·
               가운데 노란 점선까지 이어 그린다</li>
+          <li><b>버스 정거장이 차로를 막고 있었다.</b> 정거장은 x·z 축에 나란한
+              네모인데 순환도로는 원이라, 중심 반지름만 재고 놓으면 대각선
+              (45·135·225·315도) 네 곳에서 안쪽 모서리가 차로 안으로 들어왔다.
+              쇠기둥이 노면에 박히고 지붕이 도로를 덮어, 버스를 몰고 들어가면
+              그 밑에 걸린 채 빠져나올 수 없었다. 이제 정거장 상자가 통째로
+              연석 밖으로 나갈 때까지 밀어 세운다 — 도시마다 <b>노면을 막던
+              칸이 0</b>이 되었고, 순환도로 1440칸이 모두 포장과 머리 공간을
+              온전히 갖췄다 (고가 철로가 지나는 자리는 12칸 위 육교라 걸리지 않는다).
+              정거장이 조금 물러났으므로 버스가 정거장으로 치는 거리도 넓혔다</li>
+          <li><b>열차가 역에 더 오래 선다.</b> 전동열차는 <b>16초</b>, KTX 는
+              <b>26초</b> 다 (전에는 둘 다 9초였다). 무엇보다, 역 옆에 새로
+              나타나는 열차가 <b>3초</b> 만 서 있다가 떠나 버려 계단을 올라가는
+              사이에 놓치기 일쑤였는데, 이제 처음부터 제 정차 시간을 준다</li>
+          <li><b>문 잡아 주기</b> — 열차가 역에 서 있는 동안 옆에 사람이 있으면
+              남은 시간이 <b>4초 밑으로 떨어지지 않는다</b>. 승강장으로 뛰어
+              올라오는 사이에 눈앞에서 떠나 버리지 않는다. 다만 한 역에서
+              <b>90초</b>까지만 기다리고, 사람이 멀어지면 곧 출발한다.
+              열차를 겨누면 <b>남은 정차 시간</b>이 같이 뜬다</li>
           <li><b>여객선터미널을 순환도로 바깥으로</b> 밀어냈다. 목포처럼 시가지가
               물가에 바짝 붙은 도시에서는 부두 앞마당이 도시 순환도로 안쪽까지
               파고들었다. 부두는 위를 비우고 짓기 때문에 <b>도로가 통째로 끊기고</b>
@@ -13147,10 +13165,25 @@ function busRoute(plan, st) {
     // 22.5도씩 비틀어 놓아 고속도로가 물리는 ±X·±Z 축을 피한다
     const ang = (k + 0.5) * (Math.PI * 2 / BUS_STOP_N);
     const ca = Math.cos(ang), sa = Math.sin(ang);
-    const cx = Math.round(ca * BUS_STOP_R), cz = Math.round(sa * BUS_STOP_R);
     // 도로를 바라보는 방향 (안쪽이 앞)
     const ax = Math.abs(ca) >= Math.abs(sa) ? 1 : 0;   // 1 = 정거장이 X축 쪽
     const hw = ax ? 2 : 4, hd = ax ? 4 : 2;            // 도로와 나란한 쪽이 길다
+    // 정거장 상자는 x·z 축에 나란한 네모인데 순환도로는 원이다. 중심
+    // 반지름만 재고 놓으면 대각선(45도) 자리에서 안쪽 모서리가 차로
+    // 안으로 들어왔다 — 기둥이 노면에 박히고 지붕이 도로를 덮어,
+    // 버스가 그 밑에 걸린 채 빠져나오지 못했다 (도시마다 네 곳).
+    // 상자가 통째로 포장 밖으로 나갈 때까지 바깥으로 민다.
+    let cx = Math.round(ca * BUS_STOP_R), cz = Math.round(sa * BUS_STOP_R);
+    for (let R = BUS_STOP_R; R <= BUS_STOP_R + 24; R++) {
+      cx = Math.round(ca * R); cz = Math.round(sa * R);
+      let near = Infinity;
+      for (let dz = -hd; dz <= hd; dz++) {
+        for (let dx = -hw; dx <= hw; dx++) {
+          near = Math.min(near, Math.hypot(cx + dx, cz + dz));
+        }
+      }
+      if (near > CITY_RING + ROAD_HALF) break;   // 연석 밖으로 나갔다
+    }
     for (let dz = -hd; dz <= hd; dz++) {
       for (let dx = -hw; dx <= hw; dx++) {
         set(cx + dx, 0, cz + dz, bid('smooth_quartz', 'smooth_stone'));
@@ -17166,7 +17199,14 @@ EntityManager.prototype.nearestOtherPlane = function (self) {
 const TRAIN_MAX = 17;        // 최고 속도 (블록/초)
 const TRAIN_ACC = 3.2;
 const TRAIN_BRAKE = 2.6;
-const TRAIN_DWELL = 9;       // 역에서 서 있는 시간(초)
+const TRAIN_DWELL = 16;      // 전동열차가 역에서 서 있는 시간(초)
+const KTX_DWELL = 26;        // KTX 는 역 사이가 멀어 놓치면 오래 기다린다
+// 승강장에 사람이 서 있으면 문을 잡아 둔다 — 계단을 뛰어 올라왔는데
+// 눈앞에서 떠나 버리지 않게. 다만 마냥 잡아 두지는 않는다.
+const TRAIN_HOLD_R = 30;     // 이 안에 사람이 있으면 잡는다 (수평 거리)
+const TRAIN_HOLD_DY = 9;     // 위아래로는 이만큼까지 (승강장 높이 차)
+const TRAIN_HOLD_KEEP = 4;   // 잡는 동안 남겨 두는 정차 시간(초)
+const TRAIN_HOLD_MAX = 90;   // 한 역에서 이만큼 넘게는 잡지 않는다
 const TRAIN_RIDE = 2.75;     // 선로 위 동체 중심 높이 (바퀴가 레일에 닿게)
 
 // ── 생김새 ────────────────────────────────────────────────────────────
@@ -17371,7 +17411,10 @@ function Train(world, route, s, dir) {
   this.speed = 0;
   // 두 편성이 늘 반대 방향으로 달리도록 정차 시간을 같게 둔다.
   // (제각각이면 언젠가 같은 방향 · 같은 선로에 나란히 서게 된다)
-  this.dwell = 3;
+  // 띄우는 자리가 역이므로 처음부터 제 정차 시간을 준다 — 3초만 주면
+  // 역에 막 닿은 사람 눈앞에서 곧바로 떠나 버렸다.
+  this.dwell = route.ktx ? KTX_DWELL : TRAIN_DWELL;
+  this.held = 0;              // 문을 잡아 둔 시간(초)
   this.rider = null;
   this.wheelAngle = 0;
   this.doorT = 0;             // 0 닫힘 ~ 1 열림
@@ -17421,11 +17464,19 @@ Train.prototype.trackOffset = function (routeYaw) {
   return [Math.cos(routeYaw) * k, -Math.sin(routeYaw) * k];
 };
 
-Train.prototype.update = function (dt) {
+Train.prototype.update = function (dt, player) {
   const r = this.route;
   if (this.dwell > 0) {
     this.dwell -= dt;
     this.speed = 0;
+    // 문 잡아 두기 — 아직 아무도 안 탔고 옆에 사람이 서 있으면 기다린다
+    if (!this.rider && player && this.held < TRAIN_HOLD_MAX &&
+        this.dwell < TRAIN_HOLD_KEEP && this.atStation() &&
+        Math.abs(player.y - this.y) < TRAIN_HOLD_DY &&
+        Math.hypot(player.x - this.x, player.z - this.z) < TRAIN_HOLD_R) {
+      this.dwell = TRAIN_HOLD_KEEP;
+      this.held += dt;
+    }
   } else {
     const target = this.nextStop();
     // 부호 있는 남은 거리 — 지나쳐 버리면 음수가 되어 곧바로 멈춘다
@@ -17444,7 +17495,8 @@ Train.prototype.update = function (dt) {
     if (signed <= 0.6 && this.speed < 0.8) {
       this.s = target;
       this.speed = 0;
-      this.dwell = TRAIN_DWELL;
+      this.dwell = this.ktx ? KTX_DWELL : TRAIN_DWELL;
+      this.held = 0;
       this._target = undefined;    // 다음 역을 새로 고른다
       // 종착역에서만 방향을 뒤집는다 (중간역은 그대로 지나던 쪽으로 간다)
       if (this.isTerminus(target)) {
@@ -17763,7 +17815,7 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
 
   for (let i = this.trains.length - 1; i >= 0; i--) {
     const t = this.trains[i];
-    t.update(dt);
+    t.update(dt, player);
     if (t.rider) t.ridePlayer(t.rider, dt, game);
     // 아주 멀어지면 치운다 (다시 오면 새로 만든다)
     const far = t.ktx ? 1500 : 900;
@@ -25801,9 +25853,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.9.1';
-const GAME_BUILD = '2026-08-29';
-const GAME_FEATURES = '순환도로 밖으로 나간 부두 · 부두 경사로 · 역 이름판';
+const GAME_VERSION = 'v10.9.2';
+const GAME_BUILD = '2026-08-30';
+const GAME_FEATURES = '차로를 비운 버스 정거장 · 더 오래 서는 열차 · 문 잡아 주기';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -27962,7 +28014,11 @@ Game.prototype.updateUseHint = function () {
     if (h) {
       if (!this.onPlatform()) label = '승강장에서만 탈 수 있습니다';
       else if (!h.train.doorsOpen()) label = '문이 열리기를 기다리세요';
-      else label = '열차 타기';
+      else {
+        // 남은 정차 시간을 같이 보여 준다 — 탈 시간이 있는지 알 수 있게
+        const left = Math.max(1, Math.ceil(h.train.dwell));
+        label = h.train.kindName() + ' 타기 (출발까지 ' + left + '초)';
+      }
     }
   }
   if (!label && em.pickCar) {
@@ -30368,7 +30424,9 @@ Game.prototype.exitDigger = function () {
 'use strict';
 
 const BUS_FARE = 50;          // 한 사람 태울 때 받는 돈
-const BUS_STOP_RANGE = 8;     // 정거장으로 치는 거리
+// 정거장으로 치는 거리. 정거장은 연석 바깥(도로 중심에서 7~9칸)에 서고
+// 버스는 차선을 따라 안팎으로 흔들리므로 넉넉히 잡는다.
+const BUS_STOP_RANGE = 12;
 const BUS_DWELL = 1.0;        // 문을 여는 데 걸리는 시간(초)
 const BUS_WAIT_MAX = 3;       // 정거장 하나에 서 있는 손님 수
 const BUS_LIVE_R = 240;       // 이 안에 들어오면 손님이 나타난다

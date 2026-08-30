@@ -6,7 +6,14 @@
 const TRAIN_MAX = 17;        // 최고 속도 (블록/초)
 const TRAIN_ACC = 3.2;
 const TRAIN_BRAKE = 2.6;
-const TRAIN_DWELL = 9;       // 역에서 서 있는 시간(초)
+const TRAIN_DWELL = 16;      // 전동열차가 역에서 서 있는 시간(초)
+const KTX_DWELL = 26;        // KTX 는 역 사이가 멀어 놓치면 오래 기다린다
+// 승강장에 사람이 서 있으면 문을 잡아 둔다 — 계단을 뛰어 올라왔는데
+// 눈앞에서 떠나 버리지 않게. 다만 마냥 잡아 두지는 않는다.
+const TRAIN_HOLD_R = 30;     // 이 안에 사람이 있으면 잡는다 (수평 거리)
+const TRAIN_HOLD_DY = 9;     // 위아래로는 이만큼까지 (승강장 높이 차)
+const TRAIN_HOLD_KEEP = 4;   // 잡는 동안 남겨 두는 정차 시간(초)
+const TRAIN_HOLD_MAX = 90;   // 한 역에서 이만큼 넘게는 잡지 않는다
 const TRAIN_RIDE = 2.75;     // 선로 위 동체 중심 높이 (바퀴가 레일에 닿게)
 
 // ── 생김새 ────────────────────────────────────────────────────────────
@@ -211,7 +218,10 @@ function Train(world, route, s, dir) {
   this.speed = 0;
   // 두 편성이 늘 반대 방향으로 달리도록 정차 시간을 같게 둔다.
   // (제각각이면 언젠가 같은 방향 · 같은 선로에 나란히 서게 된다)
-  this.dwell = 3;
+  // 띄우는 자리가 역이므로 처음부터 제 정차 시간을 준다 — 3초만 주면
+  // 역에 막 닿은 사람 눈앞에서 곧바로 떠나 버렸다.
+  this.dwell = route.ktx ? KTX_DWELL : TRAIN_DWELL;
+  this.held = 0;              // 문을 잡아 둔 시간(초)
   this.rider = null;
   this.wheelAngle = 0;
   this.doorT = 0;             // 0 닫힘 ~ 1 열림
@@ -261,11 +271,19 @@ Train.prototype.trackOffset = function (routeYaw) {
   return [Math.cos(routeYaw) * k, -Math.sin(routeYaw) * k];
 };
 
-Train.prototype.update = function (dt) {
+Train.prototype.update = function (dt, player) {
   const r = this.route;
   if (this.dwell > 0) {
     this.dwell -= dt;
     this.speed = 0;
+    // 문 잡아 두기 — 아직 아무도 안 탔고 옆에 사람이 서 있으면 기다린다
+    if (!this.rider && player && this.held < TRAIN_HOLD_MAX &&
+        this.dwell < TRAIN_HOLD_KEEP && this.atStation() &&
+        Math.abs(player.y - this.y) < TRAIN_HOLD_DY &&
+        Math.hypot(player.x - this.x, player.z - this.z) < TRAIN_HOLD_R) {
+      this.dwell = TRAIN_HOLD_KEEP;
+      this.held += dt;
+    }
   } else {
     const target = this.nextStop();
     // 부호 있는 남은 거리 — 지나쳐 버리면 음수가 되어 곧바로 멈춘다
@@ -284,7 +302,8 @@ Train.prototype.update = function (dt) {
     if (signed <= 0.6 && this.speed < 0.8) {
       this.s = target;
       this.speed = 0;
-      this.dwell = TRAIN_DWELL;
+      this.dwell = this.ktx ? KTX_DWELL : TRAIN_DWELL;
+      this.held = 0;
       this._target = undefined;    // 다음 역을 새로 고른다
       // 종착역에서만 방향을 뒤집는다 (중간역은 그대로 지나던 쪽으로 간다)
       if (this.isTerminus(target)) {
@@ -603,7 +622,7 @@ EntityManager.prototype.updateTrains = function (dt, player, game) {
 
   for (let i = this.trains.length - 1; i >= 0; i--) {
     const t = this.trains[i];
-    t.update(dt);
+    t.update(dt, player);
     if (t.rider) t.ridePlayer(t.rider, dt, game);
     // 아주 멀어지면 치운다 (다시 오면 새로 만든다)
     const far = t.ktx ? 1500 : 900;
