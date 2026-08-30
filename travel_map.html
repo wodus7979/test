@@ -183,6 +183,20 @@ details.io summary::-webkit-details-marker{display:none}
 details.io summary:hover{color:var(--accent)}
 details.io textarea{width:100%; margin-top:9px; min-height:76px; resize:vertical; font-family:"IBM Plex Mono",monospace;
   font-size:11.5px; border:1px solid var(--line2); border-radius:7px; padding:8px; background:var(--paper); color:var(--ink)}
+.diagbody{margin-top:9px}
+.dsum{display:flex; flex-wrap:wrap; gap:6px; font-size:12px; margin-bottom:10px}
+.dsum span{border:1px solid var(--line2); border-radius:999px; padding:2px 10px; color:var(--muted)}
+.dsum .g{border-color:var(--accent); color:var(--accent)}
+.dsum .s{border-color:var(--s2); color:var(--s3)}
+.verdict{font-size:12.5px; line-height:1.65; color:var(--muted); margin:0 0 10px}
+.verdict b{color:var(--ink2)}
+.verdict.good b{color:var(--accent)}
+.dlist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; font-size:12px}
+.dlist li{display:flex; gap:10px; align-items:baseline}
+.dn{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink2)}
+.dt{flex:none; font-size:11px; color:var(--muted)}
+.dt.gps{color:var(--accent)}
+.dt.stripped{color:var(--s3)}
 .msg{font-size:12.5px; color:var(--accent); min-height:19px; margin-top:7px}
 #pickHelp{margin-top:12px}
 #pickHelp[open] summary{color:var(--accent)}
@@ -309,6 +323,10 @@ python3 scan_photos.py DCIM --html 내지도.html</code>
           <div class="tile"><div class="k">위치 있는 사진</div><div class="v mono" id="statGps">0</div></div>
         </div>
         <div class="note" id="note"></div>
+        <details class="io" id="diag" hidden>
+          <summary>넣은 파일 하나하나 살펴보기</summary>
+          <div class="diagbody" id="diagBody"></div>
+        </details>
         <details class="io">
           <summary>기록 백업 · 복원 · 초기화</summary>
           <div class="btnrow" style="justify-content:flex-start">
@@ -496,15 +514,24 @@ function exifDate(s){
   const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
   return isFinite(t) ? t : null;
 }
-function parseExif(buf){
+// {exif: EXIF 블록이 있었나, gps: 좌표가 있었나, t: 촬영일시}
+// 위치가 지워진 사진은 exif=true, gps=false 로 나온다 - 애초에 EXIF 가 없는 것과 구별된다.
+function parseExifInfo(buf){
   const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  let seen = null;
   for (const base of exifBases(dv, u8)){
-    const r = readTiffPoint(dv, base);
-    if (r) return r;
+    const r = readTiffInfo(dv, base);
+    if (!r) continue;
+    if (r.gps) return r;
+    if (!seen) seen = r;
   }
-  return null;
+  return seen || { exif: false, gps: false, t: null };
 }
-function readTiffPoint(dv, base){
+function parseExif(buf){
+  const r = parseExifInfo(buf);
+  return r.gps ? { lat: r.lat, lon: r.lon, t: r.t } : null;
+}
+function readTiffInfo(dv, base){
   if (base < 0 || base + 8 > dv.byteLength) return null;
   const bo = dv.getUint16(base);
   const le = bo === 0x4949 ? true : bo === 0x4D4D ? false : null;
@@ -524,8 +551,8 @@ function readTiffPoint(dv, base){
       lon = dms(lo) * (/W/i.test(loR) ? -1 : 1);
     }
   }
-  if (lat === null || !isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
-  if (lat === 0 && lon === 0) return null;
+  const ok = lat !== null && isFinite(lat) && isFinite(lon) &&
+             Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && !(lat === 0 && lon === 0);
 
   let t = null;
   const exPtr = readVal(dv, ifd0[0x8769], le);
@@ -534,7 +561,7 @@ function readTiffPoint(dv, base){
     t = exifDate(readVal(dv, ex[0x9003], le)) || exifDate(readVal(dv, ex[0x9004], le));
   }
   if (!t) t = exifDate(readVal(dv, ifd0[0x0132], le));
-  return { lat, lon, t };
+  return { exif: true, gps: ok, lat: lat, lon: lon, t: t };
 }
 function parseTakeout(text){
   let j; try { j = JSON.parse(text); } catch (e) { return []; }
@@ -665,7 +692,11 @@ async function zipPoints(file, onStep){
   for (const e of imgs){
     const want = /\.jpe?g$/i.test(e.name) ? 262144 : 2097152;
     const buf = await zipEntryHead(file, e, want);
-    if (buf){ const r = parseExif(buf); if (r) pts.push(r); }
+    if (buf){
+      const info = parseExifInfo(buf);
+      diag(e.name.split('/').pop(), info.gps ? 'gps' : info.exif ? 'stripped' : 'noexif');
+      if (info.gps) pts.push({ lat: info.lat, lon: info.lon, t: info.t });
+    } else diag(e.name.split('/').pop(), 'bad');
     if (++seen % 12 === 0){ onStep(seen, imgs.length + meta.length); await new Promise(r => setTimeout(r, 0)); }
   }
   for (const e of meta){
@@ -677,16 +708,32 @@ async function zipPoints(file, onStep){
   return { pts: pts, count: imgs.length + meta.length };
 }
 
+// 넣은 파일마다 무슨 일이 있었는지 기록한다. 어느 방법이 통하는지 알아내는 유일한 단서다.
+let DIAGN = { gps: 0, stripped: 0, noexif: 0, bad: 0 };
+let DIAG = [];
+function diag(name, state){
+  DIAGN[state] = (DIAGN[state] || 0) + 1;
+  if (DIAG.length < 14) DIAG.push({ name: name || '(이름 없음)', state: state });
+}
+
 async function pointsOf(file){
   const nm = (file.name || '').toLowerCase();
-  if (nm.endsWith('.json')){ try { return parseTakeout(await file.text()); } catch (e) { return []; } }
+  if (nm.endsWith('.json')){
+    try {
+      const pts = parseTakeout(await file.text());
+      diag(file.name, pts.length ? 'gps' : 'noexif');
+      return pts;
+    } catch (e) { diag(file.name, 'bad'); return []; }
+  }
   const isJpeg = /\.jpe?g$/.test(nm) || file.type === 'image/jpeg';
   const head = isJpeg ? 262144 : 2097152;
   try {
-    let r = parseExif(await file.slice(0, head).arrayBuffer());
-    if (!r && !isJpeg && file.size > head && file.size <= 40 * 1024 * 1024) r = parseExif(await file.arrayBuffer());
-    return r ? [r] : [];
-  } catch (e) { return []; }
+    let info = parseExifInfo(await file.slice(0, head).arrayBuffer());
+    if (!info.gps && !isJpeg && file.size > head && file.size <= 40 * 1024 * 1024)
+      info = parseExifInfo(await file.arrayBuffer());
+    diag(file.name, info.gps ? 'gps' : info.exif ? 'stripped' : 'noexif');
+    return info.gps ? [{ lat: info.lat, lon: info.lon, t: info.t }] : [];
+  } catch (e) { diag(file.name, 'bad'); return []; }
 }
 
 /* ---------- state ---------- */
@@ -900,22 +947,53 @@ function render(){
     : '전국 16개 시·도를 모두 다녀오셨습니다.';
 }
 
+/* ---------- 진단 표시 ---------- */
+const DLABEL = { gps: '위치 있음', stripped: '위치 지워짐', noexif: 'EXIF 없음', bad: '읽기 실패' };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+function renderDiag(){
+  const box = document.getElementById('diag'), body = document.getElementById('diagBody');
+  const total = DIAGN.gps + DIAGN.stripped + DIAGN.noexif + DIAGN.bad;
+  if (!total){ box.hidden = true; return; }
+  box.hidden = false;
+
+  let h = '<div class="dsum">' +
+    '<span class="g">위치 있음 ' + DIAGN.gps.toLocaleString('ko-KR') + '</span>' +
+    (DIAGN.stripped ? '<span class="s">위치만 지워짐 ' + DIAGN.stripped.toLocaleString('ko-KR') + '</span>' : '') +
+    (DIAGN.noexif ? '<span>촬영 정보 없음 ' + DIAGN.noexif.toLocaleString('ko-KR') + '</span>' : '') +
+    (DIAGN.bad ? '<span>읽기 실패 ' + DIAGN.bad.toLocaleString('ko-KR') + '</span>' : '') + '</div>';
+
+  if (DIAGN.gps > 0){
+    h += '<p class="verdict good"><b>이 방법이 통합니다.</b> 같은 방식으로 나머지 사진도 넣으시면 됩니다.</p>';
+  } else if (DIAGN.stripped > 0){
+    h += '<p class="verdict"><b>촬영 정보는 남아 있는데 좌표만 빠져 있습니다.</b> ' +
+         '사진 자체에는 위치가 그대로 있고, 폰이 넘겨주면서 지운 것입니다. ' +
+         '넣는 방법만 바꾸면 됩니다 — 아래 <b>[안 열리거나, 위치 정보가 없나요?]</b> 를 펴 보세요.</p>';
+  } else if (DIAGN.noexif > 0){
+    h += '<p class="verdict"><b>촬영 정보 자체가 없는 파일입니다.</b> ' +
+         '메신저로 받은 사진이나 스크린샷, 편집본은 원래 위치가 없습니다. ' +
+         '<b>DCIM › Camera</b> 의 원본으로 시도해 보세요.</p>';
+  }
+  h += '<ul class="dlist">' + DIAG.map(x =>
+    '<li><span class="dn">' + esc(x.name) + '</span>' +
+    '<span class="dt ' + x.state + '">' + DLABEL[x.state] + '</span></li>').join('') + '</ul>';
+  body.innerHTML = h;
+  if (DIAGN.gps === 0) box.open = true;
+}
+
 /* ---------- ingest ---------- */
 const prog = document.getElementById('prog'), progFill = document.getElementById('progFill'), progTxt = document.getElementById('progTxt');
 let busy = false;
 async function ingest(files){
   const all = Array.from(files);
-  const list = all.filter(f =>
-    /\.(jpe?g|heic|heif|png|tiff?|webp|dng|json|zip)$/i.test(f.name || '') || (f.type || '').startsWith('image/'));
+  const list = all;                       // 확장자를 가리지 않는다 - 이름을 바꾼 사진도 그대로 읽는다
   if (busy) return;
   if (!list.length){
     prog.classList.add('on'); progFill.style.width = '0%';
-    progTxt.textContent = all.length
-      ? '고른 ' + all.length + '개 파일에서 읽을 수 있는 사진을 찾지 못했습니다.'
-      : '사진이 선택되지 않았습니다. 다시 시도해 주세요.';
+    progTxt.textContent = '파일이 선택되지 않았습니다. 다시 시도해 주세요.';
     setTimeout(() => prog.classList.remove('on'), 5000);
     return;
   }
+  DIAGN = { gps: 0, stripped: 0, noexif: 0, bad: 0 }; DIAG = [];
   busy = true; prog.classList.add('on'); progFill.style.width = '0%';
   const gps0 = LOG.m.gps;
   let read = 0;
@@ -977,7 +1055,7 @@ async function ingest(files){
   progTxt.textContent = found
     ? read.toLocaleString('ko-KR') + '개 중 ' + found.toLocaleString('ko-KR') + '개에서 위치를 찾았습니다'
     : read.toLocaleString('ko-KR') + '개를 읽었지만 위치 정보가 있는 것이 없었습니다';
-  save(); render(); busy = false;
+  save(); render(); renderDiag(); busy = false;
   setTimeout(() => prog.classList.remove('on'), found ? 2600 : 7000);
 }
 
