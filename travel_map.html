@@ -37,7 +37,7 @@ body{
 }
 h1,h2,h3{font-family:"Gowun Batang",Batang,serif; font-weight:700; text-wrap:balance; margin:0; line-height:1.3}
 .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums}
-button{font:inherit; color:inherit}
+button,label.btn{font:inherit; color:inherit}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
 
 .shell{max-width:1240px; margin:0 auto; padding:28px 22px 64px}
@@ -96,8 +96,10 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
 .drop .big{font-family:"Gowun Batang",serif; font-size:17px; font-weight:700}
 .drop .small{font-size:12.5px; color:var(--muted); margin-top:4px}
 .btnrow{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:14px}
-.btn{border:1px solid var(--line2); background:var(--paper); border-radius:7px; padding:7px 13px; font-size:13px;
-  font-weight:500; cursor:pointer; transition:border-color .15s, color .15s}
+.vh{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0}
+.btn{display:inline-block; border:1px solid var(--line2); background:var(--paper); border-radius:7px; padding:7px 13px; font-size:13px;
+  font-weight:500; cursor:pointer; user-select:none; transition:border-color .15s, color .15s}
 .btn:hover{border-color:var(--accent); color:var(--accent)}
 .btn.primary{background:var(--accent); border-color:var(--accent); color:var(--paper)}
 .btn.primary:hover{opacity:.9; color:var(--paper)}
@@ -199,8 +201,8 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
           <div class="big">사진을 여기에 놓으세요</div>
           <div class="small">JPG · HEIC · 구글 테이크아웃 JSON</div>
           <div class="btnrow">
-            <button class="btn primary" id="pickFiles">사진 선택</button>
-            <button class="btn" id="pickDir">폴더 선택</button>
+            <label class="btn primary" for="fileIn" tabindex="0" role="button">사진 선택</label>
+            <label class="btn" for="dirIn" id="pickDir" tabindex="0" role="button">폴더 선택</label>
           </div>
           <div class="devhint">
             <span class="fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
@@ -211,8 +213,8 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
           <div class="track"><i class="fill" id="progFill"></i></div>
           <div class="txt" id="progTxt"></div>
         </div>
-        <input type="file" id="fileIn" multiple accept="image/*,.json" hidden>
-        <input type="file" id="dirIn" multiple webkitdirectory directory hidden>
+        <input type="file" id="fileIn" class="vh" tabindex="-1" multiple accept="image/*,.heic,.heif,.json">
+        <input type="file" id="dirIn" class="vh" tabindex="-1" multiple webkitdirectory directory>
       </div>
 
       <div class="card" id="cSum">
@@ -670,11 +672,21 @@ function render(){
 const prog = document.getElementById('prog'), progFill = document.getElementById('progFill'), progTxt = document.getElementById('progTxt');
 let busy = false;
 async function ingest(files){
-  const list = Array.from(files).filter(f =>
+  const all = Array.from(files);
+  const list = all.filter(f =>
     /\.(jpe?g|heic|heif|png|tiff?|webp|json)$/i.test(f.name || '') || (f.type || '').startsWith('image/'));
-  if (!list.length || busy) return;
+  if (busy) return;
+  if (!list.length){
+    prog.classList.add('on'); progFill.style.width = '0%';
+    progTxt.textContent = all.length
+      ? '고른 ' + all.length + '개 파일에서 읽을 수 있는 사진을 찾지 못했습니다.'
+      : '사진이 선택되지 않았습니다. 다시 시도해 주세요.';
+    setTimeout(() => prog.classList.remove('on'), 5000);
+    return;
+  }
   busy = true; prog.classList.add('on'); progFill.style.width = '0%';
   let done = 0;
+  const gps0 = LOG.m.gps;
   const step = () => {
     done++;
     progFill.style.width = (done / list.length * 100).toFixed(1) + '%';
@@ -701,15 +713,24 @@ async function ingest(files){
     render();
     await new Promise(r => setTimeout(r, 0));
   }
-  progTxt.textContent = list.length.toLocaleString('ko-KR') + '장 처리 완료';
+  const found = LOG.m.gps - gps0;
+  progTxt.textContent = found
+    ? list.length.toLocaleString('ko-KR') + '장 중 ' + found.toLocaleString('ko-KR') + '장에서 위치를 찾았습니다'
+    : list.length.toLocaleString('ko-KR') + '장을 읽었지만 위치 정보가 있는 사진이 없었습니다';
   save(); render(); busy = false;
-  setTimeout(() => prog.classList.remove('on'), 2200);
+  setTimeout(() => prog.classList.remove('on'), found ? 2600 : 7000);
 }
 
 /* ---------- controls ---------- */
 const drop = document.getElementById('drop'), fileIn = document.getElementById('fileIn'), dirIn = document.getElementById('dirIn');
-document.getElementById('pickFiles').onclick = () => fileIn.click();
-document.getElementById('pickDir').onclick = () => dirIn.click();
+for (const lb of document.querySelectorAll('label.btn')){
+  lb.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    const inp = document.getElementById(lb.getAttribute('for'));
+    if (inp) inp.click();
+  });
+}
 fileIn.onchange = () => { ingest(fileIn.files); fileIn.value = ''; };
 dirIn.onchange  = () => { ingest(dirIn.files);  dirIn.value  = ''; };
 ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
