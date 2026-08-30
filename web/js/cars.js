@@ -177,6 +177,7 @@ Car.prototype.drive = function (dt, input, world) {
   const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
   const step = this.speed * dt;
   const half = this.type.wide / 2;
+  const fromX = this.x, fromZ = this.z;      // 벽에 박히면 여기로 되돌린다
   // 가는 쪽 모서리를 본다. 앞만 보면 벽에 코를 박았을 때 후진으로도 못 빠진다.
   const lead = this.speed < 0 ? -1 : 1;
   const mx = s * step, mz = c * step;
@@ -217,11 +218,29 @@ Car.prototype.drive = function (dt, input, world) {
     this.scrape = slid ? 1 : 2;
   }
 
+  // 옮긴 자리 한가운데가 벽 속이면 되돌린다.
+  //
+  // 아래의 "땅 높이 따라가기" 는 차 지붕 높이(CAR_BODY_H)까지 올려다보므로,
+  // 차가 건물 벽에 한 칸이라도 파고들면 그 벽면을 땅으로 읽고 세 칸을 솟는다.
+  // 다음 프레임에는 더 높은 데서 또 읽어, 초당 CAR_RISE 로 벽을 타고
+  // 지붕까지 올라가 버렸다 — 건물에 부딪히면 시점이 옥상으로 튀던 까닭이다.
+  {
+    const mid = this.surfaceAt(world, this.x, this.z, this.y);
+    if (mid !== null && mid - this.y > CAR_CLIMB) {
+      this.x = fromX; this.z = fromZ;                 // 부딪히기 직전으로
+      const sp2 = Math.abs(this.speed);
+      this.speed = (this.speed < 0 ? -1 : 1) * Math.max(0, sp2 - CAR_BUMP_DEC * dt);
+      this.scrape = 2;
+    }
+  }
+
   // 땅 높이를 따라간다. 오르막은 빨리 따라 올라가야 앞 모서리가 걸리지 않는다.
   // 머리 위 나뭇가지에 끌려 올라가지 않도록 여기서도 지붕 높이까지만 본다.
   const surf = this.surfaceAt(world, this.x, this.z, this.y);
   if (surf !== null) {
-    const d2 = surf - this.y;
+    let d2 = surf - this.y;
+    // 오를 수 있는 턱보다 높으면 비탈이 아니라 벽이다. 따라 올라가지 않는다.
+    if (d2 > CAR_CLIMB) d2 = 0;
     this.y += (d2 > 0) ? Math.min(d2, CAR_RISE * dt) : Math.max(d2, -CAR_FALL * dt);
   } else {
     const top = world.topSolidY(Math.floor(this.x), Math.floor(this.z));
@@ -249,7 +268,9 @@ Car.prototype.canStand = function (world, x, z, half, lead) {
   // 그것만 믿으면 오르막에서 코앞 땅이 훌쩍 높아 보여 그냥 서 버린다.
   const under = this.surfaceAt(world, x, z, this.y);
   const base = (under === null) ? this.y : Math.max(this.y, under);
-  for (const sw of [-half, half]) {
+  // 가운데도 같이 본다. 양옆만 보면 차 한가운데가 벽 모서리에 걸린 채로
+  // 통과해 버려, 아래의 높이 따라가기가 그 벽을 타고 올라간다.
+  for (const sw of [-half, 0, half]) {
     let ref = base;
     for (let i = 1; i <= CAR_PROBE; i++) {
       const f = (nose * i) / CAR_PROBE;

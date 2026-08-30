@@ -1541,6 +1541,23 @@ body.touch #fly-panel {
           <li>도시를 한 바퀴 도는 <b>순환도로</b>에도 매끄러운 띠를 덧그린다.
               블록으로만 깔면 둥근 길이 계단처럼 층져 보였다. 포장·연석·갓길 흰 선·
               가운데 노란 점선까지 이어 그린다</li>
+          <li><b>차가 건물에 부딪히면 시점이 옥상으로 튀었다.</b> 3인칭 카메라는
+              차 뒤 열 칸쯤에 서는데, 땅에 묻히지 않으려고 그 자리
+              <b>기둥 꼭대기</b>까지 눈을 들어 올렸다. 카메라가 건물 자리에
+              걸치면 그 건물 <b>옥상</b>이 기둥 꼭대기라서, 화면이 한순간
+              지붕 위로 솟았다 (106칸짜리 건물 옆에서 <b>56칸</b>이 들렸다).
+              이제 위로 올리는 대신 <b>막히면 차 쪽으로 당긴다</b> — 흔한 방식이고
+              화면이 딴 데로 날아가지 않는다. 최대 들림 <b>56.2 → 4.4칸</b>
+              (평상시 값과 같다). 포크레인·비행기 카메라도 같이 고쳤다</li>
+          <li>차가 벽에 파고들면 <b>부딪히기 직전으로 되돌린다.</b> 차는 지붕
+              높이까지 올려다보며 땅을 따라가므로, 벽에 한 칸이라도 박히면
+              그 벽면을 땅으로 읽고 계속 솟아올랐다. 오를 수 있는 턱보다 높으면
+              비탈이 아니라 벽으로 보고 따라 오르지 않는다 (덤프트럭도 같다)</li>
+          <li><b>제자리걸음에는 발소리가 나지 않는다.</b> 걸은 거리를 프레임마다
+              더하기만 하면, 벽이나 턱에 막혀 앞뒤로 떨리는 동안에도 거리가 쌓여
+              발소리가 끝없이 되풀이됐다 (뒤로 걸으며 20초 동안 실제로는
+              <b>0.2칸</b>밖에 못 갔는데 세 걸음이 났다). 이제 지난 걸음
+              자리에서 <b>정말로 벗어났을 때만</b> 한 걸음으로 친다</li>
           <li><b>열차 소리</b>를 실제 전동차처럼 네 겹으로 만들었다.
               바퀴가 레일을 구르는 <b>넓은 잡음</b>(속도가 붙을수록 높은 쪽까지
               열린다), 인버터가 모터를 돌리며 내는 <b>우웅— 하는 주행음</b>
@@ -18531,6 +18548,7 @@ Car.prototype.drive = function (dt, input, world) {
   const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
   const step = this.speed * dt;
   const half = this.type.wide / 2;
+  const fromX = this.x, fromZ = this.z;      // 벽에 박히면 여기로 되돌린다
   // 가는 쪽 모서리를 본다. 앞만 보면 벽에 코를 박았을 때 후진으로도 못 빠진다.
   const lead = this.speed < 0 ? -1 : 1;
   const mx = s * step, mz = c * step;
@@ -18571,11 +18589,29 @@ Car.prototype.drive = function (dt, input, world) {
     this.scrape = slid ? 1 : 2;
   }
 
+  // 옮긴 자리 한가운데가 벽 속이면 되돌린다.
+  //
+  // 아래의 "땅 높이 따라가기" 는 차 지붕 높이(CAR_BODY_H)까지 올려다보므로,
+  // 차가 건물 벽에 한 칸이라도 파고들면 그 벽면을 땅으로 읽고 세 칸을 솟는다.
+  // 다음 프레임에는 더 높은 데서 또 읽어, 초당 CAR_RISE 로 벽을 타고
+  // 지붕까지 올라가 버렸다 — 건물에 부딪히면 시점이 옥상으로 튀던 까닭이다.
+  {
+    const mid = this.surfaceAt(world, this.x, this.z, this.y);
+    if (mid !== null && mid - this.y > CAR_CLIMB) {
+      this.x = fromX; this.z = fromZ;                 // 부딪히기 직전으로
+      const sp2 = Math.abs(this.speed);
+      this.speed = (this.speed < 0 ? -1 : 1) * Math.max(0, sp2 - CAR_BUMP_DEC * dt);
+      this.scrape = 2;
+    }
+  }
+
   // 땅 높이를 따라간다. 오르막은 빨리 따라 올라가야 앞 모서리가 걸리지 않는다.
   // 머리 위 나뭇가지에 끌려 올라가지 않도록 여기서도 지붕 높이까지만 본다.
   const surf = this.surfaceAt(world, this.x, this.z, this.y);
   if (surf !== null) {
-    const d2 = surf - this.y;
+    let d2 = surf - this.y;
+    // 오를 수 있는 턱보다 높으면 비탈이 아니라 벽이다. 따라 올라가지 않는다.
+    if (d2 > CAR_CLIMB) d2 = 0;
     this.y += (d2 > 0) ? Math.min(d2, CAR_RISE * dt) : Math.max(d2, -CAR_FALL * dt);
   } else {
     const top = world.topSolidY(Math.floor(this.x), Math.floor(this.z));
@@ -18603,7 +18639,9 @@ Car.prototype.canStand = function (world, x, z, half, lead) {
   // 그것만 믿으면 오르막에서 코앞 땅이 훌쩍 높아 보여 그냥 서 버린다.
   const under = this.surfaceAt(world, x, z, this.y);
   const base = (under === null) ? this.y : Math.max(this.y, under);
-  for (const sw of [-half, half]) {
+  // 가운데도 같이 본다. 양옆만 보면 차 한가운데가 벽 모서리에 걸린 채로
+  // 통과해 버려, 아래의 높이 따라가기가 그 벽을 타고 올라간다.
+  for (const sw of [-half, 0, half]) {
     let ref = base;
     for (let i = 1; i <= CAR_PROBE; i++) {
       const f = (nose * i) / CAR_PROBE;
@@ -26043,9 +26081,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.12';
+const GAME_VERSION = 'v10.12.1';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '열차 주행음과 이음매 소리 · 배 기관 맥동 · 뱃고동';
+const GAME_FEATURES = '옥상으로 안 튀는 카메라 · 제자리걸음 발소리 없앰';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -27690,6 +27728,43 @@ Game.prototype.exitCar = function () {
 };
 
 // 운전 중 카메라 — 차 뒤쪽 위에서 따라간다
+// ── 따라다니는 카메라 자리 잡기 ─────────────────────────────────────
+// 3인칭 카메라는 차·포크레인·비행기 뒤쪽 높은 곳에 선다.
+//
+// 예전에는 그 자리 기둥 꼭대기(topSolidY)까지 눈을 들어 올려 땅에 묻히지
+// 않게 했다. 그런데 카메라가 건물 자리에 걸치면 그 건물 "옥상" 이 기둥
+// 꼭대기라, 시점이 한순간 지붕 위로 튀어 올랐다 — 차가 빌딩에 부딪혀
+// 카메라가 벽 쪽으로 밀릴 때 화면이 확 솟던 까닭이다.
+//
+// 이제는 위로 올리는 대신, 막히면 대상 쪽으로 당긴다 (흔한 방식이다).
+// 땅에 묻히는 것만 막되 대상 높이 언저리까지만 내려다보므로, 지붕처럼
+// 한참 위에 있는 것에는 끌려 올라가지 않는다.
+Game.prototype.chaseEye = function (t, e, clear) {
+  const w = this.world, cl = (clear === undefined) ? 2.2 : clear;
+  const solid = function (x, y, z) {
+    const id = w.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
+    if (!id) return false;
+    const d = blockDef(id);
+    return !!d.solid && !d.liquid && !d.leaves;   // 나뭇잎은 그냥 지나간다
+  };
+  const vx = e[0] - t[0], vy = e[1] - t[1], vz = e[2] - t[2];
+  const N = 12;
+  let f = 1;
+  for (let k = 0; k <= N; k++) {
+    const x = t[0] + vx * f, y = t[1] + vy * f, z = t[2] + vz * f;
+    if (!solid(x, y, z) && !solid(x, y + 1, z)) break;
+    f -= 1 / N;
+    if (f < 0.18) { f = 0.18; break; }
+  }
+  const x = t[0] + vx * f, z = t[2] + vz * f;
+  let y = t[1] + vy * f;
+  const lo = Math.floor(t[1]) - 3;
+  for (let q = Math.floor(y); q >= lo; q--) {
+    if (solid(x, q, z)) { y = Math.max(y, q + cl); break; }
+  }
+  return [x, y, z];
+};
+
 Game.prototype.carCamera = function (car, dt) {
   if (this._carYaw === undefined) this._carYaw = car.yaw;
   let d = car.yaw - this._carYaw;
@@ -27700,12 +27775,10 @@ Game.prototype.carCamera = function (car, dt) {
   const back = 9.5 + Math.min(3.5, Math.abs(car.speed) * 0.22);
   const up = 4.4;
   const s = Math.sin(this._carYaw), c = Math.cos(this._carYaw);
-  let ex = car.x - s * back, ez = car.z - c * back;
-  let ey = car.y + up;
-  const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
-  if (gy >= 0 && ey < gy + 2.2) ey = gy + 2.2;
+  const eye = this.chaseEye([car.x, car.y, car.z],
+    [car.x - s * back, car.y + up, car.z - c * back], 2.2);
   return {
-    eye: [ex, ey, ez],
+    eye: eye,
     yaw: this._carYaw + Math.PI,   // 렌더러 규약(앞 = -Z)에 맞춘다
     pitch: -0.22,
     roll: 0
@@ -27724,13 +27797,11 @@ Game.prototype.diggerCamera = function (ex, dt) {
 
   const back = 11.5, up = 8.5;
   const s = Math.sin(this._digYaw), c = Math.cos(this._digYaw);
-  const cx = ex.x - s * back, cz = ex.z - c * back;
-  let cyy = ex.y + up;
-  const gy = this.world.topSolidY(Math.floor(cx), Math.floor(cz));
-  if (gy >= 0 && cyy < gy + 3) cyy = gy + 3;
+  const eye = this.chaseEye([ex.x, ex.y, ex.z],
+    [ex.x - s * back, ex.y + up, ex.z - c * back], 3);
   // 마우스로 내려다보는 각도만 조금 조절한다 (좌우는 몸통 회전이 정한다)
   const pitch = Math.max(-1.15, Math.min(-0.1, -0.52 + this.player.pitch * 0.6));
-  return { eye: [cx, cyy, cz], yaw: this._digYaw + Math.PI, pitch: pitch, roll: 0 };
+  return { eye: eye, yaw: this._digYaw + Math.PI, pitch: pitch, roll: 0 };
 };
 
 // 역에 서면 알려 준다
@@ -27766,14 +27837,11 @@ Game.prototype.planeCamera = function (pl, dt) {
   // 기체를 줄인 만큼 카메라도 붙는다 — 화면에 보이는 크기는 그대로, 세상이 넓어 보인다
   const back = (pl.onGround ? 30 : 34) * PLANE_SCALE;
   const up = (pl.onGround ? 8 : 9) * PLANE_SCALE;
-  let ex = pl.x - nose[0] * back;
-  let ey = pl.y - nose[1] * back + up;
-  let ez = pl.z - nose[2] * back;
-  const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
-  if (gy >= 0 && ey < gy + 2.5) ey = gy + 2.5;
+  const eye = this.chaseEye([pl.x, pl.y, pl.z],
+    [pl.x - nose[0] * back, pl.y - nose[1] * back + up, pl.z - nose[2] * back], 2.5);
   // 렌더러의 시선 규약(앞 = -Z)에 맞추려면 반 바퀴 돌린다
   return {
-    eye: [ex, ey, ez],
+    eye: eye,
     yaw: this._camYaw + Math.PI,
     pitch: this._camPitch,
     roll: pl.roll * 0.35
@@ -29561,8 +29629,10 @@ Game.prototype.updateFootsteps = function (dt) {
     if (wet && Math.abs(p.vy) > 1.2) this.playSound('splash');
   }
 
-  const moved = Math.hypot(p.x - (this._sndLastX === undefined ? p.x : this._sndLastX),
-                           p.z - (this._sndLastZ === undefined ? p.z : this._sndLastZ));
+  // 한 프레임에 움직인 거리. 순간이동(도시로·부활)은 한 걸음으로 치지 않게 자른다.
+  let moved = Math.hypot(p.x - (this._sndLastX === undefined ? p.x : this._sndLastX),
+                         p.z - (this._sndLastZ === undefined ? p.z : this._sndLastZ));
+  if (moved > 0.8) moved = 0;
   this._sndLastX = p.x; this._sndLastZ = p.z;
   if (p.flying || !p.onGround || moved < 1e-4) {
     // 떨어졌다 닿으면 착지음 — 높이 떨어질수록 세게
@@ -29583,6 +29653,16 @@ Game.prototype.updateFootsteps = function (dt) {
   this._sndWalk = (this._sndWalk || 0) + moved;
   if (this._sndWalk < stride) return;
   this._sndWalk = 0;
+  // 정말로 나아갔을 때만 한 걸음으로 친다.
+  //
+  // 프레임마다의 이동량을 그대로 더하면, 벽이나 턱에 막혀 제자리에서
+  // 앞뒤로 떨리는 동안에도 거리가 쌓여 발소리가 끝없이 되풀이된다.
+  // (뒤로 걸으며 20초 동안 실제로는 0.2칸밖에 못 갔는데 세 걸음이 났다.)
+  // 그래서 지난 걸음 자리에서 얼마나 벗어났는지도 함께 본다.
+  if (this._sndStepX === undefined) { this._sndStepX = p.x; this._sndStepZ = p.z; }
+  const away = Math.hypot(p.x - this._sndStepX, p.z - this._sndStepZ);
+  if (away < stride * 0.6) return;              // 제자리걸음이다
+  this._sndStepX = p.x; this._sndStepZ = p.z;
   if (p.inWater) { this.playSound('splash'); return; }
   this.playSound('step', { block: this.sndGroundMatId() });
 };
@@ -30981,8 +31061,10 @@ Excavator.prototype.driveTruck = function (dt, game, route) {
   const surf = w.rideSurfaceAt(tr.x, tr.z, tr.y, TRUCK_BODY_H, 5);
   if (surf !== null) {
     const ty = Math.max(surf, SEA_LEVEL + 1);
+    // 오를 수 있는 턱보다 훨씬 높으면 비탈이 아니라 벽이다 — 타고 오르지 않는다
+    if (ty - tr.y > TRUCK_CLIMB * 2) { /* 벽 */ }
     // 한 번에 턱 높이만큼만 오른다 (순간이동하지 않는다)
-    if (ty > tr.y) tr.y = Math.min(ty, tr.y + Math.max(TRUCK_CLIMB, 14 * dt));
+    else if (ty > tr.y) tr.y = Math.min(ty, tr.y + Math.max(TRUCK_CLIMB, 14 * dt));
     else tr.y = Math.max(ty, tr.y - 18 * dt);      // 내리막에서 붕 뜨지 않게
   }
   return false;

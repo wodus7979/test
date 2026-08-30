@@ -326,8 +326,10 @@ Game.prototype.updateFootsteps = function (dt) {
     if (wet && Math.abs(p.vy) > 1.2) this.playSound('splash');
   }
 
-  const moved = Math.hypot(p.x - (this._sndLastX === undefined ? p.x : this._sndLastX),
-                           p.z - (this._sndLastZ === undefined ? p.z : this._sndLastZ));
+  // 한 프레임에 움직인 거리. 순간이동(도시로·부활)은 한 걸음으로 치지 않게 자른다.
+  let moved = Math.hypot(p.x - (this._sndLastX === undefined ? p.x : this._sndLastX),
+                         p.z - (this._sndLastZ === undefined ? p.z : this._sndLastZ));
+  if (moved > 0.8) moved = 0;
   this._sndLastX = p.x; this._sndLastZ = p.z;
   if (p.flying || !p.onGround || moved < 1e-4) {
     // 떨어졌다 닿으면 착지음 — 높이 떨어질수록 세게
@@ -348,6 +350,16 @@ Game.prototype.updateFootsteps = function (dt) {
   this._sndWalk = (this._sndWalk || 0) + moved;
   if (this._sndWalk < stride) return;
   this._sndWalk = 0;
+  // 정말로 나아갔을 때만 한 걸음으로 친다.
+  //
+  // 프레임마다의 이동량을 그대로 더하면, 벽이나 턱에 막혀 제자리에서
+  // 앞뒤로 떨리는 동안에도 거리가 쌓여 발소리가 끝없이 되풀이된다.
+  // (뒤로 걸으며 20초 동안 실제로는 0.2칸밖에 못 갔는데 세 걸음이 났다.)
+  // 그래서 지난 걸음 자리에서 얼마나 벗어났는지도 함께 본다.
+  if (this._sndStepX === undefined) { this._sndStepX = p.x; this._sndStepZ = p.z; }
+  const away = Math.hypot(p.x - this._sndStepX, p.z - this._sndStepZ);
+  if (away < stride * 0.6) return;              // 제자리걸음이다
+  this._sndStepX = p.x; this._sndStepZ = p.z;
   if (p.inWater) { this.playSound('splash'); return; }
   this.playSound('step', { block: this.sndGroundMatId() });
 };

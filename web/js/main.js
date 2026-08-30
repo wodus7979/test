@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.12';
+const GAME_VERSION = 'v10.12.1';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '열차 주행음과 이음매 소리 · 배 기관 맥동 · 뱃고동';
+const GAME_FEATURES = '옥상으로 안 튀는 카메라 · 제자리걸음 발소리 없앰';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -1675,6 +1675,43 @@ Game.prototype.exitCar = function () {
 };
 
 // 운전 중 카메라 — 차 뒤쪽 위에서 따라간다
+// ── 따라다니는 카메라 자리 잡기 ─────────────────────────────────────
+// 3인칭 카메라는 차·포크레인·비행기 뒤쪽 높은 곳에 선다.
+//
+// 예전에는 그 자리 기둥 꼭대기(topSolidY)까지 눈을 들어 올려 땅에 묻히지
+// 않게 했다. 그런데 카메라가 건물 자리에 걸치면 그 건물 "옥상" 이 기둥
+// 꼭대기라, 시점이 한순간 지붕 위로 튀어 올랐다 — 차가 빌딩에 부딪혀
+// 카메라가 벽 쪽으로 밀릴 때 화면이 확 솟던 까닭이다.
+//
+// 이제는 위로 올리는 대신, 막히면 대상 쪽으로 당긴다 (흔한 방식이다).
+// 땅에 묻히는 것만 막되 대상 높이 언저리까지만 내려다보므로, 지붕처럼
+// 한참 위에 있는 것에는 끌려 올라가지 않는다.
+Game.prototype.chaseEye = function (t, e, clear) {
+  const w = this.world, cl = (clear === undefined) ? 2.2 : clear;
+  const solid = function (x, y, z) {
+    const id = w.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
+    if (!id) return false;
+    const d = blockDef(id);
+    return !!d.solid && !d.liquid && !d.leaves;   // 나뭇잎은 그냥 지나간다
+  };
+  const vx = e[0] - t[0], vy = e[1] - t[1], vz = e[2] - t[2];
+  const N = 12;
+  let f = 1;
+  for (let k = 0; k <= N; k++) {
+    const x = t[0] + vx * f, y = t[1] + vy * f, z = t[2] + vz * f;
+    if (!solid(x, y, z) && !solid(x, y + 1, z)) break;
+    f -= 1 / N;
+    if (f < 0.18) { f = 0.18; break; }
+  }
+  const x = t[0] + vx * f, z = t[2] + vz * f;
+  let y = t[1] + vy * f;
+  const lo = Math.floor(t[1]) - 3;
+  for (let q = Math.floor(y); q >= lo; q--) {
+    if (solid(x, q, z)) { y = Math.max(y, q + cl); break; }
+  }
+  return [x, y, z];
+};
+
 Game.prototype.carCamera = function (car, dt) {
   if (this._carYaw === undefined) this._carYaw = car.yaw;
   let d = car.yaw - this._carYaw;
@@ -1685,12 +1722,10 @@ Game.prototype.carCamera = function (car, dt) {
   const back = 9.5 + Math.min(3.5, Math.abs(car.speed) * 0.22);
   const up = 4.4;
   const s = Math.sin(this._carYaw), c = Math.cos(this._carYaw);
-  let ex = car.x - s * back, ez = car.z - c * back;
-  let ey = car.y + up;
-  const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
-  if (gy >= 0 && ey < gy + 2.2) ey = gy + 2.2;
+  const eye = this.chaseEye([car.x, car.y, car.z],
+    [car.x - s * back, car.y + up, car.z - c * back], 2.2);
   return {
-    eye: [ex, ey, ez],
+    eye: eye,
     yaw: this._carYaw + Math.PI,   // 렌더러 규약(앞 = -Z)에 맞춘다
     pitch: -0.22,
     roll: 0
@@ -1709,13 +1744,11 @@ Game.prototype.diggerCamera = function (ex, dt) {
 
   const back = 11.5, up = 8.5;
   const s = Math.sin(this._digYaw), c = Math.cos(this._digYaw);
-  const cx = ex.x - s * back, cz = ex.z - c * back;
-  let cyy = ex.y + up;
-  const gy = this.world.topSolidY(Math.floor(cx), Math.floor(cz));
-  if (gy >= 0 && cyy < gy + 3) cyy = gy + 3;
+  const eye = this.chaseEye([ex.x, ex.y, ex.z],
+    [ex.x - s * back, ex.y + up, ex.z - c * back], 3);
   // 마우스로 내려다보는 각도만 조금 조절한다 (좌우는 몸통 회전이 정한다)
   const pitch = Math.max(-1.15, Math.min(-0.1, -0.52 + this.player.pitch * 0.6));
-  return { eye: [cx, cyy, cz], yaw: this._digYaw + Math.PI, pitch: pitch, roll: 0 };
+  return { eye: eye, yaw: this._digYaw + Math.PI, pitch: pitch, roll: 0 };
 };
 
 // 역에 서면 알려 준다
@@ -1751,14 +1784,11 @@ Game.prototype.planeCamera = function (pl, dt) {
   // 기체를 줄인 만큼 카메라도 붙는다 — 화면에 보이는 크기는 그대로, 세상이 넓어 보인다
   const back = (pl.onGround ? 30 : 34) * PLANE_SCALE;
   const up = (pl.onGround ? 8 : 9) * PLANE_SCALE;
-  let ex = pl.x - nose[0] * back;
-  let ey = pl.y - nose[1] * back + up;
-  let ez = pl.z - nose[2] * back;
-  const gy = this.world.topSolidY(Math.floor(ex), Math.floor(ez));
-  if (gy >= 0 && ey < gy + 2.5) ey = gy + 2.5;
+  const eye = this.chaseEye([pl.x, pl.y, pl.z],
+    [pl.x - nose[0] * back, pl.y - nose[1] * back + up, pl.z - nose[2] * back], 2.5);
   // 렌더러의 시선 규약(앞 = -Z)에 맞추려면 반 바퀴 돌린다
   return {
-    eye: [ex, ey, ez],
+    eye: eye,
     yaw: this._camYaw + Math.PI,
     pitch: this._camPitch,
     roll: pl.roll * 0.35

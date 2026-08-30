@@ -263,8 +263,10 @@ Excavator.prototype.driveTruck = function (dt, game, route) {
   const surf = w.rideSurfaceAt(tr.x, tr.z, tr.y, TRUCK_BODY_H, 5);
   if (surf !== null) {
     const ty = Math.max(surf, SEA_LEVEL + 1);
+    // 오를 수 있는 턱보다 훨씬 높으면 비탈이 아니라 벽이다 — 타고 오르지 않는다
+    if (ty - tr.y > TRUCK_CLIMB * 2) { /* 벽 */ }
     // 한 번에 턱 높이만큼만 오른다 (순간이동하지 않는다)
-    if (ty > tr.y) tr.y = Math.min(ty, tr.y + Math.max(TRUCK_CLIMB, 14 * dt));
+    else if (ty > tr.y) tr.y = Math.min(ty, tr.y + Math.max(TRUCK_CLIMB, 14 * dt));
     else tr.y = Math.max(ty, tr.y - 18 * dt);      // 내리막에서 붕 뜨지 않게
   }
   return false;
