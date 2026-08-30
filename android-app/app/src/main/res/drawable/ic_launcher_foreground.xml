@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 지도 위의 발자국을 단순화한 핀 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28c-8.8,0 -16,7.2 -16,16c0,12 16,28 16,28s16,-16 16,-28C70,35.2 62.8,28 54,28zM54,50c-3.3,0 -6,-2.7 -6,-6s2.7,-6 6,-6s6,2.7 6,6S57.3,50 54,50z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.55"
+        android:pathData="M36,76h36v5h-36z" />
+</vector>

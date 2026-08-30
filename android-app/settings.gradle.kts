@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "여행 발자국"
+rootProject.name = "TravelMap"
 include(":app")
