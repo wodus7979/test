@@ -104,6 +104,8 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
 .btn.quiet{border-color:transparent; color:var(--muted); padding:6px 8px; font-size:12.5px}
 .btn.quiet:hover{color:var(--accent)}
 
+.devhint{font-size:12px; color:var(--muted); margin-top:10px}
+.devhint .touch{display:none}
 .prog{margin-top:13px; display:none}
 .prog.on{display:block}
 .prog .track{height:4px; background:var(--line); border-radius:99px; overflow:hidden}
@@ -152,6 +154,13 @@ details.io textarea{width:100%; margin-top:9px; min-height:76px; resize:vertical
 .msg{font-size:12.5px; color:var(--accent); min-height:19px; margin-top:7px}
 
 footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.7}
+/* Folder pickers do nothing useful on phones; point at the album picker instead. */
+@media (pointer:coarse){
+  #pickDir{display:none}
+  .devhint .fine{display:none}
+  .devhint .touch{display:inline}
+}
+
 /* Responsive overrides live last so they win over the component rules above. */
 @media (max-width:900px){
   main{display:flex; flex-direction:column; gap:18px}
@@ -192,6 +201,10 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
           <div class="btnrow">
             <button class="btn primary" id="pickFiles">사진 선택</button>
             <button class="btn" id="pickDir">폴더 선택</button>
+          </div>
+          <div class="devhint">
+            <span class="fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
+            <span class="touch">앨범에서 여러 장을 한 번에 골라도 됩니다</span>
           </div>
         </div>
         <div class="prog" id="prog">
@@ -307,7 +320,28 @@ function findDistrict(lat, lon){
 
 /* ---------- EXIF ---------- */
 const TSIZE = {1:1,2:1,3:2,4:4,5:8,6:1,7:1,8:2,9:4,10:8,11:4,12:8};
-function exifBase(dv, u8){
+// A TIFF header alone is two bytes of magic - far too weak to trust inside a 2 MB scan.
+// Require the block to also expose a GPS or Exif IFD pointer before accepting it.
+function tiffHasExifTags(dv, base){
+  if (base < 0 || base + 8 > dv.byteLength) return false;
+  const bo = dv.getUint16(base);
+  const le = bo === 0x4949 ? true : bo === 0x4D4D ? false : null;
+  if (le === null) return false;
+  if (dv.getUint16(base + 2, le) !== 42) return false;
+  const off = dv.getUint32(base + 4, le);
+  if (off < 8 || base + off + 2 > dv.byteLength) return false;
+  const n = dv.getUint16(base + off, le);
+  if (n < 1 || n > 512) return false;
+  for (let i = 0; i < n; i++){
+    const e = base + off + 2 + i * 12;
+    if (e + 12 > dv.byteLength) return false;
+    const tag = dv.getUint16(e, le);
+    if (tag === 0x8825 || tag === 0x8769) return true;
+  }
+  return false;
+}
+function exifBases(dv, u8){
+  const out = [];
   if (dv.byteLength > 4 && dv.getUint16(0) === 0xFFD8){
     let off = 2;
     while (off + 4 <= dv.byteLength){
@@ -317,18 +351,25 @@ function exifBase(dv, u8){
       if (m === 0xDA) break;
       const len = dv.getUint16(off + 2);
       if (len < 2) break;
-      if (m === 0xE1 && len >= 10 && dv.getUint32(off + 4) === 0x45786966 && dv.getUint16(off + 8) === 0) return off + 10;
+      if (m === 0xE1 && len >= 10 && dv.getUint32(off + 4) === 0x45786966 && dv.getUint16(off + 8) === 0) out.push(off + 10);
       off += 2 + len;
     }
-    return -1;
+    return out;
   }
-  for (let i = 0; i + 8 < u8.length; i++){
+  // HEIC/HEIF: the Exif item usually carries an "Exif\0\0" marker before the TIFF block...
+  for (let i = 0; i + 8 < u8.length && out.length < 8; i++){
     if (u8[i] === 0x45 && u8[i+1] === 0x78 && u8[i+2] === 0x69 && u8[i+3] === 0x66 && u8[i+4] === 0 && u8[i+5] === 0){
-      const b = i + 6, m = (u8[b] << 8) | u8[b+1];
-      if (m === 0x4949 || m === 0x4D4D) return b;
+      if (tiffHasExifTags(dv, i + 6)) out.push(i + 6);
     }
   }
-  return -1;
+  if (out.length) return out;
+  // ...but plenty of phones write the TIFF header straight after the item's offset field.
+  for (let i = 0; i + 8 < u8.length && out.length < 8; i++){
+    const a = u8[i], b = u8[i+1], c = u8[i+2], d = u8[i+3];
+    if (!((a === 0x49 && b === 0x49 && c === 0x2A && d === 0x00) || (a === 0x4D && b === 0x4D && c === 0x00 && d === 0x2A))) continue;
+    if (tiffHasExifTags(dv, i)) out.push(i);
+  }
+  return out;
 }
 function readIFD(dv, base, off, le){
   const out = {};
@@ -375,7 +416,13 @@ function exifDate(s){
 }
 function parseExif(buf){
   const dv = new DataView(buf), u8 = new Uint8Array(buf);
-  const base = exifBase(dv, u8);
+  for (const base of exifBases(dv, u8)){
+    const r = readTiffPoint(dv, base);
+    if (r) return r;
+  }
+  return null;
+}
+function readTiffPoint(dv, base){
   if (base < 0 || base + 8 > dv.byteLength) return null;
   const bo = dv.getUint16(base);
   const le = bo === 0x4949 ? true : bo === 0x4D4D ? false : null;
@@ -582,7 +629,12 @@ function render(){
   if (LOG.m.seoul) bits.push('서울에서 찍은 사진 <b>' + LOG.m.seoul.toLocaleString('ko-KR') + '장</b>은 요청대로 기록에서 뺐습니다.');
   if (LOG.m.abroad) bits.push('국내 경계 밖(해외 등) 사진 <b>' + LOG.m.abroad.toLocaleString('ko-KR') + '장</b>은 이 지도에 표시되지 않습니다.');
   const nogps = LOG.m.files - LOG.m.gps;
-  if (nogps > 0) bits.push('위치 정보가 없는 사진 <b>' + nogps.toLocaleString('ko-KR') + '장</b>은 건너뛰었습니다.');
+  if (nogps > 0){
+    let s = '위치 정보가 없는 사진 <b>' + nogps.toLocaleString('ko-KR') + '장</b>은 건너뛰었습니다.';
+    if (LOG.m.files >= 5 && nogps / LOG.m.files >= 0.5)
+      s += ' 대부분이 그렇다면 촬영 당시 카메라의 위치 태그가 꺼져 있었거나, 옮기는 과정에서 위치가 지워진 사진입니다.';
+    bits.push(s);
+  }
   document.getElementById('note').innerHTML = bits.join('<br>') || '사진을 올리면 여기에 처리 결과가 정리됩니다.';
 
   // ledger
