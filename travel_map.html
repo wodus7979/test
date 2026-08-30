@@ -103,7 +103,8 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
   border-radius:var(--r); background:var(--paper); padding:22px 16px; text-align:center; cursor:pointer;
   transition:border-color .15s ease, background .15s ease}
 .drop:hover{border-color:var(--accent)}
-.drop .small:last-child{font-size:11.5px; opacity:.8}
+.drop .small.ok{font-size:11.5px; color:var(--accent)}
+.devhint b{color:var(--ink2); font-weight:600}
 .drop.over{border-color:var(--accent); background:var(--accent-soft)}
 .drop .big{font-family:"Gowun Batang",serif; font-size:17px; font-weight:700}
 .drop .small{font-size:12.5px; color:var(--muted)}
@@ -118,8 +119,8 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
 .btn.quiet{border-color:transparent; color:var(--muted); padding:6px 8px; font-size:12.5px}
 .btn.quiet:hover{color:var(--accent)}
 
-.devhint{font-size:12px; color:var(--muted); margin-top:10px}
-.devhint .touch{display:none}
+.devhint{display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); margin-top:10px}
+.devhint .warn{padding-left:9px; border-left:2px solid var(--s2)}
 .prog{margin-top:13px; display:none}
 .prog.on{display:block}
 .prog .track{height:4px; background:var(--line); border-radius:99px; overflow:hidden}
@@ -179,11 +180,9 @@ details.io textarea{width:100%; margin-top:9px; min-height:76px; resize:vertical
 
 footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.7}
 /* Folder pickers do nothing useful on phones; point at the album picker instead. */
-@media (pointer:coarse){
-  #pickDir{display:none}
-  .devhint .fine{display:none}
-  .devhint .touch{display:inline}
-}
+@media (pointer:coarse){ #pickDir, .devhint .fine{display:none} }
+/* 미디어쿼리가 안 잡히는 기기가 있어 JS 로도 한 번 더 판정한다 */
+body.touch-only #pickDir, body.touch-only .devhint .fine{display:none}
 
 /* Responsive overrides live last so they win over the component rules above. */
 @media (max-width:900px){
@@ -220,16 +219,18 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
     <aside class="rail">
       <div class="card" id="cDrop">
         <label class="drop" id="drop" for="fileIn" tabindex="0" role="button">
-          <span class="big">사진 선택</span>
+          <span class="big">파일에서 고르기</span>
           <span class="small">여기를 누르거나 사진을 끌어다 놓으세요</span>
-          <span class="small">JPG · HEIC · 구글 테이크아웃 JSON</span>
+          <span class="small ok">위치 정보가 그대로 남는 방법입니다</span>
         </label>
         <div class="btnrow">
+          <label class="btn" for="albumIn" tabindex="0" role="button">앨범에서 고르기</label>
           <label class="btn" for="dirIn" id="pickDir" tabindex="0" role="button">폴더 선택</label>
         </div>
         <div class="devhint">
+          <span class="warn">안드로이드는 <b>앨범에서 고르면 위치 정보가 지워집니다.</b>
+            파일에서 <b>DCIM › Camera</b> 로 들어가 고르세요.</span>
           <span class="fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
-          <span class="touch">앨범에서 여러 장을 한 번에 골라도 됩니다</span>
         </div>
         <details class="io" id="pickHelp">
           <summary>사진 선택 창이 안 열리나요?</summary>
@@ -237,6 +238,9 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
             <p><b>앱에 내장된 브라우저에서는 파일 선택이 막혀 있습니다.</b> 카카오톡·인스타그램 등에서
             링크를 바로 열었거나 앱 안의 브라우저로 보고 있다면, 눌러도 아무 반응이 없습니다.</p>
             <p>화면 오른쪽 위 <b>⋮ → 다른 브라우저에서 열기</b> 로 Chrome 에서 여시면 정상 동작합니다.</p>
+            <p><b>창은 열리는데 위치 정보가 하나도 없다면</b> 안드로이드 사진 선택 도구를 거친 것입니다.
+            이 경로는 사진을 넘겨주기 전에 위치를 지웁니다. <b>[파일에서 고르기]</b> 로
+            <b>DCIM › Camera</b> 폴더에 들어가 직접 고르면 원본이 그대로 전달됩니다.</p>
             <p>그래도 안 되면 사진 선택 없이 채우는 방법이 있습니다. 안드로이드에서 Termux 로
             <code>scan_photos.py</code> 를 돌리면 지도가 이미 채워진 HTML 이 나옵니다.</p>
             <code class="cmd">python3 scan_photos.py DCIM --html 내지도.html</code>
@@ -246,7 +250,8 @@ footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font
           <div class="track"><i class="fill" id="progFill"></i></div>
           <div class="txt" id="progTxt"></div>
         </div>
-        <input type="file" id="fileIn" class="vh" tabindex="-1" multiple accept="image/*,.heic,.heif,.json">
+        <input type="file" id="fileIn" class="vh" tabindex="-1" multiple>
+        <input type="file" id="albumIn" class="vh" tabindex="-1" multiple accept="image/*">
         <input type="file" id="dirIn" class="vh" tabindex="-1" multiple webkitdirectory directory>
       </div>
 
@@ -672,8 +677,10 @@ function render(){
   const nogps = LOG.m.files - LOG.m.gps;
   if (nogps > 0){
     let s = '위치 정보가 없는 사진 <b>' + nogps.toLocaleString('ko-KR') + '장</b>은 건너뛰었습니다.';
-    if (LOG.m.files >= 5 && nogps / LOG.m.files >= 0.5)
-      s += ' 대부분이 그렇다면 촬영 당시 카메라의 위치 태그가 꺼져 있었거나, 옮기는 과정에서 위치가 지워진 사진입니다.';
+    if (LOG.m.files >= 2 && nogps / LOG.m.files >= 0.8)
+      s += ' 안드로이드에서 <b>앨범</b>으로 고르면 사진을 넘겨주기 전에 위치가 지워집니다. ' +
+           '<b>[파일에서 고르기]</b>로 <b>DCIM › Camera</b> 에 들어가 다시 골라 보세요. ' +
+           '그래도 없다면 촬영 당시 위치 태그가 꺼져 있던 사진입니다.';
     bits.push(s);
   }
   document.getElementById('note').innerHTML = bits.join('<br>') || '사진을 올리면 여기에 처리 결과가 정리됩니다.';
@@ -761,7 +768,8 @@ async function ingest(files){
 }
 
 /* ---------- controls ---------- */
-const drop = document.getElementById('drop'), fileIn = document.getElementById('fileIn'), dirIn = document.getElementById('dirIn');
+const drop = document.getElementById('drop'), fileIn = document.getElementById('fileIn'),
+      albumIn = document.getElementById('albumIn'), dirIn = document.getElementById('dirIn');
 for (const lb of document.querySelectorAll('label[for]')){
   lb.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -774,6 +782,9 @@ for (const lb of document.querySelectorAll('label[for]')){
 // 앱에 내장된 브라우저(안드로이드 WebView)는 파일 입력을 눌러도 아무 일이 없다 - 오류도 없다.
 // 선택기가 실제로 열리면 페이지가 포커스를 잃거나 화면에서 물러나므로,
 // 그 신호도 없고 파일도 오지 않으면 안내를 펼친다.
+// webkitdirectory 는 모바일 브라우저에서 동작하지 않는다
+try { if (!matchMedia('(pointer:fine)').matches) document.body.classList.add('touch-only'); } catch (e) {}
+
 const pickHelp = document.getElementById('pickHelp');
 let awayAt = 0, changeAt = 0;
 const markAway = () => { awayAt = Date.now(); };
@@ -787,12 +798,10 @@ function watchPicker(){
     pickHelp.classList.add('flag');
   }, 2500);
 }
-fileIn.addEventListener('click', watchPicker);
-dirIn.addEventListener('click', watchPicker);
+for (const inp of [fileIn, albumIn, dirIn]) inp.addEventListener('click', watchPicker);
 
 const onPicked = inp => { changeAt = Date.now(); pickHelp.classList.remove('flag'); ingest(inp.files); inp.value = ''; };
-fileIn.onchange = () => onPicked(fileIn);
-dirIn.onchange  = () => onPicked(dirIn);
+for (const inp of [fileIn, albumIn, dirIn]) inp.onchange = () => onPicked(inp);
 ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); if (t === 'dragleave' && drop.contains(e.relatedTarget)) return; drop.classList.remove('over'); }));
 drop.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) ingest(e.dataTransfer.files); });
