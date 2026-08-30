@@ -79,8 +79,8 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
   text-anchor:middle; pointer-events:none; paint-order:stroke; stroke:var(--sea); stroke-linejoin:round}
 @media (prefers-reduced-motion:reduce){ svg.map path.sgg{transition:none} }
 
-.tip{position:absolute; z-index:5; pointer-events:none; opacity:0; transform:translate(-50%,-114%);
-  background:var(--ink); color:var(--paper); padding:8px 11px; border-radius:8px; font-size:12.5px; line-height:1.45;
+.tip{position:absolute; z-index:5; pointer-events:none; opacity:0; left:0; top:0;
+  background:var(--ink); color:var(--paper); padding:9px 12px; border-radius:8px; font-size:13px; line-height:1.45;
   white-space:nowrap; box-shadow:0 6px 20px -8px rgba(0,0,0,.5); transition:opacity .12s ease}
 .tip.on{opacity:1}
 .tip b{font-weight:600} .tip .t2{color:var(--line2); font-size:11.5px; display:block; margin-top:2px}
@@ -110,6 +110,11 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
 .drop .small{font-size:12.5px; color:var(--muted)}
 .drop .small b{color:var(--accent); font-weight:600}
 .btnrow{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:12px}
+.only-touch{display:none}
+@media (pointer:coarse){ .only-fine{display:none} .only-touch{display:inline} .only-touch.blk{display:block} }
+body.touch-only .only-fine{display:none}
+body.touch-only .only-touch{display:inline}
+body.touch-only .only-touch.blk{display:block}
 .vh{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
   clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0}
 .btn{display:inline-block; border:1px solid var(--line2); background:var(--paper); border-radius:7px; padding:7px 13px; font-size:13px;
@@ -120,6 +125,14 @@ svg.map text.dolabel{font-family:"IBM Plex Sans KR",sans-serif; font-weight:500;
 .btn.quiet{border-color:transparent; color:var(--muted); padding:6px 8px; font-size:12.5px}
 .btn.quiet:hover{color:var(--accent)}
 
+.steps{margin:13px 0 0; padding:0; list-style:none; counter-reset:s; display:flex; flex-direction:column;
+  gap:8px; font-size:13px; color:var(--ink2); line-height:1.5}
+.steps li{counter-increment:s; position:relative; padding-left:27px}
+.steps li::before{content:counter(s); position:absolute; left:0; top:1px; width:19px; height:19px; border-radius:50%;
+  background:var(--accent); color:var(--paper); font-size:11px; font-weight:600; display:flex; align-items:center;
+  justify-content:center; font-family:"IBM Plex Mono",ui-monospace,monospace}
+.steps b{color:var(--ink); font-weight:600}
+.steps .q{color:var(--muted); font-size:12px}
 .devhint{display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); margin-top:10px}
 .devhint .warn{padding-left:9px; border-left:2px solid var(--s2)}
 .prog{margin-top:13px; display:none}
@@ -181,12 +194,14 @@ details.io textarea{width:100%; margin-top:9px; min-height:76px; resize:vertical
 
 footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.7}
 /* Folder pickers do nothing useful on phones; point at the album picker instead. */
-@media (pointer:coarse){ #pickDir, .devhint .fine{display:none} }
+@media (pointer:coarse){ #pickDir{display:none} }
 /* 미디어쿼리가 안 잡히는 기기가 있어 JS 로도 한 번 더 판정한다 */
-body.touch-only #pickDir, body.touch-only .devhint .fine{display:none}
+body.touch-only #pickDir{display:none}
 
 /* Responsive overrides live last so they win over the component rules above. */
 @media (max-width:900px){
+  .shell{padding:20px 14px 48px}
+  .mapcard{padding:4px}
   main{display:flex; flex-direction:column; gap:18px}
   .rail{display:contents}
   #cDrop{order:1} .mapcol{order:2} #cSum{order:3} #cLed{order:4} #cTodo{order:5}
@@ -220,18 +235,24 @@ body.touch-only #pickDir, body.touch-only .devhint .fine{display:none}
     <aside class="rail">
       <div class="card" id="cDrop">
         <label class="drop" id="drop" for="fileIn" tabindex="0" role="button">
-          <span class="big">파일에서 고르기</span>
-          <span class="small">여기를 누르거나 사진을 끌어다 놓으세요</span>
+          <span class="big">사진 넣기</span>
+          <span class="small only-fine">여기를 누르거나 사진을 끌어다 놓으세요</span>
+          <span class="small only-touch">탭해서 파일 고르기</span>
           <span class="small">JPG · HEIC · <b>ZIP</b> · 구글 테이크아웃 JSON</span>
         </label>
         <div class="btnrow">
           <label class="btn" for="dirIn" id="pickDir" tabindex="0" role="button">폴더 선택</label>
         </div>
+        <ol class="steps only-touch blk">
+          <li>파일 관리자 앱을 엽니다 <span class="q">내 파일 · Files</span></li>
+          <li><b>DCIM › Camera</b> 폴더로 들어갑니다</li>
+          <li>사진을 길게 눌러 고른 뒤 <b>압축</b> 을 누릅니다</li>
+          <li>위 <b>사진 넣기</b> 를 눌러 만들어진 ZIP 을 고릅니다</li>
+        </ol>
         <div class="devhint">
-          <span class="warn"><b>안드로이드는 갤러리 사진을 넘길 때 위치를 지웁니다.</b>
-            사진을 <b>ZIP 으로 압축해서</b> 넣으면 그대로 들어옵니다 — 압축 파일은 사진이 아니라
-            일반 파일이라 폰이 손대지 않습니다.</span>
-          <span class="fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
+          <span class="warn">갤러리에서 바로 고르면 <b>안드로이드가 위치를 지웁니다.</b>
+            ZIP 은 사진이 아니라 일반 파일이라 폰이 손대지 않아 위치가 그대로 들어옵니다.</span>
+          <span class="only-fine">폴더를 넣으면 하위 폴더까지 전부 읽습니다</span>
         </div>
         <details class="io" id="pickHelp">
           <summary>안 열리거나, 위치 정보가 없나요?</summary>
@@ -754,11 +775,17 @@ const svg = buildMap();
 const tip = document.getElementById('tip'), host = document.querySelector('.mapcard');
 let hot = null;
 const fmt = t => t ? new Intl.DateTimeFormat('ko-KR', { year:'numeric', month:'long', day:'numeric', timeZone:'UTC' }).format(new Date(t)) : null;
+function placeTip(x, y){
+  const hw = host.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+  let left = Math.max(6, Math.min(hw - tw - 6, x - tw / 2));
+  let top = y - th - 14;
+  if (top < 6) top = y + 18;             // 위쪽이 좁으면 손가락 아래로
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+}
 function showTip(p, ev){
   const code = p.dataset.code, d = SGG_BY_CODE.get(code), e = LOG.d[code];
   const r = host.getBoundingClientRect();
-  tip.style.left = (ev.clientX - r.left) + 'px';
-  tip.style.top  = (ev.clientY - r.top) + 'px';
   let body = '<b>' + GEO.short[d.sido] + ' ' + d.name + '</b>';
   if (d.sido === '11') body += '<span class="t2">서울 — 기록에서 제외</span>';
   else if (e){
@@ -767,14 +794,28 @@ function showTip(p, ev){
   } else body += '<span class="t2">아직 방문 기록 없음</span>';
   tip.innerHTML = body;
   tip.classList.add('on');
+  placeTip(ev.clientX - r.left, ev.clientY - r.top);
 }
-svg.addEventListener('pointermove', ev => {
-  const p = ev.target.closest ? ev.target.closest('path.sgg') : null;
-  if (!p){ if (hot){ hot.classList.remove('hot'); hot = null; } tip.classList.remove('on'); return; }
+function hideTip(){ if (hot){ hot.classList.remove('hot'); hot = null; } tip.classList.remove('on'); }
+function hit(ev){ return ev.target && ev.target.closest ? ev.target.closest('path.sgg') : null; }
+function focusOn(p, ev){
   if (hot !== p){ if (hot) hot.classList.remove('hot'); hot = p; p.classList.add('hot'); }
   showTip(p, ev);
+}
+// 터치는 탭으로만 (손가락은 지도 위를 떠다니지 않는다)
+svg.addEventListener('pointerdown', ev => {
+  const p = hit(ev);
+  if (!p){ hideTip(); return; }
+  focusOn(p, ev);
 });
-svg.addEventListener('pointerleave', () => { if (hot){ hot.classList.remove('hot'); hot = null; } tip.classList.remove('on'); });
+svg.addEventListener('pointermove', ev => {
+  if (ev.pointerType === 'touch') return;
+  const p = hit(ev);
+  if (!p){ hideTip(); return; }
+  focusOn(p, ev);
+});
+svg.addEventListener('pointerleave', ev => { if (ev.pointerType !== 'touch') hideTip(); });
+document.addEventListener('pointerdown', ev => { if (!svg.contains(ev.target)) hideTip(); });
 
 /* ---------- legend ---------- */
 (function(){
