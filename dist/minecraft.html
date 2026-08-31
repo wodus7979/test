@@ -1541,6 +1541,16 @@ body.touch #fly-panel {
           <li>도시를 한 바퀴 도는 <b>순환도로</b>에도 매끄러운 띠를 덧그린다.
               블록으로만 깔면 둥근 길이 계단처럼 층져 보였다. 포장·연석·갓길 흰 선·
               가운데 노란 점선까지 이어 그린다</li>
+          <li><b>"두두두두" 하고 소리가 끝없이 이어지던 것을 잡았다.</b>
+              범인은 비행기 <b>착지음</b>이었다. 그 코드는 "땅에 닿는 그 순간"이
+              아니라 <b>"땅 높이 아래로 내려온 프레임마다"</b> 실행되는 자리에
+              있었다. 자동 운항기가 이륙에 실패해 제자리에서 통통 튀면
+              (takeoff 에서 막히면 바퀴를 떼고 여섯 칸 띄운다) 매 프레임 착지음이
+              울려, 근처에 있기만 하면 <b>초당 60번</b>씩 났다. 날면서 스페이스를
+              누르고 있을 때 도드라진 건 그 자세로 공항 언저리에 떠 있게 되기
+              때문이다. 이제 <b>실제로 가라앉고 있을 때</b>, 같은 기체는
+              <b>2.5초에 한 번만</b>, 그리고 <b>들릴 만한 거리(170칸)</b>에서만 낸다.
+              초당 <b>60 → 0.1</b>회가 되었다 (내가 몰고 내릴 때는 언제나 들린다)</li>
           <li><b>차가 건물에 부딪히면 시점이 옥상으로 튀었다.</b> 3인칭 카메라는
               차 뒤 열 칸쯤에 서는데, 땅에 묻히지 않으려고 그 자리
               <b>기둥 꼭대기</b>까지 눈을 들어 올렸다. 카메라가 건물 자리에
@@ -16639,6 +16649,27 @@ Plane.prototype.crash = function (game, why) {
 };
 
 // 기수가 향하는 방향
+// 착지음을 낼 만한가.
+//
+// 위의 가지는 "땅에 닿는 그 순간" 이 아니라 "땅 높이 아래로 내려온
+// 프레임" 마다 들어온다. 자동 운항기가 이륙에 실패해 제자리에서 통통
+// 튀면(takeoff 에서 stuck 이면 onGround 를 풀고 6칸 띄운다) 매 프레임
+// 착지음이 나서 "두두두두" 하고 끝없이 이어졌다 — 1200프레임 내내
+// 1200번 울렸다. 그래서 한동안 한 번만, 그것도 들릴 만한 거리에서만 낸다.
+const PLANE_TOUCH_GAP = 2.5;     // 같은 기체가 다시 소리 낼 때까지(초)
+const PLANE_TOUCH_HEAR = 170;    // 이 밖에서 내리는 기체는 들리지 않는다
+
+Plane.prototype.touchdownHeard = function (game) {
+  const now = game.time || 0;
+  if (this._touchAt !== undefined && now - this._touchAt < PLANE_TOUCH_GAP) return false;
+  this._touchAt = now;
+  const p = game.player;
+  if (!p) return true;
+  if (this.rider === p) return true;          // 내가 몰고 있으면 언제나 들린다
+  return Math.hypot(this.x - p.x, this.z - p.z) < PLANE_TOUCH_HEAR &&
+         Math.abs(this.y - p.y) < 120;
+};
+
 Plane.prototype.nose = function () {
   const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
   return [cp * Math.sin(this.yaw), sp, cp * Math.cos(this.yaw)];
@@ -16801,8 +16832,8 @@ Plane.prototype.update = function (dt, game) {
     if (sink > 14) {
       this.speed *= 0.3;
       if (rider && !rider.creative) rider.hurt(Math.min(10, (sink - 12) * 0.7), '착륙 실패');
-      if (game.playSound) game.playSound('boom');
-    } else if (game.playSound && this.age > 1) {
+      if (game.playSound && this.touchdownHeard(game)) game.playSound('boom');
+    } else if (game.playSound && this.age > 1 && sink > 0.8 && this.touchdownHeard(game)) {
       game.playSound('place');
     }
     this.gear = 1;
@@ -26081,9 +26112,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.12.1';
+const GAME_VERSION = 'v10.12.2';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '옥상으로 안 튀는 카메라 · 제자리걸음 발소리 없앰';
+const GAME_FEATURES = '끝없이 나던 비행기 착지음 잡음';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)

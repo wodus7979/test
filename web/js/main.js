@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.12.1';
+const GAME_VERSION = 'v10.12.2';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '옥상으로 안 튀는 카메라 · 제자리걸음 발소리 없앰';
+const GAME_FEATURES = '끝없이 나던 비행기 착지음 잡음';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)

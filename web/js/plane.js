@@ -101,6 +101,27 @@ Plane.prototype.crash = function (game, why) {
 };
 
 // 기수가 향하는 방향
+// 착지음을 낼 만한가.
+//
+// 위의 가지는 "땅에 닿는 그 순간" 이 아니라 "땅 높이 아래로 내려온
+// 프레임" 마다 들어온다. 자동 운항기가 이륙에 실패해 제자리에서 통통
+// 튀면(takeoff 에서 stuck 이면 onGround 를 풀고 6칸 띄운다) 매 프레임
+// 착지음이 나서 "두두두두" 하고 끝없이 이어졌다 — 1200프레임 내내
+// 1200번 울렸다. 그래서 한동안 한 번만, 그것도 들릴 만한 거리에서만 낸다.
+const PLANE_TOUCH_GAP = 2.5;     // 같은 기체가 다시 소리 낼 때까지(초)
+const PLANE_TOUCH_HEAR = 170;    // 이 밖에서 내리는 기체는 들리지 않는다
+
+Plane.prototype.touchdownHeard = function (game) {
+  const now = game.time || 0;
+  if (this._touchAt !== undefined && now - this._touchAt < PLANE_TOUCH_GAP) return false;
+  this._touchAt = now;
+  const p = game.player;
+  if (!p) return true;
+  if (this.rider === p) return true;          // 내가 몰고 있으면 언제나 들린다
+  return Math.hypot(this.x - p.x, this.z - p.z) < PLANE_TOUCH_HEAR &&
+         Math.abs(this.y - p.y) < 120;
+};
+
 Plane.prototype.nose = function () {
   const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
   return [cp * Math.sin(this.yaw), sp, cp * Math.cos(this.yaw)];
@@ -263,8 +284,8 @@ Plane.prototype.update = function (dt, game) {
     if (sink > 14) {
       this.speed *= 0.3;
       if (rider && !rider.creative) rider.hurt(Math.min(10, (sink - 12) * 0.7), '착륙 실패');
-      if (game.playSound) game.playSound('boom');
-    } else if (game.playSound && this.age > 1) {
+      if (game.playSound && this.touchdownHeard(game)) game.playSound('boom');
+    } else if (game.playSound && this.age > 1 && sink > 0.8 && this.touchdownHeard(game)) {
       game.playSound('place');
     }
     this.gear = 1;
