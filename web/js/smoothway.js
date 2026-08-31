@@ -111,6 +111,21 @@ function swBuildRail(pts, i0, i1, y, st) {
 }
 
 // ── 고속도로 ──────────────────────────────────────────────────────────
+// 세로 판 — 길을 따라 서는 벽(가드레일 빔·지주)을 만든다.
+// swBand 가 눕힌 띠라면 이것은 세운 띠다.
+function swWall(m, pts, i0, i1, yOf, d, y0, y1, tex) {
+  for (let i = i0; i < i1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    if (!a || !b) continue;
+    const na = swNormal(pts, i), nb = swNormal(pts, i + 1);
+    const ax = a[0] + na[0] * d, az = a[1] + na[1] * d;
+    const bx = b[0] + nb[0] * d, bz = b[1] + nb[1] * d;
+    const ya = yOf(i), yb = yOf(i + 1);
+    m.quad([ax, ya + y0, az], [bx, yb + y0, bz],
+           [bx, yb + y1, bz], [ax, ya + y1, az], tex, true);
+  }
+}
+
 function swBuildRoad(pts, hs, i0, i1) {
   const m = new Mesh3D();
   const yOf = function (i) { return (hs && hs[i] !== undefined ? hs[i] : 0) + 1; };
@@ -127,6 +142,20 @@ function swBuildRoad(pts, hs, i0, i1) {
     const d = s * HW_LANE;
     for (let i = i0; i < i1 - 1; i += 4) {
       swBand(m, pts, i, Math.min(i1, i + 2), yOf, d - 0.18, d + 0.18, SW_LIFT + 0.01, 'sw_line');
+    }
+  }
+  // 5) 가드레일 — 길을 따라 곧게 선다.
+  //
+  // 블록 난간(guard_rail)은 청크 메시에서 빠지고(world.js) 이것이 대신
+  // 보인다. 블록으로 두면 노면이 한 칸 오르내릴 때마다 난간도 같이 튀어
+  // 톱니처럼 보였다 — 노면은 이 띠가 매끄럽게 덮는데 난간만 계단이라
+  // 더 도드라졌다. 부딪히는 몸은 블록 그대로라 차는 여전히 튕긴다.
+  const grTex = blockTexName(B.guard_rail, 0);
+  for (const sgn of [-1, 1]) {
+    const d = sgn * (HW_HALF + 1);
+    swWall(m, pts, i0, i1, yOf, d, 1.25, 1.85, grTex);          // 가로 빔
+    for (let i = i0; i < i1 - 1; i += 4) {                      // 지주
+      swWall(m, pts, i, Math.min(i1, i + 1), yOf, d, 0.05, 1.30, grTex);
     }
   }
   return m.build();
@@ -227,7 +256,13 @@ Game.prototype.ensureSmoothWays = function () {
       for (let i = 0; i < h.paths.length; i++) {
         const rec = h.paths[i];
         if (!rec.pts || rec.pts.length < 3) continue;
-        const pts = rec.pts, hs = rec.h;
+        // 블록 노면은 Math.round(rec.h) 높이에 깔린다. 띠를 원래 값(소수)
+        // 그대로 그리면 평평한 구간에서 띠가 블록보다 최대 반 칸 낮게
+        // 깔려, 계단 자리마다 블록 옆면이 길을 가로질러 드러났다
+        // (하얀 갓길·노란 중앙선이 띠처럼 보이던 것이 그것이다).
+        // 반올림한 높이로 그리면 평평한 데서는 딱 맞물리고, 한 칸 오르는
+        // 자리에서는 점 간격(2칸)만큼 비스듬히 이어 덮는다.
+        const pts = rec.pts, hs = rec.h.map(function (v) { return Math.round(v); });
         const segs = swSegments(pts, function (i0, i1) {
           return swBuildRoad(pts, hs, i0, i1);
         });

@@ -5,6 +5,9 @@
 'use strict';
 
 const HW_HALF = 5;            // 포장 반폭 (왕복 2차선 + 갓길 = 11칸)
+// 포장이 끝나는 자리. 가드레일은 여기 테두리에 딱 한 줄로 선다.
+// at() 는 7.5칸까지 길로 쳐 주므로 그냥 두면 난간 바깥에도 갓길이 깔렸다.
+const HW_EDGE = HW_HALF + 1;
 const HW_LANE = 2.2;          // 중앙선에서 차선 중심까지
 const HW_CURVE_R = 260;       // 도로 코너를 둥글리는 반지름 (철로보다 완만하게)
 const HW_STEP = 2.0;          // 길 위 점 간격
@@ -463,6 +466,7 @@ World.prototype.paintHighway = function (c) {
       const y = hit.y;
       if (y < 1 || y >= CHUNK_Y - 2) continue;
       const ao = Math.abs(hit.off);
+      if (ao > HW_EDGE) continue;            // 포장 바깥은 손대지 않는다
 
       // 노면 위를 비운다. 나무 우듬지가 길 위에 남지 않도록 넉넉히 걷어낸다
       // (예전에는 8칸만 비워 가문비나무 가지가 길 위에 떠 있었다)
@@ -496,15 +500,26 @@ World.prototype.paintHighway = function (c) {
           if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
         }
       }
-      // 가드레일 — 빈틈 없이 두 칸 높이로 세운다.
-      // 예전에는 한 칸 높이에 군데군데 끊겨 있어 차가 그냥 타고 넘어
-      // 들판이나 바다로 떨어졌다. 도시 어귀만 비워 둔다 (시내 도로와 이어져야 한다).
-      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 1.8 &&
-          !hw.nearCity(wx, wz, CITY_RING + 10)) {
-        for (let k = 1; k <= HW_RAIL_H; k++) {
-          if (y + k < CHUNK_Y) {
-            c.blocks[idx(lx, y + k, lz)] = B.iron_bars;
-            c.meta[idx(lx, y + k, lz)] = 0;
+      // 가드레일 — 포장 테두리를 따라 딱 한 줄.
+      //
+      // 예전에는 중앙선에서 4.6~6.8칸 사이를 모두 난간으로 채웠다. 그 띠가
+      // 두 칸도 넘게 두꺼워서 한 단면에 쇠난간이 다섯 칸씩 서고, 게다가
+      // 좌우 폭이 달라 길가에 쇠덤불이 우거진 꼴이었다.
+      // 이제는 "길이면서 옆이 길이 아닌 칸" — 곧 포장의 바깥 테두리에만
+      // 세운다. 한 칸 두께로 끊김 없이 이어진다 (띠 폭으로 잡으면 비스듬한
+      // 구간에서 반올림 때문에 칸이 빠진다).
+      if (ao > HW_EDGE - 1.45 && !hw.nearCity(wx, wz, CITY_RING + 10)) {
+        const onRoad = function (px, pz) {
+          const q = hw.at(px, pz);
+          return !!q && Math.abs(q.off) <= HW_EDGE;
+        };
+        if (!onRoad(wx + 1, wz) || !onRoad(wx - 1, wz) ||
+            !onRoad(wx, wz + 1) || !onRoad(wx, wz - 1)) {
+          for (let k = 1; k <= HW_RAIL_H; k++) {
+            if (y + k < CHUNK_Y) {
+              c.blocks[idx(lx, y + k, lz)] = B.guard_rail;
+              c.meta[idx(lx, y + k, lz)] = 0;
+            }
           }
         }
       }
@@ -598,7 +613,7 @@ World.prototype.paintBridge = function (c) {
       // 난간 — 위를 치우면서 가드레일까지 지워지므로 여기서 다시 세운다
       for (const sgn of [-1, 1]) {
         const sx = p[0] + nx * (HW_HALF + 1) * sgn, sz = p[1] + nz * (HW_HALF + 1) * sgn;
-        for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.iron_bars);
+        for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.guard_rail);
       }
       // 상판 밑을 튼다 — 고속도로 노반이 남아 있으면 물 위에 판이 뜬 꼴이 된다.
       // (물은 그대로 두고, 물 위 공간만 비운다)

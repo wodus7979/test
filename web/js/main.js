@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.13';
+const GAME_VERSION = 'v10.13.1';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '둥근 3D 나무 (잎 블록을 대신한다)';
+const GAME_FEATURES = '일자로 곧은 가드레일 · 매끈해진 고속도로 노면';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)

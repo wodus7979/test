@@ -877,6 +877,13 @@ defFurn('quay_edge', '부두 안전턱', [
   box(0, 3, 6, 16, 4, 10, 'fy_pile')
 ], { tex: 'fy_edge', facing: false, tool: TOOL_PICKAXE, hardness: 2.0 });
 
+// 고속도로 가드레일 — 쇠난간처럼 생겼지만 따로 둔 블록이다.
+// 매끄러운 길 띠(smoothway)가 이것을 곧게 대신 그리므로, 청크 메시에서는
+// 빠진다(world.js buildMesh). 부딪히는 몸은 그대로라 차는 여기서 튕긴다.
+defFurn('guard_rail', '가드레일', [
+  box(6.5, 0, 0, 9.5, 16, 16, 'fy_pile')
+], { tex: 'fy_pile', facing: false, tool: TOOL_PICKAXE, hardness: 2.0 });
+
 // 계선주 — 배를 묶는 쇠기둥
 defFurn('bollard', '계선주', [
   box(4, 0, 4, 12, 2, 12, 'fy_pile'),

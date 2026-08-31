@@ -1547,6 +1547,29 @@ body.touch #fly-panel {
           <li>도시를 한 바퀴 도는 <b>순환도로</b>에도 매끄러운 띠를 덧그린다.
               블록으로만 깔면 둥근 길이 계단처럼 층져 보였다. 포장·연석·갓길 흰 선·
               가운데 노란 점선까지 이어 그린다</li>
+          <li><b>고속도로 가드레일이 쇠덤불처럼 우거져 있었다.</b> 중앙선에서
+              4.6~6.8칸 사이를 모두 난간으로 채웠는데, 그 띠가 두 칸도 넘게
+              두꺼워 한 단면에 <b>쇠난간이 다섯 칸</b>씩 서고 좌우 폭도 달랐다.
+              게다가 난간 <b>바깥에도 갓길이 깔려</b> 있었다.
+              이제 포장은 중앙선에서 <b>여섯 칸</b>까지만 깔고, 난간은
+              "길이면서 옆이 길이 아닌 칸" — 곧 포장의 <b>바깥 테두리 한 줄</b>에만
+              세운다 (띠 폭으로 잡으면 비스듬한 구간에서 칸이 빠진다).
+              단면당 난간 <b>5 → 2칸</b>, 난간 밖 포장 <b>0</b>이다</li>
+          <li>가드레일을 <b>매끄러운 길 띠가 곧게 대신 그린다.</b> 블록으로 두면
+              노면이 한 칸 오르내릴 때마다 난간도 같이 튀어 톱니처럼 보였다 —
+              노면은 띠가 매끄럽게 덮는데 난간만 계단이라 더 도드라졌다.
+              전용 블록(<b>가드레일</b>)을 따로 두어 청크 메시에서는 빼고,
+              길을 따라 <b>가로 빔과 지주</b>를 곧게 세워 그린다.
+              부딪히는 몸은 블록 그대로라 <b>차는 여전히 튕긴다</b> —
+              노면 한가운데서 물 흐르듯 퍼뜨려 봐도 다섯 곳 모두
+              <b>길 밖으로 새는 칸이 0</b>이었다</li>
+          <li><b>길 한복판을 가로지르던 흰·노란 띠</b>도 없앴다. 블록 노면은
+              <b>반올림한</b> 높이에 깔리는데 매끄러운 띠는 <b>원래 소수 값</b>으로
+              그려서, 평평한 구간에서 띠가 블록보다 최대 <b>반 칸 낮게</b> 깔렸다.
+              그래서 높이가 한 칸 바뀌는 자리(12~30칸마다)에서 블록 옆면 —
+              하얀 갓길과 노란 중앙선 — 이 길을 가로질러 드러났다.
+              이제 띠도 반올림한 높이로 그려 평평한 데서는 딱 맞물리고,
+              한 칸 오르는 자리는 점 간격(2칸)만큼 비스듬히 이어 덮는다</li>
           <li><b>나무를 둥근 3D 로 바꿨다.</b> 도로에 매끄러운 띠를 덧그리듯이,
               나무도 블록 대신 <b>줄기와 수관</b>을 세워 그린다. 다만 덧그리는 게
               아니라 아예 갈아 끼운다 — <b>잎 블록은 청크 메시에서 빼고</b>
@@ -4500,6 +4523,13 @@ defFurn('quay_edge', '부두 안전턱', [
   box(0, 0, 0, 16, 3, 16, 'fy_edge'),
   box(0, 3, 6, 16, 4, 10, 'fy_pile')
 ], { tex: 'fy_edge', facing: false, tool: TOOL_PICKAXE, hardness: 2.0 });
+
+// 고속도로 가드레일 — 쇠난간처럼 생겼지만 따로 둔 블록이다.
+// 매끄러운 길 띠(smoothway)가 이것을 곧게 대신 그리므로, 청크 메시에서는
+// 빠진다(world.js buildMesh). 부딪히는 몸은 그대로라 차는 여기서 튕긴다.
+defFurn('guard_rail', '가드레일', [
+  box(6.5, 0, 0, 9.5, 16, 16, 'fy_pile')
+], { tex: 'fy_pile', facing: false, tool: TOOL_PICKAXE, hardness: 2.0 });
 
 // 계선주 — 배를 묶는 쇠기둥
 defFurn('bollard', '계선주', [
@@ -10501,6 +10531,10 @@ World.prototype.buildMesh = function (c) {
         const d = blockDef(id);
         const meta = c.meta[i];
         const wx = bx + lx, wz = bz + lz;
+
+        // 고속도로 가드레일은 매끄러운 띠가 곧게 대신 그린다 (smoothway).
+        // 블록 그대로 두면 노면 계단을 따라 오르내려 톱니처럼 보인다.
+        if (id === B.guard_rail) continue;
 
         // 3D 나무를 쓰면 잎과 나무 줄기는 여기서 빼고, tree3d.js 가
         // 그 자리에 둥근 나무를 대신 세운다. 집 기둥에 쓴 원목은 남긴다.
@@ -26388,9 +26422,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.13';
+const GAME_VERSION = 'v10.13.1';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '둥근 3D 나무 (잎 블록을 대신한다)';
+const GAME_FEATURES = '일자로 곧은 가드레일 · 매끈해진 고속도로 노면';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -30216,6 +30250,9 @@ Game.prototype.updateVehicleAudio = function (dt) {
 'use strict';
 
 const HW_HALF = 5;            // 포장 반폭 (왕복 2차선 + 갓길 = 11칸)
+// 포장이 끝나는 자리. 가드레일은 여기 테두리에 딱 한 줄로 선다.
+// at() 는 7.5칸까지 길로 쳐 주므로 그냥 두면 난간 바깥에도 갓길이 깔렸다.
+const HW_EDGE = HW_HALF + 1;
 const HW_LANE = 2.2;          // 중앙선에서 차선 중심까지
 const HW_CURVE_R = 260;       // 도로 코너를 둥글리는 반지름 (철로보다 완만하게)
 const HW_STEP = 2.0;          // 길 위 점 간격
@@ -30674,6 +30711,7 @@ World.prototype.paintHighway = function (c) {
       const y = hit.y;
       if (y < 1 || y >= CHUNK_Y - 2) continue;
       const ao = Math.abs(hit.off);
+      if (ao > HW_EDGE) continue;            // 포장 바깥은 손대지 않는다
 
       // 노면 위를 비운다. 나무 우듬지가 길 위에 남지 않도록 넉넉히 걷어낸다
       // (예전에는 8칸만 비워 가문비나무 가지가 길 위에 떠 있었다)
@@ -30707,15 +30745,26 @@ World.prototype.paintHighway = function (c) {
           if (c.blocks[j] === 0 || c.blocks[j] === B.water) c.blocks[j] = B.stone;
         }
       }
-      // 가드레일 — 빈틈 없이 두 칸 높이로 세운다.
-      // 예전에는 한 칸 높이에 군데군데 끊겨 있어 차가 그냥 타고 넘어
-      // 들판이나 바다로 떨어졌다. 도시 어귀만 비워 둔다 (시내 도로와 이어져야 한다).
-      if (ao > HW_HALF - 0.4 && ao <= HW_HALF + 1.8 &&
-          !hw.nearCity(wx, wz, CITY_RING + 10)) {
-        for (let k = 1; k <= HW_RAIL_H; k++) {
-          if (y + k < CHUNK_Y) {
-            c.blocks[idx(lx, y + k, lz)] = B.iron_bars;
-            c.meta[idx(lx, y + k, lz)] = 0;
+      // 가드레일 — 포장 테두리를 따라 딱 한 줄.
+      //
+      // 예전에는 중앙선에서 4.6~6.8칸 사이를 모두 난간으로 채웠다. 그 띠가
+      // 두 칸도 넘게 두꺼워서 한 단면에 쇠난간이 다섯 칸씩 서고, 게다가
+      // 좌우 폭이 달라 길가에 쇠덤불이 우거진 꼴이었다.
+      // 이제는 "길이면서 옆이 길이 아닌 칸" — 곧 포장의 바깥 테두리에만
+      // 세운다. 한 칸 두께로 끊김 없이 이어진다 (띠 폭으로 잡으면 비스듬한
+      // 구간에서 반올림 때문에 칸이 빠진다).
+      if (ao > HW_EDGE - 1.45 && !hw.nearCity(wx, wz, CITY_RING + 10)) {
+        const onRoad = function (px, pz) {
+          const q = hw.at(px, pz);
+          return !!q && Math.abs(q.off) <= HW_EDGE;
+        };
+        if (!onRoad(wx + 1, wz) || !onRoad(wx - 1, wz) ||
+            !onRoad(wx, wz + 1) || !onRoad(wx, wz - 1)) {
+          for (let k = 1; k <= HW_RAIL_H; k++) {
+            if (y + k < CHUNK_Y) {
+              c.blocks[idx(lx, y + k, lz)] = B.guard_rail;
+              c.meta[idx(lx, y + k, lz)] = 0;
+            }
           }
         }
       }
@@ -30809,7 +30858,7 @@ World.prototype.paintBridge = function (c) {
       // 난간 — 위를 치우면서 가드레일까지 지워지므로 여기서 다시 세운다
       for (const sgn of [-1, 1]) {
         const sx = p[0] + nx * (HW_HALF + 1) * sgn, sz = p[1] + nz * (HW_HALF + 1) * sgn;
-        for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.iron_bars);
+        for (let k = 1; k <= HW_RAIL_H; k++) put(sx, y + k, sz, B.guard_rail);
       }
       // 상판 밑을 튼다 — 고속도로 노반이 남아 있으면 물 위에 판이 뜬 꼴이 된다.
       // (물은 그대로 두고, 물 위 공간만 비운다)
@@ -33571,6 +33620,21 @@ function swBuildRail(pts, i0, i1, y, st) {
 }
 
 // ── 고속도로 ──────────────────────────────────────────────────────────
+// 세로 판 — 길을 따라 서는 벽(가드레일 빔·지주)을 만든다.
+// swBand 가 눕힌 띠라면 이것은 세운 띠다.
+function swWall(m, pts, i0, i1, yOf, d, y0, y1, tex) {
+  for (let i = i0; i < i1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    if (!a || !b) continue;
+    const na = swNormal(pts, i), nb = swNormal(pts, i + 1);
+    const ax = a[0] + na[0] * d, az = a[1] + na[1] * d;
+    const bx = b[0] + nb[0] * d, bz = b[1] + nb[1] * d;
+    const ya = yOf(i), yb = yOf(i + 1);
+    m.quad([ax, ya + y0, az], [bx, yb + y0, bz],
+           [bx, yb + y1, bz], [ax, ya + y1, az], tex, true);
+  }
+}
+
 function swBuildRoad(pts, hs, i0, i1) {
   const m = new Mesh3D();
   const yOf = function (i) { return (hs && hs[i] !== undefined ? hs[i] : 0) + 1; };
@@ -33587,6 +33651,20 @@ function swBuildRoad(pts, hs, i0, i1) {
     const d = s * HW_LANE;
     for (let i = i0; i < i1 - 1; i += 4) {
       swBand(m, pts, i, Math.min(i1, i + 2), yOf, d - 0.18, d + 0.18, SW_LIFT + 0.01, 'sw_line');
+    }
+  }
+  // 5) 가드레일 — 길을 따라 곧게 선다.
+  //
+  // 블록 난간(guard_rail)은 청크 메시에서 빠지고(world.js) 이것이 대신
+  // 보인다. 블록으로 두면 노면이 한 칸 오르내릴 때마다 난간도 같이 튀어
+  // 톱니처럼 보였다 — 노면은 이 띠가 매끄럽게 덮는데 난간만 계단이라
+  // 더 도드라졌다. 부딪히는 몸은 블록 그대로라 차는 여전히 튕긴다.
+  const grTex = blockTexName(B.guard_rail, 0);
+  for (const sgn of [-1, 1]) {
+    const d = sgn * (HW_HALF + 1);
+    swWall(m, pts, i0, i1, yOf, d, 1.25, 1.85, grTex);          // 가로 빔
+    for (let i = i0; i < i1 - 1; i += 4) {                      // 지주
+      swWall(m, pts, i, Math.min(i1, i + 1), yOf, d, 0.05, 1.30, grTex);
     }
   }
   return m.build();
@@ -33687,7 +33765,13 @@ Game.prototype.ensureSmoothWays = function () {
       for (let i = 0; i < h.paths.length; i++) {
         const rec = h.paths[i];
         if (!rec.pts || rec.pts.length < 3) continue;
-        const pts = rec.pts, hs = rec.h;
+        // 블록 노면은 Math.round(rec.h) 높이에 깔린다. 띠를 원래 값(소수)
+        // 그대로 그리면 평평한 구간에서 띠가 블록보다 최대 반 칸 낮게
+        // 깔려, 계단 자리마다 블록 옆면이 길을 가로질러 드러났다
+        // (하얀 갓길·노란 중앙선이 띠처럼 보이던 것이 그것이다).
+        // 반올림한 높이로 그리면 평평한 데서는 딱 맞물리고, 한 칸 오르는
+        // 자리에서는 점 간격(2칸)만큼 비스듬히 이어 덮는다.
+        const pts = rec.pts, hs = rec.h.map(function (v) { return Math.round(v); });
         const segs = swSegments(pts, function (i0, i1) {
           return swBuildRoad(pts, hs, i0, i1);
         });

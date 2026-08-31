@@ -889,6 +889,10 @@ World.prototype.buildMesh = function (c) {
         const meta = c.meta[i];
         const wx = bx + lx, wz = bz + lz;
 
+        // 고속도로 가드레일은 매끄러운 띠가 곧게 대신 그린다 (smoothway).
+        // 블록 그대로 두면 노면 계단을 따라 오르내려 톱니처럼 보인다.
+        if (id === B.guard_rail) continue;
+
         // 3D 나무를 쓰면 잎과 나무 줄기는 여기서 빼고, tree3d.js 가
         // 그 자리에 둥근 나무를 대신 세운다. 집 기둥에 쓴 원목은 남긴다.
         if (TREE3D_ON) {
