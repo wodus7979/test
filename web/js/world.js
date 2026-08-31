@@ -242,7 +242,14 @@ World.prototype.markDirtyAround = function (x, y, z) {
   const cx = Math.floor(x / CHUNK_X), cz = Math.floor(z / CHUNK_Z);
   const lx = x - cx * CHUNK_X, lz = z - cz * CHUNK_Z;
   const self = this;
-  function mark(a, b) { const ch = self.getChunk(a, b); if (ch) ch.dirty = true; }
+  // 3D 나무도 같이 무효화한다 — 나무를 베면 수관도 사라져야 한다.
+  // 잎은 옆 청크까지 뻗을 수 있어 마킹하는 청크마다 함께 지운다.
+  function mark(a, b) {
+    const ch = self.getChunk(a, b);
+    if (!ch) return;
+    ch.dirty = true;
+    ch._t3 = null; ch._t3m = null; ch._t3lod = undefined;
+  }
   mark(cx, cz);
   if (lx === 0) mark(cx - 1, cz);
   if (lx === CHUNK_X - 1) mark(cx + 1, cz);
@@ -881,6 +888,13 @@ World.prototype.buildMesh = function (c) {
         const d = blockDef(id);
         const meta = c.meta[i];
         const wx = bx + lx, wz = bz + lz;
+
+        // 3D 나무를 쓰면 잎과 나무 줄기는 여기서 빼고, tree3d.js 가
+        // 그 자리에 둥근 나무를 대신 세운다. 집 기둥에 쓴 원목은 남긴다.
+        if (TREE3D_ON) {
+          if (d.leaves) continue;
+          if (d.log && t3LogHasLeaves(this, wx, y, wz)) continue;
+        }
 
         if (d.render === RENDER_CROSS) {
           this.emitCross(_mv, _mi, wx, y, wz, d);

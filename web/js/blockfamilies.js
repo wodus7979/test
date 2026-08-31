@@ -115,7 +115,8 @@ function defWoodFamily(w) {
   };
 
   defBlock(logName, logKr, Object.assign({}, woodCommon, {
-    tex: { top: topTex, bottom: topTex, side: sideTex }
+    tex: { top: topTex, bottom: topTex, side: sideTex },
+    log: true          // 3D 나무가 줄기를 알아보는 표시
   }));
   defBlock('stripped_' + logName, '껍질 벗긴 ' + logKr, Object.assign({}, woodCommon, {
     tex: { top: strippedTop, bottom: strippedTop, side: strippedSide }
@@ -177,6 +178,8 @@ function defWoodFamily(w) {
     defBlock(key + '_leaves', kr + ' 잎', {
       tex: { all: leafTex }, hardness: 0.2, tool: TOOL_SHEARS, opaque: false,
       cutout: true, seeThrough: true, filter: 1, flammable: true,
+      leaves: true,      // 3D 나무가 잎을 알아보는 표시
+
       drop: key + '_sapling', dropChance: 0.06, group: 'nature'
     });
     defBlock(key + '_sapling', kr + ' 묘목', {

@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.12.2';
+const GAME_VERSION = 'v10.13';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '끝없이 나던 비행기 착지음 잡음';
+const GAME_FEATURES = '둥근 3D 나무 (잎 블록을 대신한다)';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -3177,6 +3177,7 @@ Game.prototype.render = function (dt) {
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
   if (r.drawSmoothWays) r.drawSmoothWays(this, this.world, p, opts);   // 굽은 길 잇기
+  if (r.drawTrees3D) r.drawTrees3D(this, this.world, p, opts);        // 둥근 3D 나무
   if (r.drawYachts) r.drawYachts(this, this.world, p, opts);
   if (r.drawFerries) r.drawFerries(this, this.world, p, opts);
   if (r.drawDrones) r.drawDrones(this, this.world, p, opts);

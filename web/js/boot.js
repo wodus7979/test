@@ -149,6 +149,25 @@
     });
   }
 
+  // 나무 — 둥근 3D / 블록 그대로.
+  // 이걸 바꾸면 잎을 넣고 빼야 하므로 청크 메시를 모두 다시 만든다.
+  const selTree = document.getElementById('sel-tree');
+  if (selTree) {
+    try {
+      const saved = localStorage.getItem('wc_tree3d');
+      if (saved !== null) selTree.value = saved;
+    } catch (e) { /* 저장소가 막혀 있어도 진행 */ }
+    TREE3D_ON = selTree.value === '1';
+    selTree.addEventListener('change', function () {
+      TREE3D_ON = selTree.value === '1';
+      try { localStorage.setItem('wc_tree3d', selTree.value); } catch (e) { /* 무시 */ }
+      const g = live();
+      if (g && g.world && g.world.chunks) {
+        g.world.chunks.forEach(function (c) { c.dirty = true; c._t3m = null; c._t3 = null; });
+      }
+    });
+  }
+
   // 그림체 — 기본 / 애니 (게임 안에서는 J 로도 바꾼다).
   // 다시 열었을 때 고른 것이 남아 있도록 따로 적어 둔다.
   const selToon = document.getElementById('sel-toon');

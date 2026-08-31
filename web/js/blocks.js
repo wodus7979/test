@@ -1,3 +1,6 @@
+// 나무를 둥근 3D 로 그릴까 (tree3d.js). 청크 메시가 이 값을 보고 잎을 뺀다.
+let TREE3D_ON = true;
+
 // blocks.js - 블록 레지스트리 코어. 모양(모델), 성질, 텍스처 요청을 정의한다.
 // 실제 블록 목록은 이 파일 뒤쪽과 blockfamilies.js 에서 만든다.
 'use strict';
@@ -122,6 +125,7 @@ function defBlock(name, kr, opts) {
     shape: opts.shape !== undefined ? opts.shape : SHAPE_STATIC,
     boxes: opts.boxes || (render === RENDER_BOXES ? SHAPES.full : null),
     solid: opts.solid !== undefined ? opts.solid : true,
+    leaves: !!opts.leaves, log: !!opts.log,
     // opaque = 빛을 완전히 막고 이웃 면을 가린다 (꽉 찬 정육면체만)
     opaque: opts.opaque !== undefined ? opts.opaque : isCube,
     cutout: !!opts.cutout,

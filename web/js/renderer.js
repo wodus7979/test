@@ -1306,6 +1306,47 @@ Renderer.prototype.drawFerries = function (game, world, player, opts) {
 const DRONE_OPTS = { glow: { dr_light: 1 } };
 
 // 굽은 길을 매끄럽게 — 블록 위에 덧그린 띠
+// ── 3D 나무 ───────────────────────────────────────────────────────────
+// 청크마다 그 안의 나무를 한 덩이 메시로 묶어 그린다. 잎 블록은 청크
+// 메시에서 빠져 있으므로(world.js 의 buildMesh) 이것이 잎을 대신한다.
+Renderer.prototype.drawTrees3D = function (game, world, player, opts) {
+  if (!TREE3D_ON || !world.tree3DMesh) return;
+  _geom.reset();
+  const ident = function (lx, ly, lz, out) { out[0] = lx; out[1] = ly; out[2] = lz; };
+  const px = player.x, pz = player.z;
+  let drawn = 0;
+  const self = this;
+  // 화면에 올라와 있는 청크만 돈다 (chunkGL 에 든 것이 곧 그려지는 청크다)
+  const seen = [];
+  this.chunkGL.forEach(function (entry, key) {
+    const parts = key.split(',');
+    const c = world.getChunk(parseInt(parts[0], 10), parseInt(parts[1], 10));
+    if (c) seen.push(c);
+  });
+  for (let i = 0; i < seen.length; i++) {
+    const c = seen[i];
+    if (!c.generated || !c.decorated) continue;
+    const cx = c.cx * CHUNK_X + CHUNK_X / 2, cz = c.cz * CHUNK_Z + CHUNK_Z / 2;
+    const dx = cx - px, dz = cz - pz;
+    const dd = Math.sqrt(dx * dx + dz * dz);
+    if (dd > T3_KEEP) { c._t3m = null; c._t3lod = undefined; continue; }
+    if (dd > T3_DRAW) continue;
+    const mesh = world.tree3DMesh(c, dd < T3_LOD_DIST);
+    if (!mesh) continue;
+    const b = c._t3box;
+    if (b && !self.boxInFrustum(b[0], b[1], b[2], b[3], b[4], b[5])) continue;
+    // 수관 "위" 에서 빛을 잰다. 꼭대기 자리는 아직 잎 블록이 들어 있어
+    // (메시에서만 뺐다) 그 안을 재면 캄캄한 값이 나와 나무가 새까맣게 보였다.
+    const sy = Math.min(CHUNK_Y - 1, Math.max(0, Math.floor(b ? b[4] : 70) + 2));
+    const sky = world.getSky(Math.floor(cx), sy, Math.floor(cz)) / 15;
+    const blk = world.getBlockLight(Math.floor(cx), sy, Math.floor(cz)) / 15;
+    self.emitMesh(mesh, 0, 0, 0, ident, 1, [Math.max(sky, 0.55), blk]);
+    drawn++;
+  }
+  if (!drawn || !_geom.vn) return;
+  this.flushEntityGeom(opts);
+};
+
 Renderer.prototype.drawSmoothWays = function (game, world, player, opts) {
   if (!game.ensureSmoothWays) return;
   const ways = game.ensureSmoothWays();
