@@ -1379,10 +1379,19 @@ body.touch #fly-panel {
         <input id="buddy-key" type="password" placeholder="비워두면 인터넷 없이 동작합니다"
                autocomplete="off" spellcheck="false">
       </label>
+      <label>동료 AI 모델
+        <select id="sel-buddy-model">
+          <option value="claude-opus-5" selected>Opus 5 — 가장 똑똑함 (한 마디 약 8원)</option>
+          <option value="claude-sonnet-5">Sonnet 5 — 중간 (약 3원)</option>
+          <option value="claude-haiku-4-5">Haiku 4.5 — 가장 쌈 (약 1.5원)</option>
+        </select>
+      </label>
       <p class="key-note">열쇠를 넣으면 동료가 <b>Claude</b> 에게 물어 진짜 영어 대화를 합니다.
         열쇠는 <b>이 기기에만</b> 저장되고 파일에는 들어가지 않습니다. 부를 때마다 요금이 듭니다.
         비워 두면 세계를 읽어 규칙으로 답하는 방식으로 도는데, 이쪽은 공짜이고 인터넷도 필요 없습니다.
-        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">열쇠 만들기</a></p>
+        <b>claude.ai 구독(Pro·Max)으로는 쓸 수 없고</b>, 콘솔에서 따로 충전한
+        API 크레딧으로 나갑니다.
+        <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">열쇠 만들기</a></p>
       <label>나무
         <select id="sel-tree">
           <option value="1" selected>둥근 3D 나무</option>
@@ -1615,6 +1624,15 @@ body.touch #fly-panel {
               게임 속 시각·날씨·체력·눈앞의 블록·주변 몬스터 수가 모두 <b>진짜 값</b>이다
               ("where are we", "how far to Seoul", "what time is it", "is it safe").
               공짜이고 언제나 된다</li>
+          <li><b>claude.ai 구독(Pro·Max)으로는 동료를 돌릴 수 없다.</b> 구독은
+              claude.ai 와 Claude Code 를 쓰는 값이고, 앱에서 <code>api.anthropic.com</code>
+              을 부르는 것은 <b>콘솔에서 따로 충전하는 API 크레딧</b>으로 나간다 —
+              계정도 청구도 다른 창구다. 그래서 열쇠 없이 도는 길을 기본으로 두었다</li>
+          <li>값이 궁금하다면: 한 마디에 오가는 글이 <b>1,200자 남짓</b>이라
+              <b>Opus 5 로 한 마디에 약 8원</b>이다 (백 마디에 800원쯤).
+              시작 화면 <b>동료 AI 모델</b> 에서 <b>Sonnet 5</b>(약 3원) 나
+              <b>Haiku 4.5</b>(약 1.5원) 로 바꿀 수 있다 — 고르는 것은 사람 몫이라
+              기본은 제일 똑똑한 Opus 5 로 두었다</li>
           <li>시작 화면 <b>동료 AI 열쇠</b> 칸에 자기 <b>Anthropic API 열쇠</b>를 넣으면,
               동료가 <b>Claude</b> 에게 물어 <b>진짜 영어 대화</b>를 한다. 이때도 지금 세계가
               어떤지를 함께 보내므로 엉뚱한 좌표를 지어내지 않는다. 답이 길어지지 않게
@@ -26501,9 +26519,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.14';
+const GAME_VERSION = 'v10.14.1';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '영어 동료 Ellie · 목소리로 답하고 따라다닌다';
+const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -29899,7 +29917,7 @@ Game.prototype.buddyWorld = function () {
     isNight: night,
     weather: (this.weather && this.weather.strength > 0.05)
       ? (this.weather.snow ? 'snowing' : 'raining') : 'clear',
-    health: Math.round(p.health), maxHealth: 20,
+    health: Math.round(p.health),
     food: Math.round(p.food === undefined ? 20 : p.food),
     mode: p.creative ? 'creative' : 'survival',
     flying: !!p.flying, inWater: !!p.inWater,
@@ -29990,7 +30008,20 @@ Game.prototype.buddyOffline = function (q) {
 // ── 클로드에게 물어보기 ───────────────────────────────────────────────
 // 브라우저에서 곧장 부른다. 열쇠는 플레이어가 자기 것을 넣고, 그 기기의
 // localStorage 에만 남는다 — 파일 안에 넣어 두지 않는다.
-const BUDDY_MODEL = 'claude-opus-5';
+// 쓸 모델. 기본은 제일 똑똑한 Opus 5 이고, 값이 부담되면 시작 화면에서
+// 더 싼 것으로 바꿀 수 있다 (고르는 것은 사람 몫이다).
+const BUDDY_MODELS = {
+  'claude-opus-5': 'Opus 5',
+  'claude-sonnet-5': 'Sonnet 5',
+  'claude-haiku-4-5': 'Haiku 4.5'
+};
+function buddyModel() {
+  try {
+    const m = localStorage.getItem('wc_buddy_model');
+    if (m && BUDDY_MODELS[m]) return m;
+  } catch (e) { /* 무시 */ }
+  return 'claude-opus-5';
+}
 const BUDDY_SYS =
   'You are ' + BUDDY_NAME + ', a cheerful companion walking beside the player ' +
   'inside a Minecraft-like voxel game set in Korea. ' +
@@ -30011,7 +30042,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
   if (!this._bdHist) this._bdHist = [];
   const world = this.buddyWorld();
   // 최근 몇 마디만 들려 준다 (길어지면 값도 비싸고 느려진다)
-  const msgs = this._bdHist.slice(-8).concat([{
+  const msgs = this._bdHist.slice(-6).concat([{
     role: 'user',
     content: 'WORLD STATE (facts, not spoken by the player):\n' +
       JSON.stringify(world) + '\n\nPlayer says: ' + q
@@ -30025,7 +30056,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: BUDDY_MODEL,
+      model: buddyModel(),
       max_tokens: 300,
       system: BUDDY_SYS,
       messages: msgs
@@ -30041,7 +30072,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
     if (!text) { done(null); return; }
     self._bdHist.push({ role: 'user', content: q });
     self._bdHist.push({ role: 'assistant', content: text });
-    while (self._bdHist.length > 16) self._bdHist.shift();
+    while (self._bdHist.length > 12) self._bdHist.shift();
     done(text);
   }).catch(function (err) {
     self._bdErr = String(err && err.message || err).slice(0, 120);
@@ -36052,6 +36083,17 @@ Game.prototype.updateNetHud = function () {
       } catch (e) { /* 무시 */ }
     });
   }
+  const selBdModel = document.getElementById('sel-buddy-model');
+  if (selBdModel) {
+    try {
+      const saved = localStorage.getItem('wc_buddy_model');
+      if (saved !== null) selBdModel.value = saved;
+    } catch (e) { /* 무시 */ }
+    selBdModel.addEventListener('change', function () {
+      try { localStorage.setItem('wc_buddy_model', selBdModel.value); } catch (e) { /* 무시 */ }
+    });
+  }
+
   const chkBuddyVoice = document.getElementById('chk-buddy-voice');
   if (chkBuddyVoice) {
     try {

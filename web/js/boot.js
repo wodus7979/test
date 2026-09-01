@@ -161,6 +161,17 @@
       } catch (e) { /* 무시 */ }
     });
   }
+  const selBdModel = document.getElementById('sel-buddy-model');
+  if (selBdModel) {
+    try {
+      const saved = localStorage.getItem('wc_buddy_model');
+      if (saved !== null) selBdModel.value = saved;
+    } catch (e) { /* 무시 */ }
+    selBdModel.addEventListener('change', function () {
+      try { localStorage.setItem('wc_buddy_model', selBdModel.value); } catch (e) { /* 무시 */ }
+    });
+  }
+
   const chkBuddyVoice = document.getElementById('chk-buddy-voice');
   if (chkBuddyVoice) {
     try {

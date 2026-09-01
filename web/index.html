@@ -145,10 +145,19 @@
         <input id="buddy-key" type="password" placeholder="비워두면 인터넷 없이 동작합니다"
                autocomplete="off" spellcheck="false">
       </label>
+      <label>동료 AI 모델
+        <select id="sel-buddy-model">
+          <option value="claude-opus-5" selected>Opus 5 — 가장 똑똑함 (한 마디 약 8원)</option>
+          <option value="claude-sonnet-5">Sonnet 5 — 중간 (약 3원)</option>
+          <option value="claude-haiku-4-5">Haiku 4.5 — 가장 쌈 (약 1.5원)</option>
+        </select>
+      </label>
       <p class="key-note">열쇠를 넣으면 동료가 <b>Claude</b> 에게 물어 진짜 영어 대화를 합니다.
         열쇠는 <b>이 기기에만</b> 저장되고 파일에는 들어가지 않습니다. 부를 때마다 요금이 듭니다.
         비워 두면 세계를 읽어 규칙으로 답하는 방식으로 도는데, 이쪽은 공짜이고 인터넷도 필요 없습니다.
-        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">열쇠 만들기</a></p>
+        <b>claude.ai 구독(Pro·Max)으로는 쓸 수 없고</b>, 콘솔에서 따로 충전한
+        API 크레딧으로 나갑니다.
+        <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">열쇠 만들기</a></p>
       <label>나무
         <select id="sel-tree">
           <option value="1" selected>둥근 3D 나무</option>
@@ -381,6 +390,15 @@
               게임 속 시각·날씨·체력·눈앞의 블록·주변 몬스터 수가 모두 <b>진짜 값</b>이다
               ("where are we", "how far to Seoul", "what time is it", "is it safe").
               공짜이고 언제나 된다</li>
+          <li><b>claude.ai 구독(Pro·Max)으로는 동료를 돌릴 수 없다.</b> 구독은
+              claude.ai 와 Claude Code 를 쓰는 값이고, 앱에서 <code>api.anthropic.com</code>
+              을 부르는 것은 <b>콘솔에서 따로 충전하는 API 크레딧</b>으로 나간다 —
+              계정도 청구도 다른 창구다. 그래서 열쇠 없이 도는 길을 기본으로 두었다</li>
+          <li>값이 궁금하다면: 한 마디에 오가는 글이 <b>1,200자 남짓</b>이라
+              <b>Opus 5 로 한 마디에 약 8원</b>이다 (백 마디에 800원쯤).
+              시작 화면 <b>동료 AI 모델</b> 에서 <b>Sonnet 5</b>(약 3원) 나
+              <b>Haiku 4.5</b>(약 1.5원) 로 바꿀 수 있다 — 고르는 것은 사람 몫이라
+              기본은 제일 똑똑한 Opus 5 로 두었다</li>
           <li>시작 화면 <b>동료 AI 열쇠</b> 칸에 자기 <b>Anthropic API 열쇠</b>를 넣으면,
               동료가 <b>Claude</b> 에게 물어 <b>진짜 영어 대화</b>를 한다. 이때도 지금 세계가
               어떤지를 함께 보내므로 엉뚱한 좌표를 지어내지 않는다. 답이 길어지지 않게

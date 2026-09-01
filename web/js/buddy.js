@@ -160,7 +160,7 @@ Game.prototype.buddyWorld = function () {
     isNight: night,
     weather: (this.weather && this.weather.strength > 0.05)
       ? (this.weather.snow ? 'snowing' : 'raining') : 'clear',
-    health: Math.round(p.health), maxHealth: 20,
+    health: Math.round(p.health),
     food: Math.round(p.food === undefined ? 20 : p.food),
     mode: p.creative ? 'creative' : 'survival',
     flying: !!p.flying, inWater: !!p.inWater,
@@ -251,7 +251,20 @@ Game.prototype.buddyOffline = function (q) {
 // ── 클로드에게 물어보기 ───────────────────────────────────────────────
 // 브라우저에서 곧장 부른다. 열쇠는 플레이어가 자기 것을 넣고, 그 기기의
 // localStorage 에만 남는다 — 파일 안에 넣어 두지 않는다.
-const BUDDY_MODEL = 'claude-opus-5';
+// 쓸 모델. 기본은 제일 똑똑한 Opus 5 이고, 값이 부담되면 시작 화면에서
+// 더 싼 것으로 바꿀 수 있다 (고르는 것은 사람 몫이다).
+const BUDDY_MODELS = {
+  'claude-opus-5': 'Opus 5',
+  'claude-sonnet-5': 'Sonnet 5',
+  'claude-haiku-4-5': 'Haiku 4.5'
+};
+function buddyModel() {
+  try {
+    const m = localStorage.getItem('wc_buddy_model');
+    if (m && BUDDY_MODELS[m]) return m;
+  } catch (e) { /* 무시 */ }
+  return 'claude-opus-5';
+}
 const BUDDY_SYS =
   'You are ' + BUDDY_NAME + ', a cheerful companion walking beside the player ' +
   'inside a Minecraft-like voxel game set in Korea. ' +
@@ -272,7 +285,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
   if (!this._bdHist) this._bdHist = [];
   const world = this.buddyWorld();
   // 최근 몇 마디만 들려 준다 (길어지면 값도 비싸고 느려진다)
-  const msgs = this._bdHist.slice(-8).concat([{
+  const msgs = this._bdHist.slice(-6).concat([{
     role: 'user',
     content: 'WORLD STATE (facts, not spoken by the player):\n' +
       JSON.stringify(world) + '\n\nPlayer says: ' + q
@@ -286,7 +299,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: BUDDY_MODEL,
+      model: buddyModel(),
       max_tokens: 300,
       system: BUDDY_SYS,
       messages: msgs
@@ -302,7 +315,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
     if (!text) { done(null); return; }
     self._bdHist.push({ role: 'user', content: q });
     self._bdHist.push({ role: 'assistant', content: text });
-    while (self._bdHist.length > 16) self._bdHist.shift();
+    while (self._bdHist.length > 12) self._bdHist.shift();
     done(text);
   }).catch(function (err) {
     self._bdErr = String(err && err.message || err).slice(0, 120);

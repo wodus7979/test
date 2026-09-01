@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.14';
+const GAME_VERSION = 'v10.14.1';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '영어 동료 Ellie · 목소리로 답하고 따라다닌다';
+const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
