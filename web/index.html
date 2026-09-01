@@ -147,6 +147,9 @@
             <option value="claude-sonnet-5">Sonnet 5 — 중간 (약 3원)</option>
             <option value="claude-haiku-4-5">Haiku 4.5 — 가장 쌈 (약 1.5원)</option>
           </optgroup>
+          <optgroup label="내 컴퓨터 — 요금 없음">
+            <option value="bridge">Claude Code 다리 — 쓰던 구독으로 (열쇠 없이)</option>
+          </optgroup>
           <optgroup label="OpenAI — GPT">
             <option value="gpt-5">GPT-5 — 가장 똑똑함</option>
             <option value="gpt-5-mini">GPT-5 mini — 중간</option>
@@ -159,8 +162,13 @@
         <input id="buddy-key" type="password" placeholder="비워두면 인터넷 없이 동작합니다"
                autocomplete="off" spellcheck="false">
       </label>
-      <p class="key-note">열쇠를 넣으면 동료가 위에서 고른 <b>Claude</b> 또는 <b>GPT</b> 에게 물어
-        진짜 영어 대화를 합니다. 열쇠는 두 곳 것을 따로 기억하니 모델만 바꿔 가며 써도 됩니다.
+      <p class="key-note"><b>Claude Code 다리</b>를 고르면 열쇠가 필요 없습니다. 컴퓨터에서
+        <code>python3 tools/claude-bridge.py</code> 를 켜고, 찍혀 나온 <b>암호</b>를 위 칸에
+        붙여 넣으세요. 이 컴퓨터에 깔린 Claude Code 가 대신 답해 주므로 API 요금이 들지
+        않습니다 (쓰던 Claude Code 사용량에서 나갑니다). 폰에서는 안 되고, 게임과 같은
+        컴퓨터에서만 됩니다.<br>
+        <b>Claude</b> 나 <b>GPT</b> 를 고르면 그 집 열쇠로 곧장 물어봅니다.
+        열쇠는 곳마다 따로 기억하니 모델만 바꿔 가며 써도 됩니다.
         열쇠는 <b>이 기기에만</b> 저장되고 파일에는 들어가지 않습니다. 부를 때마다 요금이 듭니다.
         비워 두면 세계를 읽어 규칙으로 답하는 방식으로 도는데, 이쪽은 공짜이고 인터넷도 필요 없습니다.
         어느 쪽이든 <b>월 구독(claude.ai Pro·Max, ChatGPT Plus)으로는 쓸 수 없고</b>,
@@ -410,6 +418,15 @@
               <b>Haiku 4.5</b>(약 1.5원) 로 바꾸거나, <b>GPT-5</b>·<b>GPT-5 mini</b>·
               <b>GPT-4.1 mini</b> 로 넘어갈 수 있다 — 고르는 것은 사람 몫이라
               기본은 제일 똑똑한 Opus 5 로 두었다</li>
+          <li><b>요금 없이 진짜 대화</b>를 하고 싶으면, 게임과 같은 컴퓨터에서
+              <code>python3 tools/claude-bridge.py</code> 를 켜고 (또는 <code>run</code> 안의
+              <b>클로드-다리-켜기</b>) 찍혀 나온 <b>암호</b>를 시작 화면에 붙여 넣은 뒤,
+              모델에서 <b>Claude Code 다리</b>를 고르면 된다. 이 컴퓨터에 깔린 Claude Code 가
+              대신 답하므로 API 열쇠도 요금도 없다 — 대신 <b>쓰던 Claude Code 사용량</b>에서
+              나가고, Claude Code 자체의 밑글이 딸려 와 한 마디에 <b>1만5천 토큰쯤</b> 든다.
+              다리는 <code>127.0.0.1</code> 에만 귀를 열고 암호가 맞아야 답하며, 명령·파일
+              도구를 모두 떼고 부르므로 동료가 컴퓨터를 건드릴 수는 없다.
+              폰에서는 안 되고, 다리를 끄면 저절로 인터넷 없는 길로 돌아간다</li>
           <li>시작 화면 <b>동료 AI 모델</b> 에서 <b>Claude</b> 와 <b>GPT</b> 중 하나를 고르고
               그 집 <b>API 열쇠</b>를 넣으면, 동료가 거기에 물어 <b>진짜 영어 대화</b>를 한다.
               열쇠 칸은 고른 집을 따라 바뀌고 둘을 따로 기억하므로, 모델만 오가며 써도

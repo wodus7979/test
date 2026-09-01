@@ -154,17 +154,26 @@
   const keyBox = document.getElementById('buddy-key');
   const keyLabel = document.getElementById('buddy-key-label');
   const selBdModel = document.getElementById('sel-buddy-model');
-  const bdSlot = function () {
+  // 고른 모델이 어느 곳 것인지 — 열쇠 칸의 이름표와 담는 자리가 여기서 갈린다
+  const bdWhere = function () {
     const m = selBdModel ? selBdModel.value : '';
-    return m.indexOf('gpt') === 0 ? 'wc_buddy_key_gpt' : 'wc_buddy_key';
+    if (m === 'bridge') return 'bridge';
+    return m.indexOf('gpt') === 0 ? 'gpt' : 'claude';
   };
+  const BD_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt', bridge: 'wc_buddy_bridge' };
+  const BD_LABEL = { claude: 'Claude 열쇠', gpt: 'OpenAI 열쇠', bridge: '다리 암호' };
+  const BD_HINT = {
+    claude: 'sk-ant-… (비워두면 인터넷 없이 동작합니다)',
+    gpt: 'sk-… (비워두면 인터넷 없이 동작합니다)',
+    bridge: '다리를 켜면 찍히는 암호를 붙여 넣으세요'
+  };
+  const bdSlot = function () { return BD_SLOT[bdWhere()]; };
   const bdShowKey = function () {
-    const gpt = bdSlot() === 'wc_buddy_key_gpt';
-    if (keyLabel) keyLabel.textContent = gpt ? 'OpenAI 열쇠' : 'Claude 열쇠';
+    const w = bdWhere();
+    if (keyLabel) keyLabel.textContent = BD_LABEL[w];
     if (keyBox) {
-      keyBox.placeholder = gpt ? 'sk-… (비워두면 인터넷 없이 동작합니다)'
-                               : 'sk-ant-… (비워두면 인터넷 없이 동작합니다)';
-      try { keyBox.value = localStorage.getItem(bdSlot()) || ''; } catch (e) { /* 무시 */ }
+      keyBox.placeholder = BD_HINT[w];
+      try { keyBox.value = localStorage.getItem(BD_SLOT[w]) || ''; } catch (e) { /* 무시 */ }
     }
   };
   if (selBdModel) {

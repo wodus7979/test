@@ -259,8 +259,13 @@ const BUDDY_MODELS = {
   'claude-haiku-4-5':{ label: 'Haiku 4.5', api: 'claude' },
   'gpt-5':           { label: 'GPT-5',     api: 'gpt' },
   'gpt-5-mini':      { label: 'GPT-5 mini',api: 'gpt' },
-  'gpt-4.1-mini':    { label: 'GPT-4.1 mini', api: 'gpt' }
+  'gpt-4.1-mini':    { label: 'GPT-4.1 mini', api: 'gpt' },
+  // 이 컴퓨터에 깔린 Claude Code 를 다리로 쓴다. 열쇠 대신 다리 암호를 넣고,
+  // 요금은 따로 들지 않는다 (쓰던 Claude Code 사용량에서 나간다).
+  'bridge':          { label: '내 컴퓨터의 Claude Code', api: 'bridge' }
 };
+// 다리가 귀를 열고 있는 곳. tools/claude-bridge.py 가 여기에 선다.
+const BUDDY_BRIDGE_URL = 'http://localhost:8124';
 function buddyModel() {
   try {
     const m = localStorage.getItem('wc_buddy_model');
@@ -271,7 +276,7 @@ function buddyModel() {
 // 지금 고른 모델이 어느 집 것인지. 열쇠도 이 값에 따라 다른 칸에서 꺼낸다.
 function buddyApi() { return BUDDY_MODELS[buddyModel()].api; }
 // 열쇠는 제공자마다 따로 둔다. 둘을 바꿔 가며 써도 다시 붙여넣지 않아도 된다.
-const BUDDY_KEY_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt' };
+const BUDDY_KEY_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt', bridge: 'wc_buddy_bridge' };
 
 const BUDDY_SYS =
   'You are ' + BUDDY_NAME + ', a cheerful companion walking beside the player ' +
@@ -317,7 +322,10 @@ Game.prototype.buddyFailed = function (err, done) {
 // 두 제공자 모두 브라우저에서 곧장 부른다. 열쇠는 플레이어가 자기 것을 넣고,
 // 그 기기의 localStorage 에만 남는다 — 파일 안에 넣어 두지 않는다.
 Game.prototype.buddyAskAI = function (q, done) {
-  return buddyApi() === 'gpt' ? this.buddyAskGpt(q, done) : this.buddyAskClaude(q, done);
+  const api = buddyApi();
+  if (api === 'gpt') return this.buddyAskGpt(q, done);
+  if (api === 'bridge') return this.buddyAskBridge(q, done);
+  return this.buddyAskClaude(q, done);
 };
 
 Game.prototype.buddyAskClaude = function (q, done) {
@@ -378,6 +386,34 @@ Game.prototype.buddyAskGpt = function (q, done) {
   }).catch(function (err) { self.buddyFailed(err, done); });
 };
 
+// 다리 쪽. 인터넷 저편이 아니라 이 컴퓨터에서 도는 tools/claude-bridge.py 에게
+// 건네고, 다리가 Claude Code 를 불러 답을 받아 온다. 그래서 API 열쇠가 없어도
+// 되고, 쓰던 Claude Code 사용량에서 나간다. 암호는 다리가 켜질 때 찍어 준다.
+Game.prototype.buddyAskBridge = function (q, done) {
+  const token = this.buddyKey('bridge');
+  if (!token) { done(null); return; }
+  const self = this;
+  fetch(BUDDY_BRIDGE_URL + '/ask', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + token
+    },
+    body: JSON.stringify({ system: BUDDY_SYS, messages: this.buddyTurn(q) })
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
+    return r.json();
+  }).then(function (j) {
+    self.buddyHeard(q, j.text || '', done);
+  }).catch(function (err) {
+    // 다리를 아예 못 찾은 것과 다리가 답을 못 준 것은 손쓸 방법이 다르다
+    const m = String(err && err.message || err);
+    self.buddyFailed(/Failed to fetch|NetworkError|load failed/i.test(m)
+      ? new Error('다리가 꺼져 있습니다 — tools/claude-bridge.py 를 켜 주세요')
+      : err, done);
+  });
+};
+
 // ── 물으면 답한다 ─────────────────────────────────────────────────────
 Game.prototype.buddyAsk = function (q) {
   if (!q) return;
@@ -393,7 +429,13 @@ Game.prototype.buddyAsk = function (q) {
     if (text) self.buddySay(text);
     else {
       self.buddySay(self.buddyOffline(q));
-      if (self._bdErr) { self.ui.toast('동료가 인터넷에 닿지 못했습니다 — ' + self._bdErr); self._bdErr = null; }
+      if (self._bdErr) {
+        // 다리는 이 컴퓨터 안에 있으므로 "인터넷" 이라고 하면 엉뚱하다
+        const head = buddyApi() === 'bridge' ? '동료가 다리를 건너지 못했습니다 — '
+                                             : '동료가 인터넷에 닿지 못했습니다 — ';
+        self.ui.toast(head + self._bdErr);
+        self._bdErr = null;
+      }
     }
   });
 };
