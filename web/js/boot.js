@@ -150,18 +150,23 @@
   }
 
   // 영어 동료 — 열쇠는 이 기기(localStorage)에만 둔다. 파일에는 넣지 않는다.
+  // Claude 것과 GPT 것을 다른 칸에 담아, 모델을 오가도 다시 붙여넣지 않게 한다.
   const keyBox = document.getElementById('buddy-key');
-  if (keyBox) {
-    try { keyBox.value = localStorage.getItem('wc_buddy_key') || ''; } catch (e) { /* 무시 */ }
-    keyBox.addEventListener('change', function () {
-      const v = keyBox.value.trim();
-      try {
-        if (v) localStorage.setItem('wc_buddy_key', v);
-        else localStorage.removeItem('wc_buddy_key');
-      } catch (e) { /* 무시 */ }
-    });
-  }
+  const keyLabel = document.getElementById('buddy-key-label');
   const selBdModel = document.getElementById('sel-buddy-model');
+  const bdSlot = function () {
+    const m = selBdModel ? selBdModel.value : '';
+    return m.indexOf('gpt') === 0 ? 'wc_buddy_key_gpt' : 'wc_buddy_key';
+  };
+  const bdShowKey = function () {
+    const gpt = bdSlot() === 'wc_buddy_key_gpt';
+    if (keyLabel) keyLabel.textContent = gpt ? 'OpenAI 열쇠' : 'Claude 열쇠';
+    if (keyBox) {
+      keyBox.placeholder = gpt ? 'sk-… (비워두면 인터넷 없이 동작합니다)'
+                               : 'sk-ant-… (비워두면 인터넷 없이 동작합니다)';
+      try { keyBox.value = localStorage.getItem(bdSlot()) || ''; } catch (e) { /* 무시 */ }
+    }
+  };
   if (selBdModel) {
     try {
       const saved = localStorage.getItem('wc_buddy_model');
@@ -169,6 +174,17 @@
     } catch (e) { /* 무시 */ }
     selBdModel.addEventListener('change', function () {
       try { localStorage.setItem('wc_buddy_model', selBdModel.value); } catch (e) { /* 무시 */ }
+      bdShowKey();   // 고른 집이 바뀌면 그 집 열쇠를 보여 준다
+    });
+  }
+  if (keyBox) {
+    bdShowKey();
+    keyBox.addEventListener('change', function () {
+      const v = keyBox.value.trim();
+      try {
+        if (v) localStorage.setItem(bdSlot(), v);
+        else localStorage.removeItem(bdSlot());
+      } catch (e) { /* 무시 */ }
     });
   }
 

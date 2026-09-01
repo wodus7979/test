@@ -6,9 +6,10 @@
 //   1) 혼자 도는 길 — 세계를 실제로 들여다보고 규칙으로 답한다. 인터넷도
 //      열쇠도 필요 없고 언제나 된다. "여기 어디야", "서울까지 얼마나 멀어",
 //      "지금 몇 시야" 같은 물음에 진짜 값으로 답한다.
-//   2) 클로드에 물어보는 길 — 설정에 자기 API 열쇠를 넣어 두면, 그 열쇠로
-//      Claude 에게 물어 진짜 대화를 한다. 이때도 "지금 이 세계가 어떤지"를
-//      함께 보내므로 엉뚱한 소리를 하지 않는다. 실패하면 1) 로 되돌아간다.
+//   2) AI 에게 물어보는 길 — 시작 화면에 자기 API 열쇠를 넣어 두면, 그 열쇠로
+//      Claude 나 GPT 에게 물어 진짜 대화를 한다. 어느 쪽을 쓸지는 고른 모델이
+//      정한다. 이때도 "지금 이 세계가 어떤지"를 함께 보내므로 엉뚱한 소리를
+//      하지 않는다. 실패하면 1) 로 되돌아간다.
 'use strict';
 
 const BUDDY_NAME = 'Ellie';
@@ -106,7 +107,7 @@ Game.prototype.buddySay = function (text) {
 };
 
 // ── 세계를 들여다보기 ─────────────────────────────────────────────────
-// 두 갈래가 같이 쓴다. 규칙으로 답할 때도, 클로드에게 물을 때도 이 값을 쓴다.
+// 두 갈래가 같이 쓴다. 규칙으로 답할 때도, AI 에게 물을 때도 이 값을 쓴다.
 const BUDDY_CITY_EN = { ICN: 'Songdo', GMP: 'Seoul', CJU: 'Jeju', MPO: 'Mokpo' };
 const BUDDY_DIRS = ['north', 'north-east', 'east', 'south-east',
   'south', 'south-west', 'west', 'north-west'];
@@ -248,15 +249,17 @@ Game.prototype.buddyOffline = function (q) {
   return "I didn't catch that. Try \"where are we\", \"how far to Jeju\", or \"follow me\".";
 };
 
-// ── 클로드에게 물어보기 ───────────────────────────────────────────────
-// 브라우저에서 곧장 부른다. 열쇠는 플레이어가 자기 것을 넣고, 그 기기의
-// localStorage 에만 남는다 — 파일 안에 넣어 두지 않는다.
-// 쓸 모델. 기본은 제일 똑똑한 Opus 5 이고, 값이 부담되면 시작 화면에서
-// 더 싼 것으로 바꿀 수 있다 (고르는 것은 사람 몫이다).
+// ── AI 에게 물어보기 ──────────────────────────────────────────────────
+// 쓸 모델. 제공자는 두 곳 — 앤트로픽(Claude)과 오픈AI(GPT) 중 고른다.
+// 기본은 제일 똑똑한 Opus 5 이고, 값이 부담되면 시작 화면에서 더 싼 것으로
+// 바꿀 수 있다 (무엇을 쓸지 고르는 것은 사람 몫이다).
 const BUDDY_MODELS = {
-  'claude-opus-5': 'Opus 5',
-  'claude-sonnet-5': 'Sonnet 5',
-  'claude-haiku-4-5': 'Haiku 4.5'
+  'claude-opus-5':   { label: 'Opus 5',    api: 'claude' },
+  'claude-sonnet-5': { label: 'Sonnet 5',  api: 'claude' },
+  'claude-haiku-4-5':{ label: 'Haiku 4.5', api: 'claude' },
+  'gpt-5':           { label: 'GPT-5',     api: 'gpt' },
+  'gpt-5-mini':      { label: 'GPT-5 mini',api: 'gpt' },
+  'gpt-4.1-mini':    { label: 'GPT-4.1 mini', api: 'gpt' }
 };
 function buddyModel() {
   try {
@@ -265,6 +268,11 @@ function buddyModel() {
   } catch (e) { /* 무시 */ }
   return 'claude-opus-5';
 }
+// 지금 고른 모델이 어느 집 것인지. 열쇠도 이 값에 따라 다른 칸에서 꺼낸다.
+function buddyApi() { return BUDDY_MODELS[buddyModel()].api; }
+// 열쇠는 제공자마다 따로 둔다. 둘을 바꿔 가며 써도 다시 붙여넣지 않아도 된다.
+const BUDDY_KEY_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt' };
+
 const BUDDY_SYS =
   'You are ' + BUDDY_NAME + ', a cheerful companion walking beside the player ' +
   'inside a Minecraft-like voxel game set in Korea. ' +
@@ -274,35 +282,62 @@ const BUDDY_SYS =
   'is read aloud. Use the WORLD STATE given to you for anything factual about ' +
   'where you are; never invent coordinates or distances. Be warm and adventurous.';
 
-Game.prototype.buddyKey = function () {
-  try { return localStorage.getItem('wc_buddy_key') || ''; } catch (e) { return ''; }
+Game.prototype.buddyKey = function (api) {
+  const slot = BUDDY_KEY_SLOT[api || buddyApi()];
+  try { return localStorage.getItem(slot) || ''; } catch (e) { return ''; }
+};
+
+// 이번에 물어볼 말 한 덩어리. 두 제공자가 같은 모양을 쓰므로 한 번만 만든다.
+Game.prototype.buddyTurn = function (q) {
+  if (!this._bdHist) this._bdHist = [];
+  // 최근 몇 마디만 들려 준다 (길어지면 값도 비싸고 느려진다)
+  return this._bdHist.slice(-6).concat([{
+    role: 'user',
+    content: 'WORLD STATE (facts, not spoken by the player):\n' +
+      JSON.stringify(this.buddyWorld()) + '\n\nPlayer says: ' + q
+  }]);
+};
+
+// 주고받은 말을 기억해 두고 넘긴다. 답이 비면 실패로 친다.
+Game.prototype.buddyHeard = function (q, text, done) {
+  text = (text || '').trim();
+  if (!text) { done(null); return; }
+  this._bdHist.push({ role: 'user', content: q });
+  this._bdHist.push({ role: 'assistant', content: text });
+  while (this._bdHist.length > 12) this._bdHist.shift();
+  done(text);
+};
+
+// 답을 못 받았을 때 까닭을 적어 둔다 (토스트로 보여 준다).
+Game.prototype.buddyFailed = function (err, done) {
+  this._bdErr = String(err && err.message || err).slice(0, 120);
+  done(null);
+};
+
+// 두 제공자 모두 브라우저에서 곧장 부른다. 열쇠는 플레이어가 자기 것을 넣고,
+// 그 기기의 localStorage 에만 남는다 — 파일 안에 넣어 두지 않는다.
+Game.prototype.buddyAskAI = function (q, done) {
+  return buddyApi() === 'gpt' ? this.buddyAskGpt(q, done) : this.buddyAskClaude(q, done);
 };
 
 Game.prototype.buddyAskClaude = function (q, done) {
-  const key = this.buddyKey();
+  const key = this.buddyKey('claude');
   if (!key) { done(null); return; }
   const self = this;
-  if (!this._bdHist) this._bdHist = [];
-  const world = this.buddyWorld();
-  // 최근 몇 마디만 들려 준다 (길어지면 값도 비싸고 느려진다)
-  const msgs = this._bdHist.slice(-6).concat([{
-    role: 'user',
-    content: 'WORLD STATE (facts, not spoken by the player):\n' +
-      JSON.stringify(world) + '\n\nPlayer says: ' + q
-  }]);
   fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'x-api-key': key,
       'anthropic-version': '2023-06-01',
+      // 브라우저에서 곧장 부르겠다는 표시. 이게 있어야 CORS 가 열린다.
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
       model: buddyModel(),
       max_tokens: 300,
       system: BUDDY_SYS,
-      messages: msgs
+      messages: this.buddyTurn(q)
     })
   }).then(function (r) {
     if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
@@ -311,16 +346,36 @@ Game.prototype.buddyAskClaude = function (q, done) {
     let text = '';
     const list = j.content || [];
     for (let i = 0; i < list.length; i++) if (list[i].type === 'text') text += list[i].text;
-    text = text.trim();
-    if (!text) { done(null); return; }
-    self._bdHist.push({ role: 'user', content: q });
-    self._bdHist.push({ role: 'assistant', content: text });
-    while (self._bdHist.length > 12) self._bdHist.shift();
-    done(text);
-  }).catch(function (err) {
-    self._bdErr = String(err && err.message || err).slice(0, 120);
-    done(null);
-  });
+    self.buddyHeard(q, text, done);
+  }).catch(function (err) { self.buddyFailed(err, done); });
+};
+
+// GPT 쪽. 클로드와 다른 점은 세 가지뿐이다 —
+//  · 열쇠를 Authorization 머리글에 Bearer 로 얹는다
+//  · 지침(system)을 messages 맨 앞에 한 줄로 넣는다
+//  · 길이 제한 이름이 max_completion_tokens 이다 (새 모델은 max_tokens 를 거절한다)
+Game.prototype.buddyAskGpt = function (q, done) {
+  const key = this.buddyKey('gpt');
+  if (!key) { done(null); return; }
+  const self = this;
+  fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + key
+    },
+    body: JSON.stringify({
+      model: buddyModel(),
+      max_completion_tokens: 300,
+      messages: [{ role: 'system', content: BUDDY_SYS }].concat(this.buddyTurn(q))
+    })
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
+    return r.json();
+  }).then(function (j) {
+    const ch = (j.choices || [])[0] || {};
+    self.buddyHeard(q, (ch.message && ch.message.content) || '', done);
+  }).catch(function (err) { self.buddyFailed(err, done); });
 };
 
 // ── 물으면 답한다 ─────────────────────────────────────────────────────
@@ -334,7 +389,7 @@ Game.prototype.buddyAsk = function (q) {
 
   if (!this.buddyKey()) { this.buddySay(this.buddyOffline(q)); return; }
   if (this.buddy) { this.buddy.sayText = '...'; this.buddy.sayTimer = 12; }
-  this.buddyAskClaude(q, function (text) {
+  this.buddyAskAI(q, function (text) {
     if (text) self.buddySay(text);
     else {
       self.buddySay(self.buddyOffline(q));
