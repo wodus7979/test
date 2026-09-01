@@ -1228,5 +1228,15 @@ body.touch #fly-panel {
 #btn-mic.on {
   background: rgba(40,120,80,.92); border-color: #8ff0c0;
   box-shadow: 0 0 16px rgba(90,230,160,.5);
+  animation: micpulse 1.4s ease-in-out infinite;
+}
+/* 생각하거나 말하는 동안 — 이때는 귀를 닫고 있다 */
+#btn-mic.busy {
+  background: rgba(24,70,110,.92); border-color: #8fd0f0;
+  box-shadow: 0 0 14px rgba(90,180,240,.45);
+}
+@keyframes micpulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(90,230,160,.35); }
+  50%      { box-shadow: 0 0 20px rgba(90,230,160,.65); }
 }
 @media (max-height: 560px) { #btn-mic { bottom: 8px; padding: 5px 10px; font-size: 12px; } }
