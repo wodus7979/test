@@ -149,6 +149,31 @@
     });
   }
 
+  // 영어 동료 — 열쇠는 이 기기(localStorage)에만 둔다. 파일에는 넣지 않는다.
+  const keyBox = document.getElementById('buddy-key');
+  if (keyBox) {
+    try { keyBox.value = localStorage.getItem('wc_buddy_key') || ''; } catch (e) { /* 무시 */ }
+    keyBox.addEventListener('change', function () {
+      const v = keyBox.value.trim();
+      try {
+        if (v) localStorage.setItem('wc_buddy_key', v);
+        else localStorage.removeItem('wc_buddy_key');
+      } catch (e) { /* 무시 */ }
+    });
+  }
+  const chkBuddyVoice = document.getElementById('chk-buddy-voice');
+  if (chkBuddyVoice) {
+    try {
+      const saved = localStorage.getItem('wc_buddy_voice');
+      if (saved !== null) chkBuddyVoice.checked = saved === '1';
+    } catch (e) { /* 무시 */ }
+    chkBuddyVoice.addEventListener('change', function () {
+      const g = live();
+      if (g) g.settings.buddyVoice = chkBuddyVoice.checked ? 1 : 0;
+      try { localStorage.setItem('wc_buddy_voice', chkBuddyVoice.checked ? '1' : '0'); } catch (e) { /* 무시 */ }
+    });
+  }
+
   // 나무 — 둥근 3D / 블록 그대로.
   // 이걸 바꾸면 잎을 넣고 빼야 하므로 청크 메시를 모두 다시 만든다.
   const selTree = document.getElementById('sel-tree');
@@ -276,6 +301,14 @@
         saveProfile();
         game.profile = { name: profile.name, skin: normalizeSkin(profile.skin) };
         if (game.startNet) game.startNet();
+
+        // 영어 동료 — 고른 값을 게임에 넘기고, 켜 두었으면 데리고 나간다
+        const chkBd = document.getElementById('chk-buddy');
+        const chkBdV = document.getElementById('chk-buddy-voice');
+        if (chkBdV) game.settings.buddyVoice = chkBdV.checked ? 1 : 0;
+        if (chkBd && chkBd.checked && game.spawnBuddy) {
+          setTimeout(function () { game.spawnBuddy(); }, 900);
+        }
 
         game.start();
         if (!isTouch) game.requestPointerLock();

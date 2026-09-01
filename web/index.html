@@ -42,6 +42,7 @@
 <div id="use-hint"></div>
 <div id="nametags"></div>
 <div id="net-hud"></div>
+<button id="btn-mic" type="button" title="영어로 말하기">🎤 말하기</button>
 <div id="countdown"></div>
 <div id="chat-log"></div>
 <input id="chat-input" type="text" maxlength="120" placeholder="하고 싶은 말 (Enter 보내기 · Esc 취소)" autocomplete="off">
@@ -137,6 +138,17 @@
           <option value="3">최고 (＋구석 그늘)</option>
         </select>
       </label>
+      <label><input type="checkbox" id="chk-buddy"> 영어 동료 <b>Ellie</b> 와 함께 시작 (게임 안에서 <b>I</b>)</label>
+      <label><input type="checkbox" id="chk-buddy-voice" checked> 동료가 소리 내어 읽기</label>
+      <label class="key-row">
+        <span>동료 AI 열쇠</span>
+        <input id="buddy-key" type="password" placeholder="비워두면 인터넷 없이 동작합니다"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <p class="key-note">열쇠를 넣으면 동료가 <b>Claude</b> 에게 물어 진짜 영어 대화를 합니다.
+        열쇠는 <b>이 기기에만</b> 저장되고 파일에는 들어가지 않습니다. 부를 때마다 요금이 듭니다.
+        비워 두면 세계를 읽어 규칙으로 답하는 방식으로 도는데, 이쪽은 공짜이고 인터넷도 필요 없습니다.
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">열쇠 만들기</a></p>
       <label>나무
         <select id="sel-tree">
           <option value="1" selected>둥근 3D 나무</option>
@@ -359,6 +371,27 @@
           <li>도시를 한 바퀴 도는 <b>순환도로</b>에도 매끄러운 띠를 덧그린다.
               블록으로만 깔면 둥근 길이 계단처럼 층져 보였다. 포장·연석·갓길 흰 선·
               가운데 노란 점선까지 이어 그린다</li>
+          <li><b>영어 동료 Ellie</b> 가 생겼다. 시작 화면에서 켜거나 게임 안에서
+              <b>I</b> 를 누르면 나타나 곁을 따라다닌다. <b>T</b> 로 영어를 걸면
+              <b>영어로 답하고 소리 내어 읽어 준다</b> (머리 위에 말풍선도 뜬다).
+              왼쪽 아래 <b>🎤 말하기</b> 를 누르면 <b>영어로 말해서</b> 물어볼 수도 있다.
+              <b>follow me</b> / <b>wait here</b> 로 데리고 다니거나 세워 둘 수 있다</li>
+          <li>동료는 두 갈래로 답한다. 기본은 <b>인터넷 없이</b> 도는 길로,
+              세계를 실제로 들여다보고 답한다 — 좌표·가장 가까운 도시와 방향·
+              게임 속 시각·날씨·체력·눈앞의 블록·주변 몬스터 수가 모두 <b>진짜 값</b>이다
+              ("where are we", "how far to Seoul", "what time is it", "is it safe").
+              공짜이고 언제나 된다</li>
+          <li>시작 화면 <b>동료 AI 열쇠</b> 칸에 자기 <b>Anthropic API 열쇠</b>를 넣으면,
+              동료가 <b>Claude</b> 에게 물어 <b>진짜 영어 대화</b>를 한다. 이때도 지금 세계가
+              어떤지를 함께 보내므로 엉뚱한 좌표를 지어내지 않는다. 답이 길어지지 않게
+              (소리 내어 읽으니까) 한두 문장으로 짧게 말하도록 일러 두었다.
+              열쇠는 <b>이 기기에만</b> 저장되고 파일에는 들어가지 않는다.
+              부를 때마다 요금이 들고, 인터넷이 끊기거나 열쇠가 틀리면
+              <b>저절로 인터넷 없는 길로 되돌아간다</b></li>
+          <li>목소리는 브라우저에 들어 있는 음성 합성을 쓴다 — 따로 받을 것도,
+              인터넷도 필요 없다. 시작 화면에서 끌 수 있다.
+              말하기(음성 인식)는 크롬 계열과 안드로이드 웹뷰에서 되고,
+              없는 브라우저에서는 단추를 눌러도 알려만 주고 넘어간다</li>
           <li><b>고속도로 가드레일이 쇠덤불처럼 우거져 있었다.</b> 중앙선에서
               4.6~6.8칸 사이를 모두 난간으로 채웠는데, 그 띠가 두 칸도 넘게
               두꺼워 한 단면에 <b>쇠난간이 다섯 칸</b>씩 서고 좌우 폭도 달랐다.
@@ -696,6 +729,7 @@
 <script src="js/minimap.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
+<script src="js/buddy.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/highway.js"></script>
 <script src="js/excavator.js"></script>

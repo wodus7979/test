@@ -28,9 +28,9 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.13.1';
+const GAME_VERSION = 'v10.14';
 const GAME_BUILD = '2026-08-30';
-const GAME_FEATURES = '일자로 곧은 가드레일 · 매끈해진 고속도로 노면';
+const GAME_FEATURES = '영어 동료 Ellie · 목소리로 답하고 따라다닌다';
 
 const RENDER_DISTANCE_DEFAULT = 11;   // 기존 7 에서 약 1.5배
 const DAY_LENGTH = 1200;   // 하루 = 1200초 (20분, 원본과 동일)
@@ -48,6 +48,7 @@ function Game(canvas) {
   this.canvas = canvas;
   this.renderer = new Renderer(canvas);
   this.settings = {
+    buddyVoice: 1,              // 동료가 소리 내어 읽는가
     renderDistance: RENDER_DISTANCE_DEFAULT,
     fov: 70,
     sensitivity: 0.0022,
@@ -894,7 +895,7 @@ Game.prototype.bindInput = function () {
     if (e.code === 'F5' || (e.ctrlKey && e.code === 'KeyR')) return;
     // 대화 입력 중에는 게임이 키를 가로채지 않는다
     if (self.chatOpen) return;
-    if (e.code === 'KeyT' && self.net && !self.ui.open && !self.player.dead) {
+    if (e.code === 'KeyT' && (self.net || self.buddy) && !self.ui.open && !self.player.dead) {
       self.openChat();
       e.preventDefault();
       return;
@@ -1007,6 +1008,9 @@ Game.prototype.bindInput = function () {
         break;
       case 'KeyU':
         if (self.toggleFly) { self.toggleFly(); e.preventDefault(); }
+        break;
+      case 'KeyI':
+        if (self.toggleBuddy) { self.toggleBuddy(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -1286,6 +1290,14 @@ Game.prototype.bindTouch = function () {
   });
   // 창작/생존 전환 — 스마트폰에는 G 키가 없어서 단추로 넣는다
   btn('btn-mode', function () { self.toggleCreative(); });
+  // 마이크는 눌러야 하므로 click 으로 단다 (PC 에서도 눌린다)
+  const mic = document.getElementById('btn-mic');
+  if (mic) {
+    mic.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (self.buddyMic) self.buddyMic();
+    });
+  }
   btn('btn-chat', function () {
     if (self.chatOpen) self.closeChat();
     else if (self.openChat) self.openChat();
@@ -2943,6 +2955,8 @@ Game.prototype.update = function (dt) {
   this.fx.update(dt);                                     // 불꽃·연기
   if (this.updateCarAudio) this.updateCarAudio(dt);
   if (this.updateVehicleAudio) this.updateVehicleAudio(dt);   // 열차·배
+  if (this.updateBuddy) this.updateBuddy(dt);                 // 영어 동료
+  if (this.updateBuddyHud) this.updateBuddyHud();
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);
   this.updateTrainInfo(dt);
@@ -2972,6 +2986,7 @@ Game.prototype.update = function (dt) {
   if (this.updateUseHint) this.updateUseHint();
   if (this.updateNetHud) this.updateNetHud();
   if (this.updateNameTags) this.updateNameTags();
+  if (this.updateBuddyTag) this.updateBuddyTag();
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {

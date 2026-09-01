@@ -217,7 +217,8 @@ Game.prototype.updateChat = function (dt) {
 
 Game.prototype.openChat = function () {
   const box = document.getElementById('chat-input');
-  if (!box || !this.net) return;
+  // 동료가 있으면 멀티플레이가 아니어도 말을 걸 수 있어야 한다
+  if (!box || (!this.net && !this.buddy)) return;
   this.chatOpen = true;
   box.style.display = 'block';
   box.value = '';
@@ -227,10 +228,12 @@ Game.prototype.openChat = function () {
   box.onkeydown = function (e) {
     e.stopPropagation();
     if (e.key === 'Enter') {
-      const t = box.value.trim().slice(0, 120);
+      const t = box.value.trim().slice(0, 200);
       if (t) {
-        self.netSend('chat', { text: t });
+        if (self.net) self.netSend('chat', { text: t });
         self.pushChat(self.profile.name, t);
+        // 동료가 곁에 있으면 대답한다
+        if (self.buddy && self.buddyAsk) self.buddyAsk(t);
       }
       self.closeChat();
     } else if (e.key === 'Escape') {
