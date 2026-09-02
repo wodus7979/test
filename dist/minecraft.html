@@ -1384,6 +1384,13 @@ body.touch #fly-panel {
       </label>
       <label><input type="checkbox" id="chk-buddy"> 영어 동료 <b>Ellie</b> 와 함께 시작 (게임 안에서 <b>I</b>)</label>
       <label><input type="checkbox" id="chk-buddy-voice" checked> 동료가 소리 내어 읽기</label>
+      <label>내 영어 수준
+        <select id="sel-buddy-level">
+          <option value="beginner" selected>초급 — 쉬운 낱말, 짧은 문장</option>
+          <option value="intermediate">중급 — 일상 회화</option>
+          <option value="advanced">고급 — 원어민 속도, 관용구</option>
+        </select>
+      </label>
       <label>동료 AI 모델
         <select id="sel-buddy-model">
           <optgroup label="Anthropic — Claude">
@@ -1649,6 +1656,14 @@ body.touch #fly-panel {
               <b>영어로 답하고 소리 내어 읽어 준다</b> (머리 위에 말풍선도 뜬다).
               왼쪽 아래 <b>🎤 말하기</b> 를 누르면 <b>영어로 말해서</b> 물어볼 수도 있다.
               <b>follow me</b> / <b>wait here</b> 로 데리고 다니거나 세워 둘 수 있다</li>
+          <li>동료 <b>Ellie</b> 는 <b>영어 회화 상대</b>다. 시작 화면 <b>내 영어 수준</b>
+              (초급·중급·고급) 에 맞춰 말을 골라 쓰고, 답은 짧게 한다.
+              <b>중요한 실수만</b> — 뜻이 안 통하거나 확실히 틀린 것만 — 골라서,
+              <b>먼저 자연스럽게 답한 다음에</b> 한 줄로 부드럽게 짚어 준다
+              (작은 실수는 그냥 넘어간다). 그리고 쓸 만한 표현이 나오면
+              <b>따라 말해 보라고</b> 권한다. 한국어로 물어도 <b>영어로</b> 답한다.<br>
+              문법을 고쳐 주는 것은 <b>AI 에 이어진 길</b>(열쇠 또는 다리)에서만 된다 —
+              열쇠 없이 도는 길은 세계를 읽어 사실만 답한다</li>
           <li>동료는 두 갈래로 답한다. 기본은 <b>인터넷 없이</b> 도는 길로,
               세계를 실제로 들여다보고 답한다 — 좌표·가장 가까운 도시와 방향·
               게임 속 시각·날씨·체력·눈앞의 블록·주변 몬스터 수가 모두 <b>진짜 값</b>이다
@@ -26572,7 +26587,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.18';
+const GAME_VERSION = 'v10.19';
 const GAME_BUILD = '2026-08-30';
 const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
@@ -29905,7 +29920,7 @@ Game.prototype.buddySpeak = function (text, done) {
     const gen = this._bdGen;
     const self = this;
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text).slice(0, 300));
+    const u = new SpeechSynthesisUtterance(String(text).slice(0, 500));
     const v = this.buddyVoice();
     if (v) u.voice = v;
     u.lang = (v && v.lang) || 'en-US';
@@ -30074,7 +30089,9 @@ Game.prototype.buddyOffline = function (q) {
   if (/help|what can you|commands/.test(s))
     return 'Try: "where are we", "how far to Seoul", "what time is it", ' +
       '"is it safe", "what is this", "follow me", "wait here".';
-  return "I didn't catch that. Try \"where are we\", \"how far to Jeju\", or \"follow me\".";
+  // 규칙으로 도는 길에서는 문법을 고쳐 줄 수 없다. 대신 해 볼 말을 알려 준다.
+  return "I didn't catch that. Try saying it with me — \"Where are we?\" " +
+         "or \"How far is it to Jeju?\"";
 };
 
 // ── AI 에게 물어보기 ──────────────────────────────────────────────────
@@ -30107,14 +30124,56 @@ function buddyApi() { return BUDDY_MODELS[buddyModel()].api; }
 // 열쇠는 제공자마다 따로 둔다. 둘을 바꿔 가며 써도 다시 붙여넣지 않아도 된다.
 const BUDDY_KEY_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt', bridge: 'wc_buddy_bridge' };
 
-const BUDDY_SYS =
-  'You are ' + BUDDY_NAME + ', a cheerful companion walking beside the player ' +
-  'inside a Minecraft-like voxel game set in Korea. ' +
-  'ALWAYS reply in English, even if the player writes Korean — the player is ' +
-  'practising English. Keep replies short: one or two sentences, under 40 words, ' +
-  'plain spoken words only (no markdown, no lists, no emoji) because your reply ' +
-  'is read aloud. Use the WORLD STATE given to you for anything factual about ' +
-  'where you are; never invent coordinates or distances. Be warm and adventurous.';
+// 영어 수준. 이 값이 있어야 "플레이어 수준에 맞춰" 라는 말이 뜻을 갖는다.
+const BUDDY_LEVELS = {
+  beginner: 'BEGINNER: use very simple, common words and short present-tense ' +
+            'sentences. Avoid idioms and phrasal verbs.',
+  intermediate: 'INTERMEDIATE: use everyday conversational English with common ' +
+                'phrasal verbs and a mix of tenses.',
+  advanced: 'ADVANCED: speak naturally at native pace, with idioms and richer ' +
+            'vocabulary.'
+};
+function buddyLevel() {
+  try {
+    const v = localStorage.getItem('wc_buddy_level');
+    if (v && BUDDY_LEVELS[v]) return v;
+  } catch (e) { /* 무시 */ }
+  return 'beginner';
+}
+
+// 동료가 무엇을 하는 사람인지. 영어 대화 상대이자, 같이 다니는 길동무다.
+// 이 글은 부를 때마다 새로 짜므로 수준을 바꾸면 곧바로 반영된다.
+function buddySys() {
+  return [
+    'You are ' + BUDDY_NAME + ', a friendly English conversation partner walking ' +
+    'beside the player inside a Minecraft-like voxel game set in Korea.',
+    '',
+    'Speak naturally but use language appropriate for the player\'s level. ' +
+    'The player\'s level is ' + BUDDY_LEVELS[buddyLevel()],
+    '',
+    'Keep responses short.',
+    '',
+    'Correct only important mistakes — ones that block understanding or would ' +
+    'sound clearly wrong to a native speaker — and only AFTER responding ' +
+    'naturally first. Let small slips go. When you do correct, do it kindly in ' +
+    'one short line, like: By the way, we say "I went there", not "I goed there".',
+    '',
+    'Encourage the player to repeat useful expressions. After a natural reply, ' +
+    'sometimes offer one handy phrase and invite them to say it back, like: ' +
+    'Try saying it with me — "How far is it from here?"',
+    '',
+    'ALWAYS reply in English, even if the player writes or speaks Korean.',
+    '',
+    'Your reply is read aloud by a speech synthesiser, so write plain spoken ' +
+    'words only: no markdown, no bullet points, no emoji, no headings. ' +
+    'Never say more than about 50 words in total.',
+    '',
+    'Use the WORLD STATE given to you for anything factual about where you are ' +
+    'and what is around you. Never invent coordinates, distances or times. ' +
+    'Stay in the world with the player — you are walking there too, not an ' +
+    'assistant at a computer. Be warm and adventurous.'
+  ].join('\n');
+}
 
 Game.prototype.buddyKey = function (api) {
   const slot = BUDDY_KEY_SLOT[api || buddyApi()];
@@ -30173,7 +30232,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
     body: JSON.stringify({
       model: buddyModel(),
       max_tokens: 300,
-      system: BUDDY_SYS,
+      system: buddySys(),
       messages: this.buddyTurn(q)
     })
   }).then(function (r) {
@@ -30204,7 +30263,7 @@ Game.prototype.buddyAskGpt = function (q, done) {
     body: JSON.stringify({
       model: buddyModel(),
       max_completion_tokens: 300,
-      messages: [{ role: 'system', content: BUDDY_SYS }].concat(this.buddyTurn(q))
+      messages: [{ role: 'system', content: buddySys() }].concat(this.buddyTurn(q))
     })
   }).then(function (r) {
     if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
@@ -30231,7 +30290,7 @@ Game.prototype.buddyAskBridge = function (q, done) {
     },
     body: JSON.stringify({
       engine: BUDDY_MODELS[buddyModel()].engine,
-      system: BUDDY_SYS,
+      system: buddySys(),
       messages: this.buddyTurn(q)
     })
   }).then(function (r) {
@@ -30286,7 +30345,8 @@ Game.prototype.spawnBuddy = function () {
   if (!e) return null;
   e.buddy = true;
   this.buddy = e;
-  this.buddySay("Hi! I'm " + BUDDY_NAME + ". I'll follow you. Press T and talk to me in English.");
+  this.buddySay("Hi! I'm " + BUDDY_NAME + ", your English partner. I'll walk with you. " +
+    "Talk to me — press the mic, or T to type.");
   return e;
 };
 
@@ -36343,6 +36403,18 @@ Game.prototype.updateNetHud = function () {
         if (v) localStorage.setItem(bdSlot(), v);
         else localStorage.removeItem(bdSlot());
       } catch (e) { /* 무시 */ }
+    });
+  }
+
+  // 영어 수준 — 동료가 어느 만큼 쉬운 말로 이야기할지 정한다
+  const selBdLevel = document.getElementById('sel-buddy-level');
+  if (selBdLevel) {
+    try {
+      const saved = localStorage.getItem('wc_buddy_level');
+      if (saved !== null) selBdLevel.value = saved;
+    } catch (e) { /* 무시 */ }
+    selBdLevel.addEventListener('change', function () {
+      try { localStorage.setItem('wc_buddy_level', selBdLevel.value); } catch (e) { /* 무시 */ }
     });
   }
 

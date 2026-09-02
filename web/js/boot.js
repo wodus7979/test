@@ -197,6 +197,18 @@
     });
   }
 
+  // 영어 수준 — 동료가 어느 만큼 쉬운 말로 이야기할지 정한다
+  const selBdLevel = document.getElementById('sel-buddy-level');
+  if (selBdLevel) {
+    try {
+      const saved = localStorage.getItem('wc_buddy_level');
+      if (saved !== null) selBdLevel.value = saved;
+    } catch (e) { /* 무시 */ }
+    selBdLevel.addEventListener('change', function () {
+      try { localStorage.setItem('wc_buddy_level', selBdLevel.value); } catch (e) { /* 무시 */ }
+    });
+  }
+
   const chkBuddyVoice = document.getElementById('chk-buddy-voice');
   if (chkBuddyVoice) {
     try {

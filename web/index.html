@@ -140,6 +140,13 @@
       </label>
       <label><input type="checkbox" id="chk-buddy"> 영어 동료 <b>Ellie</b> 와 함께 시작 (게임 안에서 <b>I</b>)</label>
       <label><input type="checkbox" id="chk-buddy-voice" checked> 동료가 소리 내어 읽기</label>
+      <label>내 영어 수준
+        <select id="sel-buddy-level">
+          <option value="beginner" selected>초급 — 쉬운 낱말, 짧은 문장</option>
+          <option value="intermediate">중급 — 일상 회화</option>
+          <option value="advanced">고급 — 원어민 속도, 관용구</option>
+        </select>
+      </label>
       <label>동료 AI 모델
         <select id="sel-buddy-model">
           <optgroup label="Anthropic — Claude">
@@ -405,6 +412,14 @@
               <b>영어로 답하고 소리 내어 읽어 준다</b> (머리 위에 말풍선도 뜬다).
               왼쪽 아래 <b>🎤 말하기</b> 를 누르면 <b>영어로 말해서</b> 물어볼 수도 있다.
               <b>follow me</b> / <b>wait here</b> 로 데리고 다니거나 세워 둘 수 있다</li>
+          <li>동료 <b>Ellie</b> 는 <b>영어 회화 상대</b>다. 시작 화면 <b>내 영어 수준</b>
+              (초급·중급·고급) 에 맞춰 말을 골라 쓰고, 답은 짧게 한다.
+              <b>중요한 실수만</b> — 뜻이 안 통하거나 확실히 틀린 것만 — 골라서,
+              <b>먼저 자연스럽게 답한 다음에</b> 한 줄로 부드럽게 짚어 준다
+              (작은 실수는 그냥 넘어간다). 그리고 쓸 만한 표현이 나오면
+              <b>따라 말해 보라고</b> 권한다. 한국어로 물어도 <b>영어로</b> 답한다.<br>
+              문법을 고쳐 주는 것은 <b>AI 에 이어진 길</b>(열쇠 또는 다리)에서만 된다 —
+              열쇠 없이 도는 길은 세계를 읽어 사실만 답한다</li>
           <li>동료는 두 갈래로 답한다. 기본은 <b>인터넷 없이</b> 도는 길로,
               세계를 실제로 들여다보고 답한다 — 좌표·가장 가까운 도시와 방향·
               게임 속 시각·날씨·체력·눈앞의 블록·주변 몬스터 수가 모두 <b>진짜 값</b>이다

@@ -95,7 +95,7 @@ Game.prototype.buddySpeak = function (text, done) {
     const gen = this._bdGen;
     const self = this;
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text).slice(0, 300));
+    const u = new SpeechSynthesisUtterance(String(text).slice(0, 500));
     const v = this.buddyVoice();
     if (v) u.voice = v;
     u.lang = (v && v.lang) || 'en-US';
@@ -264,7 +264,9 @@ Game.prototype.buddyOffline = function (q) {
   if (/help|what can you|commands/.test(s))
     return 'Try: "where are we", "how far to Seoul", "what time is it", ' +
       '"is it safe", "what is this", "follow me", "wait here".';
-  return "I didn't catch that. Try \"where are we\", \"how far to Jeju\", or \"follow me\".";
+  // 규칙으로 도는 길에서는 문법을 고쳐 줄 수 없다. 대신 해 볼 말을 알려 준다.
+  return "I didn't catch that. Try saying it with me — \"Where are we?\" " +
+         "or \"How far is it to Jeju?\"";
 };
 
 // ── AI 에게 물어보기 ──────────────────────────────────────────────────
@@ -297,14 +299,56 @@ function buddyApi() { return BUDDY_MODELS[buddyModel()].api; }
 // 열쇠는 제공자마다 따로 둔다. 둘을 바꿔 가며 써도 다시 붙여넣지 않아도 된다.
 const BUDDY_KEY_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt', bridge: 'wc_buddy_bridge' };
 
-const BUDDY_SYS =
-  'You are ' + BUDDY_NAME + ', a cheerful companion walking beside the player ' +
-  'inside a Minecraft-like voxel game set in Korea. ' +
-  'ALWAYS reply in English, even if the player writes Korean — the player is ' +
-  'practising English. Keep replies short: one or two sentences, under 40 words, ' +
-  'plain spoken words only (no markdown, no lists, no emoji) because your reply ' +
-  'is read aloud. Use the WORLD STATE given to you for anything factual about ' +
-  'where you are; never invent coordinates or distances. Be warm and adventurous.';
+// 영어 수준. 이 값이 있어야 "플레이어 수준에 맞춰" 라는 말이 뜻을 갖는다.
+const BUDDY_LEVELS = {
+  beginner: 'BEGINNER: use very simple, common words and short present-tense ' +
+            'sentences. Avoid idioms and phrasal verbs.',
+  intermediate: 'INTERMEDIATE: use everyday conversational English with common ' +
+                'phrasal verbs and a mix of tenses.',
+  advanced: 'ADVANCED: speak naturally at native pace, with idioms and richer ' +
+            'vocabulary.'
+};
+function buddyLevel() {
+  try {
+    const v = localStorage.getItem('wc_buddy_level');
+    if (v && BUDDY_LEVELS[v]) return v;
+  } catch (e) { /* 무시 */ }
+  return 'beginner';
+}
+
+// 동료가 무엇을 하는 사람인지. 영어 대화 상대이자, 같이 다니는 길동무다.
+// 이 글은 부를 때마다 새로 짜므로 수준을 바꾸면 곧바로 반영된다.
+function buddySys() {
+  return [
+    'You are ' + BUDDY_NAME + ', a friendly English conversation partner walking ' +
+    'beside the player inside a Minecraft-like voxel game set in Korea.',
+    '',
+    'Speak naturally but use language appropriate for the player\'s level. ' +
+    'The player\'s level is ' + BUDDY_LEVELS[buddyLevel()],
+    '',
+    'Keep responses short.',
+    '',
+    'Correct only important mistakes — ones that block understanding or would ' +
+    'sound clearly wrong to a native speaker — and only AFTER responding ' +
+    'naturally first. Let small slips go. When you do correct, do it kindly in ' +
+    'one short line, like: By the way, we say "I went there", not "I goed there".',
+    '',
+    'Encourage the player to repeat useful expressions. After a natural reply, ' +
+    'sometimes offer one handy phrase and invite them to say it back, like: ' +
+    'Try saying it with me — "How far is it from here?"',
+    '',
+    'ALWAYS reply in English, even if the player writes or speaks Korean.',
+    '',
+    'Your reply is read aloud by a speech synthesiser, so write plain spoken ' +
+    'words only: no markdown, no bullet points, no emoji, no headings. ' +
+    'Never say more than about 50 words in total.',
+    '',
+    'Use the WORLD STATE given to you for anything factual about where you are ' +
+    'and what is around you. Never invent coordinates, distances or times. ' +
+    'Stay in the world with the player — you are walking there too, not an ' +
+    'assistant at a computer. Be warm and adventurous.'
+  ].join('\n');
+}
 
 Game.prototype.buddyKey = function (api) {
   const slot = BUDDY_KEY_SLOT[api || buddyApi()];
@@ -363,7 +407,7 @@ Game.prototype.buddyAskClaude = function (q, done) {
     body: JSON.stringify({
       model: buddyModel(),
       max_tokens: 300,
-      system: BUDDY_SYS,
+      system: buddySys(),
       messages: this.buddyTurn(q)
     })
   }).then(function (r) {
@@ -394,7 +438,7 @@ Game.prototype.buddyAskGpt = function (q, done) {
     body: JSON.stringify({
       model: buddyModel(),
       max_completion_tokens: 300,
-      messages: [{ role: 'system', content: BUDDY_SYS }].concat(this.buddyTurn(q))
+      messages: [{ role: 'system', content: buddySys() }].concat(this.buddyTurn(q))
     })
   }).then(function (r) {
     if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
@@ -421,7 +465,7 @@ Game.prototype.buddyAskBridge = function (q, done) {
     },
     body: JSON.stringify({
       engine: BUDDY_MODELS[buddyModel()].engine,
-      system: BUDDY_SYS,
+      system: buddySys(),
       messages: this.buddyTurn(q)
     })
   }).then(function (r) {
@@ -476,7 +520,8 @@ Game.prototype.spawnBuddy = function () {
   if (!e) return null;
   e.buddy = true;
   this.buddy = e;
-  this.buddySay("Hi! I'm " + BUDDY_NAME + ". I'll follow you. Press T and talk to me in English.");
+  this.buddySay("Hi! I'm " + BUDDY_NAME + ", your English partner. I'll walk with you. " +
+    "Talk to me — press the mic, or T to type.");
   return e;
 };
 
