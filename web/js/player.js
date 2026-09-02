@@ -334,7 +334,10 @@ Player.prototype.update = function (dt, input) {
     if (input.sneak) this.vy = -speed * 0.8;
   } else {
     // 지상 마찰 / 공중 관성
-    const control = this.onGround ? 1 : (this.inWater ? 0.5 : 0.25);
+    // 거미줄에 매달렸거나 줄을 당겨 날아가는 동안에는 이 감속을 끈다.
+    // 안 그러면 걸음 속도(0)로 끌어내려 진자가 몇 번 흔들리지도 못하고 멎는다.
+    const control = (this.web || this.zipUntil > 0) ? 0
+      : (this.onGround ? 1 : (this.inWater ? 0.5 : 0.25));
     // 발판(에스컬레이터)이 밀어 주는 몫을 걸음에 더한다 — 가만 있어도 실려 간다
     const targetVx = wx * speed + (this.beltX || 0);
     const targetVz = wz * speed + (this.beltZ || 0);
@@ -369,6 +372,13 @@ Player.prototype.update = function (dt, input) {
     if (this.vy < 0 && !this.onGround) {
       if (this.fallStart === null) this.fallStart = this.y;
     }
+  }
+
+  // 거미줄 — 매달렸으면 진자로 돌고, 아니면 벽에 붙어 있는지 본다.
+  // (중력을 다 받은 뒤, 자리를 옮기기 전이어야 한다)
+  if (!this.flying) {
+    if (this.web && this.webSwing) this.webSwing(dt, input);
+    else if (this.spider && this.webCling) this.webCling(dt, input);
   }
 
   const wasGround = this.onGround;

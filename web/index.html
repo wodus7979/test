@@ -40,9 +40,11 @@
 <!-- 채굴 진행 -->
 <div id="crack"></div>
 <div id="use-hint"></div>
+<canvas id="webcanvas"></canvas>
 <div id="nametags"></div>
 <div id="net-hud"></div>
 <button id="btn-mic" type="button" title="영어로 서로 대화하기 — 누르면 계속 주고받습니다">🎤 말하기</button>
+<button id="btn-web" type="button" title="거미줄 쏘기">🕸 거미줄</button>
 <div id="countdown"></div>
 <div id="chat-log"></div>
 <input id="chat-input" type="text" maxlength="120" placeholder="하고 싶은 말 (Enter 보내기 · Esc 취소)" autocomplete="off">
@@ -419,6 +421,16 @@
               <b>영어로 답하고 소리 내어 읽어 준다</b> (머리 위에 말풍선도 뜬다).
               왼쪽 아래 <b>🎤 말하기</b> 를 누르면 <b>영어로 말해서</b> 물어볼 수도 있다.
               <b>follow me</b> / <b>wait here</b> 로 데리고 다니거나 세워 둘 수 있다</li>
+          <li><b>거미 모드</b> — <b>`</b> (숫자 1 왼쪽) 를 누르면 켜진다. 손에서 거미줄이
+              나가 빌딩에 걸리고, 그대로 매달려 흔들린다.
+              <b>마우스 왼쪽</b>을 누르고 있으면 줄을 걸고 떼면 놓는다 (폰에서는 왼쪽 아래
+              <b>🕸 거미줄</b> 단추). <b>마우스 오른쪽</b>은 줄을 당겨 그 자리로 쏘아 간다.
+              매달린 동안 <b>스페이스</b>로 줄을 감아 올라가고 <b>Shift</b> 로 풀어 내려간다.
+              <b>W·A·S·D</b> 로 호를 틀 수 있고, 벽에 닿으면 <b>붙어서 오르내린다</b>
+              (벽에서 스페이스를 누르면 차고 뛴다).<br>
+              줄은 진짜 진자로 돈다 — 중력으로 떨어지다 줄 길이를 넘으면 바깥으로
+              나가는 속도만 지워지고 접선 속도는 남는다. 그래서 <b>낮은 데서 놓을수록
+              멀리 난다</b>. 줄이 건물 모서리에 막히면 그 자리에 <b>감긴다</b></li>
           <li>동료는 <b>먼저 말도 건다</b>. 밤이 되거나, 비가 오거나, 도시에 닿거나,
               몬스터가 나타나거나, 무언가에 타거나, 다치거나 — 세계가 달라지면 그것을
               두고 영어로 말을 걸고 <b>대답하기 쉬운 질문</b>을 하나 던진다. 한참 조용하면
@@ -825,6 +837,7 @@
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 <script src="js/buddy.js"></script>
+<script src="js/spiderman.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/highway.js"></script>
 <script src="js/excavator.js"></script>

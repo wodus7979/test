@@ -225,6 +225,32 @@ Game.prototype.playSound = function (kind, opt) {
       this.sndImpact(m, 0.44, { decMul: 0.45 });
       return;
     }
+    // ── 거미줄 ──
+    // "슉" 하는 그 소리 — 잡음을 밴드패스로 좁게 훑어 위에서 아래로 쓸어내린다.
+    if (kind === 'web_shoot' || kind === 'web_zip') {
+      const far = kind === 'web_zip';
+      this.sndBurst({ noise: 'white', filter: 'bandpass',
+        freq: 2600, freq2: far ? 520 : 900, q: 6,
+        dur: far ? 0.26 : 0.16, vol: 0.3, atk: 0.002 });
+      this.sndTone({ type: 'triangle', freq: 1500, freq2: far ? 300 : 520,
+        dur: far ? 0.22 : 0.13, vol: 0.1, atk: 0.002 });
+      return;
+    }
+    if (kind === 'web_release') {         // 줄이 끊기며 튕기는 소리
+      this.sndBurst({ noise: 'white', filter: 'highpass', freq: 2200,
+        dur: 0.07, vol: 0.16, atk: 0.001 });
+      return;
+    }
+    if (kind === 'web_miss') {            // 허공을 쏘았다
+      this.sndBurst({ noise: 'white', filter: 'bandpass', freq: 1800, freq2: 1200,
+        q: 3, dur: 0.1, vol: 0.13, atk: 0.002 });
+      return;
+    }
+    if (kind === 'web_on' || kind === 'web_off') {
+      this.sndTone({ type: 'sine', freq: kind === 'web_on' ? 440 : 660,
+        freq2: kind === 'web_on' ? 880 : 330, dur: 0.16, vol: 0.16, atk: 0.004 });
+      return;
+    }
     if (kind === 'place') {
       // 놓는 소리는 깨는 소리보다 짧고 둔탁하다 — 부스러기가 없다
       const j = 0.9 + Math.random() * 0.2;

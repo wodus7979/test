@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.23';
+const GAME_VERSION = 'v10.24';
 const GAME_BUILD = '2026-08-30';
 const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
@@ -1012,6 +1012,9 @@ Game.prototype.bindInput = function () {
       case 'KeyI':
         if (self.toggleBuddy) { self.toggleBuddy(); e.preventDefault(); }
         break;
+      case 'Backquote':
+        if (self.toggleSpider) { self.toggleSpider(); e.preventDefault(); }
+        break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
         if (self.worldMap && self.worldMap.open) { self.worldMap.zoomBy(-1); e.preventDefault(); }
@@ -1117,10 +1120,17 @@ Game.prototype.bindInput = function () {
     // 도시 목록을 열어 둔 채 화면을 누르면 목록을 접고 다시 조준으로 돌아간다
     if (self.warpOpen) { self.closeWarp(); }
     if (!self.isPointerLocked()) { self.requestPointerLock(); return; }
+    // 거미 모드에서는 두 단추가 거미줄이 된다 (블록은 건드리지 않는다)
+    if (self.player.spider) {
+      if (e.button === 0) self.webShoot(0);
+      if (e.button === 2) self.webZip();
+      return;
+    }
     if (e.button === 0) { self.input.attack = true; self.onAttackStart(); }
     if (e.button === 2) { self.input.use = true; self.onUse(); self.useHeld = 0.25; }
   });
   window.addEventListener('mouseup', function (e) {
+    if (self.player.spider && e.button === 0) { self.webRelease(); return; }
     if (e.button === 0) { self.input.attack = false; self.player.mining = null; }
     if (e.button === 2) self.input.use = false;
   });
@@ -1297,6 +1307,16 @@ Game.prototype.bindTouch = function () {
       e.preventDefault(); e.stopPropagation();
       if (self.buddyMic) self.buddyMic();
     });
+  }
+  // 거미줄 단추 — 누르면 붙고 떼면 놓는다 (폰에서도 스윙이 된다)
+  const webBtn = document.getElementById('btn-web');
+  if (webBtn) {
+    const grab = function (e) { e.preventDefault(); e.stopPropagation(); if (self.webShoot) self.webShoot(0); };
+    const letgo = function (e) { e.preventDefault(); e.stopPropagation(); if (self.webRelease) self.webRelease(); };
+    webBtn.addEventListener('touchstart', grab, { passive: false });
+    webBtn.addEventListener('touchend', letgo, { passive: false });
+    webBtn.addEventListener('mousedown', grab);
+    webBtn.addEventListener('mouseup', letgo);
   }
   btn('btn-chat', function () {
     if (self.chatOpen) self.closeChat();
@@ -2957,6 +2977,7 @@ Game.prototype.update = function (dt) {
   if (this.updateVehicleAudio) this.updateVehicleAudio(dt);   // 열차·배
   if (this.updateBuddy) this.updateBuddy(dt);                 // 영어 동료
   if (this.updateBuddyHud) this.updateBuddyHud();
+  if (this.updateSpider) this.updateSpider(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);
   this.updateTrainInfo(dt);
@@ -2987,6 +3008,7 @@ Game.prototype.update = function (dt) {
   if (this.updateNetHud) this.updateNetHud();
   if (this.updateNameTags) this.updateNameTags();
   if (this.updateBuddyTag) this.updateBuddyTag();
+  if (this.drawWeb) this.drawWeb();                     // 거미줄
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
