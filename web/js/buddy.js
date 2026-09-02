@@ -46,6 +46,7 @@ if (typeof MOB_BRAINS !== 'undefined') {
     const dx = player.x - e.x, dz = player.z - e.z;
     const d = Math.hypot(dx, dz);
     e.targetYaw = Math.atan2(dx, dz);
+    if (e.aboard) return { move: false, speed: e.def.speed };   // 같이 타고 있다
     if (e.waiting) return { move: false, speed: e.def.speed };
     if (d > BUDDY_FAR) {                       // 놓쳤다 — 뒤쪽에 다시 나타난다
       e.x = player.x - Math.sin(player.yaw) * -2.5;
@@ -101,14 +102,21 @@ Game.prototype.buddySpeak = function (text, done) {
     u.lang = (v && v.lang) || 'en-US';
     u.rate = 0.98; u.pitch = 1.06;
     let called = false;
+    let watch = 0;
     const end = function () {
       if (called || gen !== self._bdGen) return;
       called = true;
+      if (watch) { clearTimeout(watch); watch = 0; }
       self._bdTalking = false;
       fin();
     };
     u.onend = end;
     u.onerror = end;
+    // 지킴이. onend 는 안 올 수도 있다 — 목소리가 하나도 없는 컴퓨터, 창을
+    // 뒤로 돌렸을 때, 브라우저가 긴 말에서 멎을 때. 그대로 두면 "말하는 중"
+    // 에 붙박여 마이크 대화도 먼저 말 걸기도 영영 멈춘다. 넉넉히 기다렸다가
+    // 소식이 없으면 끝난 것으로 친다.
+    watch = setTimeout(end, Math.min(20000, 2000 + String(text).length * 90));
     this._bdTalking = true;
     if (this._bdTalk) this.buddyMicMark('speak');
     speechSynthesis.speak(u);
@@ -488,6 +496,7 @@ Game.prototype.buddyAsk = function (q, done) {
   if (!q) { fin(); return; }
   const self = this;
   const s = q.toLowerCase();
+  this._bdIdleT = 0;   // 말이 오갔으니 조용했던 시간을 다시 센다
   // 따라오기·기다리기는 인터넷을 기다리지 않고 곧바로 듣는다
   if (/follow me|come on|let'?s go|come with/.test(s) && this.buddy) this.buddy.waiting = false;
   if (/wait here|stay there|hold on/.test(s) && this.buddy) this.buddy.waiting = true;
@@ -506,6 +515,142 @@ Game.prototype.buddyAsk = function (q, done) {
         self._bdErr = null;
       }
     }
+  });
+};
+
+// ── 먼저 말 걸기 ──────────────────────────────────────────────────────
+// 물을 때까지 기다리지 않고, 세계가 달라지면 그것을 두고 말을 건다.
+// 부르는 값이 있으므로 얼마나 자주 걸지는 사람이 정한다.
+const BUDDY_OPEN_GAP = { off: 0, some: 120, often: 60 };   // 최소 간격(초)
+function buddyOpenMode() {
+  try {
+    const v = localStorage.getItem('wc_buddy_open');
+    if (v && BUDDY_OPEN_GAP[v] !== undefined) return v;
+  } catch (e) { /* 무시 */ }
+  return 'some';
+}
+
+const BUDDY_OPEN_Q =
+  '(The player has not said anything. You noticed something and want to start ' +
+  'a conversation. Say one or two short sentences about it, then ask the player ' +
+  'one simple question they can answer out loud.) What you noticed:';
+
+// 세계에서 볼 것만 추려 둔다. 이것끼리 견주어 무엇이 달라졌는지 안다.
+function buddySnap(w) {
+  const c = w.cities[0];
+  return {
+    city: (c && c.dist < 140) ? c.name : null,
+    night: w.isNight, weather: w.weather,
+    hostiles: w.hostilesNearby > 0,
+    high: w.altitude > 100, water: w.inWater, riding: w.riding,
+    hurt: w.health <= 8
+  };
+}
+
+// 달라진 것 하나를 골라 온다. 위에 있는 것이 더 급한 이야깃거리다.
+function buddyEvent(w, was) {
+  if (!was) return null;                       // 처음에는 견줄 것이 없다
+  const now = buddySnap(w);
+  const at = function (note, line) { return { note: note, line: line }; };
+  if (now.hurt && !was.hurt)
+    return at('The player is badly hurt, only ' + w.health + ' health left.',
+              "You're hurt! Are you okay?");
+  if (now.hostiles && !was.hostiles)
+    return at('Monsters have appeared nearby — ' + w.hostilesNearby + ' of them.',
+              'Careful, monsters are near us! What should we do?');
+  if (now.city && now.city !== was.city)
+    return at('You have both just arrived in ' + now.city + '.',
+              "We're in " + now.city + " now! What do you want to see first?");
+  if (now.weather !== was.weather)
+    return at('The weather just changed to ' + now.weather + '.',
+              now.weather === 'clear' ? 'The sky is clear again! Do you like this weather?'
+                                      : "It's starting to rain. Do you like rainy days?");
+  if (now.night !== was.night)
+    return at(now.night ? 'Night has just fallen.' : 'The sun has just come up.',
+              now.night ? "It's getting dark. Are you scared of the night?"
+                        : 'Good morning! Did you sleep well?');
+  if (now.riding && now.riding !== was.riding)
+    return at('You are both riding ' + now.riding + ' now.',
+              "We're on " + now.riding + "! Where should we go?");
+  if (now.water && !was.water)
+    return at('The player just went into the water.',
+              'The water is cold! Can you swim?');
+  if (now.high && !was.high)
+    return at('You are high up now, ' + w.altitude + ' blocks above the sea.',
+              "We're so high up! Can you see the ground?");
+  return null;
+}
+
+// 아무 일도 없이 오래 조용할 때 꺼낼 이야기
+const BUDDY_IDLE = [
+  { note: 'It has been quiet for a while. Ask the player something friendly ' +
+          'about themselves or about what you can both see.',
+    line: "It's quiet out here. What do you want to do next?" },
+  { note: 'It has been quiet. Ask the player a simple everyday question, like ' +
+          'about food, weather, or their favourite thing.',
+    line: 'Can I ask you something? What food do you like most?' },
+  { note: 'It has been quiet. Teach the player one useful English phrase for ' +
+          'this moment and ask them to say it back.',
+    line: 'Here is a useful one — say it with me: "Let\'s keep going."' }
+];
+
+// 열쇠 없이 돌 때는 미리 적어 둔 말을 쓴다
+function buddyOpenLine(ev) { return ev.line; }
+
+// 매 틱 세계를 곁눈질하다가, 달라진 것이 있으면 말을 건다.
+Game.prototype.buddyWatch = function (dt) {
+  const e = this.buddy;
+  if (!e || e.dead) { this._bdSeen = null; return; }
+  const gap = BUDDY_OPEN_GAP[buddyOpenMode()];
+  if (!gap) return;                                  // 꺼 두었다
+
+  this._bdOpenT = (this._bdOpenT || 0) + dt;         // 마지막으로 먼저 건 뒤
+  this._bdIdleT = (this._bdIdleT || 0) + dt;         // 마지막으로 말이 오간 뒤
+
+  // 말하는 중·듣는 중·답을 기다리는 중이면 끼어들지 않는다
+  if (this._bdBusy || this._bdTalking || this._bdHold || this.chatOpen) return;
+
+  // 세계를 훑는 것은 좀 무거우므로 2초에 한 번만 본다
+  this._bdPeekT = (this._bdPeekT || 0) + dt;
+  if (this._bdPeekT < 2) return;
+  this._bdPeekT = 0;
+
+  const w = this.buddyWorld();
+  if (!this._bdSeen) { this._bdSeen = buddySnap(w); this._bdOpenT = 0; return; }
+  const ev = buddyEvent(w, this._bdSeen);
+  this._bdSeen = buddySnap(w);
+  // 아직 이를 때 일어난 일은 적어 두었다가 때가 되면 꺼낸다 (마지막 것만)
+  if (ev) this._bdPend = ev;
+  if (this._bdOpenT < gap) return;
+
+  if (this._bdPend) { const p = this._bdPend; this._bdPend = null; this.buddyOpen(p); }
+  else if (this._bdIdleT > gap * 3) {
+    this.buddyOpen(BUDDY_IDLE[(this._bdIdleN = ((this._bdIdleN || 0) + 1) % BUDDY_IDLE.length)]);
+  }
+};
+
+// 말을 건다. 듣는 중이었다면 잠깐 귀를 닫았다가 말한 뒤 다시 연다.
+Game.prototype.buddyOpen = function (ev) {
+  const self = this;
+  this._bdOpenT = 0;
+  this._bdIdleT = 0;
+  this._bdHold = true;
+  if (this._bdRec) {
+    const r = this._bdRec;
+    this._bdRec = null;
+    try { r.abort(); } catch (err) { /* 무시 */ }
+  }
+  const after = function () {
+    self._bdHold = false;
+    self._bdBusy = false;
+    if (self._bdTalk) self.buddyListen();   // 마이크 대화 중이었으면 이어 간다
+    else self.buddyMicMark('');
+  };
+  if (!this.buddyKey()) { this.buddySay(buddyOpenLine(ev), after); return; }
+  this._bdBusy = true;
+  if (this._bdTalk) this.buddyMicMark('think');
+  this.buddyAskAI(BUDDY_OPEN_Q + ' ' + ev.note, function (text) {
+    self.buddySay(text || buddyOpenLine(ev), after);
   });
 };
 
@@ -539,8 +684,35 @@ Game.prototype.updateBuddy = function (dt) {
   if (!e) return;
   if (e.dead) { this.buddy = null; return; }
   if (e.sayTimer > 0) e.sayTimer -= dt;
-  // 물에 빠지거나 갇히면 끌어올린다
-  if (e.y < 1) { e.y = this.player.y + 1; e.x = this.player.x; e.z = this.player.z; }
+  this.buddyRide();
+  this.buddyWatch(dt);
+  // 물에 빠지거나 갇히면 끌어올린다 (타고 있을 때는 자리가 이미 잡혀 있다)
+  if (!e.aboard && e.y < 1) { e.y = this.player.y + 1; e.x = this.player.x; e.z = this.player.z; }
+};
+
+// 플레이어가 무언가에 타면 동료도 같이 탄다.
+// 걸어서는 기차를 따라갈 수 없으므로, 옆자리에 붙여 함께 실어 나른다.
+// entities.update 뒤에 부르므로 여기서 정한 자리가 그대로 남는다.
+const BUDDY_SEAT_BACK = 1.5;   // 뒤로
+const BUDDY_SEAT_SIDE = 1.0;   // 옆으로
+Game.prototype.buddyRide = function () {
+  const e = this.buddy, p = this.player;
+  if (!e) return;
+  const on = !!(p.riding || p.onTrain || p.inCar || p.onFerry ||
+                p.inDrone || p.inShuttle || p.inDigger || p.inYacht);
+  if (!on) {
+    if (e.aboard) { e.aboard = null; e.waiting = false; }
+    return;
+  }
+  e.aboard = true;
+  e.waiting = false;                       // 태우는 동안 기다리기는 풀어 둔다
+  const sn = Math.sin(p.yaw), cs = Math.cos(p.yaw);
+  e.x = p.x + BUDDY_SEAT_BACK * sn + BUDDY_SEAT_SIDE * cs;
+  e.z = p.z + BUDDY_SEAT_BACK * cs - BUDDY_SEAT_SIDE * sn;
+  e.y = p.y;
+  e.yaw = e.targetYaw = p.yaw;             // 같은 곳을 보고 간다
+  e.vx = e.vy = e.vz = 0;                  // 중력에 끌려 내려가지 않게
+  e.onGround = true;
 };
 
 // ── 머리 위 말풍선 ────────────────────────────────────────────────────
@@ -614,7 +786,7 @@ Game.prototype.buddyMicMark = function (state) {
 Game.prototype.buddyListen = function () {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!this._bdTalk || !SR) return;
-  if (this._bdRec || this._bdTalking) return;
+  if (this._bdRec || this._bdTalking || this._bdHold) return;
   const self = this;
   let rec;
   try { rec = new SR(); } catch (e) { this.buddyMicOff(); return; }

@@ -197,6 +197,18 @@
     });
   }
 
+  // 동료가 먼저 말 거는 빈도
+  const selBdOpen = document.getElementById('sel-buddy-open');
+  if (selBdOpen) {
+    try {
+      const saved = localStorage.getItem('wc_buddy_open');
+      if (saved !== null) selBdOpen.value = saved;
+    } catch (e) { /* 무시 */ }
+    selBdOpen.addEventListener('change', function () {
+      try { localStorage.setItem('wc_buddy_open', selBdOpen.value); } catch (e) { /* 무시 */ }
+    });
+  }
+
   // 영어 수준 — 동료가 어느 만큼 쉬운 말로 이야기할지 정한다
   const selBdLevel = document.getElementById('sel-buddy-level');
   if (selBdLevel) {
