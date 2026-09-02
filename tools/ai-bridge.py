@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8124
@@ -41,6 +42,131 @@ MAX_BODY = 256 * 1024  # 한 번에 받는 글의 최대 크기
 # 도구를 모두 떼어 둔다 (--restricted 로도 한 번 더 막는다).
 NO_TOOLS = ('Bash Edit Write Read Glob Grep WebFetch WebSearch '
             'Task NotebookEdit TodoWrite')
+
+
+class Warm:
+    """claude 를 한 번만 띄워 놓고 계속 쓴다.
+
+    매번 새로 띄우면 뜨는 데만 1~2.5초가 들고, 그때마다 밑글 1만5천 토큰을
+    새로 만든다. 띄워 두면 그 둘이 사라진다 — 재 보니 5초가 3초로 줄고
+    토큰은 1만5천에서 200으로 줄었다 (나머지는 캐시에서 읽는다).
+
+    지침이 바뀌거나(영어 수준을 바꾼 때) 너무 오래 쓴 프로세스는 새로 띄운다.
+    """
+
+    MAX_TURNS = 40          # 이만큼 주고받았으면 새로 띄운다 (맥락이 계속 자란다)
+
+    def __init__(self):
+        self.p = None
+        self.system = None
+        self.model = None
+        self.turns = 0
+        self.lock = threading.Lock()
+
+    def _spawn(self, system, model):
+        exe = shutil.which('claude')
+        if not exe:
+            return 'claude 명령을 찾지 못했습니다. Claude Code 가 깔려 있는지 보세요.'
+        cmd = [exe, '-p',
+               '--restricted', '--strict-mcp-config', '--disable-slash-commands',
+               '--disallowed-tools', NO_TOOLS,
+               '--input-format', 'stream-json',
+               '--output-format', 'stream-json',
+               '--include-partial-messages',   # 글자가 오는 대로 흘려 받는다
+               '--verbose',
+               '--system-prompt', system]
+        if model:
+            cmd += ['--model', model]
+        try:
+            self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      stderr=subprocess.DEVNULL, text=True, bufsize=1)
+        except OSError as e:
+            self.p = None
+            return 'claude 를 띄우지 못했습니다 — %s' % e
+        self.system = system
+        self.model = model
+        self.turns = 0
+        return None
+
+    def _dead(self):
+        return self.p is None or self.p.poll() is not None
+
+    def stop(self):
+        if self.p:
+            try:
+                self.p.stdin.close()
+                self.p.terminate()
+            except OSError:
+                pass
+        self.p = None
+
+    def ask(self, system, model, msgs, on_delta=None):
+        """(답, 까닭, 처음인가). 처음이면 그동안의 말을 다 보내야 한다.
+
+        on_delta 를 주면 글자가 오는 대로 넘겨준다 — 게임은 그것으로 첫 문장이
+        되자마자 읽기 시작한다. 첫 글자는 0.8초쯤에 온다.
+        """
+        with self.lock:
+            fresh = False
+            if self._dead() or system != self.system or model != self.model \
+                    or self.turns >= self.MAX_TURNS:
+                self.stop()
+                why = self._spawn(system, model)
+                if why:
+                    return None, why, True
+                fresh = True
+            # 띄워 둔 프로세스는 앞말을 기억한다. 새로 띄웠을 때만 다 보낸다.
+            prompt = flatten(msgs) if fresh else str(msgs[-1].get('content', ''))
+            try:
+                self.p.stdin.write(json.dumps(
+                    {'type': 'user', 'message': {'role': 'user', 'content': prompt}}) + '\n')
+                self.p.stdin.flush()
+            except (OSError, ValueError) as e:
+                self.stop()
+                return None, '말을 건네지 못했습니다 — %s' % e, fresh
+
+            # 너무 오래 걸리면 프로세스를 끊어 읽기가 풀리게 한다
+            killer = threading.Timer(TIMEOUT, self.stop)
+            killer.start()
+            text = ''
+            try:
+                for line in self.p.stdout:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        ev = json.loads(line)
+                    except ValueError:
+                        continue
+                    t = ev.get('type')
+                    if t == 'stream_event' and on_delta:
+                        d = ev.get('event', {})
+                        if d.get('type') == 'content_block_delta':
+                            piece = (d.get('delta') or {}).get('text') or ''
+                            if piece:
+                                on_delta(piece)
+                    elif t == 'assistant':
+                        for c in ev['message'].get('content', []):
+                            if c.get('type') == 'text':
+                                text += c['text']
+                    elif t == 'result':
+                        break
+            except (OSError, ValueError):
+                pass
+            finally:
+                killer.cancel()
+
+            if self._dead():
+                self.stop()
+                return None, '클로드가 도중에 멈췄습니다 (%d초를 넘겼을 수 있습니다)' % TIMEOUT, fresh
+            self.turns += 1
+            text = text.strip()
+            if not text:
+                return None, '빈 답이 돌아왔습니다.', fresh
+            return text, None, fresh
+
+
+WARM = Warm()
 
 
 def ask_codex(system, prompt, model):
@@ -142,6 +268,7 @@ class Bridge(BaseHTTPRequestHandler):
     token = ''
     model = ''
     engine = 'claude'
+    warm = True
 
     # ── 잔손질 ────────────────────────────────────────────────────────
     def cors(self):
@@ -151,6 +278,22 @@ class Bridge(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'content-type, authorization')
         self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
         self.send_header('Access-Control-Max-Age', '600')
+
+    def stream_open(self):
+        """길이를 모르는 답을 흘려보낼 채비. HTTP/1.0 이라 닫으면 끝난 것이다."""
+        self.send_response(200)
+        self.cors()
+        self.send_header('content-type', 'application/x-ndjson; charset=utf-8')
+        self.send_header('cache-control', 'no-store')
+        self.send_header('connection', 'close')
+        self.end_headers()
+
+    def stream_line(self, obj):
+        try:
+            self.wfile.write((json.dumps(obj, ensure_ascii=False) + '\n').encode('utf-8'))
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ValueError):
+            pass   # 게임이 먼저 끊었다
 
     def reply(self, code, obj):
         body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
@@ -220,7 +363,29 @@ class Bridge(BaseHTTPRequestHandler):
             self.reply(503, {'error': '%s 를 이 컴퓨터에서 찾지 못했습니다' % engine})
             return
 
-        text, why = ENGINES[engine](system, flatten(messages), Bridge.model)
+        # 흘려 달라고 하면 글자가 오는 대로 보낸다 (띄워 둔 클로드만 된다)
+        flow = bool(req.get('stream')) and engine == 'claude' and Bridge.warm
+        if flow:
+            self.stream_open()
+            self.stream_line({'open': True})
+            send = lambda piece: self.stream_line({'delta': piece})
+            text, why, _ = WARM.ask(system, Bridge.model, messages, send)
+            if text:
+                print('  → %s' % text[:70])
+                self.stream_line({'text': re.sub(r'[*_`#]', '', text).strip()})
+            else:
+                print('  ! %s' % why)
+                self.stream_line({'error': why})
+            return
+
+        if engine == 'claude' and Bridge.warm:
+            text, why, _ = WARM.ask(system, Bridge.model, messages)
+            if why and not text:
+                # 띄워 둔 것이 말썽이면 예전처럼 한 번 새로 띄워 물어본다
+                print('  ! 띄워 둔 클로드가 답하지 못했습니다 (%s) — 새로 띄웁니다' % why)
+                text, why = ask_claude(system, flatten(messages), Bridge.model)
+        else:
+            text, why = ENGINES[engine](system, flatten(messages), Bridge.model)
         if text is None:
             print('  ! %s' % why)
             self.reply(502, {'error': why})
@@ -241,6 +406,8 @@ def main():
                     help='게임이 따로 고르지 않을 때 쓸 도구. 비우면 깔려 있는 것 중 하나')
     ap.add_argument('--model', default='', help='쓸 모델. 비우면 그 도구의 기본값')
     ap.add_argument('--token', default='', help='암호를 직접 정하고 싶을 때')
+    ap.add_argument('--cold', action='store_true',
+                    help='claude 를 띄워 두지 않고 물을 때마다 새로 띄운다 (느리다)')
     a = ap.parse_args()
 
     found = [e for e in ENGINES if have(e)]
@@ -257,6 +424,7 @@ def main():
     Bridge.token = a.token or secrets.token_urlsafe(18)
     Bridge.model = a.model
     Bridge.engine = a.engine or found[0]
+    Bridge.warm = not a.cold
 
     label = {'claude': 'Claude Code (claude.ai 구독)',
              'codex': 'Codex CLI (ChatGPT 구독)'}
@@ -269,6 +437,7 @@ def main():
         tail = '  ← 기본' if e == Bridge.engine else ('' if e in found else '  (없음)')
         print('  %s %-6s %s%s' % (mark, e, label[e], tail))
     print('  모델   %s' % (a.model or '각 도구의 기본값'))
+    print('  claude %s' % ('띄워 두고 씁니다 (빠름)' if Bridge.warm else '물을 때마다 새로 띄웁니다'))
     print('')
     print('  암호   %s' % Bridge.token)
     print('')
@@ -280,6 +449,7 @@ def main():
     try:
         ThreadingHTTPServer(('127.0.0.1', a.port), Bridge).serve_forever()
     except KeyboardInterrupt:
+        WARM.stop()
         print('\n  다리를 내렸습니다.\n')
     except OSError as e:
         print('\n  포트 %d 를 열지 못했습니다 — %s' % (a.port, e))

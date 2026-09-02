@@ -392,10 +392,10 @@ Game.prototype.buddyFailed = function (err, done) {
 
 // 두 제공자 모두 브라우저에서 곧장 부른다. 열쇠는 플레이어가 자기 것을 넣고,
 // 그 기기의 localStorage 에만 남는다 — 파일 안에 넣어 두지 않는다.
-Game.prototype.buddyAskAI = function (q, done) {
+Game.prototype.buddyAskAI = function (q, done, fin) {
   const api = buddyApi();
   if (api === 'gpt') return this.buddyAskGpt(q, done);
-  if (api === 'bridge') return this.buddyAskBridge(q, done);
+  if (api === 'bridge') return this.buddyAskBridge(q, done, fin);
   return this.buddyAskClaude(q, done);
 };
 
@@ -461,10 +461,13 @@ Game.prototype.buddyAskGpt = function (q, done) {
 // 건네고, 다리가 Claude Code 나 Codex CLI 를 불러 답을 받아 온다. 그래서 API
 // 열쇠가 없어도 되고, 그 도구가 딸린 구독 사용량에서 나간다. 어느 도구로 물을지는
 // 고른 모델이 정한다. 암호는 다리가 켜질 때 찍어 준다.
-Game.prototype.buddyAskBridge = function (q, done) {
+Game.prototype.buddyAskBridge = function (q, done, fin) {
   const token = this.buddyKey('bridge');
   if (!token) { done(null); return; }
   const self = this;
+  const engine = BUDDY_MODELS[buddyModel()].engine;
+  // 흘려 받기는 띄워 둔 클로드에서만 된다. 안 되면 예전처럼 다 받고 읽는다.
+  const flow = engine === 'claude' && typeof ReadableStream !== 'undefined';
   fetch(BUDDY_BRIDGE_URL + '/ask', {
     method: 'POST',
     headers: {
@@ -472,15 +475,15 @@ Game.prototype.buddyAskBridge = function (q, done) {
       'authorization': 'Bearer ' + token
     },
     body: JSON.stringify({
-      engine: BUDDY_MODELS[buddyModel()].engine,
+      engine: engine,
+      stream: flow,
       system: buddySys(),
       messages: this.buddyTurn(q)
     })
   }).then(function (r) {
     if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
-    return r.json();
-  }).then(function (j) {
-    self.buddyHeard(q, j.text || '', done);
+    if (flow && r.body) return self.buddyFlowRead(r.body, q, done, fin);
+    return r.json().then(function (j) { self.buddyHeard(q, j.text || '', done); });
   }).catch(function (err) {
     // 다리를 아예 못 찾은 것과 다리가 답을 못 준 것은 손쓸 방법이 다르다
     const m = String(err && err.message || err);
@@ -488,6 +491,91 @@ Game.prototype.buddyAskBridge = function (q, done) {
       ? new Error('다리가 꺼져 있습니다 — tools/ai-bridge.py 를 켜 주세요')
       : err, done);
   });
+};
+
+// ── 흘려 받으며 읽기 ──────────────────────────────────────────────────
+// 답이 다 오기를 기다리지 않는다. 첫 문장이 되는 대로 읽기 시작하고, 뒤이어
+// 오는 문장을 차례로 잇는다. 첫 글자는 0.6~0.8초에 오므로 기다림이 크게 준다.
+Game.prototype.buddyFlowStart = function () {
+  this._bdQ = [];        // 읽을 차례를 기다리는 문장들
+  this._bdBuf = '';      // 아직 문장이 되지 못한 토막
+  this._bdFull = '';
+  this._bdQEnd = false;
+  this._bdQDone = null;
+};
+
+// 문장이 끝났으면 (마침표 뒤에 빈칸) 그것만 떼어 읽기 줄에 올린다
+Game.prototype.buddyFlowPush = function (piece) {
+  this._bdFull += piece;
+  this._bdBuf += piece;
+  let m;
+  while ((m = /[.!?]["\')\]]*\s/.exec(this._bdBuf))) {
+    const cut = m.index + m[0].length;
+    const line = this._bdBuf.slice(0, cut).trim();
+    this._bdBuf = this._bdBuf.slice(cut);
+    if (line) this._bdQ.push(line);
+  }
+  this.buddyFlowPump();
+};
+
+Game.prototype.buddyFlowEnd = function (full, done) {
+  const rest = (this._bdBuf || '').trim();
+  this._bdBuf = '';
+  if (rest) this._bdQ.push(rest);
+  this._bdQEnd = true;
+  this._bdQDone = done || null;
+  const text = (full || this._bdFull || '').trim();
+  if (text) this.pushChat(BUDDY_NAME, text);   // 글은 다 온 뒤 한 줄로 남긴다
+  this.buddyFlowPump();
+};
+
+Game.prototype.buddyFlowPump = function () {
+  if (this._bdTalking) return;                 // 아직 앞 문장을 읽는 중
+  const next = (this._bdQ || []).shift();
+  if (next === undefined) {
+    if (this._bdQEnd) {
+      this._bdQEnd = false;
+      const d = this._bdQDone; this._bdQDone = null;
+      if (d) d();
+    }
+    return;
+  }
+  const e = this.buddy;
+  if (e) { e.sayText = next; e.sayTimer = Math.min(9, 2.2 + next.length * 0.045); }
+  const self = this;
+  this.buddySpeak(next, function () { self.buddyFlowPump(); });
+};
+
+// 다리가 보내 주는 줄(NDJSON)을 읽는다
+Game.prototype.buddyFlowRead = function (body, q, done, fin) {
+  const self = this;
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', full = '', bad = null;
+  this.buddyFlowStart();
+  const step = function (res) {
+    if (res.value) buf += dec.decode(res.value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let ev;
+      try { ev = JSON.parse(line); } catch (x) { continue; }
+      if (ev.delta) self.buddyFlowPush(ev.delta);
+      else if (ev.text) full = ev.text;
+      else if (ev.error) bad = ev.error;
+    }
+    if (!res.done) return reader.read().then(step);
+    if (bad || (!full && !self._bdFull)) throw new Error(bad || '빈 답이 돌아왔습니다');
+    const text = full || self._bdFull;
+    self._bdHist.push({ role: 'user', content: q });
+    self._bdHist.push({ role: 'assistant', content: text });
+    while (self._bdHist.length > 12) self._bdHist.shift();
+    self.buddyFlowEnd(text, fin);
+    done(text, true);                          // 이미 말했다고 알려 준다
+  };
+  return reader.read().then(step);
 };
 
 // ── 물으면 답한다 ─────────────────────────────────────────────────────
@@ -503,7 +591,8 @@ Game.prototype.buddyAsk = function (q, done) {
 
   if (!this.buddyKey()) { this.buddySay(this.buddyOffline(q), fin); return; }
   if (this.buddy) { this.buddy.sayText = '...'; this.buddy.sayTimer = 12; }
-  this.buddyAskAI(q, function (text) {
+  this.buddyAskAI(q, function (text, said) {
+    if (said) return;              // 흘려 받으며 이미 읽었다 — fin 도 그쪽에서 부른다
     if (text) self.buddySay(text, fin);
     else {
       self.buddySay(self.buddyOffline(q), fin);
@@ -515,7 +604,7 @@ Game.prototype.buddyAsk = function (q, done) {
         self._bdErr = null;
       }
     }
-  });
+  }, fin);   // 흘려 받는 쪽은 다 읽고 나서 이 fin 을 부른다
 };
 
 // ── 먼저 말 걸기 ──────────────────────────────────────────────────────
@@ -649,9 +738,10 @@ Game.prototype.buddyOpen = function (ev) {
   if (!this.buddyKey()) { this.buddySay(buddyOpenLine(ev), after); return; }
   this._bdBusy = true;
   if (this._bdTalk) this.buddyMicMark('think');
-  this.buddyAskAI(BUDDY_OPEN_Q + ' ' + ev.note, function (text) {
+  this.buddyAskAI(BUDDY_OPEN_Q + ' ' + ev.note, function (text, said) {
+    if (said) return;
     self.buddySay(text || buddyOpenLine(ev), after);
-  });
+  }, after);
 };
 
 // ── 부르기 · 매 틱 ────────────────────────────────────────────────────
