@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.24';
+const GAME_VERSION = 'v10.25';
 const GAME_BUILD = '2026-08-30';
 const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
@@ -3008,7 +3008,7 @@ Game.prototype.update = function (dt) {
   if (this.updateNetHud) this.updateNetHud();
   if (this.updateNameTags) this.updateNameTags();
   if (this.updateBuddyTag) this.updateBuddyTag();
-  if (this.drawWeb) this.drawWeb();                     // 거미줄
+  if (this.drawWeb) this.drawWeb(dt);                   // 거미줄과 팔
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
