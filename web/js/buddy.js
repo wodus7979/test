@@ -20,21 +20,25 @@ const BUDDY_VS = 1 / 16;
 // ── 생김새 ────────────────────────────────────────────────────────────
 function registerBuddyMob() {
   if (typeof MOB_TYPES === 'undefined' || MOB_TYPES.buddy) return;
-  const robe = 'mob_villager_cartographer';
+  // 주민 것을 빌려 쓰지 않고 Ellie 만의 얼굴·머리·옷을 쓴다 (textures.js).
+  // 주민의 큰 코는 없애고, 머리 뒤로 묶은 머리를 하나 붙였다.
+  const coat = 'buddy_coat';
   MOB_TYPES.buddy = {
     kr: BUDDY_NAME, hostile: false, health: 40, speed: 1.05,
     width: 0.6, height: 1.95, brain: 'buddy', drops: [], buddy: true,
     parts: [
-      { x: 0, y: 12 * BUDDY_VS, z: 0, w: 8 * BUDDY_VS, h: 11 * BUDDY_VS, d: 6 * BUDDY_VS, tex: robe },
+      { x: 0, y: 12 * BUDDY_VS, z: 0, w: 8 * BUDDY_VS, h: 11 * BUDDY_VS, d: 6 * BUDDY_VS, tex: coat },
+      // 머리 — 옆·뒤·위는 머리카락, 앞은 얼굴
       { x: 0, y: 23 * BUDDY_VS, z: 0, w: 8 * BUDDY_VS, h: 8 * BUDDY_VS, d: 8 * BUDDY_VS,
-        tex: 'mob_villager_head', front: 'mob_villager_face' },
-      { x: 0, y: 25 * BUDDY_VS, z: 5 * BUDDY_VS, w: 2 * BUDDY_VS, h: 4 * BUDDY_VS, d: 2 * BUDDY_VS,
-        tex: 'mob_villager_nose' },
-      { x: 0, y: 16 * BUDDY_VS, z: 3 * BUDDY_VS, w: 12 * BUDDY_VS, h: 4 * BUDDY_VS, d: 4 * BUDDY_VS, tex: robe },
+        tex: 'buddy_hair', front: 'buddy_face' },
+      // 뒤로 묶은 머리
+      { x: 0, y: 21 * BUDDY_VS, z: -5 * BUDDY_VS, w: 4 * BUDDY_VS, h: 9 * BUDDY_VS, d: 3 * BUDDY_VS,
+        tex: 'buddy_hair' },
+      { x: 0, y: 16 * BUDDY_VS, z: 3 * BUDDY_VS, w: 12 * BUDDY_VS, h: 4 * BUDDY_VS, d: 4 * BUDDY_VS, tex: coat },
       { x: -2 * BUDDY_VS, y: 0, z: 0, w: 4 * BUDDY_VS, h: 12 * BUDDY_VS, d: 4 * BUDDY_VS,
-        tex: 'mob_villager_legs', leg: 0 },
+        tex: 'buddy_legs', leg: 0 },
       { x: 2 * BUDDY_VS, y: 0, z: 0, w: 4 * BUDDY_VS, h: 12 * BUDDY_VS, d: 4 * BUDDY_VS,
-        tex: 'mob_villager_legs', leg: 1 }
+        tex: 'buddy_legs', leg: 1 }
     ]
   };
 }

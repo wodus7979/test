@@ -1063,6 +1063,51 @@ function registerExtraTextures() {
     p.rect(4, 5, 2, 2, '#3a5a8a'); p.rect(10, 5, 2, 2, '#3a5a8a');
     p.rect(6, 11, 4, 1, '#7a5c44');            // 입
   });
+  // ── 영어 동료 Ellie ──
+  // 주민 얼굴(큰 코·일자 눈썹)을 쓰지 않고 따로 그린다.
+  const BD_SKIN = '#f2d0b4';
+  const BD_HAIR = '#5c3b26';
+  const BD_HAIR2 = '#7a5136';
+  defTex('buddy_hair', function (p, rnd) {
+    p.noise(rnd, BD_HAIR, 5, 3);
+    for (let x = 1; x < 16; x += 4) p.rect(x, 0, 1, 16, BD_HAIR2);   // 머릿결
+  });
+  defTex('buddy_skin', skin(BD_SKIN, '#e6bfa2', 4));
+  defTex('buddy_face', function (p, rnd) {
+    p.noise(rnd, BD_SKIN, 4, 3);
+    // 앞머리 — 가운데는 이마가 보이게 살짝 갈라 둔다
+    p.rect(0, 0, 16, 4, BD_HAIR);
+    p.rect(0, 4, 5, 1, BD_HAIR); p.rect(11, 4, 5, 1, BD_HAIR);
+    p.rect(4, 0, 1, 4, BD_HAIR2); p.rect(11, 0, 1, 3, BD_HAIR2);   // 머릿결 빛
+    // 옆머리 — 얼굴선을 감싸고 턱 앞에서 끝난다
+    p.rect(0, 5, 2, 9, BD_HAIR); p.rect(14, 5, 2, 9, BD_HAIR);
+    p.rect(0, 13, 3, 3, BD_HAIR); p.rect(13, 13, 3, 3, BD_HAIR);
+    // 눈썹 — 가늘고 부드럽게
+    p.rect(3, 7, 3, 1, '#8a6244'); p.rect(10, 7, 3, 1, '#8a6244');
+    // 속눈썹
+    p.rect(4, 8, 3, 1, '#33231a'); p.rect(9, 8, 3, 1, '#33231a');
+    // 눈 — 흰자 · 갈색 눈동자 · 작은 눈점 · 빛점
+    p.rect(3, 9, 4, 2, '#fdfdfd'); p.rect(9, 9, 4, 2, '#fdfdfd');
+    p.rect(4, 9, 2, 2, '#7a5230'); p.rect(10, 9, 2, 2, '#7a5230');
+    p.rect(4, 10, 2, 1, '#2a1c12'); p.rect(10, 10, 2, 1, '#2a1c12');
+    p.rect(4, 9, 1, 1, '#ffffff'); p.rect(10, 9, 1, 1, '#ffffff');
+    // 볼 — 발그레
+    p.rect(2, 12, 2, 1, '#f0a89f'); p.rect(12, 12, 2, 1, '#f0a89f');
+    // 코 — 점 하나
+    p.rect(8, 12, 1, 1, '#e2b596');
+    // 입 — 아주 작게 웃는다 (양끝이 한 칸 위로)
+    p.rect(7, 14, 2, 1, '#c9756a');                                  // 가운데
+    p.rect(6, 13, 1, 1, '#c9756a'); p.rect(9, 13, 1, 1, '#c9756a');   // 양끝이 위로
+  });
+  // 겉옷 — 주민 제복 대신 산뜻한 색
+  defTex('buddy_coat', function (p, rnd) {
+    p.noise(rnd, '#3f8f86', 5, 3);
+    p.rect(0, 9, 16, 7, '#2f6f68');       // 아래 자락
+    p.rect(0, 8, 16, 1, '#00000022');
+    p.rect(7, 0, 2, 9, '#54a89e');        // 앞섶
+  });
+  defTex('buddy_legs', skin('#3b4a63', '#33415a', 5));
+
   // ── 낙하산 ──
   defTex('chute_a', function (p, rnd) { p.noise(rnd, '#d94a4a', 4, 2); });
   defTex('chute_b', function (p, rnd) { p.noise(rnd, '#f2f4f7', 4, 2); });
