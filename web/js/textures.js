@@ -1051,6 +1051,13 @@ function registerExtraTextures() {
         p.speckle(rnd, apron, 6, 1);
         p.rect(0, 7, 16, 1, '#00000022');
       });
+      // 팔 — 몸통 무늬(앞치마)를 그대로 쓰면 팔이 중간에 끊겨 보인다.
+      // 위는 소매 한 색으로 두고 끝에 손이 나오게 한다.
+      defTex('mob_villager_arm_' + j[0], function (p, rnd) {
+        p.noise(rnd, robe, 5, 3);
+        p.rect(0, 11, 16, 5, '#b09070');            // 손
+        p.rect(0, 10, 16, 1, shade(robe, -18));     // 소맷부리
+      });
     });
   }
   defTex('mob_villager_head', skin('#b09070', '#a08464', 6));
@@ -1107,6 +1114,11 @@ function registerExtraTextures() {
     p.rect(7, 0, 2, 9, '#54a89e');        // 앞섶
   });
   defTex('buddy_legs', skin('#3b4a63', '#33415a', 5));
+  defTex('buddy_arm', function (p, rnd) {
+    p.noise(rnd, '#3f8f86', 5, 3);          // 소매
+    p.rect(0, 11, 16, 5, BD_SKIN);          // 소매 끝에서 나온 손
+    p.rect(0, 10, 16, 1, '#2f6f68');        // 소맷부리
+  });
 
   // ── 낙하산 ──
   defTex('chute_a', function (p, rnd) { p.noise(rnd, '#d94a4a', 4, 2); });

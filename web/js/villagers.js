@@ -170,7 +170,12 @@ function registerVillagerMobs() {
         { x: 0, y: 12 * VS, z: 0, w: 8 * VS, h: 11 * VS, d: 6 * VS, tex: robe },
         { x: 0, y: 23 * VS, z: 0, w: 8 * VS, h: 8 * VS, d: 8 * VS, tex: 'mob_villager_head', front: 'mob_villager_face' },
         { x: 0, y: 25 * VS, z: 5 * VS, w: 2 * VS, h: 4 * VS, d: 2 * VS, tex: 'mob_villager_nose' },
-        { x: 0, y: 16 * VS, z: 3 * VS, w: 12 * VS, h: 4 * VS, d: 4 * VS, tex: robe },
+        // 팔 둘 — 몸통 옆에 내려뜨리고 걸으면 앞뒤로 흔든다.
+        // (예전에는 가슴을 가로지르는 판자 하나였다)
+        { x: -6 * VS, y: 12 * VS, z: 0, w: 4 * VS, h: 11 * VS, d: 4 * VS,
+          tex: 'mob_villager_arm_' + key, arm: 0 },
+        { x: 6 * VS, y: 12 * VS, z: 0, w: 4 * VS, h: 11 * VS, d: 4 * VS,
+          tex: 'mob_villager_arm_' + key, arm: 1 },
         { x: -2 * VS, y: 0, z: 0, w: 4 * VS, h: 12 * VS, d: 4 * VS, tex: legs, leg: 0 },
         { x: 2 * VS, y: 0, z: 0, w: 4 * VS, h: 12 * VS, d: 4 * VS, tex: legs, leg: 1 }
       ]
@@ -186,7 +191,7 @@ function registerVillagerMobs() {
       { x: 0, y: 20 * VS, z: 0, w: 8 * VS, h: 10 * VS, d: 8 * VS, tex: 'mob_golem_body' },
       { x: 0, y: 29 * VS, z: 0, w: 8 * VS, h: 10 * VS, d: 8 * VS, tex: 'mob_golem', front: 'mob_golem_face' },
       { x: -12 * VS, y: 11 * VS, z: 0, w: 6 * VS, h: 20 * VS, d: 6 * VS, tex: 'mob_golem', arm: 0 },
-      { x: 12 * VS, y: 11 * VS, z: 0, w: 6 * VS, h: 20 * VS, d: 6 * VS, tex: 'mob_golem', arm: 0 },
+      { x: 12 * VS, y: 11 * VS, z: 0, w: 6 * VS, h: 20 * VS, d: 6 * VS, tex: 'mob_golem', arm: 1 },
       { x: -4 * VS, y: 0, z: 0, w: 7 * VS, h: 11 * VS, d: 7 * VS, tex: 'mob_golem_body', leg: 0 },
       { x: 4 * VS, y: 0, z: 0, w: 7 * VS, h: 11 * VS, d: 7 * VS, tex: 'mob_golem_body', leg: 1 }
     ]

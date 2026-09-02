@@ -1113,7 +1113,10 @@ Renderer.prototype.drawEntities = function (mgr, world, player, opts) {
         pivotY = part.y + part.h;
       }
       if (part.arm !== undefined) {
-        angle = sitting ? SIT_ARM : (m.def.hostile ? -1.5 : swing * 0.6);
+        // 다리처럼 좌우를 갈라 흔든다. 사람은 걸을 때 오른팔과 왼다리가 함께
+        // 나가므로 다리와 반대 위상으로 둔다.
+        angle = sitting ? SIT_ARM
+          : (m.def.hostile ? -1.5 : swing * 0.6 * (part.arm ? 1 : -1));
         pivotY = part.y + part.h;
       }
       const ca = Math.cos(angle), sa = Math.sin(angle);

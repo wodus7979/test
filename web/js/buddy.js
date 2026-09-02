@@ -34,7 +34,11 @@ function registerBuddyMob() {
       // 뒤로 묶은 머리
       { x: 0, y: 21 * BUDDY_VS, z: -5 * BUDDY_VS, w: 4 * BUDDY_VS, h: 9 * BUDDY_VS, d: 3 * BUDDY_VS,
         tex: 'buddy_hair' },
-      { x: 0, y: 16 * BUDDY_VS, z: 3 * BUDDY_VS, w: 12 * BUDDY_VS, h: 4 * BUDDY_VS, d: 4 * BUDDY_VS, tex: coat },
+      // 팔 둘 — 소매 끝에 손이 보인다 (buddy_arm 텍스처 아래쪽이 살색)
+      { x: -6 * BUDDY_VS, y: 12 * BUDDY_VS, z: 0, w: 4 * BUDDY_VS, h: 11 * BUDDY_VS, d: 4 * BUDDY_VS,
+        tex: 'buddy_arm', arm: 0 },
+      { x: 6 * BUDDY_VS, y: 12 * BUDDY_VS, z: 0, w: 4 * BUDDY_VS, h: 11 * BUDDY_VS, d: 4 * BUDDY_VS,
+        tex: 'buddy_arm', arm: 1 },
       { x: -2 * BUDDY_VS, y: 0, z: 0, w: 4 * BUDDY_VS, h: 12 * BUDDY_VS, d: 4 * BUDDY_VS,
         tex: 'buddy_legs', leg: 0 },
       { x: 2 * BUDDY_VS, y: 0, z: 0, w: 4 * BUDDY_VS, h: 12 * BUDDY_VS, d: 4 * BUDDY_VS,
