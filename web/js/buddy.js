@@ -278,11 +278,12 @@ const BUDDY_MODELS = {
   'gpt-5':           { label: 'GPT-5',     api: 'gpt' },
   'gpt-5-mini':      { label: 'GPT-5 mini',api: 'gpt' },
   'gpt-4.1-mini':    { label: 'GPT-4.1 mini', api: 'gpt' },
-  // 이 컴퓨터에 깔린 Claude Code 를 다리로 쓴다. 열쇠 대신 다리 암호를 넣고,
-  // 요금은 따로 들지 않는다 (쓰던 Claude Code 사용량에서 나간다).
-  'bridge':          { label: '내 컴퓨터의 Claude Code', api: 'bridge' }
+  // 이 컴퓨터에 깔린 AI 도구를 다리로 쓴다. 열쇠 대신 다리 암호를 넣고,
+  // API 요금은 들지 않는다 (그 도구가 딸린 구독 사용량에서 나간다).
+  'bridge':       { label: '내 컴퓨터의 Claude Code', api: 'bridge', engine: 'claude' },
+  'bridge-codex': { label: '내 컴퓨터의 Codex',       api: 'bridge', engine: 'codex' }
 };
-// 다리가 귀를 열고 있는 곳. tools/claude-bridge.py 가 여기에 선다.
+// 다리가 귀를 열고 있는 곳. tools/ai-bridge.py 가 여기에 선다.
 const BUDDY_BRIDGE_URL = 'http://localhost:8124';
 function buddyModel() {
   try {
@@ -404,9 +405,10 @@ Game.prototype.buddyAskGpt = function (q, done) {
   }).catch(function (err) { self.buddyFailed(err, done); });
 };
 
-// 다리 쪽. 인터넷 저편이 아니라 이 컴퓨터에서 도는 tools/claude-bridge.py 에게
-// 건네고, 다리가 Claude Code 를 불러 답을 받아 온다. 그래서 API 열쇠가 없어도
-// 되고, 쓰던 Claude Code 사용량에서 나간다. 암호는 다리가 켜질 때 찍어 준다.
+// 다리 쪽. 인터넷 저편이 아니라 이 컴퓨터에서 도는 tools/ai-bridge.py 에게
+// 건네고, 다리가 Claude Code 나 Codex CLI 를 불러 답을 받아 온다. 그래서 API
+// 열쇠가 없어도 되고, 그 도구가 딸린 구독 사용량에서 나간다. 어느 도구로 물을지는
+// 고른 모델이 정한다. 암호는 다리가 켜질 때 찍어 준다.
 Game.prototype.buddyAskBridge = function (q, done) {
   const token = this.buddyKey('bridge');
   if (!token) { done(null); return; }
@@ -417,7 +419,11 @@ Game.prototype.buddyAskBridge = function (q, done) {
       'content-type': 'application/json',
       'authorization': 'Bearer ' + token
     },
-    body: JSON.stringify({ system: BUDDY_SYS, messages: this.buddyTurn(q) })
+    body: JSON.stringify({
+      engine: BUDDY_MODELS[buddyModel()].engine,
+      system: BUDDY_SYS,
+      messages: this.buddyTurn(q)
+    })
   }).then(function (r) {
     if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
     return r.json();
@@ -427,7 +433,7 @@ Game.prototype.buddyAskBridge = function (q, done) {
     // 다리를 아예 못 찾은 것과 다리가 답을 못 준 것은 손쓸 방법이 다르다
     const m = String(err && err.message || err);
     self.buddyFailed(/Failed to fetch|NetworkError|load failed/i.test(m)
-      ? new Error('다리가 꺼져 있습니다 — tools/claude-bridge.py 를 켜 주세요')
+      ? new Error('다리가 꺼져 있습니다 — tools/ai-bridge.py 를 켜 주세요')
       : err, done);
   });
 };

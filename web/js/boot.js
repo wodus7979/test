@@ -157,7 +157,7 @@
   // 고른 모델이 어느 곳 것인지 — 열쇠 칸의 이름표와 담는 자리가 여기서 갈린다
   const bdWhere = function () {
     const m = selBdModel ? selBdModel.value : '';
-    if (m === 'bridge') return 'bridge';
+    if (m.indexOf('bridge') === 0) return 'bridge';   // 다리는 어느 도구든 암호가 같다
     return m.indexOf('gpt') === 0 ? 'gpt' : 'claude';
   };
   const BD_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt', bridge: 'wc_buddy_bridge' };

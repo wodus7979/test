@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""WebCraft — 클로드 다리
+"""WebCraft — AI 다리
 
-게임 속 동료 Ellie 가 하는 말을, 이 컴퓨터에 깔린 Claude Code 에게 건네주고
-답을 받아 오는 작은 중계소다. 열쇠(API 키)를 넣지 않아도 되고, 이미 쓰고 있는
-Claude Code 로 답이 나온다.
+게임 속 동료 Ellie 가 하는 말을, 이 컴퓨터에 깔린 AI 도구에게 건네주고 답을
+받아 오는 작은 중계소다. 열쇠(API 키)를 넣지 않아도 되고, 이미 쓰고 있는
+구독으로 답이 나온다.
+
+  · claude — Claude Code            (claude.ai Pro·Max 구독)
+  · codex  — OpenAI Codex CLI       (ChatGPT Plus·Pro 구독)
+
+둘 다 처음 한 번 로그인해 두면 그 뒤로는 열쇠가 필요 없다. Codex 쪽 로그인이
+바로 "Sign in with ChatGPT" — OAuth 다. 브라우저에서는 그 OAuth 를 쓸 수 없지만
+(돌아올 주소를 등록할 수 없다), 이렇게 CLI 를 거치면 쓸 수 있다.
 
   python3 tools/claude-bridge.py
 
@@ -17,11 +24,13 @@ Claude Code 로 답이 나온다.
 
 import argparse
 import json
+import os
 import re
 import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8124
@@ -32,6 +41,50 @@ MAX_BODY = 256 * 1024  # 한 번에 받는 글의 최대 크기
 # 도구를 모두 떼어 둔다 (--restricted 로도 한 번 더 막는다).
 NO_TOOLS = ('Bash Edit Write Read Glob Grep WebFetch WebSearch '
             'Task NotebookEdit TodoWrite')
+
+
+def ask_codex(system, prompt, model):
+    """Codex CLI 로 한 번 묻는다. ChatGPT 구독으로 나간다.
+
+    codex 는 --system-prompt 가 없어서 지침을 글 맨 앞에 붙여 보낸다.
+    답은 -o 로 받는다 (화면에는 진행 상황이 섞여 나오므로 파일이 깨끗하다).
+    빈 폴더를 일터로 주어, 곁에 있는 파일이나 AGENTS.md 를 끌어오지 않게 한다.
+    """
+    exe = shutil.which('codex')
+    if not exe:
+        return None, 'codex 명령을 찾지 못했습니다. Codex CLI 를 깔고 codex login 을 해 주세요.'
+    with tempfile.TemporaryDirectory(prefix='webcraft-codex-') as work:
+        out = os.path.join(work, 'answer.txt')
+        cmd = [exe, 'exec',
+               '--skip-git-repo-check',   # 깃 저장소가 아니어도 된다
+               '--ephemeral',             # 대화 기록을 디스크에 남기지 않는다
+               '--ignore-user-config',    # 그 사람의 codex 설정을 끌어오지 않는다
+               '--ignore-rules',
+               '--sandbox', 'read-only',  # 명령을 돌리더라도 아무것도 못 고친다
+               '--color', 'never',
+               '-C', work,                # 빈 폴더에서 돈다
+               '-o', out]
+        if model:
+            cmd += ['-m', model]
+        cmd.append(system + '\n\n' + prompt)
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return None, 'codex 가 %d초 안에 답하지 않았습니다.' % TIMEOUT
+        except OSError as e:
+            return None, 'codex 를 실행하지 못했습니다 — %s' % e
+        text = ''
+        try:
+            with open(out, encoding='utf-8') as f:
+                text = f.read().strip()
+        except OSError:
+            pass
+        if not text:
+            why = (r.stderr or r.stdout or '').strip()[:200]
+            if 'login' in why.lower() or 'auth' in why.lower():
+                why = '로그인이 되어 있지 않은 것 같습니다 — codex login 을 해 주세요. (%s)' % why
+            return None, why or 'codex 가 빈 답을 주었습니다.'
+        return text, None
 
 
 def ask_claude(system, prompt, model):
@@ -77,10 +130,18 @@ def flatten(messages):
     return '\n\n'.join(lines)
 
 
+ENGINES = {'claude': ask_claude, 'codex': ask_codex}
+
+
+def have(engine):
+    return shutil.which('claude' if engine == 'claude' else 'codex') is not None
+
+
 class Bridge(BaseHTTPRequestHandler):
     server_version = 'WebCraftBridge'
     token = ''
     model = ''
+    engine = 'claude'
 
     # ── 잔손질 ────────────────────────────────────────────────────────
     def cors(self):
@@ -118,7 +179,9 @@ class Bridge(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.split('?')[0] == '/ping':
-            self.reply(200, {'ok': True, 'name': 'webcraft-claude-bridge'})
+            self.reply(200, {'ok': True, 'name': 'webcraft-ai-bridge',
+                             'engine': Bridge.engine,
+                             'engines': [e for e in ENGINES if have(e)]})
         else:
             self.reply(404, {'error': '없는 길입니다'})
 
@@ -148,7 +211,16 @@ class Bridge(BaseHTTPRequestHandler):
             self.reply(400, {'error': 'system 과 messages 가 있어야 합니다'})
             return
 
-        text, why = ask_claude(system, flatten(messages), Bridge.model)
+        # 게임이 어느 도구로 물을지 고른다. 안 고르면 다리를 켤 때 정한 것을 쓴다.
+        engine = str(req.get('engine') or Bridge.engine)
+        if engine not in ENGINES:
+            self.reply(400, {'error': '모르는 엔진입니다 — %s' % engine})
+            return
+        if not have(engine):
+            self.reply(503, {'error': '%s 를 이 컴퓨터에서 찾지 못했습니다' % engine})
+            return
+
+        text, why = ENGINES[engine](system, flatten(messages), Bridge.model)
         if text is None:
             print('  ! %s' % why)
             self.reply(502, {'error': why})
@@ -163,30 +235,45 @@ class Bridge(BaseHTTPRequestHandler):
 
 
 def main():
-    ap = argparse.ArgumentParser(description='WebCraft 동료를 이 컴퓨터의 Claude Code 에 잇는다')
+    ap = argparse.ArgumentParser(description='WebCraft 동료를 이 컴퓨터의 AI 도구에 잇는다')
     ap.add_argument('--port', type=int, default=PORT, help='귀를 열 포트 (기본 %d)' % PORT)
-    ap.add_argument('--model', default='', help="쓸 모델 (예: haiku, sonnet, opus). 비우면 Claude Code 기본값")
+    ap.add_argument('--engine', default='', choices=['', 'claude', 'codex'],
+                    help='게임이 따로 고르지 않을 때 쓸 도구. 비우면 깔려 있는 것 중 하나')
+    ap.add_argument('--model', default='', help='쓸 모델. 비우면 그 도구의 기본값')
     ap.add_argument('--token', default='', help='암호를 직접 정하고 싶을 때')
     a = ap.parse_args()
 
-    if not shutil.which('claude'):
-        print('\n  claude 명령을 찾지 못했습니다.')
-        print('  Claude Code 를 깔고 한 번 로그인한 뒤에 다시 켜 주세요.\n')
+    found = [e for e in ENGINES if have(e)]
+    if not found:
+        print('\n  claude 도 codex 도 찾지 못했습니다.')
+        print('  둘 중 하나를 깔고 한 번 로그인한 뒤에 다시 켜 주세요.')
+        print('    Claude Code  →  claude  (claude.ai Pro·Max 구독)')
+        print('    Codex CLI    →  codex   (ChatGPT Plus·Pro 구독)\n')
+        return 1
+    if a.engine and not have(a.engine):
+        print('\n  %s 를 이 컴퓨터에서 찾지 못했습니다.\n' % a.engine)
         return 1
 
     Bridge.token = a.token or secrets.token_urlsafe(18)
     Bridge.model = a.model
+    Bridge.engine = a.engine or found[0]
 
+    label = {'claude': 'Claude Code (claude.ai 구독)',
+             'codex': 'Codex CLI (ChatGPT 구독)'}
     print('')
-    print('  WebCraft ─ 클로드 다리를 켰습니다.')
+    print('  WebCraft ─ AI 다리를 켰습니다.')
     print('  ────────────────────────────────────────────────')
     print('  주소   http://localhost:%d' % a.port)
-    print('  모델   %s' % (a.model or 'Claude Code 기본값'))
+    for e in ENGINES:
+        mark = '●' if e in found else '○'
+        tail = '  ← 기본' if e == Bridge.engine else ('' if e in found else '  (없음)')
+        print('  %s %-6s %s%s' % (mark, e, label[e], tail))
+    print('  모델   %s' % (a.model or '각 도구의 기본값'))
     print('')
     print('  암호   %s' % Bridge.token)
     print('')
     print('  이 암호를 게임 시작 화면의 "다리 암호" 칸에 붙여 넣으세요.')
-    print('  그리고 동료 AI 모델에서 "내 컴퓨터의 Claude Code" 를 고르면 됩니다.')
+    print('  그리고 동료 AI 모델에서 "Claude Code 다리" 나 "Codex 다리" 를 고릅니다.')
     print('  이 창을 닫으면 다리가 끊깁니다.  (멈추기: Ctrl+C)')
     print('')
 
