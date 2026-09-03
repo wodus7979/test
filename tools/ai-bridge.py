@@ -59,10 +59,25 @@ class Warm:
 
     def __init__(self):
         self.p = None
+        self.err = None
         self.system = None
         self.model = None
         self.turns = 0
         self.lock = threading.Lock()
+
+    def why_dead(self):
+        """끝난 까닭을 claude 가 남긴 말에서 찾아 온다."""
+        code = self.p.returncode if self.p else None
+        tail = ''
+        try:
+            if self.err:
+                self.err.seek(0)
+                lines = [l.strip() for l in self.err.read().splitlines() if l.strip()]
+                if lines:
+                    tail = ' — ' + ' / '.join(lines[-2:])[:200]
+        except OSError:
+            pass
+        return (' (끝난 값 %s)' % code if code is not None else '') + tail
 
     def _spawn(self, system, model):
         exe = shutil.which('claude')
@@ -79,8 +94,9 @@ class Warm:
         if model:
             cmd += ['--model', model]
         try:
+            self.err = tempfile.TemporaryFile(mode='w+')
             self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                      stderr=subprocess.DEVNULL, text=True, bufsize=1)
+                                      stderr=self.err, text=True, bufsize=1)
         except OSError as e:
             self.p = None
             return 'claude 를 띄우지 못했습니다 — %s' % e
@@ -100,6 +116,12 @@ class Warm:
             except OSError:
                 pass
         self.p = None
+        if self.err:
+            try:
+                self.err.close()
+            except OSError:
+                pass
+            self.err = None
 
     def ask(self, system, model, msgs, on_delta=None):
         """(답, 까닭, 처음인가). 처음이면 그동안의 말을 다 보내야 한다.
@@ -157,14 +179,19 @@ class Warm:
             finally:
                 killer.cancel()
 
-            if self._dead():
-                self.stop()
-                return None, '클로드가 도중에 멈췄습니다 (%d초를 넘겼을 수 있습니다)' % TIMEOUT, fresh
-            self.turns += 1
+            # 답을 먼저 본다. 판에 따라 클로드가 한 마디 하고 바로 끝나기도 하는데,
+            # 살아 있는지부터 따지면 멀쩡히 받아 둔 답을 버리게 된다.
+            # (끝났으면 다음에 물을 때 저절로 새로 띄운다)
             text = text.strip()
-            if not text:
-                return None, '빈 답이 돌아왔습니다.', fresh
-            return text, None, fresh
+            if text:
+                self.turns += 1
+                return text, None, fresh
+            if self._dead():
+                why = self.why_dead()
+                self.stop()
+                return None, '클로드가 답을 주지 못하고 끝났습니다%s' % why, fresh
+            self.turns += 1
+            return None, '빈 답이 돌아왔습니다.', fresh
 
 
 WARM = Warm()
@@ -370,7 +397,9 @@ class CodexWarm:
             # turn/start 의 답은 "접수했다"일 뿐이라 그것만 보고 끝내면 안 된다.
             # 말이 다 끝났다는 turn/completed 알림을 기다린다.
             r, why = self._wait_turn(rid, time.time() + TIMEOUT, delta)
-            if why:
+            # 클로드 쪽과 같은 함정을 피한다 — 받아 둔 말이 있으면 그것부터 쓴다.
+            # (도중에 끊겼더라도 이미 온 문장은 멀쩡하다)
+            if why and not text[0].strip():
                 self.stop()
                 return None, why, fresh
             self.turns += 1
