@@ -469,31 +469,61 @@ def ask_claude(system, prompt, model):
     return text, None
 
 
+def looks_like_game(path):
+    """정말 그 게임인지 앞부분만 조금 읽어 확인한다."""
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(4096).decode('utf-8', 'ignore')
+        return 'WebCraft' in head or 'minecraft' in head.lower()
+    except OSError:
+        return False
+
+
 def find_game(given):
     """게임 HTML 을 찾는다. 못 찾으면 None.
 
     file:// 로 열면 브라우저가 마이크 권한을 기억하지 못해 쓸 때마다 묻는다.
     http://localhost 로 열면 한 번만 묻는다. 그래서 다리가 게임도 내준다.
+
+    이름을 정확히 맞추라고 하지 않는다 — 내려받다 보면 "minecraft (1).html"
+    처럼 바뀌기 일쑤다. 곁에 있는 html 을 훑어 그 게임인 것을 고른다.
     """
+    if given:
+        g = os.path.abspath(os.path.expanduser(given))
+        return g if os.path.isfile(g) else None
+
     here = os.path.dirname(os.path.abspath(__file__))
     home = os.path.expanduser('~')
-    cands = []
-    if given:
-        cands.append(given)
-    cands += [
-        os.path.join(here, 'minecraft.html'),
-        os.path.join(here, '..', 'dist', 'minecraft.html'),
-        os.path.join(here, 'dist', 'minecraft.html'),
-        os.path.join(os.getcwd(), 'minecraft.html'),
-        os.path.join(os.getcwd(), 'dist', 'minecraft.html'),
-        os.path.join(home, 'Downloads', 'minecraft.html'),
-        os.path.join(home, 'Desktop', 'minecraft.html'),
-    ]
-    for c in cands:
-        c = os.path.abspath(os.path.expanduser(c))
-        if os.path.isfile(c):
-            return c
-    return None
+    spots = [here, os.getcwd(), os.path.join(here, '..', 'dist'),
+             os.path.join(here, 'dist'), os.path.join(os.getcwd(), 'dist'),
+             os.path.join(home, 'Downloads'), os.path.join(home, 'Desktop')]
+
+    found = []
+    seen = set()
+    for d in spots:
+        d = os.path.abspath(d)
+        if d in seen or not os.path.isdir(d):
+            continue
+        seen.add(d)
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for n in names:
+            if not n.lower().endswith(('.html', '.htm')):
+                continue
+            full = os.path.join(d, n)
+            if not os.path.isfile(full) or os.path.getsize(full) < 100000:
+                continue          # 게임은 1MB 가 넘는다. 작은 건 딴것이다.
+            if not looks_like_game(full):
+                continue
+            # 이름에 minecraft 가 든 것 · 새 것을 먼저 친다
+            score = (2 if 'minecraft' in n.lower() else 0, os.path.getmtime(full))
+            found.append((score, full))
+    if not found:
+        return None
+    found.sort(reverse=True)
+    return found[0][1]
 
 
 def flatten(messages):
@@ -574,6 +604,23 @@ class Bridge(BaseHTTPRequestHandler):
     def do_GET(self):
         route = self.path.split('?')[0]
         # 게임 자체를 내준다 — 오직 미리 찾아 둔 그 파일 하나만 (경로 장난 불가)
+        if route in ('/', '/index.html', '/minecraft.html', '/game') and not Bridge.game:
+            self.send_response(200)
+            self.send_header('content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(('<!doctype html><meta charset="utf-8">'
+                '<title>WebCraft 다리</title>'
+                '<body style="font:16px/1.7 system-ui;max-width:40em;margin:3em auto;padding:0 1em">'
+                '<h2>다리는 켜져 있는데, 게임 파일을 못 찾았습니다</h2>'
+                '<p>이 파이썬 파일과 <b>같은 폴더</b>에 게임 HTML 을 두면 알아서 찾습니다. '
+                '이름은 달라도 됩니다.</p>'
+                '<p>이미 뒀는데도 이 화면이 나온다면, 자리를 직접 알려 주세요:</p>'
+                '<pre style="background:#f4f4f6;padding:1em;border-radius:8px;overflow:auto">'
+                'python3 ai-bridge.py --game /자리/파일이름.html</pre>'
+                '<p style="color:#666">찾아본 곳: 이 파일 곁 · 지금 폴더 · dist · Downloads · Desktop<br>'
+                '(100KB 가 넘고 안에 WebCraft 가 든 .html 만 게임으로 봅니다)</p>'
+                '</body>').encode('utf-8'))
+            return
         if route in ('/', '/index.html', '/minecraft.html', '/game') and Bridge.game:
             try:
                 with open(Bridge.game, 'rb') as f:
@@ -727,9 +774,10 @@ def main():
         print('         이렇게 열면 마이크 권한을 한 번만 묻습니다.')
         print('         file:// 로 열면 브라우저가 권한을 기억하지 못해 매번 묻습니다.')
     else:
-        print('  게임   minecraft.html 을 못 찾았습니다.')
-        print('         --game <파일자리> 로 알려 주시면 다리가 게임도 내줍니다.')
-        print('         (그러면 마이크 권한을 매번 묻지 않습니다)')
+        print('  게임   게임 HTML 을 못 찾았습니다.')
+        print('         이 파일과 같은 폴더에 두면 이름이 달라도 찾습니다.')
+        print('         또는 --game <파일자리> 로 알려 주세요.')
+        print('         (http://localhost:%d 로 열어야 마이크를 매번 묻지 않습니다)' % a.port)
     print('')
     print('  이 암호를 게임 시작 화면의 "다리 암호" 칸에 붙여 넣으세요.')
     print('  그리고 동료 AI 모델에서 "Claude Code 다리" 나 "Codex 다리" 를 고릅니다.')
