@@ -71,26 +71,58 @@ if (typeof MOB_BRAINS !== 'undefined') {
 
 // ── 목소리 ────────────────────────────────────────────────────────────
 // 브라우저에 들어 있는 음성 합성을 쓴다. 따로 받는 것도, 인터넷도 필요 없다.
-Game.prototype.buddyVoice = function () {
-  if (this._bdVoice !== undefined) return this._bdVoice;
-  this._bdVoice = null;
+// 맥·윈도우에는 장난스러운 목소리가 잔뜩 깔려 있다 (Zarvox, Bubbles, Trinoids …).
+// 아무거나 집으면 사람 목소리가 아니라 로봇·괴물 소리가 난다. 그래서 점수를
+// 매겨 고른다 — 좋은 것에 가산점, 장난스러운 것에 큰 감점.
+const BD_VOICE_GOOD = /samantha|ava|allison|susan|joanna|zoe|nicky|karen|serena|tessa|moira|fiona|google us english|google uk english female|natural|neural|premium|enhanced|siri/i;
+const BD_VOICE_BAD = /albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|fred|kathy|princess|grandma|grandpa|rocko|sandy|shelley|eddy|flo|reed|rishi|novelty|compact/i;
+
+function buddyVoiceScore(v) {
+  const n = v.name || '';
+  let sc = 0;
+  if (BD_VOICE_BAD.test(n)) sc -= 100;          // 장난 목소리는 아예 뒤로
+  if (BD_VOICE_GOOD.test(n)) sc += 40;
+  if (/natural|neural|premium|enhanced/i.test(n)) sc += 25;   // 고품질 판
+  if (/female|woman/i.test(n)) sc += 6;
+  if (v.localService === false) sc += 12;       // 서버에서 만드는 것이 대개 더 낫다
+  if (/^en-US/i.test(v.lang || '')) sc += 8;
+  else if (/^en-GB/i.test(v.lang || '')) sc += 5;
+  if (v.default) sc += 2;
+  return sc;
+}
+
+// 쓸 수 있는 영어 목소리를 좋은 순서로 준다 (시작 화면 고르개가 이걸 쓴다)
+function buddyVoiceList() {
   try {
-    if (!window.speechSynthesis) return null;
-    const pick = function (list) {
-      if (!list || !list.length) return null;
-      // 영어 여성 목소리를 먼저 찾는다
-      const en = list.filter(function (v) { return /^en(-|_|$)/i.test(v.lang || ''); });
-      if (!en.length) return null;
-      const nice = en.find(function (v) { return /female|samantha|zira|karen|aria|jenny/i.test(v.name); });
-      return nice || en[0];
-    };
-    this._bdVoice = pick(speechSynthesis.getVoices());
-    const self = this;
-    // 목소리 목록은 늦게 채워지기도 한다
-    speechSynthesis.onvoiceschanged = function () { self._bdVoice = pick(speechSynthesis.getVoices()); };
-  } catch (err) { /* 목소리는 없어도 그만 */ }
+    if (!window.speechSynthesis) return [];
+    const all = speechSynthesis.getVoices() || [];
+    return all.filter(function (v) { return /^en(-|_|$)/i.test(v.lang || ''); })
+              .sort(function (a, b) { return buddyVoiceScore(b) - buddyVoiceScore(a); });
+  } catch (e) { return []; }
+}
+
+Game.prototype.buddyVoice = function () {
+  // 찾은 적이 있으면 그것을 쓴다. 다만 못 찾았을 때는 캐시하지 않는다 —
+  // 목소리 목록은 늦게 채워지는데, 예전에는 그때 null 을 박아 두고 다시
+  // 찾지 않아서 첫마디부터 브라우저 기본(장난 목소리일 수도 있는) 것으로
+  // 읽어 버렸다.
+  if (this._bdVoice) return this._bdVoice;
+  const list = buddyVoiceList();
+  if (!list.length) return null;
+  // 사람이 고른 것이 있으면 그것을 먼저 본다
+  let want = '';
+  try { want = localStorage.getItem('wc_buddy_voice_name') || ''; } catch (e) { /* 무시 */ }
+  if (want) {
+    const mine = list.find(function (v) { return v.name === want; });
+    if (mine) { this._bdVoice = mine; return mine; }
+  }
+  this._bdVoice = list[0];
   return this._bdVoice;
 };
+
+// 사람이 고르개를 바꾸면 다시 찾게 한다
+Game.prototype.buddyVoiceReset = function () { this._bdVoice = null; };
+
 
 // done 을 주면 다 읽고 나서 부른다. 마이크로 주고받을 때 이게 있어야
 // 동료가 말하는 동안 제 목소리를 되받아 듣지 않는다.
@@ -103,12 +135,22 @@ Game.prototype.buddySpeak = function (text, done) {
     this._bdGen = (this._bdGen || 0) + 1;
     const gen = this._bdGen;
     const self = this;
+    // 목소리 목록은 늦게 채워진다. 아직이면 잠깐 기다렸다 읽는다 —
+    // 안 그러면 첫마디만 브라우저 기본 목소리로 나가 유난히 이상하게 들린다.
+    const v0 = this.buddyVoice();
+    if (!v0 && !this._bdVoiceWaited) {
+      this._bdVoiceWaited = true;
+      const self0 = this;
+      setTimeout(function () { self0.buddySpeak(text, done); }, 450);
+      return;
+    }
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(String(text).slice(0, 500));
-    const v = this.buddyVoice();
+    const v = v0;
     if (v) u.voice = v;
     u.lang = (v && v.lang) || 'en-US';
-    u.rate = 0.98; u.pitch = 1.06;
+    // 사람 목소리에 가깝게 — 예전 값(음높이 1.06)은 조금 째지게 들렸다
+    u.rate = 0.96; u.pitch = 1.0;
     let called = false;
     let watch = 0;
     const end = function () {

@@ -260,6 +260,49 @@
     });
   }
 
+  // 목소리 고르개 — 좋은 것부터 늘어놓는다
+  const selVoice = document.getElementById('sel-buddy-voice');
+  if (selVoice) {
+    const fill = function () {
+      const list = (typeof buddyVoiceList === 'function') ? buddyVoiceList() : [];
+      if (!list.length) return;
+      let saved = '';
+      try { saved = localStorage.getItem('wc_buddy_voice_name') || ''; } catch (e) { /* 무시 */ }
+      selVoice.innerHTML = '<option value="">가장 자연스러운 것으로 (' +
+        (list[0] ? list[0].name : '') + ')</option>';
+      for (let i = 0; i < list.length; i++) {
+        const o = document.createElement('option');
+        o.value = list[i].name;
+        o.textContent = list[i].name + ' (' + list[i].lang + ')';
+        selVoice.appendChild(o);
+      }
+      selVoice.value = saved;
+    };
+    fill();
+    try { speechSynthesis.onvoiceschanged = fill; } catch (e) { /* 무시 */ }
+    selVoice.addEventListener('change', function () {
+      try { localStorage.setItem('wc_buddy_voice_name', selVoice.value); } catch (e) { /* 무시 */ }
+      const g = live();
+      if (g && g.buddyVoiceReset) g.buddyVoiceReset();
+    });
+    const tryBtn = document.getElementById('btn-voice-try');
+    if (tryBtn) {
+      tryBtn.addEventListener('click', function () {
+        try {
+          speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(
+            "Hi! I'm Ellie. I'll walk with you. Ask me anything in English.");
+          const list = (typeof buddyVoiceList === 'function') ? buddyVoiceList() : [];
+          const want = selVoice.value;
+          const v = want ? list.find(function (x) { return x.name === want; }) : list[0];
+          if (v) { u.voice = v; u.lang = v.lang; }
+          u.rate = 0.96; u.pitch = 1.0;
+          speechSynthesis.speak(u);
+        } catch (e) { /* 무시 */ }
+      });
+    }
+  }
+
   const chkBuddyVoice = document.getElementById('chk-buddy-voice');
   if (chkBuddyVoice) {
     try {
