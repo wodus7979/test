@@ -370,6 +370,15 @@ function buddySys() {
     'words only: no markdown, no bullet points, no emoji, no headings. ' +
     'Never say more than about 50 words in total.',
     '',
+    'Sometimes you get a SPEECH RECOGNITION block. That is what a ' +
+    'speech-to-text engine made of the player\'s voice — you cannot hear the ' +
+    'audio itself. If the listed guesses disagree with each other, or the ' +
+    'confidence is low, or a guess is an odd word that does not fit the ' +
+    'situation, that usually means the player\'s pronunciation was unclear on ' +
+    'that word. In that case say the word you think they meant, say it is a ' +
+    'tricky one, and ask them to say it again — do not silently answer the ' +
+    'wrong word. If the guesses agree and confidence is high, just talk ' +
+    'normally and say nothing about it.\n\n' +
     (buddyEars()
       ? 'You HEAR the player\'s actual voice, not a transcript. So you may also ' +
         'comment on pronunciation: if a word is hard to understand or clearly ' +
@@ -392,11 +401,22 @@ Game.prototype.buddyKey = function (api) {
 // 이번에 물어볼 말 한 덩어리. 두 제공자가 같은 모양을 쓰므로 한 번만 만든다.
 Game.prototype.buddyTurn = function (q) {
   if (!this._bdHist) this._bdHist = [];
+  let heard = '';
+  const h = this._bdHeard;
+  if (h) {
+    // 소리를 그대로 보낼 수는 없지만, 인식기가 무엇들 사이에서 헷갈렸는지는
+    // 보낼 수 있다. 후보가 갈리거나 확신도가 낮으면 발음이 흐렸다는 뜻이다.
+    const conf = (typeof h.conf === 'number' && h.conf > 0)
+      ? h.conf.toFixed(2) : 'unknown';
+    heard = '\n\nSPEECH RECOGNITION (the player spoke; this is what the ' +
+      'recogniser made of it):\n  heard: ' + JSON.stringify(h.alts) +
+      '\n  confidence: ' + conf;
+  }
   // 최근 몇 마디만 들려 준다 (길어지면 값도 비싸고 느려진다)
   return this._bdHist.slice(-6).concat([{
     role: 'user',
     content: 'WORLD STATE (facts, not spoken by the player):\n' +
-      JSON.stringify(this.buddyWorld()) + '\n\nPlayer says: ' + q
+      JSON.stringify(this.buddyWorld()) + heard + '\n\nPlayer says: ' + q
   }]);
 };
 
@@ -983,19 +1003,31 @@ Game.prototype.buddyListen = function () {
     try { rec = new SR(); } catch (e) { this.buddyMicOff(); return; }
     rec.lang = 'en-US';
     rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    // 후보를 여럿 받아 둔다. 소리를 그대로 보낼 수 없는 대신, 인식기가
+    // 무엇들 사이에서 헷갈렸는지가 발음의 자취가 된다.
+    rec.maxAlternatives = 4;
     this._bdSR = rec;
   }
   let heard = false;
 
   rec.onresult = function (ev) {
-    const t = (ev.results[0][0].transcript || '').trim();
+    const res = ev.results[0];
+    const t = (res[0].transcript || '').trim();
     if (!t) return;
     heard = true;
+    // 후보들과 확신도를 모아 둔다 — 동료가 "잘 안 들렸다"를 알 수 있게
+    const alts = [];
+    for (let i = 0; i < res.length && i < 4; i++) {
+      const a = res[i];
+      const tx = (a.transcript || '').trim();
+      if (tx && alts.indexOf(tx) < 0) alts.push(tx);
+    }
+    self._bdHeard = { alts: alts, conf: res[0].confidence };
     self.pushChat(self.profile.name, t);
     self.buddyMicMark('think');
     // 답을 받아 읽어 주고, 다 읽고 나면 다시 듣는다
     self.buddyAsk(t, function () {
+      self._bdHeard = null;
       if (self._bdTalk) self.buddyListen();
       else self.buddyMicMark('');
     });

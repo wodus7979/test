@@ -1759,12 +1759,17 @@ body.touch #fly-panel {
               동료가 말하는 동안에는 귀를 닫으므로 제 목소리를 되받아 듣지 않는다.
               단추에 <b>듣는 중 · 생각 중 · 말하는 중</b> 이 비치고, 다시 누르면 끝난다.
               알아듣는 말은 <b>영어</b>다 (영어 연습이 목적이라 일부러 그렇게 두었다)</li>
-          <li><b>발음이 자꾸 다른 낱말로 새는가</b> — 보통은 브라우저가 말을 <b>글로 바꾼 뒤</b>
-              그 글만 보내기 때문이다. 그 순간 "어떻게 발음했는지"는 사라진다.
-              모델을 <b>GPT 음성</b> 으로 고르면 <b>목소리를 그대로</b> 보낸다 —
-              글로 바꾸지 않으므로 엉뚱한 낱말로 새지 않고, 동료가 <b>발음까지 듣고</b>
-              천천히 다시 해 보라고 짚어 준다. OpenAI 열쇠가 있어야 하고,
-              소리는 글보다 값이 더 나간다. 다리로는 안 된다 (CLI 는 글만 받는다)</li>
+          <li><b>발음이 자꾸 다른 낱말로 새는가</b> — 브라우저가 말을 <b>글로 바꾼 뒤</b>
+              그 글만 보내기 때문이다. 그 순간 "어떻게 발음했는지"는 사라진다.<br>
+              그래서 인식기가 준 <b>후보 여럿과 확신도를 함께</b> 보낸다. 후보가
+              <code>ship / sheep / cheap</code> 처럼 갈리거나 확신도가 낮으면 발음이 흐렸다는
+              뜻이므로, 동료가 자연스레 답한 뒤 <b>"ship 이라고 한 게 맞아? sheep 처럼도
+              들렸어"</b> 하고 되묻는다. 또렷하면 아무 말도 하지 않는다.
+              <b>이건 다리(구독)에서도 그대로 된다 — 값이 더 들지 않는다.</b><br>
+              소리를 <b>그대로</b> 들려주고 싶으면 모델을 <b>GPT 음성</b> 으로 고르면 되는데,
+              이쪽은 <b>OpenAI 열쇠(유료 API)</b>가 있어야 한다. ChatGPT 구독의 음성 대화는
+              OpenAI 앱 안에서만 돌아 바깥에서 끌어다 쓸 수 없고, 다리로도 안 된다
+              (CLI 는 글만 받는다)</li>
           <li><b>마이크 권한을 매번 묻는다면</b> — 게임을 파일(<code>file://</code>)로 열어서다.
               브라우저는 파일로 연 페이지의 마이크 권한을 <b>기억하지 못한다</b>.
               다리를 켠 뒤 <b>http://localhost:8124</b> 로 열면 한 번만 묻는다.
@@ -26724,7 +26729,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.27';
+const GAME_VERSION = 'v10.28';
 const GAME_BUILD = '2026-08-30';
 const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
@@ -30505,6 +30510,15 @@ function buddySys() {
     'words only: no markdown, no bullet points, no emoji, no headings. ' +
     'Never say more than about 50 words in total.',
     '',
+    'Sometimes you get a SPEECH RECOGNITION block. That is what a ' +
+    'speech-to-text engine made of the player\'s voice — you cannot hear the ' +
+    'audio itself. If the listed guesses disagree with each other, or the ' +
+    'confidence is low, or a guess is an odd word that does not fit the ' +
+    'situation, that usually means the player\'s pronunciation was unclear on ' +
+    'that word. In that case say the word you think they meant, say it is a ' +
+    'tricky one, and ask them to say it again — do not silently answer the ' +
+    'wrong word. If the guesses agree and confidence is high, just talk ' +
+    'normally and say nothing about it.\n\n' +
     (buddyEars()
       ? 'You HEAR the player\'s actual voice, not a transcript. So you may also ' +
         'comment on pronunciation: if a word is hard to understand or clearly ' +
@@ -30527,11 +30541,22 @@ Game.prototype.buddyKey = function (api) {
 // 이번에 물어볼 말 한 덩어리. 두 제공자가 같은 모양을 쓰므로 한 번만 만든다.
 Game.prototype.buddyTurn = function (q) {
   if (!this._bdHist) this._bdHist = [];
+  let heard = '';
+  const h = this._bdHeard;
+  if (h) {
+    // 소리를 그대로 보낼 수는 없지만, 인식기가 무엇들 사이에서 헷갈렸는지는
+    // 보낼 수 있다. 후보가 갈리거나 확신도가 낮으면 발음이 흐렸다는 뜻이다.
+    const conf = (typeof h.conf === 'number' && h.conf > 0)
+      ? h.conf.toFixed(2) : 'unknown';
+    heard = '\n\nSPEECH RECOGNITION (the player spoke; this is what the ' +
+      'recogniser made of it):\n  heard: ' + JSON.stringify(h.alts) +
+      '\n  confidence: ' + conf;
+  }
   // 최근 몇 마디만 들려 준다 (길어지면 값도 비싸고 느려진다)
   return this._bdHist.slice(-6).concat([{
     role: 'user',
     content: 'WORLD STATE (facts, not spoken by the player):\n' +
-      JSON.stringify(this.buddyWorld()) + '\n\nPlayer says: ' + q
+      JSON.stringify(this.buddyWorld()) + heard + '\n\nPlayer says: ' + q
   }]);
 };
 
@@ -31118,19 +31143,31 @@ Game.prototype.buddyListen = function () {
     try { rec = new SR(); } catch (e) { this.buddyMicOff(); return; }
     rec.lang = 'en-US';
     rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    // 후보를 여럿 받아 둔다. 소리를 그대로 보낼 수 없는 대신, 인식기가
+    // 무엇들 사이에서 헷갈렸는지가 발음의 자취가 된다.
+    rec.maxAlternatives = 4;
     this._bdSR = rec;
   }
   let heard = false;
 
   rec.onresult = function (ev) {
-    const t = (ev.results[0][0].transcript || '').trim();
+    const res = ev.results[0];
+    const t = (res[0].transcript || '').trim();
     if (!t) return;
     heard = true;
+    // 후보들과 확신도를 모아 둔다 — 동료가 "잘 안 들렸다"를 알 수 있게
+    const alts = [];
+    for (let i = 0; i < res.length && i < 4; i++) {
+      const a = res[i];
+      const tx = (a.transcript || '').trim();
+      if (tx && alts.indexOf(tx) < 0) alts.push(tx);
+    }
+    self._bdHeard = { alts: alts, conf: res[0].confidence };
     self.pushChat(self.profile.name, t);
     self.buddyMicMark('think');
     // 답을 받아 읽어 주고, 다 읽고 나면 다시 듣는다
     self.buddyAsk(t, function () {
+      self._bdHeard = null;
       if (self._bdTalk) self.buddyListen();
       else self.buddyMicMark('');
     });
