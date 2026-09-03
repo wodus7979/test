@@ -498,6 +498,12 @@
               동료가 말하는 동안에는 귀를 닫으므로 제 목소리를 되받아 듣지 않는다.
               단추에 <b>듣는 중 · 생각 중 · 말하는 중</b> 이 비치고, 다시 누르면 끝난다.
               알아듣는 말은 <b>영어</b>다 (영어 연습이 목적이라 일부러 그렇게 두었다)</li>
+          <li><b>발음이 자꾸 다른 낱말로 새는가</b> — 보통은 브라우저가 말을 <b>글로 바꾼 뒤</b>
+              그 글만 보내기 때문이다. 그 순간 "어떻게 발음했는지"는 사라진다.
+              모델을 <b>GPT 음성</b> 으로 고르면 <b>목소리를 그대로</b> 보낸다 —
+              글로 바꾸지 않으므로 엉뚱한 낱말로 새지 않고, 동료가 <b>발음까지 듣고</b>
+              천천히 다시 해 보라고 짚어 준다. OpenAI 열쇠가 있어야 하고,
+              소리는 글보다 값이 더 나간다. 다리로는 안 된다 (CLI 는 글만 받는다)</li>
           <li><b>마이크 권한을 매번 묻는다면</b> — 게임을 파일(<code>file://</code>)로 열어서다.
               브라우저는 파일로 연 페이지의 마이크 권한을 <b>기억하지 못한다</b>.
               다리를 켠 뒤 <b>http://localhost:8124</b> 로 열면 한 번만 묻는다.
@@ -844,6 +850,7 @@
 <script src="js/minimap.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
+<script src="js/voice.js"></script>
 <script src="js/buddy.js"></script>
 <script src="js/spiderman.js"></script>
 <script src="js/sound.js"></script>

@@ -302,6 +302,9 @@ const BUDDY_MODELS = {
   'gpt-5':           { label: 'GPT-5',     api: 'gpt' },
   'gpt-5-mini':      { label: 'GPT-5 mini',api: 'gpt' },
   'gpt-4.1-mini':    { label: 'GPT-4.1 mini', api: 'gpt' },
+  // 소리를 그대로 듣는 모델 — 글로 바꾸지 않으므로 발음까지 봐 준다
+  'gpt-audio':       { label: 'GPT 음성 (발음까지 들음)', api: 'gpt', ear: true },
+  'gpt-audio-1.5':   { label: 'GPT 음성 1.5', api: 'gpt', ear: true },
   // 이 컴퓨터에 깔린 AI 도구를 다리로 쓴다. 열쇠 대신 다리 암호를 넣고,
   // API 요금은 들지 않는다 (그 도구가 딸린 구독 사용량에서 나간다).
   'bridge':       { label: '내 컴퓨터의 Claude Code', api: 'bridge', engine: 'claude' },
@@ -318,6 +321,8 @@ function buddyModel() {
 }
 // 지금 고른 모델이 어느 집 것인지. 열쇠도 이 값에 따라 다른 칸에서 꺼낸다.
 function buddyApi() { return BUDDY_MODELS[buddyModel()].api; }
+// 소리를 그대로 들을 수 있는 모델인가 (그러면 마이크를 다르게 쓴다)
+function buddyEars() { return !!BUDDY_MODELS[buddyModel()].ear; }
 // 열쇠는 제공자마다 따로 둔다. 둘을 바꿔 가며 써도 다시 붙여넣지 않아도 된다.
 const BUDDY_KEY_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt', bridge: 'wc_buddy_bridge' };
 
@@ -365,6 +370,13 @@ function buddySys() {
     'words only: no markdown, no bullet points, no emoji, no headings. ' +
     'Never say more than about 50 words in total.',
     '',
+    (buddyEars()
+      ? 'You HEAR the player\'s actual voice, not a transcript. So you may also ' +
+        'comment on pronunciation: if a word is hard to understand or clearly ' +
+        'mispronounced, say the word slowly and ask them to try it again. ' +
+        'Never guess at words you did not hear clearly — ask them to repeat instead. ' +
+        'Praise good pronunciation when you hear it.\n\n'
+      : '') +
     'Use the WORLD STATE given to you for anything factual about where you are ' +
     'and what is around you. Never invent coordinates, distances or times. ' +
     'Stay in the world with the player — you are walking there too, not an ' +
@@ -468,6 +480,48 @@ Game.prototype.buddyAskGpt = function (q, done) {
   }).then(function (j) {
     const ch = (j.choices || [])[0] || {};
     self.buddyHeard(q, (ch.message && ch.message.content) || '', done);
+  }).catch(function (err) { self.buddyFailed(err, done); });
+};
+
+// 소리를 그대로 보내는 갈래. 글로 바꾸지 않으므로 발음이 살아서 간다.
+// 보내는 모양은 글일 때와 거의 같고, 사람이 한 말 자리에 input_audio 를 넣는다.
+Game.prototype.buddyAskVoice = function (wav, done) {
+  const key = this.buddyKey('gpt');
+  if (!key) { done(null); return; }
+  const self = this;
+  const hist = (this._bdHist || []).slice(-6);
+  const msgs = [{ role: 'system', content: buddySys() }].concat(hist).concat([{
+    role: 'user',
+    content: [
+      { type: 'text',
+        text: 'WORLD STATE (facts, not spoken by the player):\n' +
+              JSON.stringify(this.buddyWorld()) +
+              '\n\nThe player just said this out loud — listen to how they said it:' },
+      { type: 'input_audio', input_audio: { data: wav, format: 'wav' } }
+    ]
+  }]);
+  fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      model: buddyModel(),
+      modalities: ['text'],           // 답은 글로 받고, 읽어 주는 것은 브라우저가 한다
+      max_completion_tokens: 300,
+      messages: msgs
+    })
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
+    return r.json();
+  }).then(function (j) {
+    const ch = (j.choices || [])[0] || {};
+    const m = ch.message || {};
+    // 글로 왔을 수도, 소리에 딸린 글로 왔을 수도 있다
+    const text = m.content || (m.audio && m.audio.transcript) || '';
+    if (!self._bdHist) self._bdHist = [];
+    self._bdHist.push({ role: 'user', content: '(spoken)' });
+    self._bdHist.push({ role: 'assistant', content: text });
+    while (self._bdHist.length > 12) self._bdHist.shift();
+    done((text || '').trim() || null);
   }).catch(function (err) { self.buddyFailed(err, done); });
 };
 
@@ -747,7 +801,7 @@ Game.prototype.buddyOpen = function (ev) {
   const after = function () {
     self._bdHold = false;
     self._bdBusy = false;
-    if (self._bdTalk) self.buddyListen();   // 마이크 대화 중이었으면 이어 간다
+    if (self._bdTalk) { if (buddyEars() && self.buddyKey('gpt')) self.buddyHear(); else self.buddyListen(); }
     else self.buddyMicMark('');
   };
   if (!this.buddyKey()) { this.buddySay(buddyOpenLine(ev), after); return; }
@@ -855,16 +909,45 @@ Game.prototype.updateBuddyTag = function () {
 // 되고, 사파리·파이어폭스에는 없을 수 있다. 없으면 단추를 감춘다.
 Game.prototype.buddyMic = function () {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { this.ui.toast('이 브라우저는 음성 인식을 지원하지 않습니다 — T 로 글을 써 보세요'); return; }
+  const ears = buddyEars() && this.buddyKey('gpt');
+  if (!ears && !SR) { this.ui.toast('이 브라우저는 음성 인식을 지원하지 않습니다 — T 로 글을 써 보세요'); return; }
   if (this._bdTalk) { this.buddyMicOff('대화를 마쳤습니다'); return; }
   this._bdTalk = true;
-  this.ui.toast('대화를 시작합니다 — 영어로 말해 보세요. 다시 누르면 끝납니다');
-  this.buddyListen();
+  this.ui.toast(ears
+    ? '대화를 시작합니다 — 목소리를 그대로 들려줍니다 (발음도 봐 줍니다)'
+    : '대화를 시작합니다 — 영어로 말해 보세요. 다시 누르면 끝납니다');
+  if (ears) this.buddyHear(); else this.buddyListen();
+};
+
+// 소리를 그대로 담아 보내는 대화 고리.
+// 글로 바꾸는 단계가 없으므로 발음이 어긋나도 엉뚱한 낱말로 새지 않는다.
+Game.prototype.buddyHear = function () {
+  if (!this._bdTalk) return;
+  if (this._bdTalking || this._bdHold || this._vcBusy) return;
+  const self = this;
+  this.buddyMicMark('listen');
+  this.voiceRecord(function (wav, why) {
+    if (!self._bdTalk) { self.buddyMicMark(''); return; }
+    if (why) { self.buddyMicOff(why); return; }
+    if (!wav) { self.buddyHear(); return; }          // 아무 말도 없었다 — 다시 듣는다
+    self.buddyMicMark('think');
+    self._bdT0 = (window.performance ? performance.now() : Date.now());
+    self.pushChat(self.profile.name, '🎤 …');
+    self.buddyAskVoice(wav, function (text) {
+      if (text) self.buddySay(text, function () { if (self._bdTalk) self.buddyHear(); else self.buddyMicMark(''); });
+      else {
+        self.buddySay("Sorry, I couldn't hear that. Say it again?",
+          function () { if (self._bdTalk) self.buddyHear(); else self.buddyMicMark(''); });
+        if (self._bdErr) { self.ui.toast('동료가 인터넷에 닿지 못했습니다 — ' + self._bdErr); self._bdErr = null; }
+      }
+    });
+  });
 };
 
 // 대화를 끝낸다. 듣던 것도 말하던 것도 함께 멈춘다.
 Game.prototype.buddyMicOff = function (why) {
   this._bdTalk = false;
+  if (this.voiceCancel) this.voiceCancel();
   if (this._bdRec) {
     this._bdRec = null;
     try { this._bdSR.abort(); } catch (e) { /* 무시 */ }

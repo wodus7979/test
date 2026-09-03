@@ -1759,6 +1759,12 @@ body.touch #fly-panel {
               동료가 말하는 동안에는 귀를 닫으므로 제 목소리를 되받아 듣지 않는다.
               단추에 <b>듣는 중 · 생각 중 · 말하는 중</b> 이 비치고, 다시 누르면 끝난다.
               알아듣는 말은 <b>영어</b>다 (영어 연습이 목적이라 일부러 그렇게 두었다)</li>
+          <li><b>발음이 자꾸 다른 낱말로 새는가</b> — 보통은 브라우저가 말을 <b>글로 바꾼 뒤</b>
+              그 글만 보내기 때문이다. 그 순간 "어떻게 발음했는지"는 사라진다.
+              모델을 <b>GPT 음성</b> 으로 고르면 <b>목소리를 그대로</b> 보낸다 —
+              글로 바꾸지 않으므로 엉뚱한 낱말로 새지 않고, 동료가 <b>발음까지 듣고</b>
+              천천히 다시 해 보라고 짚어 준다. OpenAI 열쇠가 있어야 하고,
+              소리는 글보다 값이 더 나간다. 다리로는 안 된다 (CLI 는 글만 받는다)</li>
           <li><b>마이크 권한을 매번 묻는다면</b> — 게임을 파일(<code>file://</code>)로 열어서다.
               브라우저는 파일로 연 페이지의 마이크 권한을 <b>기억하지 못한다</b>.
               다리를 켠 뒤 <b>http://localhost:8124</b> 로 열면 한 번만 묻는다.
@@ -26718,7 +26724,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.26';
+const GAME_VERSION = 'v10.27';
 const GAME_BUILD = '2026-08-30';
 const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
@@ -29975,6 +29981,157 @@ Game.prototype.render = function (dt) {
 
 </script>
 <script>
+/* ==== js/voice.js ==== */
+// voice.js — 목소리를 글로 바꾸지 않고, 소리 그대로 보내기 위한 녹음기.
+//
+// 왜 필요한가.
+//   지금까지는 브라우저가 말을 글로 바꾸고(음성 인식) 그 글만 보냈다. 그래서
+//   발음이 어긋나면 엉뚱한 낱말이 들어가고, 동료는 그 엉뚱한 낱말에 답했다.
+//   무엇보다 "발음이 어땠는지"는 글로 바뀌는 순간 사라져 버린다.
+//   소리를 그대로 보내면 모델이 발음을 직접 듣고 짚어 줄 수 있다.
+//
+// 어떻게.
+//   마이크에서 원시 파형(PCM)을 받아 16kHz 홑소리로 줄이고, WAV 머리말을
+//   붙여 base64 로 만든다. 라이브러리는 쓰지 않는다.
+//   말을 멈추면(소리가 한동안 작으면) 저절로 끊는다.
+'use strict';
+
+const VOICE_RATE = 16000;      // 보내는 소리의 표본율 (말소리엔 이걸로 충분하다)
+const VOICE_MAX = 15;          // 한 번에 최대 몇 초까지 담을까
+const VOICE_MIN = 0.35;        // 이보다 짧으면 말이 아니라고 본다
+const VOICE_HUSH = 0.9;        // 이만큼 조용하면 말이 끝난 것으로 본다 (초)
+const VOICE_LOUD = 0.012;      // 이보다 크면 말하는 중이라고 본다 (RMS)
+
+// 마이크를 연다. 한 번 열어 두고 계속 쓴다 — 매번 열면 느리고 권한도 다시 묻는다.
+Game.prototype.voiceOpen = function (done, fail) {
+  const self = this;
+  if (this._vcStream) { done(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    fail('이 브라우저는 마이크를 열 수 없습니다'); return;
+  }
+  navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+  }).then(function (stream) {
+    self._vcStream = stream;
+    done();
+  }).catch(function (e) {
+    fail('마이크를 쓸 수 없습니다 — ' + (e && e.name ? e.name : e));
+  });
+};
+
+// 한 마디를 담는다. 말이 끝나면 done(base64 wav) 를 부른다.
+// 아무 말도 없으면 done(null).
+Game.prototype.voiceRecord = function (done) {
+  const self = this;
+  if (this._vcBusy) return;
+  this._vcBusy = true;
+  this.voiceOpen(function () {
+    try { self.voiceCapture(done); }
+    catch (e) { self._vcBusy = false; done(null, String(e && e.message || e)); }
+  }, function (why) {
+    self._vcBusy = false;
+    done(null, why);
+  });
+};
+
+Game.prototype.voiceCapture = function (done) {
+  const self = this;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = this._vcCtx || (this._vcCtx = new AC());
+  if (ctx.state === 'suspended') ctx.resume();
+  const src = ctx.createMediaStreamSource(this._vcStream);
+  const node = ctx.createScriptProcessor(4096, 1, 1);
+  const chunks = [];
+  let total = 0, spoke = false, hush = 0;
+  const rate = ctx.sampleRate;
+
+  const finish = function (ok) {
+    try { node.disconnect(); src.disconnect(); } catch (e) { /* 무시 */ }
+    node.onaudioprocess = null;
+    self._vcBusy = false;
+    self._vcLevel = 0;
+    if (!ok || total < rate * VOICE_MIN) { done(null); return; }
+    const flat = new Float32Array(total);
+    let at = 0;
+    for (let i = 0; i < chunks.length; i++) { flat.set(chunks[i], at); at += chunks[i].length; }
+    done(voiceWav(voiceResample(flat, rate, VOICE_RATE), VOICE_RATE));
+  };
+
+  node.onaudioprocess = function (ev) {
+    const inBuf = ev.inputBuffer.getChannelData(0);
+    const copy = new Float32Array(inBuf.length);
+    copy.set(inBuf);
+    chunks.push(copy);
+    total += copy.length;
+    // 소리 크기 — 말이 시작됐는지, 끝났는지 본다
+    let sum = 0;
+    for (let i = 0; i < copy.length; i++) sum += copy[i] * copy[i];
+    const rms = Math.sqrt(sum / copy.length);
+    self._vcLevel = rms;
+    const dt = copy.length / rate;
+    if (rms > VOICE_LOUD) { spoke = true; hush = 0; }
+    else if (spoke) { hush += dt; }
+    if (spoke && hush > VOICE_HUSH) { finish(true); return; }
+    if (total > rate * VOICE_MAX) { finish(spoke); return; }
+    // 말을 시작하지도 않은 채 오래 지나면 그만둔다
+    if (!spoke && total > rate * 6) { finish(false); return; }
+  };
+  src.connect(node);
+  node.connect(ctx.destination);
+  this._vcStop = function () { finish(spoke); };
+};
+
+Game.prototype.voiceCancel = function () {
+  if (this._vcStop) { const f = this._vcStop; this._vcStop = null; try { f(); } catch (e) { /* 무시 */ } }
+  this._vcBusy = false;
+};
+
+// ── 소리 다루기 ───────────────────────────────────────────────────────
+// 표본율을 낮춘다. 말소리는 16kHz 면 넉넉하고, 보내는 양이 3분의 1로 준다.
+function voiceResample(data, from, to) {
+  if (from === to) return data;
+  const ratio = from / to;
+  const out = new Float32Array(Math.floor(data.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const at = i * ratio;
+    const i0 = Math.floor(at), i1 = Math.min(data.length - 1, i0 + 1);
+    const t = at - i0;
+    out[i] = data[i0] * (1 - t) + data[i1] * t;
+  }
+  return out;
+}
+
+// WAV 머리말을 붙여 base64 로 만든다 (16비트 PCM, 홑소리).
+function voiceWav(data, rate) {
+  const n = data.length;
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const put = function (at, s) { for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i)); };
+  put(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); put(8, 'WAVE');
+  put(12, 'fmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);            // PCM
+  v.setUint16(22, 1, true);            // 홑소리
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  put(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    let s = data[i];
+    if (s > 1) s = 1; else if (s < -1) s = -1;
+    v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  // base64 — 한 번에 다 넘기면 인자가 너무 많아 터지므로 조금씩 자른다
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
+
+</script>
+<script>
 /* ==== js/buddy.js ==== */
 // buddy.js - 함께 다니는 영어 동료 "Ellie".
 //
@@ -30280,6 +30437,9 @@ const BUDDY_MODELS = {
   'gpt-5':           { label: 'GPT-5',     api: 'gpt' },
   'gpt-5-mini':      { label: 'GPT-5 mini',api: 'gpt' },
   'gpt-4.1-mini':    { label: 'GPT-4.1 mini', api: 'gpt' },
+  // 소리를 그대로 듣는 모델 — 글로 바꾸지 않으므로 발음까지 봐 준다
+  'gpt-audio':       { label: 'GPT 음성 (발음까지 들음)', api: 'gpt', ear: true },
+  'gpt-audio-1.5':   { label: 'GPT 음성 1.5', api: 'gpt', ear: true },
   // 이 컴퓨터에 깔린 AI 도구를 다리로 쓴다. 열쇠 대신 다리 암호를 넣고,
   // API 요금은 들지 않는다 (그 도구가 딸린 구독 사용량에서 나간다).
   'bridge':       { label: '내 컴퓨터의 Claude Code', api: 'bridge', engine: 'claude' },
@@ -30296,6 +30456,8 @@ function buddyModel() {
 }
 // 지금 고른 모델이 어느 집 것인지. 열쇠도 이 값에 따라 다른 칸에서 꺼낸다.
 function buddyApi() { return BUDDY_MODELS[buddyModel()].api; }
+// 소리를 그대로 들을 수 있는 모델인가 (그러면 마이크를 다르게 쓴다)
+function buddyEars() { return !!BUDDY_MODELS[buddyModel()].ear; }
 // 열쇠는 제공자마다 따로 둔다. 둘을 바꿔 가며 써도 다시 붙여넣지 않아도 된다.
 const BUDDY_KEY_SLOT = { claude: 'wc_buddy_key', gpt: 'wc_buddy_key_gpt', bridge: 'wc_buddy_bridge' };
 
@@ -30343,6 +30505,13 @@ function buddySys() {
     'words only: no markdown, no bullet points, no emoji, no headings. ' +
     'Never say more than about 50 words in total.',
     '',
+    (buddyEars()
+      ? 'You HEAR the player\'s actual voice, not a transcript. So you may also ' +
+        'comment on pronunciation: if a word is hard to understand or clearly ' +
+        'mispronounced, say the word slowly and ask them to try it again. ' +
+        'Never guess at words you did not hear clearly — ask them to repeat instead. ' +
+        'Praise good pronunciation when you hear it.\n\n'
+      : '') +
     'Use the WORLD STATE given to you for anything factual about where you are ' +
     'and what is around you. Never invent coordinates, distances or times. ' +
     'Stay in the world with the player — you are walking there too, not an ' +
@@ -30446,6 +30615,48 @@ Game.prototype.buddyAskGpt = function (q, done) {
   }).then(function (j) {
     const ch = (j.choices || [])[0] || {};
     self.buddyHeard(q, (ch.message && ch.message.content) || '', done);
+  }).catch(function (err) { self.buddyFailed(err, done); });
+};
+
+// 소리를 그대로 보내는 갈래. 글로 바꾸지 않으므로 발음이 살아서 간다.
+// 보내는 모양은 글일 때와 거의 같고, 사람이 한 말 자리에 input_audio 를 넣는다.
+Game.prototype.buddyAskVoice = function (wav, done) {
+  const key = this.buddyKey('gpt');
+  if (!key) { done(null); return; }
+  const self = this;
+  const hist = (this._bdHist || []).slice(-6);
+  const msgs = [{ role: 'system', content: buddySys() }].concat(hist).concat([{
+    role: 'user',
+    content: [
+      { type: 'text',
+        text: 'WORLD STATE (facts, not spoken by the player):\n' +
+              JSON.stringify(this.buddyWorld()) +
+              '\n\nThe player just said this out loud — listen to how they said it:' },
+      { type: 'input_audio', input_audio: { data: wav, format: 'wav' } }
+    ]
+  }]);
+  fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      model: buddyModel(),
+      modalities: ['text'],           // 답은 글로 받고, 읽어 주는 것은 브라우저가 한다
+      max_completion_tokens: 300,
+      messages: msgs
+    })
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 160)); });
+    return r.json();
+  }).then(function (j) {
+    const ch = (j.choices || [])[0] || {};
+    const m = ch.message || {};
+    // 글로 왔을 수도, 소리에 딸린 글로 왔을 수도 있다
+    const text = m.content || (m.audio && m.audio.transcript) || '';
+    if (!self._bdHist) self._bdHist = [];
+    self._bdHist.push({ role: 'user', content: '(spoken)' });
+    self._bdHist.push({ role: 'assistant', content: text });
+    while (self._bdHist.length > 12) self._bdHist.shift();
+    done((text || '').trim() || null);
   }).catch(function (err) { self.buddyFailed(err, done); });
 };
 
@@ -30725,7 +30936,7 @@ Game.prototype.buddyOpen = function (ev) {
   const after = function () {
     self._bdHold = false;
     self._bdBusy = false;
-    if (self._bdTalk) self.buddyListen();   // 마이크 대화 중이었으면 이어 간다
+    if (self._bdTalk) { if (buddyEars() && self.buddyKey('gpt')) self.buddyHear(); else self.buddyListen(); }
     else self.buddyMicMark('');
   };
   if (!this.buddyKey()) { this.buddySay(buddyOpenLine(ev), after); return; }
@@ -30833,16 +31044,45 @@ Game.prototype.updateBuddyTag = function () {
 // 되고, 사파리·파이어폭스에는 없을 수 있다. 없으면 단추를 감춘다.
 Game.prototype.buddyMic = function () {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { this.ui.toast('이 브라우저는 음성 인식을 지원하지 않습니다 — T 로 글을 써 보세요'); return; }
+  const ears = buddyEars() && this.buddyKey('gpt');
+  if (!ears && !SR) { this.ui.toast('이 브라우저는 음성 인식을 지원하지 않습니다 — T 로 글을 써 보세요'); return; }
   if (this._bdTalk) { this.buddyMicOff('대화를 마쳤습니다'); return; }
   this._bdTalk = true;
-  this.ui.toast('대화를 시작합니다 — 영어로 말해 보세요. 다시 누르면 끝납니다');
-  this.buddyListen();
+  this.ui.toast(ears
+    ? '대화를 시작합니다 — 목소리를 그대로 들려줍니다 (발음도 봐 줍니다)'
+    : '대화를 시작합니다 — 영어로 말해 보세요. 다시 누르면 끝납니다');
+  if (ears) this.buddyHear(); else this.buddyListen();
+};
+
+// 소리를 그대로 담아 보내는 대화 고리.
+// 글로 바꾸는 단계가 없으므로 발음이 어긋나도 엉뚱한 낱말로 새지 않는다.
+Game.prototype.buddyHear = function () {
+  if (!this._bdTalk) return;
+  if (this._bdTalking || this._bdHold || this._vcBusy) return;
+  const self = this;
+  this.buddyMicMark('listen');
+  this.voiceRecord(function (wav, why) {
+    if (!self._bdTalk) { self.buddyMicMark(''); return; }
+    if (why) { self.buddyMicOff(why); return; }
+    if (!wav) { self.buddyHear(); return; }          // 아무 말도 없었다 — 다시 듣는다
+    self.buddyMicMark('think');
+    self._bdT0 = (window.performance ? performance.now() : Date.now());
+    self.pushChat(self.profile.name, '🎤 …');
+    self.buddyAskVoice(wav, function (text) {
+      if (text) self.buddySay(text, function () { if (self._bdTalk) self.buddyHear(); else self.buddyMicMark(''); });
+      else {
+        self.buddySay("Sorry, I couldn't hear that. Say it again?",
+          function () { if (self._bdTalk) self.buddyHear(); else self.buddyMicMark(''); });
+        if (self._bdErr) { self.ui.toast('동료가 인터넷에 닿지 못했습니다 — ' + self._bdErr); self._bdErr = null; }
+      }
+    });
+  });
 };
 
 // 대화를 끝낸다. 듣던 것도 말하던 것도 함께 멈춘다.
 Game.prototype.buddyMicOff = function (why) {
   this._bdTalk = false;
+  if (this.voiceCancel) this.voiceCancel();
   if (this._bdRec) {
     this._bdRec = null;
     try { this._bdSR.abort(); } catch (e) { /* 무시 */ }
