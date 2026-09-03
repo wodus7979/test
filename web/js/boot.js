@@ -184,16 +184,55 @@
     selBdModel.addEventListener('change', function () {
       try { localStorage.setItem('wc_buddy_model', selBdModel.value); } catch (e) { /* 무시 */ }
       bdShowKey();   // 고른 집이 바뀌면 그 집 열쇠를 보여 준다
+      bdShowState();
     });
   }
   if (keyBox) {
     bdShowKey();
-    keyBox.addEventListener('change', function () {
+    setTimeout(bdShowState, 60);
+    // change 는 칸에서 포커스가 빠질 때만 울린다. 붙여 넣고 곧바로 시작을
+    // 누르면 놓칠 수 있으므로, 글자가 바뀔 때마다 저장한다.
+    const saveKey = function () {
       const v = keyBox.value.trim();
       try {
         if (v) localStorage.setItem(bdSlot(), v);
         else localStorage.removeItem(bdSlot());
       } catch (e) { /* 무시 */ }
+      bdShowState();
+    };
+    keyBox.addEventListener('input', saveKey);
+    keyBox.addEventListener('change', saveKey);
+  }
+
+  // 지금 상태를 시작 화면에 그대로 보여 준다 — 들어가서야 아는 일이 없게.
+  function bdShowState(probe) {
+    const el = document.getElementById('buddy-state');
+    if (!el) return;
+    const m = selBdModel ? selBdModel.value : 'claude-opus-5';
+    let saved = '';
+    try { saved = localStorage.getItem(BD_SLOT[bdWhere()]) || ''; } catch (e) { /* 무시 */ }
+    if (!saved) {
+      el.className = 'bd-state warn';
+      el.textContent = '⚠ ' + BD_LABEL[bdWhere()] + '가 비어 있습니다 — 넣지 않으면 정해진 것만 답합니다';
+      return;
+    }
+    if (bdWhere() !== 'bridge') {
+      el.className = 'bd-state ok';
+      el.textContent = '✓ ' + BD_LABEL[bdWhere()] + ' 저장됨 (' + saved.length + '자)';
+      return;
+    }
+    el.className = 'bd-state';
+    el.textContent = '암호 저장됨 (' + saved.length + '자) — 다리를 확인하는 중…';
+    const want = m.indexOf('codex') >= 0 ? 'codex' : 'claude';
+    fetch('http://localhost:8124/ping').then(function (r) { return r.json(); }).then(function (j) {
+      const have = (j.engines || []).indexOf(want) >= 0;
+      el.className = 'bd-state ' + (have ? 'ok' : 'warn');
+      el.textContent = have
+        ? '✓ 다리에 닿았습니다 — ' + want + ' 로 답합니다'
+        : '⚠ 다리는 켜졌는데 ' + want + ' 가 없습니다 (깔고 로그인했는지 보세요)';
+    }).catch(function () {
+      el.className = 'bd-state warn';
+      el.textContent = '⚠ 다리가 꺼져 있습니다 — ai-bridge.py 를 켜 주세요';
     });
   }
 

@@ -1261,3 +1261,8 @@ body.touch #fly-panel {
 /* 열쇠·암호가 없어 정해진 것만 답하는 상태 — 눈에 띄게 둔다 */
 #btn-mic.nokey { border-color: rgba(240,190,120,.6); color: #f2d9a8; }
 #btn-mic.nokey::after { content: ' ⚠'; }
+
+/* 동료 연결 상태 — 시작 화면에서 미리 알 수 있게 */
+.bd-state { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: #b9c4d2; }
+.bd-state.ok { color: #7fe0a8; }
+.bd-state.warn { color: #f0c070; }
