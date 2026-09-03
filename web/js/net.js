@@ -229,7 +229,10 @@ Game.prototype.openChat = function () {
     e.stopPropagation();
     if (e.key === 'Enter') {
       const t = box.value.trim().slice(0, 200);
-      if (t) {
+      if (t === '/diag' || t === '/진단') {
+        // 동료가 대답을 못 할 때 어디서 막히는지 알아보는 명령
+        if (self.buddyDiag) self.buddyDiag();
+      } else if (t) {
         if (self.net) self.netSend('chat', { text: t });
         self.pushChat(self.profile.name, t);
         // 동료가 곁에 있으면 대답한다

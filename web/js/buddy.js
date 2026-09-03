@@ -677,7 +677,13 @@ Game.prototype.buddyAsk = function (q, done) {
   if (/follow me|come on|let'?s go|come with/.test(s) && this.buddy) this.buddy.waiting = false;
   if (/wait here|stay there|hold on/.test(s) && this.buddy) this.buddy.waiting = true;
 
-  if (!this.buddyKey()) { this.buddySay(this.buddyOffline(q), fin); return; }
+  if (!this.buddyKey()) {
+    // 조용히 오프라인으로 떨어지면 왜 대답을 못 하는지 알 길이 없다.
+    // 이 길은 정해진 몇 가지만 답하므로, 무엇이 빠졌는지 한 번은 알려 준다.
+    this.buddyNagOnce();
+    this.buddySay(this.buddyOffline(q), fin);
+    return;
+  }
   if (this.buddy) { this.buddy.sayText = '...'; this.buddy.sayTimer = 12; }
   this._bdT0 = (window.performance ? performance.now() : Date.now());
   this.buddyAskAI(q, function (text, said) {
@@ -690,6 +696,8 @@ Game.prototype.buddyAsk = function (q, done) {
         const head = buddyApi() === 'bridge' ? '동료가 다리를 건너지 못했습니다 — '
                                              : '동료가 인터넷에 닿지 못했습니다 — ';
         self.ui.toast(head + self._bdErr);
+        // 토스트는 곧 사라져 놓치기 쉽다. 채팅에도 남겨 둔다.
+        self.pushChat('알림', head + self._bdErr);
         self._bdErr = null;
       }
     }
@@ -846,6 +854,7 @@ Game.prototype.spawnBuddy = function () {
   this.buddy = e;
   this.buddySay("Hi! I'm " + BUDDY_NAME + ", your English partner. I'll walk with you. " +
     "Talk to me — press the mic, or T to type.");
+  this.buddyCheckLink();
   return e;
 };
 
@@ -983,6 +992,10 @@ Game.prototype.buddyMicMark = function (state) {
   el.classList.toggle('on', state === 'listen');
   el.classList.toggle('busy', state === 'think' || state === 'speak');
   const took = this._bdLast ? '  ' + (this._bdLast / 1000).toFixed(1) + '초' : '';
+  // 열쇠·암호가 없으면 늘 보이게 표시한다 (조용히 오프라인으로 도는 것을 막는다)
+  if (!this.buddyKey()) el.title = '열쇠/암호가 없어 정해진 것만 답합니다';
+  else el.title = '영어로 서로 대화하기';
+  el.classList.toggle('nokey', !this.buddyKey());
   el.textContent = state === 'listen' ? '🎤 듣는 중' + took
     : state === 'think' ? '💭 생각 중'
     : state === 'speak' ? '💬 말하는 중'
@@ -1060,4 +1073,87 @@ Game.prototype.updateBuddyHud = function () {
   el.style.display = on ? 'block' : 'none';
   // 동료가 없는데 계속 듣고 있으면 안 된다
   if (!on && this._bdTalk) this.buddyMicOff();
+};
+
+// ── 왜 대답을 못 하는지 알려 주기 ────────────────────────────────────
+// 열쇠나 다리 암호가 없으면 동료는 "인터넷 없이 도는 길" 로 답한다. 그 길은
+// 좌표·거리·시각 같은 것만 답하고 나머지는 되물으므로, 밖에서 보면 "자기
+// 질문만 한다" 처럼 보인다. 그래서 무엇이 빠졌는지 분명히 말해 준다.
+const BUDDY_NEED = {
+  claude: 'Claude 열쇠가 없습니다',
+  gpt: 'OpenAI 열쇠가 없습니다',
+  bridge: '다리 암호가 없습니다'
+};
+Game.prototype.buddyNagOnce = function () {
+  if (this._bdNag) return;
+  this._bdNag = true;
+  const api = buddyApi();
+  this.ui.toast(BUDDY_NEED[api] + ' — 지금은 세계를 읽어 정해진 것만 답합니다. ' +
+    '시작 화면에서 넣으면 진짜 대화가 됩니다.');
+};
+
+// 동료를 부를 때 한 번 살펴본다. 다리를 골랐으면 실제로 닿는지도 두드려 본다.
+Game.prototype.buddyCheckLink = function () {
+  const self = this;
+  const api = buddyApi();
+  const key = this.buddyKey();
+  if (!key) { this._bdNag = false; this.buddyNagOnce(); return; }
+  if (api !== 'bridge') {
+    this.ui.toast('동료가 ' + BUDDY_MODELS[buddyModel()].label + ' 로 답합니다');
+    return;
+  }
+  // 다리는 켜져 있는지 · 그 도구가 있는지까지 알 수 있다
+  fetch(BUDDY_BRIDGE_URL + '/ping').then(function (r) { return r.json(); }).then(function (j) {
+    const want = BUDDY_MODELS[buddyModel()].engine;
+    const have = (j.engines || []).indexOf(want) >= 0;
+    self.ui.toast(have
+      ? '다리에 닿았습니다 — ' + want + ' 로 답합니다'
+      : '다리는 켜져 있는데 ' + want + ' 를 찾지 못했습니다 (다리 창을 보세요)');
+  }).catch(function () {
+    self.ui.toast('다리가 꺼져 있습니다 — ai-bridge.py 를 켜 주세요. ' +
+      '그때까지는 정해진 것만 답합니다.');
+  });
+};
+
+// ── 진단 ─────────────────────────────────────────────────────────────
+// 대화가 안 될 때 어디서 막히는지 한 줄씩 채팅에 적어 준다.
+// 채팅(T)에서 /diag 라고 치면 돈다.
+Game.prototype.buddyDiag = function () {
+  const self = this;
+  const say = function (t) { self.pushChat('진단', t); };
+  const model = buddyModel(), api = buddyApi();
+  say('고른 모델: ' + BUDDY_MODELS[model].label + ' (' + model + ')');
+  say('가는 길: ' + (api === 'bridge' ? '다리 ' + BUDDY_BRIDGE_URL : api === 'gpt'
+    ? 'OpenAI 열쇠로 직접' : 'Anthropic 열쇠로 직접'));
+  const key = this.buddyKey();
+  say('열쇠/암호: ' + (key ? '있음 (' + key.length + '자)' : '없음 ← 이것 때문이면 정해진 것만 답합니다'));
+  if (!key) return;
+
+  if (api !== 'bridge') { self.buddyDiagAsk(say); return; }
+  fetch(BUDDY_BRIDGE_URL + '/ping').then(function (r) { return r.json(); }).then(function (j) {
+    say('다리: 켜져 있음. 쓸 수 있는 도구 = ' + JSON.stringify(j.engines || []));
+    const want = BUDDY_MODELS[model].engine;
+    if ((j.engines || []).indexOf(want) < 0) {
+      say('그런데 ' + want + ' 가 없습니다 — 깔고 로그인했는지 보세요');
+      return;
+    }
+    self.buddyDiagAsk(say);
+  }).catch(function (e) {
+    say('다리에 닿지 못했습니다 — ai-bridge.py 가 켜져 있는지 보세요 (' + e.message + ')');
+  });
+};
+
+// 실제로 한 마디 물어보고 무엇이 오는지 그대로 보여 준다
+Game.prototype.buddyDiagAsk = function (say) {
+  const self = this;
+  say('시험 삼아 한 마디 보냅니다…');
+  const t0 = Date.now();
+  this._bdErr = null;
+  this.buddyAskAI('Reply with exactly: DIAG OK', function (text, said) {
+    const ms = Date.now() - t0;
+    if (text) say('답 받음 (' + (ms / 1000).toFixed(1) + '초): ' + String(text).slice(0, 120));
+    else say('답을 못 받았습니다 (' + (ms / 1000).toFixed(1) + '초) — ' +
+             (self._bdErr || '까닭이 오지 않았습니다'));
+    self._bdErr = null;
+  }, function () {});
 };
