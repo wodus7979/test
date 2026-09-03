@@ -44,6 +44,48 @@ MAX_BODY = 256 * 1024  # 한 번에 받는 글의 최대 크기
 NO_TOOLS = ('Bash Edit Write Read Glob Grep WebFetch WebSearch '
             'Task NotebookEdit TodoWrite')
 
+# 깔려 있는 도구가 어떤 옵션을 받아 주는지 --help 로 한 번만 확인해 둔다.
+# 판마다 옵션이 다르다 — 없는 것을 주면 그대로 죽어 버린다
+# ("error: unknown option '--restricted'").
+_FLAGS = {}
+
+
+def flags_of(exe):
+    if exe in _FLAGS:
+        return _FLAGS[exe]
+    txt = ''
+    try:
+        r = subprocess.run([exe, '--help'], capture_output=True, text=True, timeout=30)
+        txt = (r.stdout or '') + (r.stderr or '')
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _FLAGS[exe] = txt
+    return txt
+
+
+def pick(exe, *names):
+    """이 도구가 받아 주는 첫 이름을 고른다. 하나도 없으면 None."""
+    txt = flags_of(exe)
+    for n in names:
+        if n in txt:
+            return n
+    return None
+
+
+def add_opt(cmd, exe, value, *names):
+    """값이 있는 옵션을, 받아 주는 이름으로 붙인다."""
+    n = pick(exe, *names)
+    if n:
+        cmd += [n, value]
+    return cmd
+
+
+def add_switch(cmd, exe, *names):
+    n = pick(exe, *names)
+    if n:
+        cmd.append(n)
+    return cmd
+
 
 class Warm:
     """claude 를 한 번만 띄워 놓고 계속 쓴다.
@@ -83,16 +125,19 @@ class Warm:
         exe = shutil.which('claude')
         if not exe:
             return 'claude 명령을 찾지 못했습니다. Claude Code 가 깔려 있는지 보세요.'
-        cmd = [exe, '-p',
-               '--restricted', '--strict-mcp-config', '--disable-slash-commands',
-               '--disallowed-tools', NO_TOOLS,
-               '--input-format', 'stream-json',
-               '--output-format', 'stream-json',
-               '--include-partial-messages',   # 글자가 오는 대로 흘려 받는다
-               '--verbose',
-               '--system-prompt', system]
+        cmd = [exe, '-p']
+        add_switch(cmd, exe, '--restricted')
+        add_switch(cmd, exe, '--strict-mcp-config')
+        add_switch(cmd, exe, '--disable-slash-commands')
+        add_opt(cmd, exe, NO_TOOLS, '--disallowed-tools', '--disallowedTools')
+        cmd += ['--input-format', 'stream-json', '--output-format', 'stream-json']
+        add_switch(cmd, exe, '--include-partial-messages')   # 글자가 오는 대로
+        add_switch(cmd, exe, '--verbose')
+        # 지침을 주는 이름이 판마다 다르다
+        if not add_opt(cmd, exe, system, '--system-prompt') or '--system-prompt' not in cmd:
+            add_opt(cmd, exe, system, '--append-system-prompt')
         if model:
-            cmd += ['--model', model]
+            add_opt(cmd, exe, model, '--model')
         try:
             self.err = tempfile.TemporaryFile(mode='w+')
             self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -433,15 +478,14 @@ def ask_codex(system, prompt, model):
         return None, 'codex 명령을 찾지 못했습니다. Codex CLI 를 깔고 codex login 을 해 주세요.'
     with tempfile.TemporaryDirectory(prefix='webcraft-codex-') as work:
         out = os.path.join(work, 'answer.txt')
-        cmd = [exe, 'exec',
-               '--skip-git-repo-check',   # 깃 저장소가 아니어도 된다
-               '--ephemeral',             # 대화 기록을 디스크에 남기지 않는다
-               '--ignore-user-config',    # 그 사람의 codex 설정을 끌어오지 않는다
-               '--ignore-rules',
-               '--sandbox', 'read-only',  # 명령을 돌리더라도 아무것도 못 고친다
-               '--color', 'never',
-               '-C', work,                # 빈 폴더에서 돈다
-               '-o', out]
+        cmd = [exe, 'exec']
+        add_switch(cmd, exe, '--skip-git-repo-check')  # 깃 저장소가 아니어도 된다
+        add_switch(cmd, exe, '--ephemeral')            # 기록을 디스크에 남기지 않는다
+        add_switch(cmd, exe, '--ignore-user-config')   # 그 사람 설정을 끌어오지 않는다
+        add_switch(cmd, exe, '--ignore-rules')
+        add_opt(cmd, exe, 'read-only', '--sandbox')    # 돌더라도 아무것도 못 고친다
+        add_opt(cmd, exe, 'never', '--color')
+        cmd += ['-C', work, '-o', out]                 # 빈 폴더에서, 답은 파일로
         if model:
             cmd += ['-m', model]
         cmd.append(system + '\n\n' + prompt)
@@ -470,15 +514,16 @@ def ask_claude(system, prompt, model):
     exe = shutil.which('claude')
     if not exe:
         return None, 'claude 명령을 찾지 못했습니다. Claude Code 가 깔려 있는지 보세요.'
-    cmd = [exe, '-p',
-           '--restricted',                # 명령·코드 실행 도구를 뺀다
-           '--strict-mcp-config',         # 다른 MCP 서버를 끌어오지 않는다
-           '--disable-slash-commands',
-           '--disallowed-tools', NO_TOOLS,
-           '--output-format', 'json',
-           '--system-prompt', system]
+    cmd = [exe, '-p']
+    add_switch(cmd, exe, '--restricted')          # 명령·코드 실행 도구를 뺀다
+    add_switch(cmd, exe, '--strict-mcp-config')   # 다른 MCP 서버를 끌어오지 않는다
+    add_switch(cmd, exe, '--disable-slash-commands')
+    add_opt(cmd, exe, NO_TOOLS, '--disallowed-tools', '--disallowedTools')
+    cmd += ['--output-format', 'json']
+    if not add_opt(cmd, exe, system, '--system-prompt') or '--system-prompt' not in cmd:
+        add_opt(cmd, exe, system, '--append-system-prompt')
     if model:
-        cmd += ['--model', model]
+        add_opt(cmd, exe, model, '--model')
     cmd.append(prompt)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
