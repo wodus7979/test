@@ -246,6 +246,33 @@ def ask_claude(system, prompt, model):
     return text, None
 
 
+def find_game(given):
+    """게임 HTML 을 찾는다. 못 찾으면 None.
+
+    file:// 로 열면 브라우저가 마이크 권한을 기억하지 못해 쓸 때마다 묻는다.
+    http://localhost 로 열면 한 번만 묻는다. 그래서 다리가 게임도 내준다.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    home = os.path.expanduser('~')
+    cands = []
+    if given:
+        cands.append(given)
+    cands += [
+        os.path.join(here, 'minecraft.html'),
+        os.path.join(here, '..', 'dist', 'minecraft.html'),
+        os.path.join(here, 'dist', 'minecraft.html'),
+        os.path.join(os.getcwd(), 'minecraft.html'),
+        os.path.join(os.getcwd(), 'dist', 'minecraft.html'),
+        os.path.join(home, 'Downloads', 'minecraft.html'),
+        os.path.join(home, 'Desktop', 'minecraft.html'),
+    ]
+    for c in cands:
+        c = os.path.abspath(os.path.expanduser(c))
+        if os.path.isfile(c):
+            return c
+    return None
+
+
 def flatten(messages):
     """주고받은 말을 한 덩어리 글로 편다. claude -p 는 글 하나만 받는다."""
     lines = []
@@ -269,6 +296,7 @@ class Bridge(BaseHTTPRequestHandler):
     model = ''
     engine = 'claude'
     warm = True
+    game = None
 
     # ── 잔손질 ────────────────────────────────────────────────────────
     def cors(self):
@@ -321,7 +349,26 @@ class Bridge(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path.split('?')[0] == '/ping':
+        route = self.path.split('?')[0]
+        # 게임 자체를 내준다 — 오직 미리 찾아 둔 그 파일 하나만 (경로 장난 불가)
+        if route in ('/', '/index.html', '/minecraft.html', '/game') and Bridge.game:
+            try:
+                with open(Bridge.game, 'rb') as f:
+                    body = f.read()
+            except OSError as e:
+                self.reply(500, {'error': '게임 파일을 읽지 못했습니다 — %s' % e})
+                return
+            self.send_response(200)
+            self.send_header('content-type', 'text/html; charset=utf-8')
+            self.send_header('content-length', str(len(body)))
+            self.send_header('cache-control', 'no-store')
+            self.end_headers()
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
+        if route == '/ping':
             self.reply(200, {'ok': True, 'name': 'webcraft-ai-bridge',
                              'engine': Bridge.engine,
                              'engines': [e for e in ENGINES if have(e)]})
@@ -406,6 +453,8 @@ def main():
                     help='게임이 따로 고르지 않을 때 쓸 도구. 비우면 깔려 있는 것 중 하나')
     ap.add_argument('--model', default='', help='쓸 모델. 비우면 그 도구의 기본값')
     ap.add_argument('--token', default='', help='암호를 직접 정하고 싶을 때')
+    ap.add_argument('--game', default='',
+                    help='게임 HTML 자리. 비우면 곁·Downloads·Desktop 을 뒤진다')
     ap.add_argument('--cold', action='store_true',
                     help='claude 를 띄워 두지 않고 물을 때마다 새로 띄운다 (느리다)')
     a = ap.parse_args()
@@ -425,6 +474,7 @@ def main():
     Bridge.model = a.model
     Bridge.engine = a.engine or found[0]
     Bridge.warm = not a.cold
+    Bridge.game = find_game(a.game)
 
     label = {'claude': 'Claude Code (claude.ai 구독)',
              'codex': 'Codex CLI (ChatGPT 구독)'}
@@ -440,6 +490,16 @@ def main():
     print('  claude %s' % ('띄워 두고 씁니다 (빠름)' if Bridge.warm else '물을 때마다 새로 띄웁니다'))
     print('')
     print('  암호   %s' % Bridge.token)
+    print('')
+    if Bridge.game:
+        print('  게임   http://localhost:%d  ← 여기로 여세요' % a.port)
+        print('         (%s)' % Bridge.game)
+        print('         이렇게 열면 마이크 권한을 한 번만 묻습니다.')
+        print('         file:// 로 열면 브라우저가 권한을 기억하지 못해 매번 묻습니다.')
+    else:
+        print('  게임   minecraft.html 을 못 찾았습니다.')
+        print('         --game <파일자리> 로 알려 주시면 다리가 게임도 내줍니다.')
+        print('         (그러면 마이크 권한을 매번 묻지 않습니다)')
     print('')
     print('  이 암호를 게임 시작 화면의 "다리 암호" 칸에 붙여 넣으세요.')
     print('  그리고 동료 AI 모델에서 "Claude Code 다리" 나 "Codex 다리" 를 고릅니다.')

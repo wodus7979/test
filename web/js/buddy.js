@@ -127,6 +127,12 @@ Game.prototype.buddySpeak = function (text, done) {
     watch = setTimeout(end, Math.min(20000, 2000 + String(text).length * 90));
     this._bdTalking = true;
     if (this._bdTalk) this.buddyMicMark('speak');
+    // 물은 뒤 처음으로 입을 여는 데까지 걸린 시간을 적어 둔다 (HUD 에 보인다)
+    if (this._bdT0) {
+      const now = (window.performance ? performance.now() : Date.now());
+      this._bdLast = Math.round(now - this._bdT0);
+      this._bdT0 = 0;
+    }
     speechSynthesis.speak(u);
   } catch (err) { this._bdTalking = false; fin(); }
 };
@@ -599,6 +605,7 @@ Game.prototype.buddyAsk = function (q, done) {
 
   if (!this.buddyKey()) { this.buddySay(this.buddyOffline(q), fin); return; }
   if (this.buddy) { this.buddy.sayText = '...'; this.buddy.sayTimer = 12; }
+  this._bdT0 = (window.performance ? performance.now() : Date.now());
   this.buddyAskAI(q, function (text, said) {
     if (said) return;              // 흘려 받으며 이미 읽었다 — fin 도 그쪽에서 부른다
     if (text) self.buddySay(text, fin);
@@ -859,9 +866,8 @@ Game.prototype.buddyMic = function () {
 Game.prototype.buddyMicOff = function (why) {
   this._bdTalk = false;
   if (this._bdRec) {
-    const r = this._bdRec;
     this._bdRec = null;
-    try { r.abort(); } catch (e) { /* 무시 */ }
+    try { this._bdSR.abort(); } catch (e) { /* 무시 */ }
   }
   this.buddyMicMark('');
   if (why) this.ui.toast(why);
@@ -873,10 +879,11 @@ Game.prototype.buddyMicMark = function (state) {
   if (!el) return;
   el.classList.toggle('on', state === 'listen');
   el.classList.toggle('busy', state === 'think' || state === 'speak');
-  el.textContent = state === 'listen' ? '🎤 듣는 중'
+  const took = this._bdLast ? '  ' + (this._bdLast / 1000).toFixed(1) + '초' : '';
+  el.textContent = state === 'listen' ? '🎤 듣는 중' + took
     : state === 'think' ? '💭 생각 중'
     : state === 'speak' ? '💬 말하는 중'
-    : '🎤 말하기';
+    : '🎤 말하기' + took;
 };
 
 // 한 마디를 듣고, 답을 받아 읽어 준 다음, 다시 듣는다.
@@ -886,11 +893,16 @@ Game.prototype.buddyListen = function () {
   if (!this._bdTalk || !SR) return;
   if (this._bdRec || this._bdTalking || this._bdHold) return;
   const self = this;
-  let rec;
-  try { rec = new SR(); } catch (e) { this.buddyMicOff(); return; }
-  rec.lang = 'en-US';
-  rec.interimResults = false;
-  rec.maxAlternatives = 1;
+  // 인식기를 한 번만 만들어 계속 돌려 쓴다. 매번 새로 만들면 브라우저가
+  // 그때마다 마이크를 새로 여는 셈이라 권한을 다시 묻기도 하고 느리다.
+  let rec = this._bdSR;
+  if (!rec) {
+    try { rec = new SR(); } catch (e) { this.buddyMicOff(); return; }
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    this._bdSR = rec;
+  }
   let heard = false;
 
   rec.onresult = function (ev) {
