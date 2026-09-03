@@ -554,8 +554,8 @@ Game.prototype.buddyAskBridge = function (q, done, fin) {
   if (!token) { done(null); return; }
   const self = this;
   const engine = BUDDY_MODELS[buddyModel()].engine;
-  // 흘려 받기는 띄워 둔 클로드에서만 된다. 안 되면 예전처럼 다 받고 읽는다.
-  const flow = engine === 'claude' && typeof ReadableStream !== 'undefined';
+  // 두 다리 모두 흘려 받는다 (다리가 못 하면 그냥 한 덩어리로 온다)
+  const flow = typeof ReadableStream !== 'undefined';
   fetch(BUDDY_BRIDGE_URL + '/ask', {
     method: 'POST',
     headers: {

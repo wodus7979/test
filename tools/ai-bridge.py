@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8124
@@ -167,6 +168,228 @@ class Warm:
 
 
 WARM = Warm()
+
+
+class CodexWarm:
+    """codex 를 app-server 로 한 번만 띄워 놓고 계속 쓴다.
+
+    codex exec 는 부를 때마다 새로 뜨고 다 받은 뒤에야 답을 준다. app-server 는
+    stdio 로 JSON-RPC 를 주고받는 상주 서버라, 한 번 띄워 두면
+      · 뜨는 값이 사라지고
+      · item/agentMessage/delta 로 글자가 오는 대로 흘려 받을 수 있다.
+    (프로토콜은 codex app-server generate-json-schema 로 뽑아 맞췄다.)
+
+    실험 기능이라 안 되는 판이 있을 수 있다 — 그러면 codex exec 로 되돌아간다.
+    """
+
+    MAX_TURNS = 40
+
+    def __init__(self):
+        self.p = None
+        self.thread = None
+        self.system = None
+        self.model = None
+        self.turns = 0
+        self.rid = 0
+        self.lock = threading.Lock()
+        self.lines = []
+        self.cv = threading.Condition()
+        self.work = None
+
+    # ── 밑바닥 ────────────────────────────────────────────────────────
+    def _pump(self):
+        for line in self.p.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            with self.cv:
+                self.lines.append(line)
+                self.cv.notify_all()
+
+    def _send(self, method, params=None):
+        self.rid += 1
+        msg = {'jsonrpc': '2.0', 'id': self.rid, 'method': method}
+        if params is not None:
+            msg['params'] = params
+        self.p.stdin.write(json.dumps(msg) + '\n')
+        self.p.stdin.flush()
+        return self.rid
+
+    def _wait(self, rid, deadline, on_delta=None):
+        """그 요청의 답이 올 때까지 기다린다. 오는 알림은 on_delta 로 흘린다."""
+        seen = 0
+        while time.time() < deadline:
+            with self.cv:
+                while seen >= len(self.lines):
+                    left = deadline - time.time()
+                    if left <= 0:
+                        return None, '시간이 지났습니다'
+                    self.cv.wait(min(0.5, left))
+                line = self.lines[seen]
+                seen += 1
+            try:
+                m = json.loads(line)
+            except ValueError:
+                continue
+            meth = m.get('method')
+            if meth == 'item/agentMessage/delta' and on_delta:
+                on_delta((m.get('params') or {}).get('delta') or '')
+            elif meth == 'error':
+                return None, json.dumps((m.get('params') or {}), ensure_ascii=False)[:200]
+            if m.get('id') == rid:
+                if 'error' in m:
+                    return None, json.dumps(m['error'], ensure_ascii=False)[:200]
+                return m.get('result'), None
+        return None, '시간이 지났습니다'
+
+    def _wait_turn(self, rid, deadline, on_delta):
+        """한 차례가 끝날 때까지 기다린다.
+
+        끝은 turn/completed 알림으로 안다. turn/start 의 답은 접수 확인이라
+        그것만 보고 돌아서면 아직 오지 않은 말을 놓친다.
+        """
+        seen = 0
+        result = None
+        last = None
+        while time.time() < deadline:
+            with self.cv:
+                while seen >= len(self.lines):
+                    left = deadline - time.time()
+                    if left <= 0:
+                        return result, last or '시간이 지났습니다'
+                    self.cv.wait(min(0.5, left))
+                line = self.lines[seen]
+                seen += 1
+            try:
+                m = json.loads(line)
+            except ValueError:
+                continue
+            meth = m.get('method')
+            if meth == 'item/agentMessage/delta':
+                on_delta((m.get('params') or {}).get('delta') or '')
+            elif meth == 'error':
+                # "Reconnecting... 2/5" 같은 것은 다시 해 보는 중이라는 말이다.
+                # 여기서 포기하면 저절로 나을 일도 실패로 만든다. 적어만 두고
+                # 계속 기다렸다가, 끝내 안 끝나면 그때 이 까닭을 알려 준다.
+                last = json.dumps(m.get('params') or {}, ensure_ascii=False)[:200]
+                continue
+            elif meth == 'turn/completed':
+                pa = m.get('params') or {}
+                if not self.thread or pa.get('threadId') == self.thread:
+                    return pa, None
+            if m.get('id') == rid:
+                if 'error' in m:
+                    return None, json.dumps(m['error'], ensure_ascii=False)[:200]
+                result = m.get('result')
+        return result, last or '시간이 지났습니다'
+
+    def _dead(self):
+        return self.p is None or self.p.poll() is not None
+
+    def stop(self):
+        if self.p:
+            try:
+                self.p.stdin.close()
+                self.p.terminate()
+            except OSError:
+                pass
+        self.p = None
+        self.thread = None
+
+    def _spawn(self, system, model):
+        exe = shutil.which('codex')
+        if not exe:
+            return 'codex 명령을 찾지 못했습니다.'
+        try:
+            self.p = subprocess.Popen([exe, 'app-server'], stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                      text=True, bufsize=1)
+        except OSError as e:
+            self.p = None
+            return 'codex app-server 를 띄우지 못했습니다 — %s' % e
+        self.lines = []
+        self.rid = 0
+        threading.Thread(target=self._pump, daemon=True).start()
+
+        end = time.time() + 30
+        rid = self._send('initialize', {'clientInfo': {
+            'name': 'webcraft', 'title': 'WebCraft', 'version': '1.0'}})
+        r, why = self._wait(rid, end)
+        if why:
+            self.stop()
+            return 'codex 와 인사하지 못했습니다 — %s' % why
+
+        # 동료는 이야기만 한다. 빈 폴더에서 읽기 전용으로, 승인은 묻지 않게.
+        self.work = tempfile.mkdtemp(prefix='webcraft-codex-')
+        params = {
+            'cwd': self.work,
+            'sandbox': 'read-only',
+            'approvalPolicy': 'never',
+            'ephemeral': True,
+            'baseInstructions': system,
+        }
+        if model:
+            params['model'] = model
+        rid = self._send('thread/start', params)
+        r, why = self._wait(rid, end)
+        if why or not r:
+            self.stop()
+            return 'codex 실을 열지 못했습니다 — %s' % (why or '빈 답')
+        self.thread = r.get('threadId') or r.get('thread', {}).get('id')
+        if not self.thread:
+            self.stop()
+            return 'codex 가 실 번호를 주지 않았습니다'
+        self.system = system
+        self.model = model
+        self.turns = 0
+        return None
+
+    # ── 물어보기 ──────────────────────────────────────────────────────
+    def ask(self, system, model, msgs, on_delta=None):
+        with self.lock:
+            fresh = False
+            if self._dead() or system != self.system or model != self.model \
+                    or self.turns >= self.MAX_TURNS:
+                self.stop()
+                why = self._spawn(system, model)
+                if why:
+                    return None, why, True
+                fresh = True
+            prompt = flatten(msgs) if fresh else str(msgs[-1].get('content', ''))
+            text = ['']
+
+            def delta(d):
+                text[0] += d
+                if on_delta and d:
+                    on_delta(d)
+
+            rid = self._send('turn/start', {
+                'threadId': self.thread,
+                'input': [{'type': 'text', 'text': prompt}],
+            })
+            # turn/start 의 답은 "접수했다"일 뿐이라 그것만 보고 끝내면 안 된다.
+            # 말이 다 끝났다는 turn/completed 알림을 기다린다.
+            r, why = self._wait_turn(rid, time.time() + TIMEOUT, delta)
+            if why:
+                self.stop()
+                return None, why, fresh
+            self.turns += 1
+            out = text[0].strip()
+            if not out:
+                # 흘러온 조각이 없으면 결과 안에서 찾아본다
+                try:
+                    items = ((r or {}).get('turn') or {}).get('items') or []
+                    for it in items:
+                        if it.get('type') in ('agentMessage', 'assistantMessage'):
+                            out = (it.get('text') or it.get('content') or '').strip()
+                except Exception:
+                    pass
+            if not out:
+                return None, '빈 답이 돌아왔습니다.', fresh
+            return out, None, fresh
+
+
+CODEX = CodexWarm()
 
 
 def ask_codex(system, prompt, model):
@@ -411,12 +634,17 @@ class Bridge(BaseHTTPRequestHandler):
             return
 
         # 흘려 달라고 하면 글자가 오는 대로 보낸다 (띄워 둔 클로드만 된다)
-        flow = bool(req.get('stream')) and engine == 'claude' and Bridge.warm
+        flow = bool(req.get('stream')) and Bridge.warm and engine in ('claude', 'codex')
         if flow:
             self.stream_open()
             self.stream_line({'open': True})
             send = lambda piece: self.stream_line({'delta': piece})
-            text, why, _ = WARM.ask(system, Bridge.model, messages, send)
+            warm = CODEX if engine == 'codex' else WARM
+            text, why, _ = warm.ask(system, Bridge.model, messages, send)
+            if why and not text and engine == 'codex':
+                # 상주 서버가 말썽이면 예전처럼 codex exec 로 한 번 더
+                print('  ! 띄워 둔 codex 가 답하지 못했습니다 (%s) — exec 로 갑니다' % why)
+                text, why = ask_codex(system, flatten(messages), Bridge.model)
             if text:
                 print('  → %s' % text[:70])
                 self.stream_line({'text': re.sub(r'[*_`#]', '', text).strip()})
@@ -425,12 +653,13 @@ class Bridge(BaseHTTPRequestHandler):
                 self.stream_line({'error': why})
             return
 
-        if engine == 'claude' and Bridge.warm:
-            text, why, _ = WARM.ask(system, Bridge.model, messages)
+        if Bridge.warm and engine in ('claude', 'codex'):
+            warm = CODEX if engine == 'codex' else WARM
+            text, why, _ = warm.ask(system, Bridge.model, messages)
             if why and not text:
-                # 띄워 둔 것이 말썽이면 예전처럼 한 번 새로 띄워 물어본다
-                print('  ! 띄워 둔 클로드가 답하지 못했습니다 (%s) — 새로 띄웁니다' % why)
-                text, why = ask_claude(system, flatten(messages), Bridge.model)
+                # 띄워 둔 것이 말썽이면 예전 방식으로 한 번 더 물어본다
+                print('  ! 띄워 둔 %s 가 답하지 못했습니다 (%s) — 예전 방식으로 갑니다' % (engine, why))
+                text, why = ENGINES[engine](system, flatten(messages), Bridge.model)
         else:
             text, why = ENGINES[engine](system, flatten(messages), Bridge.model)
         if text is None:
@@ -487,7 +716,8 @@ def main():
         tail = '  ← 기본' if e == Bridge.engine else ('' if e in found else '  (없음)')
         print('  %s %-6s %s%s' % (mark, e, label[e], tail))
     print('  모델   %s' % (a.model or '각 도구의 기본값'))
-    print('  claude %s' % ('띄워 두고 씁니다 (빠름)' if Bridge.warm else '물을 때마다 새로 띄웁니다'))
+    print('  방식   %s' % ('띄워 두고 흘려 받습니다 (빠름)' if Bridge.warm
+                            else '물을 때마다 새로 띄웁니다 (--cold)'))
     print('')
     print('  암호   %s' % Bridge.token)
     print('')
@@ -510,6 +740,7 @@ def main():
         ThreadingHTTPServer(('127.0.0.1', a.port), Bridge).serve_forever()
     except KeyboardInterrupt:
         WARM.stop()
+        CODEX.stop()
         print('\n  다리를 내렸습니다.\n')
     except OSError as e:
         print('\n  포트 %d 를 열지 못했습니다 — %s' % (a.port, e))
