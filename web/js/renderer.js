@@ -897,6 +897,9 @@ function shadeOfNormal(nx, ny, nz) {
 
 // 미리 만들어 둔 모형(Mesh3D)을 한 번에 얹는다.
 // rot 은 회전만 하는 함수다 — 자리 옮김은 모형 좌표에 이미 들어 있다.
+// 다른 파일에서 그리기를 시작할 수 있게 열어 둔다 (_geom 은 이 파일 안에만 있다)
+function _imGeomReset() { _geom.reset(); }
+
 Renderer.prototype.emitMesh = function (mesh, cx, cy, cz, rot, scale, light, opts) {
   const buf = _geom;
   const P = mesh.pos, U = mesh.uv, N = mesh.nrm, T = mesh.tex, TW = mesh.two;

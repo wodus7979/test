@@ -225,6 +225,21 @@ Game.prototype.playSound = function (kind, opt) {
       this.sndImpact(m, 0.44, { decMul: 0.45 });
       return;
     }
+    // ── 강철 슈트 ──
+    if (kind === 'im_beam') {          // 손에서 나가는 광선 — 짧고 날카롭게
+      this.sndTone({ type: 'sawtooth', freq: 1400, freq2: 240, dur: 0.16, vol: 0.24, atk: 0.001 });
+      this.sndBurst({ noise: 'white', filter: 'bandpass', freq: 3200, freq2: 700, q: 5,
+        dur: 0.14, vol: 0.2, atk: 0.001 });
+      return;
+    }
+    if (kind === 'im_on' || kind === 'im_off') {   // 슈트가 켜지고 꺼지는 소리
+      const up = kind === 'im_on';
+      this.sndTone({ type: 'sine', freq: up ? 180 : 900, freq2: up ? 900 : 160,
+        dur: 0.5, vol: 0.2, atk: 0.01 });
+      this.sndBurst({ noise: 'white', filter: 'lowpass', freq: 1600, dur: 0.3, vol: 0.12, atk: 0.02 });
+      return;
+    }
+
     // ── 거미줄 ──
     // "슉" 하는 그 소리 — 잡음을 밴드패스로 좁게 훑어 위에서 아래로 쓸어내린다.
     if (kind === 'web_shoot' || kind === 'web_zip') {

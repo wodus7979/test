@@ -2080,6 +2080,7 @@ function buildCityPlan(world, ap, index, code) {
   let tallLeft = st.tall;
   const parks = [];
   plan.lotsBuilt = [];       // 건물이 실제로 선 구획 (검사용)
+  plan.tallest = null;       // 가장 높은 탑 (슈트 격납실을 얹는다)
   // 회랑에 걸린 구획을 통째로 빼낸다. 뒤에 나오는 경찰서·소방서 자리가
   // 번호로 정해지므로, 건물 배치가 시작되기 전에 걸러 두어야 한다.
   for (let i = lots.length - 1; i >= 0; i--) {
@@ -2117,6 +2118,11 @@ function buildCityPlan(world, ap, index, code) {
     if (kind === 'glass' && tallLeft > 0) {
       h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
       tallLeft--;
+      // 이 도시에서 가장 높은 탑을 적어 둔다 — 꼭대기에 슈트 격납실을 얹는다
+      if (!plan.tallest || h > plan.tallest.h) {
+        plan.tallest = { x: Math.round(best.x + lot.x), z: Math.round(best.z + lot.z),
+                         gy: gy, h: h, hw: hw, hd: hd };
+      }
     } else {
       h = st.heights[0] + Math.round(rnd() * (st.heights[1] - st.heights[0]));
     }
@@ -2145,6 +2151,10 @@ function buildCityPlan(world, ap, index, code) {
     const h = st.tallH[0] + Math.round(rnd() * (st.tallH[1] - st.tallH[0]));
     cityTower(plan, lot.x, lot.z, half - 3, half - 3, h, st, { pal: glassPals[(rnd() * glassPals.length) | 0] });
     plan.lotsBuilt.push([Math.round(best.x + lot.x), Math.round(best.z + lot.z)]);
+    if (!plan.tallest || h > plan.tallest.h) {
+      plan.tallest = { x: Math.round(best.x + lot.x), z: Math.round(best.z + lot.z),
+                       gy: gy, h: h, hw: half - 3, hd: half - 3 };
+    }
     tallLeft--;
   }
 
@@ -2261,6 +2271,43 @@ function buildCityPlan(world, ap, index, code) {
       digger: { x: best.x + sx - 1, y: syGround, z: best.z + sz + 6 }
     };
   }
+
+  // ── 강철 슈트 격납실 ──
+  // 이 도시에서 가장 높은 지붕 위에 유리방을 얹는다. 안에 들어서면 슈트를 입는다.
+  // 랜드마크(롯데타워)가 있으면 그쪽이 더 높으므로 그 위에 얹는다.
+  (function () {
+    let x, z, roof;
+    if (plan.landmark) {
+      x = Math.round(plan.landmark.x); z = Math.round(plan.landmark.z);
+      roof = Math.round(plan.landmark.y) - 14;      // 첨탑 아래 지붕
+    } else if (plan.tallest) {
+      x = plan.tallest.x; z = plan.tallest.z;
+      roof = plan.tallest.gy + plan.tallest.h;
+    } else return;
+    const R = 3, base = roof + 1;
+    const glass = bid('light_blue_stained_glass', 'glass');
+    const floor = bid('gray_concrete', 'stone');
+    const trim = bid('gold_block', 'yellow_concrete');
+    for (let dz = -R; dz <= R; dz++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const edge = (Math.abs(dx) === R || Math.abs(dz) === R);
+        plan.set(x + dx, base, z + dz, edge ? trim : floor, 0, true);      // 바닥
+        for (let y = 1; y <= 3; y++) {
+          if (edge) plan.set(x + dx, base + y, z + dz, glass, 0, true);    // 유리벽
+          else plan.set(x + dx, base + y, z + dz, 0, 0, true);             // 안은 비운다
+        }
+        plan.set(x + dx, base + 4, z + dz, edge ? trim : glass, 0, true);  // 천장
+      }
+    }
+    // 문 — 한쪽 유리를 터놓는다
+    for (let y = 1; y <= 2; y++) {
+      plan.set(x, base + y, z + R, 0, 0, true);
+      plan.set(x - 1, base + y, z + R, 0, 0, true);
+    }
+    // 가운데 발판 — 여기 서면 슈트를 입는다
+    plan.set(x, base, z, bid('sea_lantern', 'glowstone'), 0, true);
+    plan.hangar = { x: x + 0.5, y: base + 1, z: z + 0.5 };
+  })();
 
   // ── 도시에서 시작할 자리 ──
   // 광장에서 두 블록 떨어진 큰길 위. 길 위는 cityRoads 가 하늘까지 비워 두므로

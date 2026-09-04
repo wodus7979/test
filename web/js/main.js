@@ -28,7 +28,7 @@ function facingFromYaw(yaw) {
 }
 
 // 파일을 다시 받았는지 눈으로 확인할 수 있게 시작 화면과 F3에 표시한다
-const GAME_VERSION = 'v10.33';
+const GAME_VERSION = 'v10.34';
 const GAME_BUILD = '2026-08-30';
 const GAME_FEATURES = '동료 AI 모델 고르기 (Opus 5 · Sonnet 5 · Haiku 4.5)';
 
@@ -1013,7 +1013,9 @@ Game.prototype.bindInput = function () {
         if (self.toggleBuddy) { self.toggleBuddy(); e.preventDefault(); }
         break;
       case 'Backquote':
-        if (self.toggleSpider) { self.toggleSpider(); e.preventDefault(); }
+        // 슈트를 입고 있으면 이 키로 벗는다. 아니면 거미 모드를 켠다.
+        if (self.player.suit) { self.suitOff(); e.preventDefault(); }
+        else if (self.toggleSpider) { self.toggleSpider(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -1120,6 +1122,11 @@ Game.prototype.bindInput = function () {
     // 도시 목록을 열어 둔 채 화면을 누르면 목록을 접고 다시 조준으로 돌아간다
     if (self.warpOpen) { self.closeWarp(); }
     if (!self.isPointerLocked()) { self.requestPointerLock(); return; }
+    // 슈트를 입으면 왼쪽 단추가 광선이 된다
+    if (self.player.suit) {
+      if (e.button === 0) self.suitBeam();
+      return;
+    }
     // 거미 모드에서는 두 단추가 거미줄이 된다 (블록은 건드리지 않는다)
     if (self.player.spider) {
       if (e.button === 0) self.webShoot(0);
@@ -1130,6 +1137,7 @@ Game.prototype.bindInput = function () {
     if (e.button === 2) { self.input.use = true; self.onUse(); self.useHeld = 0.25; }
   });
   window.addEventListener('mouseup', function (e) {
+    if (self.player.suit) return;
     if (self.player.spider && e.button === 0) { self.webRelease(); return; }
     if (e.button === 0) { self.input.attack = false; self.player.mining = null; }
     if (e.button === 2) self.input.use = false;
@@ -2978,6 +2986,7 @@ Game.prototype.update = function (dt) {
   if (this.updateBuddy) this.updateBuddy(dt);                 // 영어 동료
   if (this.updateBuddyHud) this.updateBuddyHud();
   if (this.updateSpider) this.updateSpider(dt);
+  if (this.updateSuit) this.updateSuit(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);
   this.updateTrainInfo(dt);
@@ -3009,6 +3018,7 @@ Game.prototype.update = function (dt) {
   if (this.updateNameTags) this.updateNameTags();
   if (this.updateBuddyTag) this.updateBuddyTag();
   if (this.drawWeb) this.drawWeb(dt);                   // 거미줄과 팔
+  if (this.drawBeam) this.drawBeam();                   // 슈트 광선
   // 지도는 초당 여섯 번쯤이면 충분하다
   this._mapTimer = (this._mapTimer || 0) - dt;
   if (this.minimap && this._mapTimer <= 0) {
@@ -3169,7 +3179,8 @@ Game.prototype.render = function (dt) {
   opts.sunset = fx.sunset;
   opts.under = fx.under;
   // 3인칭 카메라를 먼저 정한다 — 하늘을 카메라 높이로 골라야 하기 때문
-  if (p.inShuttle) opts.cam = this.shuttleCamera(p.inShuttle, dt);
+  if (p.suit && this.suitCamera) opts.cam = this.suitCamera(dt);
+  else if (p.inShuttle) opts.cam = this.shuttleCamera(p.inShuttle, dt);
   else if (p.inDrone) opts.cam = this.droneCamera(p.inDrone, dt);
   else if (p.riding) opts.cam = this.planeCamera(p.riding, dt);
   else if (p.inCar) opts.cam = this.carCamera(p.inCar, dt);
@@ -3212,6 +3223,7 @@ Game.prototype.render = function (dt) {
   if (r.drawChase) r.drawChase(this, this.world, p, opts);
   if (r.drawSignals) r.drawSignals(this, this.world, p, opts);
   if (r.drawDiggers) r.drawDiggers(this, this.world, p, opts);
+  if (r.drawSuit) r.drawSuit(this, this.world, p, opts);   // 강철 슈트
   if (r.drawShuttles) r.drawShuttles(this, this.world, p, opts);
   if (r.drawSmoothWays) r.drawSmoothWays(this, this.world, p, opts);   // 굽은 길 잇기
   if (r.drawTrees3D) r.drawTrees3D(this, this.world, p, opts);        // 둥근 3D 나무

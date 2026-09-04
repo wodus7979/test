@@ -1120,6 +1120,29 @@ function registerExtraTextures() {
     p.rect(0, 10, 16, 1, '#2f6f68');        // 소맷부리
   });
 
+  // ── 강철 슈트 ──
+  defTex('im_red', function (p, rnd) {
+    p.noise(rnd, '#a51f22', 4, 3);
+    p.rect(0, 6, 16, 1, '#7d1619');          // 판 이음선
+    p.rect(7, 0, 1, 16, '#7d1619');
+    p.speckle(rnd, '#c9302f', 5, 1);         // 도장 광택
+  });
+  defTex('im_gold', function (p, rnd) {
+    p.noise(rnd, '#d8a32a', 4, 3);
+    p.rect(0, 9, 16, 1, '#a87c18');
+    p.speckle(rnd, '#f0cf6a', 6, 1);
+  });
+  defTex('im_dark', function (p, rnd) {
+    p.noise(rnd, '#3a3d45', 4, 3);
+    p.rect(0, 4, 16, 1, '#22242a');
+    p.rect(0, 11, 16, 1, '#22242a');
+  });
+  defTex('im_glow', function (p, rnd) {
+    p.noise(rnd, '#bfe9ff', 3, 2);
+    p.rect(3, 3, 10, 10, '#e8f7ff');
+    p.rect(5, 5, 6, 6, '#ffffff');
+  });
+
   // ── 낙하산 ──
   defTex('chute_a', function (p, rnd) { p.noise(rnd, '#d94a4a', 4, 2); });
   defTex('chute_b', function (p, rnd) { p.noise(rnd, '#f2f4f7', 4, 2); });

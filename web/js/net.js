@@ -235,8 +235,9 @@ Game.prototype.openChat = function () {
       } else if (t) {
         if (self.net) self.netSend('chat', { text: t });
         self.pushChat(self.profile.name, t);
-        // 동료가 곁에 있으면 대답한다
-        if (self.buddy && self.buddyAsk) self.buddyAsk(t);
+        // 슈트를 입었으면 자비스가, 아니면 동료가 대답한다
+        if (self.player.suit && self.jarvisAsk) self.jarvisAsk(t);
+        else if (self.buddy && self.buddyAsk) self.buddyAsk(t);
       }
       self.closeChat();
     } else if (e.key === 'Escape') {
