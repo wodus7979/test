@@ -15004,6 +15004,11 @@ function buildCityPlan(world, ap, index, code) {
     const lotteH = Math.min(88, CHUNK_Y - 18 - gy);
     cityTower(plan, plaza.x, plaza.z, 8, 8, lotteH, st, { taperTo: 2, spire: 10 });
     plan.landmark = { x: best.x + plaza.x, y: gy + lotteH + 15, z: best.z + plaza.z, name: '롯데타워' };
+    // 격납고는 '가장 높은 건물' 위에 얹는다 — 롯데타워도 후보에 넣는다
+    if (!plan.tallest || lotteH > plan.tallest.h) {
+      plan.tallest = { x: best.x + plaza.x, z: best.z + plaza.z,
+                       gy: gy, h: lotteH, hw: 8, hd: 8 };
+    }
     for (let k = 0; k < 8; k++) {
       put(plaza.x + Math.round((rnd() * 2 - 1) * half), plaza.z + Math.round((rnd() * 2 - 1) * half), null);
     }
@@ -15112,41 +15117,99 @@ function buildCityPlan(world, ap, index, code) {
     };
   }
 
-  // ── 강철 슈트 격납실 ──
-  // 이 도시에서 가장 높은 지붕 위에 유리방을 얹는다. 안에 들어서면 슈트를 입는다.
-  // 랜드마크(롯데타워)가 있으면 그쪽이 더 높으므로 그 위에 얹는다.
+  // ── 강철 슈트 격납고 ──
+  // 도시에서 가장 높은 건물에 둔다. 들어가는 길은 두 곳:
+  //  1) 1층 출동실 — 큰길에서 걸어 들어가면 바로 슈트를 입는다 (가장 쉬운 길)
+  //  2) 옥상 착륙장 — 넓게 트인 발판이라 하늘에서도 쉽게 내려앉는다
+  // 예전에는 옥상에 유리방 하나뿐이라, 90칸 위 7×7 상자에 정확히 날아들어야
+  // 했고 3인칭 카메라가 유리 안에 갇혀 화면이 온통 유리로 덮였다.
   (function () {
-    let x, z, roof;
-    if (plan.landmark) {
-      x = Math.round(plan.landmark.x); z = Math.round(plan.landmark.z);
-      roof = Math.round(plan.landmark.y) - 14;      // 첨탑 아래 지붕
-    } else if (plan.tallest) {
-      x = plan.tallest.x; z = plan.tallest.z;
-      roof = plan.tallest.gy + plan.tallest.h;
-    } else return;
-    const R = 3, base = roof + 1;
-    const glass = bid('light_blue_stained_glass', 'glass');
-    const floor = bid('gray_concrete', 'stone');
+    let t = plan.tallest;
+    if (!t && plan.landmark) {
+      // 높은 건물이 없는 도시는 랜드마크 꼭대기에 얹는다
+      t = { x: Math.round(plan.landmark.x), z: Math.round(plan.landmark.z),
+            gy: gy, h: Math.max(4, Math.round(plan.landmark.y - gy) - 2), hw: 3, hd: 3 };
+    }
+    if (!t) return;
+
+    const floorB = bid('gray_concrete', 'stone');
     const trim = bid('gold_block', 'yellow_concrete');
-    for (let dz = -R; dz <= R; dz++) {
-      for (let dx = -R; dx <= R; dx++) {
-        const edge = (Math.abs(dx) === R || Math.abs(dz) === R);
-        plan.set(x + dx, base, z + dz, edge ? trim : floor, 0, true);      // 바닥
-        for (let y = 1; y <= 3; y++) {
-          if (edge) plan.set(x + dx, base + y, z + dz, glass, 0, true);    // 유리벽
-          else plan.set(x + dx, base + y, z + dz, 0, 0, true);             // 안은 비운다
-        }
-        plan.set(x + dx, base + 4, z + dz, edge ? trim : glass, 0, true);  // 천장
+    const lamp = bid('sea_lantern', 'glowstone');
+    const wall = bid('black_concrete', 'stone');
+    const rail = bid('light_blue_stained_glass_pane', 'glass_pane');
+
+    // ── 옥상 착륙장 ──
+    const roof = t.gy + t.h, base = roof + 1, D = 6;      // 13×13
+    for (let dz = -D; dz <= D; dz++) {
+      for (let dx = -D; dx <= D; dx++) {
+        const r = Math.max(Math.abs(dx), Math.abs(dz));
+        plan.set(t.x + dx, base, t.z + dz, (r === D) ? trim : floorB, 0, true);
+        // 밑을 계단처럼 좁혀 탑 위에 얹힌 것처럼 보이게 한다
+        if (r <= D - 2) plan.set(t.x + dx, base - 1, t.z + dz, floorB, 0, true);
+        if (r <= D - 4) plan.set(t.x + dx, base - 2, t.z + dz, floorB, 0, true);
       }
     }
-    // 문 — 한쪽 유리를 터놓는다
-    for (let y = 1; y <= 2; y++) {
-      plan.set(x, base + y, z + R, 0, 0, true);
-      plan.set(x - 1, base + y, z + R, 0, 0, true);
+    // 발판 — 여기 서면 슈트를 입는다. 첨탑이 한가운데를 지나므로 조금 앞에 둔다.
+    const padZ = t.z + 3;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) plan.set(t.x + dx, base, padZ + dz, lamp, 0, true);
     }
-    // 가운데 발판 — 여기 서면 슈트를 입는다
-    plan.set(x, base, z, bid('sea_lantern', 'glowstone'), 0, true);
-    plan.hangar = { x: x + 0.5, y: base + 1, z: z + 0.5 };
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) === 2) plan.set(t.x + dx, base, padZ + dz, trim, 0, true);
+      }
+    }
+    // 발판 위는 비워 둔다 (첨탑 곁가지에 머리가 걸리지 않게)
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let y = 1; y <= 3; y++) plan.set(t.x + dx, base + y, padZ + dz, 0, 0, true);
+      }
+    }
+    // 가장자리 난간 — 가운데는 터놓아 어느 쪽으로도 날아 들어올 수 있다
+    for (let d = -D; d <= D; d++) {
+      if (Math.abs(d) <= 2) continue;                       // 드나드는 문
+      plan.set(t.x + d, base + 1, t.z - D, rail, 0, true);
+      plan.set(t.x + d, base + 1, t.z + D, rail, 0, true);
+      plan.set(t.x - D, base + 1, t.z + d, rail, 0, true);
+      plan.set(t.x + D, base + 1, t.z + d, rail, 0, true);
+    }
+    // 네 귀퉁이 등대 — 멀리서도 보이라고 높이 세운다
+    for (let sx = -1; sx <= 1; sx += 2) {
+      for (let sz = -1; sz <= 1; sz += 2) {
+        const px = t.x + sx * D, pz = t.z + sz * D;
+        plan.set(px, base + 1, pz, trim, 0, true, 4);
+        plan.set(px, base + 5, pz, lamp, 0, true);
+      }
+    }
+
+    // ── 1층 출동실 ── (건물 앞면을 파고 들어간다)
+    const gd = t.hd, gw = Math.min(2, Math.max(1, t.hw - 1));
+    const zFace = t.z + gd;                                  // 앞면 (+Z 쪽)
+    const deep = 5;
+    for (let k = 0; k < deep; k++) {
+      const z = zFace - k;
+      for (let dx = -gw; dx <= gw; dx++) {
+        plan.set(t.x + dx, t.gy, z, floorB, 0, true);        // 바닥
+        for (let y = 1; y <= 3; y++) plan.set(t.x + dx, t.gy + y, z, 0, 0, true);   // 속을 비운다
+        plan.set(t.x + dx, t.gy + 4, z, (k === 0) ? trim : wall, 0, true);          // 천장
+      }
+      // 옆벽
+      for (let y = 1; y <= 3; y++) {
+        plan.set(t.x - gw - 1, t.gy + y, z, (k === 0) ? trim : wall, 0, true);
+        plan.set(t.x + gw + 1, t.gy + y, z, (k === 0) ? trim : wall, 0, true);
+      }
+    }
+    // 안쪽 벽과 발판
+    for (let dx = -gw; dx <= gw; dx++) {
+      for (let y = 1; y <= 3; y++) plan.set(t.x + dx, t.gy + y, zFace - deep, wall, 0, true);
+      plan.set(t.x + dx, t.gy, zFace - deep + 1, lamp, 0, true);
+    }
+    // 문 옆 등 — 밤에도 눈에 띈다
+    plan.set(t.x - gw - 1, t.gy + 3, zFace, lamp, 0, true);
+    plan.set(t.x + gw + 1, t.gy + 3, zFace, lamp, 0, true);
+
+    plan.hangar = { x: t.x + 0.5, y: base + 1, z: padZ + 0.5 };            // 옥상 발판
+    plan.gate = { x: t.x + 0.5, y: t.gy + 1, z: zFace - deep + 1 + 0.5 }; // 1층 발판
   })();
 
   // ── 도시에서 시작할 자리 ──
@@ -32219,14 +32282,64 @@ const IM_BEAM_GAP = 0.22;   // 광선 사이 최소 틈 (초)
 const IM_JET_PW = 0.35;     // 손발 불꽃 세기
 const IM_JET_SIZE = 0.22;   // 불꽃 지름 (칸) — 손바닥만 하게
 
+// 슈트 발판 — 1층 출동실(gate)과 옥상 착륙장(hangar) 둘 다 본다.
+// 발판이 넓어졌으니 닿는 범위도 넉넉하게 잡는다.
+const IM_PAD_R = 3.4;        // 발판 중심에서 이만큼 안이면 입는다
+Game.prototype.suitPads = function () {
+  const list = (this.world && this.world.cities) ? this.world.cities() : [];
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i]; if (!c) continue;
+    if (c.gate) out.push({ p: c.gate, 곳: '1층 출동실', 도시: c.code || c.name });
+    if (c.hangar) out.push({ p: c.hangar, 곳: '옥상 착륙장', 도시: c.code || c.name });
+  }
+  return out;
+};
+Game.prototype.suitPadNear = function (x, y, z, r) {
+  const pads = this.suitPads();
+  for (let i = 0; i < pads.length; i++) {
+    const h = pads[i].p;
+    if (Math.abs(x - h.x) < r && Math.abs(z - h.z) < r && Math.abs(y - h.y) < 3.2) return pads[i];
+  }
+  return null;
+};
+// 가장 가까운 발판이 어느 쪽에 얼마나 떨어져 있나
+Game.prototype.suitPadGuide = function () {
+  const p = this.player, pads = this.suitPads();
+  let best = null, bd = Infinity;
+  for (let i = 0; i < pads.length; i++) {
+    const h = pads[i].p, d = Math.hypot(h.x - p.x, h.z - p.z);
+    if (d < bd) { bd = d; best = pads[i]; }
+  }
+  if (!best) return null;
+  const dx = best.p.x - p.x, dz = best.p.z - p.z;
+  const dir = (typeof buddyCompass === 'function') ? buddyCompass(dx, dz) : '';
+  return { 곳: best.곳, 도시: best.도시, 거리: Math.round(bd), 쪽: dir,
+           높이차: Math.round(best.p.y - p.y) };
+};
+
+// 한 번 입고 나면 어디서든 슈트를 부를 수 있다 (영화처럼 날아온다)
+const IM_UNLOCK_KEY = 'wc_im_unlocked';
+Game.prototype.suitUnlocked = function () {
+  if (this._imUnlocked) return true;
+  try { this._imUnlocked = localStorage.getItem(IM_UNLOCK_KEY) === '1'; } catch (e) { }
+  return !!this._imUnlocked;
+};
+Game.prototype.suitUnlock = function () {
+  if (this._imUnlocked) return;
+  this._imUnlocked = true;
+  try { localStorage.setItem(IM_UNLOCK_KEY, '1'); } catch (e) { }
+};
+
 Game.prototype.suitOn = function (quiet) {
   const p = this.player;
   if (p.suit) return;
   p.suit = { fuel: 1, boost: 0, fired: 0 };
+  this.suitUnlock();             // 다음부터는 어디서든 부를 수 있다
   p.flying = false;              // 슈트는 제 방식으로 난다
   this.view3rd = true;           // 입은 모습이 보이게 3인칭으로
   if (this.playSound) this.playSound('im_on');
-  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. ` 로 벗습니다');
+  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. ` 로 벗고, 다음부터는 ` 로 어디서든 부릅니다');
   this.jarvisSay('Suit online. All systems nominal.');
 };
 
@@ -32241,8 +32354,17 @@ Game.prototype.suitOff = function () {
 };
 
 Game.prototype.toggleSuit = function () {
-  if (this.player.suit) this.suitOff();
-  else this.ui.toast('격납실에 들어가야 슈트를 입습니다 (도시에서 가장 높은 빌딩 꼭대기)');
+  if (this.player.suit) { this.suitOff(); return; }
+  if (this.suitUnlocked()) {         // 한 번 입어 봤으면 어디서든 날아온다
+    this.suitOn();
+    this.jarvisSay('Suit inbound, sir.');
+    return;
+  }
+  const g = this.suitPadGuide();
+  this.ui.toast(g
+    ? '먼저 격납고에 들어가야 합니다 — ' + g.도시 + ' ' + g.곳 + ', ' +
+      g.쪽 + '쪽 ' + g.거리 + 'm' + (g.높이차 > 8 ? ' (' + g.높이차 + '칸 위)' : '')
+    : '도시로 가면 가장 높은 빌딩 1층에 출동실이 있습니다');
 };
 
 // ── 나는 힘 ───────────────────────────────────────────────────────────
@@ -32428,19 +32550,10 @@ Game.prototype.jarvisOffline = function (q) {
 Game.prototype.updateSuit = function (dt) {
   const p = this.player;
 
-  // 격납실에 들어섰나 — 도시마다 하나씩 있다
+  // 발판을 밟았나 — 도시마다 1층 출동실과 옥상 착륙장 두 곳이 있다
   if (!p.suit && !this._imCool) {
-    const list = (this.world.cities ? this.world.cities() : []);
-    for (let i = 0; i < list.length; i++) {
-      const h = list[i] && list[i].hangar;
-      if (!h) continue;
-      if (Math.abs(p.x - h.x) < 2.2 && Math.abs(p.z - h.z) < 2.2 &&
-          Math.abs(p.y - h.y) < 2.5) {
-        this.suitOn();
-        this._imCool = 3;
-        break;
-      }
-    }
+    const pad = this.suitPadNear(p.x, p.y, p.z, IM_PAD_R);
+    if (pad) { this.suitOn(); this._imCool = 3; }
   }
   if (this._imCool > 0) this._imCool -= dt;
 

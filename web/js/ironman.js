@@ -211,14 +211,64 @@ const IM_BEAM_GAP = 0.22;   // 광선 사이 최소 틈 (초)
 const IM_JET_PW = 0.35;     // 손발 불꽃 세기
 const IM_JET_SIZE = 0.22;   // 불꽃 지름 (칸) — 손바닥만 하게
 
+// 슈트 발판 — 1층 출동실(gate)과 옥상 착륙장(hangar) 둘 다 본다.
+// 발판이 넓어졌으니 닿는 범위도 넉넉하게 잡는다.
+const IM_PAD_R = 3.4;        // 발판 중심에서 이만큼 안이면 입는다
+Game.prototype.suitPads = function () {
+  const list = (this.world && this.world.cities) ? this.world.cities() : [];
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i]; if (!c) continue;
+    if (c.gate) out.push({ p: c.gate, 곳: '1층 출동실', 도시: c.code || c.name });
+    if (c.hangar) out.push({ p: c.hangar, 곳: '옥상 착륙장', 도시: c.code || c.name });
+  }
+  return out;
+};
+Game.prototype.suitPadNear = function (x, y, z, r) {
+  const pads = this.suitPads();
+  for (let i = 0; i < pads.length; i++) {
+    const h = pads[i].p;
+    if (Math.abs(x - h.x) < r && Math.abs(z - h.z) < r && Math.abs(y - h.y) < 3.2) return pads[i];
+  }
+  return null;
+};
+// 가장 가까운 발판이 어느 쪽에 얼마나 떨어져 있나
+Game.prototype.suitPadGuide = function () {
+  const p = this.player, pads = this.suitPads();
+  let best = null, bd = Infinity;
+  for (let i = 0; i < pads.length; i++) {
+    const h = pads[i].p, d = Math.hypot(h.x - p.x, h.z - p.z);
+    if (d < bd) { bd = d; best = pads[i]; }
+  }
+  if (!best) return null;
+  const dx = best.p.x - p.x, dz = best.p.z - p.z;
+  const dir = (typeof buddyCompass === 'function') ? buddyCompass(dx, dz) : '';
+  return { 곳: best.곳, 도시: best.도시, 거리: Math.round(bd), 쪽: dir,
+           높이차: Math.round(best.p.y - p.y) };
+};
+
+// 한 번 입고 나면 어디서든 슈트를 부를 수 있다 (영화처럼 날아온다)
+const IM_UNLOCK_KEY = 'wc_im_unlocked';
+Game.prototype.suitUnlocked = function () {
+  if (this._imUnlocked) return true;
+  try { this._imUnlocked = localStorage.getItem(IM_UNLOCK_KEY) === '1'; } catch (e) { }
+  return !!this._imUnlocked;
+};
+Game.prototype.suitUnlock = function () {
+  if (this._imUnlocked) return;
+  this._imUnlocked = true;
+  try { localStorage.setItem(IM_UNLOCK_KEY, '1'); } catch (e) { }
+};
+
 Game.prototype.suitOn = function (quiet) {
   const p = this.player;
   if (p.suit) return;
   p.suit = { fuel: 1, boost: 0, fired: 0 };
+  this.suitUnlock();             // 다음부터는 어디서든 부를 수 있다
   p.flying = false;              // 슈트는 제 방식으로 난다
   this.view3rd = true;           // 입은 모습이 보이게 3인칭으로
   if (this.playSound) this.playSound('im_on');
-  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. ` 로 벗습니다');
+  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. ` 로 벗고, 다음부터는 ` 로 어디서든 부릅니다');
   this.jarvisSay('Suit online. All systems nominal.');
 };
 
@@ -233,8 +283,17 @@ Game.prototype.suitOff = function () {
 };
 
 Game.prototype.toggleSuit = function () {
-  if (this.player.suit) this.suitOff();
-  else this.ui.toast('격납실에 들어가야 슈트를 입습니다 (도시에서 가장 높은 빌딩 꼭대기)');
+  if (this.player.suit) { this.suitOff(); return; }
+  if (this.suitUnlocked()) {         // 한 번 입어 봤으면 어디서든 날아온다
+    this.suitOn();
+    this.jarvisSay('Suit inbound, sir.');
+    return;
+  }
+  const g = this.suitPadGuide();
+  this.ui.toast(g
+    ? '먼저 격납고에 들어가야 합니다 — ' + g.도시 + ' ' + g.곳 + ', ' +
+      g.쪽 + '쪽 ' + g.거리 + 'm' + (g.높이차 > 8 ? ' (' + g.높이차 + '칸 위)' : '')
+    : '도시로 가면 가장 높은 빌딩 1층에 출동실이 있습니다');
 };
 
 // ── 나는 힘 ───────────────────────────────────────────────────────────
@@ -420,19 +479,10 @@ Game.prototype.jarvisOffline = function (q) {
 Game.prototype.updateSuit = function (dt) {
   const p = this.player;
 
-  // 격납실에 들어섰나 — 도시마다 하나씩 있다
+  // 발판을 밟았나 — 도시마다 1층 출동실과 옥상 착륙장 두 곳이 있다
   if (!p.suit && !this._imCool) {
-    const list = (this.world.cities ? this.world.cities() : []);
-    for (let i = 0; i < list.length; i++) {
-      const h = list[i] && list[i].hangar;
-      if (!h) continue;
-      if (Math.abs(p.x - h.x) < 2.2 && Math.abs(p.z - h.z) < 2.2 &&
-          Math.abs(p.y - h.y) < 2.5) {
-        this.suitOn();
-        this._imCool = 3;
-        break;
-      }
-    }
+    const pad = this.suitPadNear(p.x, p.y, p.z, IM_PAD_R);
+    if (pad) { this.suitOn(); this._imCool = 3; }
   }
   if (this._imCool > 0) this._imCool -= dt;
 
