@@ -32224,13 +32224,23 @@ function ironManArmMesh(side) {
 // 걸을 때는 서 있고, 날면 엎드린다. 빠를수록 더 눕는다.
 const IM_LEAN_MAX = 1.45;             // 83도 — 거의 수평
 const IM_PIVOT = 0.85;                // 허리께를 축으로 눕는다
+const IM_LEAN_RATE = 5.5;             // 자세가 바뀌는 빠르기 (약 0.2초)
+
+// 지금 얼마나 눕고 싶은가 (0 = 서 있기, 1 = 완전히 엎드리기)
+function imLeanWant(p, input) {
+  const s = p.suit;
+  if (!s) return 0;
+  if (!s.flying && p.onGround) return 0;
+  const t = Math.min(1, Math.hypot(p.vx, p.vz) / 20);
+  if (!s.flying) return t * 0.35;                       // 그냥 떨어지는 중
+  if (!input || !input.forward) return t * 0.45;        // 제자리 비행 — 거의 서 있다
+  if (input.jump) return 1;                             // 스페이스 + 앞으로 = 엎드리기
+  return Math.min(1, 0.25 + t);
+}
+
 function imLean(p) {
   if (!p.suit) return 0;
-  if (!p.suit.flying && p.onGround) return 0;
-  const sp = Math.hypot(p.vx, p.vz);
-  // 뜨자마자 조금 눕고, 20칸/초쯤에서 완전히 눕는다
-  const t = Math.min(1, 0.25 + sp / 20);
-  return IM_LEAN_MAX * t * (p.suit.flying ? 1 : 0.35);
+  return IM_LEAN_MAX * (p.suit.prone || 0);
 }
 
 // 모형의 앞쪽은 +z 다. 사람의 앞은 (-sin, -cos) 이므로 반 바퀴 돌려서 맞춘다.
@@ -32263,13 +32273,31 @@ function imTurn(p, ang, lx, ly, lz, out) {
 const IM_SHOULDER = [0.345, 1.40, 0];
 function imArmSwing(lean) { return -0.30 * (lean / IM_LEAN_MAX); }
 const IM_ARM_SPREAD = 0.20;           // 어깨를 옆으로 조금 벌린다
+const IM_AIM_HOLD = 0.45;             // 겨눈 팔이 내려오기까지 (초)
 
-// 팔 기준 좌표(어깨가 원점) → 세계 방향. 벌림(Z) → 젖힘·눕기(X) → 몸 방향(Y)
+// 겨누는 정도 0~1 — 광선을 쏜 쪽 팔만 든다
+function imAimOf(p, side) {
+  if (side < 0 || !p.suit) return 0;
+  return Math.max(0, Math.min(1, p.suit.aim || 0));
+}
+
+// 팔이 향하는 X축 각. 겨눌 때는 보는 쪽으로 쭉 뻗는다.
+// 팔이 아래로 늘어진 (0,-1,0) 을 A 만큼 돌리면 (0, -cosA, -sinA) 을 향한다.
+// 시선은 lookDir 기준으로 (0, sin pitch, cos pitch) 이므로 A = -90도 - pitch.
+function imArmAngle(p, lean, side) {
+  const base = lean + imArmSwing(lean);
+  const a = imAimOf(p, side);
+  if (a <= 0) return base;
+  const aim = -Math.PI / 2 - (p.pitch || 0);
+  return base + (aim - base) * a;
+}
+
+// 팔 기준 좌표(어깨가 원점) → 세계 방향. 벌림(Z) → 젖힘·눕기·겨눔(X) → 몸 방향(Y)
 function imArmTurn(p, lean, side, lx, ly, lz, out) {
-  const a = IM_ARM_SPREAD * side;
+  const a = IM_ARM_SPREAD * side * (1 - 0.75 * imAimOf(p, side));
   const ca = Math.cos(a), sa = Math.sin(a);
   const x1 = lx * ca - ly * sa, y1 = lx * sa + ly * ca;
-  return imTurn(p, lean + imArmSwing(lean), x1, y1, lz, out);
+  return imTurn(p, imArmAngle(p, lean, side), x1, y1, lz, out);
 }
 
 // ── 슈트를 입고 벗기 ──────────────────────────────────────────────────
@@ -32334,7 +32362,7 @@ Game.prototype.suitUnlock = function () {
 Game.prototype.suitOn = function (quiet) {
   const p = this.player;
   if (p.suit) return;
-  p.suit = { fuel: 1, boost: 0, fired: 0 };
+  p.suit = { fuel: 1, boost: 0, fired: 0, prone: 0, aim: 0 };
   this.suitUnlock();             // 다음부터는 어디서든 부를 수 있다
   p.flying = false;              // 슈트는 제 방식으로 난다
   this.view3rd = true;           // 입은 모습이 보이게 3인칭으로
@@ -32376,6 +32404,13 @@ Player.prototype.suitFly = function (dt, input) {
   const f = (input.forward ? 1 : 0) - (input.back ? 1 : 0);
   const r = (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
+  // 서 있기 ↔ 엎드리기를 부드럽게 오간다 (조작에 따라 곧바로 반응한다)
+  const want = imLeanWant(this, input);
+  if (s.prone === undefined) s.prone = 0;
+  s.prone += (want - s.prone) * Math.min(1, dt * IM_LEAN_RATE);
+  // 겨눈 팔은 잠시 뒤 내려온다
+  if (s.aim > 0) s.aim = Math.max(0, s.aim - dt / IM_AIM_HOLD);
+
   // 스페이스를 누르면 손발에서 밀어 올린다. 오래 누르면 더 세진다.
   if (input.jump) {
     s.boost = Math.min(1, s.boost + dt * 1.6);
@@ -32413,6 +32448,8 @@ Game.prototype.suitBeam = function () {
   const now = this.time || 0;
   if (p.suit.fired && (Date.now() - p.suit.fired) < IM_BEAM_GAP * 1000) return false;
   p.suit.fired = Date.now();
+  p.suit.aim = 1;                 // 오른팔을 들어 겨눈다 (그림보다 먼저 세워야
+                                  //  광선이 든 손끝에서 나간다)
 
   const eye = p.eyePos(), dir = p.lookDir();
   // 그려진 오른손 자리에서 나가게 한다 (엎드려 날 때도 손끝에서 나간다)
@@ -32437,8 +32474,10 @@ Game.prototype.suitBeam = function () {
       hitAt = [px, py, pz];
     }
   }
+  // raycast 는 빗나가도 {hit:false} 를 돌려준다. hit 를 보지 않으면 좌표가
+  // NaN 이 되어 광선이 아예 그려지지 않는다.
   const bh = this.world.raycast(eye[0], eye[1], eye[2], dir[0], dir[1], dir[2], best);
-  if (bh && !hitMob) hitAt = [bh.x + 0.5, bh.y + 0.5, bh.z + 0.5];
+  if (bh && bh.hit && !hitMob) hitAt = [bh.x + 0.5, bh.y + 0.5, bh.z + 0.5];
 
   if (hitMob && hitMob.hurt) hitMob.hurt(9);
   else if (hitMob) hitMob.health = (hitMob.health || 10) - 9;
@@ -32655,10 +32694,13 @@ Game.prototype.drawBeam = function () {
 
 // ── 3인칭 카메라 ──────────────────────────────────────────────────────
 // 입은 모습이 보여야 하므로 뒤에서 따라간다. 빨리 날수록 멀리 물러난다.
+const IM_CAM_AIM = 8;      // 겨누는 쪽을 이만큼 앞에서 바라본다
 Game.prototype.suitCamera = function (dt) {
   const p = this.player;
+  // 시선은 lookDir 과 같은 규약이어야 한다 — 위를 보면 (+pitch) 카메라가
+  // 아래로 내려가 올려다본다. 부호가 뒤집혀 있으면 겨눈 쪽과 화면이 어긋난다.
   const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch);
-  const fx = -Math.sin(p.yaw) * cp, fz = -Math.cos(p.yaw) * cp, fy = -sp;
+  const fx = -Math.sin(p.yaw) * cp, fz = -Math.cos(p.yaw) * cp, fy = sp;
   const sp2 = Math.hypot(p.vx, p.vy, p.vz);
   // 손칸에 가리지 않게 넉넉히 물러나 위에서 내려다본다
   const back = 5.2 + Math.min(3.4, sp2 * 0.10);
@@ -32666,9 +32708,12 @@ Game.prototype.suitCamera = function (dt) {
   const target = [p.x, p.y + 1.1, p.z];
   const want = [p.x - fx * back, p.y + 1.1 - fy * back + up, p.z - fz * back];
   const eye = this.chaseEye ? this.chaseEye(target, want, 2.0) : want;
-  // 카메라가 슈트를 실제로 '바라보게' 각도를 다시 낸다. 플레이어와 같은
-  // 각도를 쓰면 고개를 숙일 때 슈트가 화면 밖으로 밀려난다.
-  const dx = target[0] - eye[0], dy = target[1] - eye[1], dz = target[2] - eye[2];
+  // 슈트가 아니라 '겨누는 쪽'을 바라본다. 슈트만 바라보면 손에서 나간 광선이
+  // 화면 밖으로 벗어나 어디를 쏘는지 보이지 않는다. 슈트는 화면 아래쪽에 남는다.
+  const aim = [target[0] + fx * IM_CAM_AIM,
+               target[1] + fy * IM_CAM_AIM,
+               target[2] + fz * IM_CAM_AIM];
+  const dx = aim[0] - eye[0], dy = aim[1] - eye[1], dz = aim[2] - eye[2];
   const flat = Math.hypot(dx, dz) || 1e-6;
   return {
     eye: eye,
