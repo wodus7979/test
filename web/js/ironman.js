@@ -89,7 +89,7 @@ function ironManMesh() {
   loft(m, rOut, rIn, function () { return GOLD; }, false, true);
   imCap(m, rIn, true, GLOW);
 
-  // 어깨덮개와 팔 둘
+  // 어깨덮개만 몸통에 붙인다 (팔은 따로 — 날 때 뒤로 젖혀야 한다)
   for (let side = -1; side <= 1; side += 2) {
     const dx = 0.36 * side;
     const pad = [
@@ -99,17 +99,6 @@ function ironManMesh() {
     ];
     imStack(m, pad, RED);
     imCap(m, pad[0], true, RED);
-    const arm = [
-      imAt(imRing(0.11, 0.11, 1.34, 3.0), dx, 0),
-      imAt(imRing(0.095, 0.095, 1.14, 3.0), dx, 0),   // 팔꿈치
-      imAt(imRing(0.10, 0.10, 1.00, 3.0), dx, 0),
-      imAt(imRing(0.095, 0.10, 0.88, 2.6), dx, 0)     // 손목
-    ];
-    imStack(m, arm, function (my) { return my > 1.16 ? RED : GOLD; });
-    // 손바닥 — 광선이 나가는 자리
-    const palm = imAt(imRing(0.075, 0.08, 0.84, 2.4), dx, 0);
-    imStack(m, [arm[3], palm], GOLD);
-    imCap(m, palm, false, GLOW);
   }
 
   // 목과 투구
@@ -140,6 +129,78 @@ function ironManMesh() {
   return _imMesh;
 }
 
+// 팔 한 짝. 어깨(0,0,0)를 원점으로 아래로 뻗는다 — 그래야 어깨에서 젖혀진다.
+const _imArm = {};
+function ironManArmMesh(side) {
+  if (_imArm[side]) return _imArm[side];
+  const m = new Mesh3D();
+  const RED = 'im_red', GOLD = 'im_gold', GLOW = 'im_glow';
+  const arm = [
+    imRing(0.11, 0.11, 0, 3.0),
+    imRing(0.095, 0.095, -0.20, 3.0),   // 팔꿈치
+    imRing(0.10, 0.10, -0.34, 3.0),
+    imRing(0.095, 0.10, -0.46, 2.6)     // 손목
+  ];
+  imStack(m, arm, function (my) { return my > -0.18 ? RED : GOLD; });
+  const palm = imRing(0.075, 0.08, -0.50, 2.4);
+  imStack(m, [arm[3], palm], GOLD);
+  imCap(m, palm, false, GLOW);          // 손바닥 — 광선과 불꽃이 나가는 자리
+  _imArm[side] = m.build();
+  return _imArm[side];
+}
+
+// ── 자세 ──────────────────────────────────────────────────────────────
+// 걸을 때는 서 있고, 날면 엎드린다. 빠를수록 더 눕는다.
+const IM_LEAN_MAX = 1.45;             // 83도 — 거의 수평
+const IM_PIVOT = 0.85;                // 허리께를 축으로 눕는다
+function imLean(p) {
+  if (!p.suit) return 0;
+  if (!p.suit.flying && p.onGround) return 0;
+  const sp = Math.hypot(p.vx, p.vz);
+  // 뜨자마자 조금 눕고, 20칸/초쯤에서 완전히 눕는다
+  const t = Math.min(1, 0.25 + sp / 20);
+  return IM_LEAN_MAX * t * (p.suit.flying ? 1 : 0.35);
+}
+
+// 모형의 앞쪽은 +z 다. 사람의 앞은 (-sin, -cos) 이므로 반 바퀴 돌려서 맞춘다.
+function imYaw(p) { return p.yaw + Math.PI; }
+
+// 몸 기준 좌표 → 세계 좌표. 그림과 불꽃이 같은 식을 써야 손발 끝에 불이 붙는다.
+function imPlace(p, lean, lx, ly, lz, out) {
+  const y = ly - IM_PIVOT;
+  const cl = Math.cos(lean), sl = Math.sin(lean);
+  const y1 = y * cl - lz * sl, z1 = y * sl + lz * cl;   // 앞으로 눕히기
+  const ya = imYaw(p), cy = Math.cos(ya), sy = Math.sin(ya);
+  out[0] = p.x + lx * cy + z1 * sy;
+  out[1] = p.y + IM_PIVOT + y1;
+  out[2] = p.z - lx * sy + z1 * cy;
+  return out;
+}
+
+// 방향만 돌린다 (자리 옮김 없음) — 법선과 분사 방향에 쓴다
+function imTurn(p, ang, lx, ly, lz, out) {
+  const cl = Math.cos(ang), sl = Math.sin(ang);
+  const y1 = ly * cl - lz * sl, z1 = ly * sl + lz * cl;
+  const ya = imYaw(p), cy = Math.cos(ya), sy = Math.sin(ya);
+  out[0] = lx * cy + z1 * sy;
+  out[1] = y1;
+  out[2] = -lx * sy + z1 * cy;
+  return out;
+}
+
+// 팔이 어깨에서 젖혀지는 각. 엎드리면 몸을 따라 뒤로 흐르되 조금 아래로 둔다.
+const IM_SHOULDER = [0.345, 1.40, 0];
+function imArmSwing(lean) { return -0.30 * (lean / IM_LEAN_MAX); }
+const IM_ARM_SPREAD = 0.20;           // 어깨를 옆으로 조금 벌린다
+
+// 팔 기준 좌표(어깨가 원점) → 세계 방향. 벌림(Z) → 젖힘·눕기(X) → 몸 방향(Y)
+function imArmTurn(p, lean, side, lx, ly, lz, out) {
+  const a = IM_ARM_SPREAD * side;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const x1 = lx * ca - ly * sa, y1 = lx * sa + ly * ca;
+  return imTurn(p, lean + imArmSwing(lean), x1, y1, lz, out);
+}
+
 // ── 슈트를 입고 벗기 ──────────────────────────────────────────────────
 const IM_FLY_ACC = 26;      // 손발에서 미는 힘
 const IM_FLY_MAX = 42;      // 최고 빠르기
@@ -147,6 +208,8 @@ const IM_HOVER = 12;        // 제자리에 뜨는 힘
 const IM_DRAG = 0.55;       // 공기 저항 (관성이 남게 조금만)
 const IM_BEAM = 90;         // 광선이 닿는 거리
 const IM_BEAM_GAP = 0.22;   // 광선 사이 최소 틈 (초)
+const IM_JET_PW = 0.35;     // 손발 불꽃 세기
+const IM_JET_SIZE = 0.22;   // 불꽃 지름 (칸) — 손바닥만 하게
 
 Game.prototype.suitOn = function (quiet) {
   const p = this.player;
@@ -222,9 +285,11 @@ Game.prototype.suitBeam = function () {
   p.suit.fired = Date.now();
 
   const eye = p.eyePos(), dir = p.lookDir();
-  // 손에서 나가는 것처럼 보이게 시작점을 조금 옆·아래로 옮긴다
-  const cos = Math.cos(p.yaw), sin = Math.sin(p.yaw);
-  const hx = eye[0] + cos * 0.42, hy = eye[1] - 0.35, hz = eye[2] - sin * 0.42;
+  // 그려진 오른손 자리에서 나가게 한다 (엎드려 날 때도 손끝에서 나간다)
+  const lean = imLean(p), at = _im3, off = _im3b;
+  imPlace(p, lean, IM_SHOULDER[0], IM_SHOULDER[1], IM_SHOULDER[2], at);
+  imArmTurn(p, lean, 1, 0, -0.52, 0, off);
+  const hx = at[0] + off[0], hy = at[1] + off[1], hz = at[2] + off[2];
 
   // 무엇에 맞았나 — 몹이 먼저, 그다음 블록
   let hitAt = null, hitMob = null;
@@ -373,14 +438,24 @@ Game.prototype.updateSuit = function (dt) {
 
   if (!p.suit) return;
 
-  // 손발에서 뿜는 불꽃
+  // 손바닥과 발바닥에서 뿜는 작은 불꽃 — 그림과 같은 자세 식을 쓴다
   if (this.fx && (p.suit.flying || p.suit.boost > 0.05)) {
-    const cos = Math.cos(p.yaw), sin = Math.sin(p.yaw);
-    const pw = 0.5 + p.suit.boost;
-    this.fx.rocket(p.x - cos * 0.34, p.y + 0.9, p.z + sin * 0.34, 0, -1, 0, pw, dt, 0, null, 0.35);
-    this.fx.rocket(p.x + cos * 0.34, p.y + 0.9, p.z - sin * 0.34, 0, -1, 0, pw, dt, 0, null, 0.35);
-    this.fx.rocket(p.x - 0.16, p.y + 0.05, p.z, 0, -1, 0, pw * 1.2, dt, 0, null, 0.3);
-    this.fx.rocket(p.x + 0.16, p.y + 0.05, p.z, 0, -1, 0, pw * 1.2, dt, 0, null, 0.3);
+    const lean = imLean(p);
+    const pw = IM_JET_PW + p.suit.boost * 0.35;
+    const at = _im3, dir = _im3b;
+    for (let side = -1; side <= 1; side += 2) {
+      // 손 — 팔이 젖혀진 만큼 같이 움직인다
+      imArmTurn(p, lean, side, 0, -0.52, 0, dir);
+      imPlace(p, lean, IM_SHOULDER[0] * side, IM_SHOULDER[1], IM_SHOULDER[2], at);
+      at[0] += dir[0]; at[1] += dir[1]; at[2] += dir[2];
+      imArmTurn(p, lean, side, 0, -1, 0, dir);          // 손바닥이 미는 쪽
+      this.fx.jet(at[0], at[1], at[2], dir[0], dir[1], dir[2], pw, dt, 0, IM_JET_SIZE);
+      // 발바닥
+      imPlace(p, lean, 0.17 * side, 0.02, 0, at);
+      imTurn(p, lean, 0, -1, 0, dir);
+      this.fx.jet(at[0], at[1], at[2], dir[0], dir[1], dir[2],
+                  pw * 1.15, dt, 0, IM_JET_SIZE * 1.15);
+    }
   }
   if (this._imBeam) {
     this._imBeam.t += dt;
@@ -398,26 +473,36 @@ Game.prototype.updateSuit = function (dt) {
 // ── 슈트 그리기 ───────────────────────────────────────────────────────
 // 3인칭일 때만 보인다 (1인칭에서는 제 몸이 안 보이는 게 맞다).
 const IM_OPTS = { glow: { im_glow: 1 } };
+const _im3 = [0, 0, 0], _im3b = [0, 0, 0];
 Renderer.prototype.drawSuit = function (game, world, player, opts) {
   const p = player;
   if (!p.suit || !game.view3rd) return;
   _imGeomReset(this);
-  const yaw = p.yaw;
-  const cy = Math.cos(yaw), sy = Math.sin(yaw);
-  // 나는 동안에는 몸을 앞으로 눕힌다
-  const lean = p.suit.flying ? Math.min(0.9, Math.hypot(p.vx, p.vz) / 26) : 0;
-  const cl = Math.cos(lean), sl = Math.sin(lean);
-  const rot = function (lx, ly, lz, out) {
-    const y1 = ly * cl - lz * sl, z1 = ly * sl + lz * cl;   // 앞으로 기울이기
-    out[0] = lx * cy + z1 * sy;
-    out[1] = y1;
-    out[2] = -lx * sy + z1 * cy;
+  const lean = imLean(p);
+
+  // 몸통 — 허리를 축으로 눕히므로 위아래 자리가 함께 옮겨진다.
+  // 법선은 자리 옮김 없이 방향만 돌려야 빛이 제대로 든다.
+  const bodyRot = function (lx, ly, lz, out) {
+    imTurn(p, lean, lx, ly - IM_PIVOT, lz, out);
+    out[1] += IM_PIVOT;
   };
+  const bodyNrm = function (lx, ly, lz, out) { imTurn(p, lean, lx, ly, lz, out); };
+
   const bx = Math.floor(p.x), by = Math.floor(p.y + 1), bz = Math.floor(p.z);
   const sky = world.getSky(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
   const blk = world.getBlockLight(bx, Math.min(CHUNK_Y - 1, by), bz) / 15;
   const light = [Math.max(sky, p.suit.flying ? 0.85 : sky), blk];
-  this.emitMesh(ironManMesh(), p.x, p.y, p.z, rot, 1, light, IM_OPTS);
+
+  this.emitMesh(ironManMesh(), p.x, p.y, p.z, bodyRot, 1,
+                light, { glow: IM_OPTS.glow, nxf: bodyNrm });
+
+  // 팔 둘 — 어깨에서 따로 젖힌다
+  const sh = _im3;
+  for (let side = -1; side <= 1; side += 2) {
+    imPlace(p, lean, IM_SHOULDER[0] * side, IM_SHOULDER[1], IM_SHOULDER[2], sh);
+    const armRot = function (lx, ly, lz, out) { imArmTurn(p, lean, side, lx, ly, lz, out); };
+    this.emitMesh(ironManArmMesh(side), sh[0], sh[1], sh[2], armRot, 1, light, IM_OPTS);
+  }
   this.flushEntityGeom(opts, false);
 };
 

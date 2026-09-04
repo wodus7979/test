@@ -208,6 +208,48 @@ ParticleFX.prototype.rocket = function (x, y, z, dx, dy, dz, pw, dt, acc, floorY
   return left;
 };
 
+// 손발에서 나오는 작은 분사 — 로켓과 달리 짧고 가늘다.
+// pw 는 세기 0~1, size 는 불꽃 지름(칸).
+ParticleFX.prototype.jet = function (x, y, z, dx, dy, dz, pw, dt, acc, size) {
+  const want = (acc || 0) + dt * (26 + 34 * pw);
+  let n = Math.floor(want);
+  const left = want - n;
+  if (n > 8) n = 8;
+  const l = Math.hypot(dx, dy, dz) || 1;
+  const ux = dx / l, uy = dy / l, uz = dz / l;
+  const sz = size || 0.22;
+  const d = this._d;
+  for (let i = 0; i < n; i++) {
+    fxDir(d);
+    const sp = (9 + 7 * pw) * (0.7 + Math.random() * 0.6);
+    const cone = 0.14;
+    // 노즐 바로 아래에서 시작해 짧게 뻗는다
+    const t0 = Math.random() * 0.18;
+    this.add({
+      kind: FX_FIRE, floor: -1e9,
+      x: x + ux * t0, y: y + uy * t0, z: z + uz * t0,
+      vx: (ux + d[0] * cone) * sp, vy: (uy + d[1] * cone) * sp, vz: (uz + d[2] * cone) * sp,
+      s0: sz * (0.9 + Math.random() * 0.5),
+      s1: sz * (0.25 + Math.random() * 0.3),      // 뻗으면서 가늘어진다
+      age: 0, life: 0.10 + Math.random() * 0.10,
+      hue: Math.random() * 0.22,                  // 하얗게 달아오른 파란빛
+      drag: 4.0, buoy: 0, a0: 1
+    });
+  }
+  // 아주 가끔 옅은 연기 한 점 (자취만 남게)
+  if (Math.random() < dt * 6) {
+    this.add({
+      kind: FX_SMOKE, floor: -1e9,
+      x: x, y: y, z: z,
+      vx: ux * 3, vy: uy * 3, vz: uz * 3,
+      s0: sz * 0.8, s1: sz * 3.2,
+      age: 0, life: 0.45 + Math.random() * 0.35,
+      hue: 0.55, drag: 2.2, buoy: 0.4, a0: 0.28
+    });
+  }
+  return left;
+};
+
 ParticleFX.prototype.update = function (dt) {
   const list = this.list;
   if (!list.length) return;
