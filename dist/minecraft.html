@@ -1281,6 +1281,17 @@ body.touch #fly-panel {
   box-shadow: 0 2px 10px rgba(0,0,0,.45);
 }
 #btn-beam.on { background: rgba(40,130,200,.92); border-color: #bfe8ff; }
+/* 벗기 — 광선 단추 위에 하나 더 쌓는다 */
+#btn-suitoff {
+  display: none;
+  position: fixed; left: 12px; bottom: 132px; z-index: 46;
+  background: rgba(34,20,10,.82);
+  border: 1px solid rgba(255,190,120,.45);
+  border-radius: 9px; padding: 7px 13px;
+  font: 13px/1.3 ui-monospace, Menlo, monospace; color: #ffe6cc;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+}
 
 /* 열쇠·암호가 없어 정해진 것만 답하는 상태 — 눈에 띄게 둔다 */
 #btn-mic.nokey { border-color: rgba(240,190,120,.6); color: #f2d9a8; }
@@ -1330,6 +1341,7 @@ body.touch #fly-panel {
 <button id="btn-mic" type="button" title="영어로 서로 대화하기 — 누르면 계속 주고받습니다">🎤 말하기</button>
 <button id="btn-web" type="button" title="거미줄 쏘기">🕸 거미줄</button>
 <button id="btn-beam" type="button" title="손에서 광선 (슈트를 입으면 나타납니다)">💥 광선</button>
+<button id="btn-suitoff" type="button" title="슈트 벗기">🧍 벗기</button>
 <div id="countdown"></div>
 <div id="chat-log"></div>
 <input id="chat-input" type="text" maxlength="120" placeholder="하고 싶은 말 (Enter 보내기 · Esc 취소)" autocomplete="off">
@@ -10196,6 +10208,7 @@ Chunk.prototype.setBlockLight = function (x, y, z, v) {
 function World(seed) {
   this.seed = (seed === undefined || seed === null || seed === '') ? (Math.random() * 1e9) | 0 : hashSeed(seed);
   this.chunks = new Map();
+  this._lastChunk = null;      // getChunk 가 마지막으로 돌려준 청크
   this.pending = [];
   this.pHeight = new Perlin(this.seed + 1);
   this.pDetail = new Perlin(this.seed + 2);
@@ -10209,14 +10222,31 @@ function World(seed) {
   this._blockQueue = [];
 }
 
-World.prototype.key = function (cx, cz) { return cx + ',' + cz; };
-World.prototype.getChunk = function (cx, cz) { return this.chunks.get(this.key(cx, cz)) || null; };
+// 청크 키는 숫자다. 예전에는 'cx,cz' 문자열이라 블록을 한 번 읽을 때마다
+// 문자열을 새로 만들었고, 빛 전파·메시 생성처럼 블록을 수십만 번 읽는 곳에서
+// 그 값이 가장 컸다. (저장 파일에는 여전히 'cx,cz' 로 적는다.)
+World.prototype.key = function (cx, cz) { return (cx + 32768) * 65536 + (cz + 32768); };
+World.prototype.getChunk = function (cx, cz) {
+  // 잇달아 읽는 블록은 거의 같은 청크에 있으므로 마지막 청크를 기억해 둔다
+  const lc = this._lastChunk;
+  if (lc !== null && lc.cx === cx && lc.cz === cz) return lc;
+  const c = this.chunks.get(this.key(cx, cz)) || null;
+  if (c) this._lastChunk = c;
+  return c;
+};
 
 World.prototype.ensureChunk = function (cx, cz) {
   const k = this.key(cx, cz);
   let c = this.chunks.get(k);
   if (!c) { c = new Chunk(this, cx, cz); this.chunks.set(k, c); }
   return c;
+};
+
+// 청크를 버릴 때는 캐시도 함께 비운다 — 안 그러면 사라진 청크를 계속 돌려준다
+World.prototype.deleteChunk = function (key) {
+  const c = this.chunks.get(key);
+  if (c && this._lastChunk === c) this._lastChunk = null;
+  this.chunks.delete(key);
 };
 
 World.prototype.chunkAt = function (x, z) {
@@ -11015,6 +11045,11 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
     const shadeF = FACE_SHADE[f];
     const yShrink = (isLiquid && f === 2) ? 0.12 : 0;
     const base = varr.length / 9;
+    // 면 앞의 이웃 칸은 꼭짓점 넷이 모두 같은 칸을 본다 — 한 번만 읽는다.
+    // (전에는 꼭짓점마다 블록·하늘빛·블록빛을 다시 읽어 면당 열두 번을 더 뒤졌다)
+    const nOpaque = blockDef(nid).opaque;
+    const nSky = nOpaque ? 0 : this.getSky(nx, ny, nz);
+    const nBlk = nOpaque ? 0 : this.getBlockLight(nx, ny, nz);
 
     let q = f * 44;
     for (let ci = 0; ci < 4; ci++) {
@@ -11039,9 +11074,7 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
       const ao = AO_LEVELS[occ < 0 ? 0 : (occ > 3 ? 3 : occ)] * shadeF;
 
       let skySum = 0, blkSum = 0, cnt = 0;
-      if (!blockDef(this.getBlock(nx, ny, nz)).opaque) {
-        skySum += this.getSky(nx, ny, nz); blkSum += this.getBlockLight(nx, ny, nz); cnt++;
-      }
+      if (!nOpaque) { skySum += nSky; blkSum += nBlk; cnt++; }
       if (!o1) { skySum += this.getSky(ax, ay, az); blkSum += this.getBlockLight(ax, ay, az); cnt++; }
       if (!o2) { skySum += this.getSky(bx2, by2, bz2); blkSum += this.getBlockLight(bx2, by2, bz2); cnt++; }
       if (!oc) { skySum += this.getSky(cx2, cy2, cz2); blkSum += this.getBlockLight(cx2, cy2, cz2); cnt++; }
@@ -17040,6 +17073,7 @@ EntityManager.prototype.spawnMob = function (type, x, y, z) {
 EntityManager.prototype.dropItem = function (name, count, x, y, z) {
   if (!ITEMS[name]) return null;
   const e = new ItemEntity(this.world, name, count, x, y, z);
+  e.onPickup = this.onPickup || null;     // 주웠을 때 알림 (소리) — 관리자가 정해 준다
   this.items.push(e);
   return e;
 };
@@ -27190,6 +27224,10 @@ Game.prototype.setupCallbacks = function () {
     self.exitPointerLock();
   };
   this.player.onToolBreak = function () { self.ui.toast('도구가 부러졌습니다'); };
+  // 다치면 소리가 난다 — hurt 소리는 만들어 두고도 플레이어에겐 한 번도 붙이지 않았었다
+  this.player.onHurt = function () { self.playSound('hurt'); };
+  // 아이템을 주우면 딸깍 — 이 갈고리도 만들어만 두고 아무도 안 걸었었다
+  this.entities.onPickup = function () { self.playSound('click'); };
 
   // 모래·자갈은 떨어지는 블록 엔티티가 된다
   this.world.onFallingBlock = function (x, y, z, id, meta) {
@@ -27851,7 +27889,7 @@ Game.prototype.streamChunks = function (budgetMs, forceRadius) {
         c.dirty = true;
         return;
       }
-      w.chunks.delete(key);
+      w.deleteChunk(key);
     });
   }
 };
@@ -28070,6 +28108,10 @@ Game.prototype.bindInput = function () {
         // 슈트를 입고 있으면 이 키로 벗는다. 아니면 거미 모드를 켠다.
         if (self.player.suit) { self.suitOff(); e.preventDefault(); }
         else if (self.toggleSpider) { self.toggleSpider(); e.preventDefault(); }
+        break;
+      case 'Backslash':
+        // 슈트 입기/벗기 — 한 번 입어 봤으면 어디서든 부른다
+        if (self.toggleSuit) { self.toggleSuit(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -28373,6 +28415,16 @@ Game.prototype.bindTouch = function () {
     if (p.creative) { p.flying = !p.flying; self.syncFlyButton(); }
     else self.ui.toast('창작 모드에서만 날 수 있습니다 — 창작 단추를 누르세요 (아이언맨 슈트를 입어도 납니다)');
   });
+  // 벗기 단추 — 슈트를 입었을 때만 보인다
+  const offBtn = document.getElementById('btn-suitoff');
+  if (offBtn) {
+    const off = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (self.suitOff) self.suitOff();
+    };
+    offBtn.addEventListener('touchstart', off, { passive: false });
+    offBtn.addEventListener('mousedown', off);
+  }
   // 광선 단추 — 슈트를 입었을 때만 보인다. 누르고 있으면 계속 나간다.
   const beamBtn = document.getElementById('btn-beam');
   if (beamBtn) {
@@ -29768,7 +29820,7 @@ Game.prototype.buildSaveData = function () {
   const chunks = {};
   this.world.chunks.forEach(function (c, key) {
     if (!c.modified) return;
-    chunks[key] = { b: rleEncode(c.blocks), m: rleEncode(c.meta) };
+    chunks[c.cx + ',' + c.cz] = { b: rleEncode(c.blocks), m: rleEncode(c.meta) };   // 저장 형식은 문자열 키
   });
 
   const furnaces = {};
@@ -30756,7 +30808,7 @@ Game.prototype.buddyWorld = function () {
   try {
     const e = p.eyePos(), d = p.lookDir();
     const hit = w.raycast(e[0], e[1], e[2], d[0], d[1], d[2], 8);
-    if (hit) {
+    if (hit && hit.hit) {          // 빗나가면 {hit:false} 가 온다 — 진리값으로는 못 거른다
       const bd = blockDef(w.getBlock(hit.x, hit.y, hit.z));
       looking = (bd && bd.name) ? bd.name.replace(/_/g, ' ') : null;
     }
@@ -31789,7 +31841,7 @@ Game.prototype.webFind = function (minUp) {
   const floorY = p.y + WEB_HOLD + (minUp || 0);
   const tryRay = function (dx, dy, dz) {
     const hit = w.raycast(eye[0], eye[1], eye[2], dx, dy, dz, WEB_RANGE);
-    if (!hit) return null;
+    if (!hit || !hit.hit) return null;       // 빗나가면 {hit:false}
     const bd = blockDef(w.getBlock(hit.x, hit.y, hit.z));
     if (!bd || !bd.opaque) return null;          // 잎·유리 같은 데는 안 붙는다
     if (hit.y + 0.5 < floorY) return null;       // 너무 낮다
@@ -31886,7 +31938,7 @@ Game.prototype.webTallNear = function (minUp) {
       const vd = Math.hypot(vx, vy, vz);
       if (vd > WEB_RANGE) continue;
       const hit = w.raycast(eye[0], eye[1], eye[2], vx / vd, vy / vd, vz / vd, vd + 1.5);
-      if (!hit) continue;
+      if (!hit || !hit.hit) continue;
       if (Math.abs(hit.x - x) > 1 || Math.abs(hit.z - z) > 1) continue;   // 다른 것에 막혔다
       score = s; best = { x: ax, y: ay, z: az };
     }
@@ -32047,7 +32099,7 @@ Player.prototype.webBlocked = function (ax, ay, az, bx, by, bz) {
   const d = Math.hypot(dx, dy, dz);
   if (d < 0.5) return null;
   const hit = w.raycast(ax, ay, az, dx / d, dy / d, dz / d, d - 0.4);
-  if (!hit) return null;
+  if (!hit || !hit.hit) return null;
   const bd = blockDef(w.getBlock(hit.x, hit.y, hit.z));
   if (!bd || !bd.opaque) return null;
   // 막힌 칸의 모서리 쪽으로 살짝 물러난 자리에 건다
@@ -32545,7 +32597,7 @@ Game.prototype.suitOn = function (quiet) {
   p.flying = false;              // 슈트는 제 방식으로 난다
   this.view3rd = true;           // 입은 모습이 보이게 3인칭으로
   if (this.playSound) this.playSound('im_on');
-  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. ` 로 벗고, 다음부터는 ` 로 어디서든 부릅니다');
+  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. \\ 키나 발판으로 벗고, 다음부터는 \\ 로 어디서든 부릅니다');
   this.jarvisSay('Suit online. All systems nominal.');
 };
 
@@ -32769,18 +32821,30 @@ Game.prototype.jarvisOffline = function (q) {
 Game.prototype.updateSuit = function (dt) {
   const p = this.player;
 
-  // 발판을 밟았나 — 도시마다 1층 출동실과 옥상 착륙장 두 곳이 있다
-  if (!p.suit && !this._imCool) {
-    const pad = this.suitPadNear(p.x, p.y, p.z, IM_PAD_R);
-    if (pad) { this.suitOn(); this._imCool = 3; }
+  // 발판을 밟았나 — 도시마다 1층 출동실과 옥상 착륙장 두 곳이 있다.
+  // 입은 채로 다시 밟으면 벗는다 (그 자리에서 곧바로 다시 입지 않도록 잠시 쉰다).
+  const pad = this._imCool ? null : this.suitPadNear(p.x, p.y, p.z, IM_PAD_R);
+  if (pad) {
+    if (!this._imOnPad) {            // 발판에 '들어설 때' 한 번만 — 서 있는 동안 되풀이하지 않는다
+      this._imOnPad = true;
+      if (p.suit) this.suitOff(); else this.suitOn();
+    }
+  } else {
+    this._imOnPad = false;
   }
   if (this._imCool > 0) this._imCool -= dt;
 
   // 폰 단추 — 슈트를 입었을 때만 보인다
   const bb = document.getElementById('btn-beam');
   if (bb) {
-    bb.style.display = p.suit ? 'block' : 'none';
+    const want = p.suit ? 'block' : 'none';
+    if (bb.style.display !== want) bb.style.display = want;
     bb.classList.toggle('on', !!(p.suit && p.suit.aim > 0.3));
+  }
+  const ob = document.getElementById('btn-suitoff');
+  if (ob) {
+    const want = p.suit ? 'block' : 'none';
+    if (ob.style.display !== want) ob.style.display = want;
   }
   if (this.syncFlyButton) this.syncFlyButton();
 

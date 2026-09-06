@@ -296,7 +296,7 @@ Game.prototype.suitOn = function (quiet) {
   p.flying = false;              // 슈트는 제 방식으로 난다
   this.view3rd = true;           // 입은 모습이 보이게 3인칭으로
   if (this.playSound) this.playSound('im_on');
-  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. ` 로 벗고, 다음부터는 ` 로 어디서든 부릅니다');
+  if (!quiet) this.ui.toast('슈트를 입었습니다 — 스페이스로 날고, 마우스 왼쪽으로 광선. \\ 키나 발판으로 벗고, 다음부터는 \\ 로 어디서든 부릅니다');
   this.jarvisSay('Suit online. All systems nominal.');
 };
 
@@ -520,18 +520,30 @@ Game.prototype.jarvisOffline = function (q) {
 Game.prototype.updateSuit = function (dt) {
   const p = this.player;
 
-  // 발판을 밟았나 — 도시마다 1층 출동실과 옥상 착륙장 두 곳이 있다
-  if (!p.suit && !this._imCool) {
-    const pad = this.suitPadNear(p.x, p.y, p.z, IM_PAD_R);
-    if (pad) { this.suitOn(); this._imCool = 3; }
+  // 발판을 밟았나 — 도시마다 1층 출동실과 옥상 착륙장 두 곳이 있다.
+  // 입은 채로 다시 밟으면 벗는다 (그 자리에서 곧바로 다시 입지 않도록 잠시 쉰다).
+  const pad = this._imCool ? null : this.suitPadNear(p.x, p.y, p.z, IM_PAD_R);
+  if (pad) {
+    if (!this._imOnPad) {            // 발판에 '들어설 때' 한 번만 — 서 있는 동안 되풀이하지 않는다
+      this._imOnPad = true;
+      if (p.suit) this.suitOff(); else this.suitOn();
+    }
+  } else {
+    this._imOnPad = false;
   }
   if (this._imCool > 0) this._imCool -= dt;
 
   // 폰 단추 — 슈트를 입었을 때만 보인다
   const bb = document.getElementById('btn-beam');
   if (bb) {
-    bb.style.display = p.suit ? 'block' : 'none';
+    const want = p.suit ? 'block' : 'none';
+    if (bb.style.display !== want) bb.style.display = want;
     bb.classList.toggle('on', !!(p.suit && p.suit.aim > 0.3));
+  }
+  const ob = document.getElementById('btn-suitoff');
+  if (ob) {
+    const want = p.suit ? 'block' : 'none';
+    if (ob.style.display !== want) ob.style.display = want;
   }
   if (this.syncFlyButton) this.syncFlyButton();
 

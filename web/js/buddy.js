@@ -219,7 +219,7 @@ Game.prototype.buddyWorld = function () {
   try {
     const e = p.eyePos(), d = p.lookDir();
     const hit = w.raycast(e[0], e[1], e[2], d[0], d[1], d[2], 8);
-    if (hit) {
+    if (hit && hit.hit) {          // 빗나가면 {hit:false} 가 온다 — 진리값으로는 못 거른다
       const bd = blockDef(w.getBlock(hit.x, hit.y, hit.z));
       looking = (bd && bd.name) ? bd.name.replace(/_/g, ' ') : null;
     }

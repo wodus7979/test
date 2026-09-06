@@ -388,6 +388,7 @@ EntityManager.prototype.spawnMob = function (type, x, y, z) {
 EntityManager.prototype.dropItem = function (name, count, x, y, z) {
   if (!ITEMS[name]) return null;
   const e = new ItemEntity(this.world, name, count, x, y, z);
+  e.onPickup = this.onPickup || null;     // 주웠을 때 알림 (소리) — 관리자가 정해 준다
   this.items.push(e);
   return e;
 };

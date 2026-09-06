@@ -47,7 +47,7 @@ Game.prototype.webFind = function (minUp) {
   const floorY = p.y + WEB_HOLD + (minUp || 0);
   const tryRay = function (dx, dy, dz) {
     const hit = w.raycast(eye[0], eye[1], eye[2], dx, dy, dz, WEB_RANGE);
-    if (!hit) return null;
+    if (!hit || !hit.hit) return null;       // 빗나가면 {hit:false}
     const bd = blockDef(w.getBlock(hit.x, hit.y, hit.z));
     if (!bd || !bd.opaque) return null;          // 잎·유리 같은 데는 안 붙는다
     if (hit.y + 0.5 < floorY) return null;       // 너무 낮다
@@ -144,7 +144,7 @@ Game.prototype.webTallNear = function (minUp) {
       const vd = Math.hypot(vx, vy, vz);
       if (vd > WEB_RANGE) continue;
       const hit = w.raycast(eye[0], eye[1], eye[2], vx / vd, vy / vd, vz / vd, vd + 1.5);
-      if (!hit) continue;
+      if (!hit || !hit.hit) continue;
       if (Math.abs(hit.x - x) > 1 || Math.abs(hit.z - z) > 1) continue;   // 다른 것에 막혔다
       score = s; best = { x: ax, y: ay, z: az };
     }
@@ -305,7 +305,7 @@ Player.prototype.webBlocked = function (ax, ay, az, bx, by, bz) {
   const d = Math.hypot(dx, dy, dz);
   if (d < 0.5) return null;
   const hit = w.raycast(ax, ay, az, dx / d, dy / d, dz / d, d - 0.4);
-  if (!hit) return null;
+  if (!hit || !hit.hit) return null;
   const bd = blockDef(w.getBlock(hit.x, hit.y, hit.z));
   if (!bd || !bd.opaque) return null;
   // 막힌 칸의 모서리 쪽으로 살짝 물러난 자리에 건다

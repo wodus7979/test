@@ -122,6 +122,7 @@ Chunk.prototype.setBlockLight = function (x, y, z, v) {
 function World(seed) {
   this.seed = (seed === undefined || seed === null || seed === '') ? (Math.random() * 1e9) | 0 : hashSeed(seed);
   this.chunks = new Map();
+  this._lastChunk = null;      // getChunk 가 마지막으로 돌려준 청크
   this.pending = [];
   this.pHeight = new Perlin(this.seed + 1);
   this.pDetail = new Perlin(this.seed + 2);
@@ -135,14 +136,31 @@ function World(seed) {
   this._blockQueue = [];
 }
 
-World.prototype.key = function (cx, cz) { return cx + ',' + cz; };
-World.prototype.getChunk = function (cx, cz) { return this.chunks.get(this.key(cx, cz)) || null; };
+// 청크 키는 숫자다. 예전에는 'cx,cz' 문자열이라 블록을 한 번 읽을 때마다
+// 문자열을 새로 만들었고, 빛 전파·메시 생성처럼 블록을 수십만 번 읽는 곳에서
+// 그 값이 가장 컸다. (저장 파일에는 여전히 'cx,cz' 로 적는다.)
+World.prototype.key = function (cx, cz) { return (cx + 32768) * 65536 + (cz + 32768); };
+World.prototype.getChunk = function (cx, cz) {
+  // 잇달아 읽는 블록은 거의 같은 청크에 있으므로 마지막 청크를 기억해 둔다
+  const lc = this._lastChunk;
+  if (lc !== null && lc.cx === cx && lc.cz === cz) return lc;
+  const c = this.chunks.get(this.key(cx, cz)) || null;
+  if (c) this._lastChunk = c;
+  return c;
+};
 
 World.prototype.ensureChunk = function (cx, cz) {
   const k = this.key(cx, cz);
   let c = this.chunks.get(k);
   if (!c) { c = new Chunk(this, cx, cz); this.chunks.set(k, c); }
   return c;
+};
+
+// 청크를 버릴 때는 캐시도 함께 비운다 — 안 그러면 사라진 청크를 계속 돌려준다
+World.prototype.deleteChunk = function (key) {
+  const c = this.chunks.get(key);
+  if (c && this._lastChunk === c) this._lastChunk = null;
+  this.chunks.delete(key);
 };
 
 World.prototype.chunkAt = function (x, z) {
@@ -941,6 +959,11 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
     const shadeF = FACE_SHADE[f];
     const yShrink = (isLiquid && f === 2) ? 0.12 : 0;
     const base = varr.length / 9;
+    // 면 앞의 이웃 칸은 꼭짓점 넷이 모두 같은 칸을 본다 — 한 번만 읽는다.
+    // (전에는 꼭짓점마다 블록·하늘빛·블록빛을 다시 읽어 면당 열두 번을 더 뒤졌다)
+    const nOpaque = blockDef(nid).opaque;
+    const nSky = nOpaque ? 0 : this.getSky(nx, ny, nz);
+    const nBlk = nOpaque ? 0 : this.getBlockLight(nx, ny, nz);
 
     let q = f * 44;
     for (let ci = 0; ci < 4; ci++) {
@@ -965,9 +988,7 @@ World.prototype.emitCube = function (varr, iarr, wx, wy, wz, id, d, isLiquid) {
       const ao = AO_LEVELS[occ < 0 ? 0 : (occ > 3 ? 3 : occ)] * shadeF;
 
       let skySum = 0, blkSum = 0, cnt = 0;
-      if (!blockDef(this.getBlock(nx, ny, nz)).opaque) {
-        skySum += this.getSky(nx, ny, nz); blkSum += this.getBlockLight(nx, ny, nz); cnt++;
-      }
+      if (!nOpaque) { skySum += nSky; blkSum += nBlk; cnt++; }
       if (!o1) { skySum += this.getSky(ax, ay, az); blkSum += this.getBlockLight(ax, ay, az); cnt++; }
       if (!o2) { skySum += this.getSky(bx2, by2, bz2); blkSum += this.getBlockLight(bx2, by2, bz2); cnt++; }
       if (!oc) { skySum += this.getSky(cx2, cy2, cz2); blkSum += this.getBlockLight(cx2, cy2, cz2); cnt++; }

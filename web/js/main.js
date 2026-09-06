@@ -145,6 +145,10 @@ Game.prototype.setupCallbacks = function () {
     self.exitPointerLock();
   };
   this.player.onToolBreak = function () { self.ui.toast('도구가 부러졌습니다'); };
+  // 다치면 소리가 난다 — hurt 소리는 만들어 두고도 플레이어에겐 한 번도 붙이지 않았었다
+  this.player.onHurt = function () { self.playSound('hurt'); };
+  // 아이템을 주우면 딸깍 — 이 갈고리도 만들어만 두고 아무도 안 걸었었다
+  this.entities.onPickup = function () { self.playSound('click'); };
 
   // 모래·자갈은 떨어지는 블록 엔티티가 된다
   this.world.onFallingBlock = function (x, y, z, id, meta) {
@@ -806,7 +810,7 @@ Game.prototype.streamChunks = function (budgetMs, forceRadius) {
         c.dirty = true;
         return;
       }
-      w.chunks.delete(key);
+      w.deleteChunk(key);
     });
   }
 };
@@ -1025,6 +1029,10 @@ Game.prototype.bindInput = function () {
         // 슈트를 입고 있으면 이 키로 벗는다. 아니면 거미 모드를 켠다.
         if (self.player.suit) { self.suitOff(); e.preventDefault(); }
         else if (self.toggleSpider) { self.toggleSpider(); e.preventDefault(); }
+        break;
+      case 'Backslash':
+        // 슈트 입기/벗기 — 한 번 입어 봤으면 어디서든 부른다
+        if (self.toggleSuit) { self.toggleSuit(); e.preventDefault(); }
         break;
       // 전체 지도를 보는 동안의 조작
       case 'Equal': case 'NumpadAdd':
@@ -1328,6 +1336,16 @@ Game.prototype.bindTouch = function () {
     if (p.creative) { p.flying = !p.flying; self.syncFlyButton(); }
     else self.ui.toast('창작 모드에서만 날 수 있습니다 — 창작 단추를 누르세요 (아이언맨 슈트를 입어도 납니다)');
   });
+  // 벗기 단추 — 슈트를 입었을 때만 보인다
+  const offBtn = document.getElementById('btn-suitoff');
+  if (offBtn) {
+    const off = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (self.suitOff) self.suitOff();
+    };
+    offBtn.addEventListener('touchstart', off, { passive: false });
+    offBtn.addEventListener('mousedown', off);
+  }
   // 광선 단추 — 슈트를 입었을 때만 보인다. 누르고 있으면 계속 나간다.
   const beamBtn = document.getElementById('btn-beam');
   if (beamBtn) {
@@ -2723,7 +2741,7 @@ Game.prototype.buildSaveData = function () {
   const chunks = {};
   this.world.chunks.forEach(function (c, key) {
     if (!c.modified) return;
-    chunks[key] = { b: rleEncode(c.blocks), m: rleEncode(c.meta) };
+    chunks[c.cx + ',' + c.cz] = { b: rleEncode(c.blocks), m: rleEncode(c.meta) };   // 저장 형식은 문자열 키
   });
 
   const furnaces = {};
