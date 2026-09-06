@@ -9005,6 +9005,11 @@ const TERRAIN2_FS = [
   'uniform vec3 uSkyDn;',
   'uniform vec3 uCamPos;',
   'uniform vec2 uPix;',
+  'uniform sampler2D uCloudTex;',   // 하늘에 뜬 구름 격자 (40×40)
+  'uniform float uCloudAmt;',       // 0 이면 구름 그늘 없음
+  'uniform float uCloudDrift;',     // 구름이 흘러간 거리 (블록)
+  'uniform float uCloudY;',         // 구름이 뜬 높이
+  'uniform float uCloudSpan;',      // 구름 격자 한 판의 크기 (블록)
   'varying vec2 vUV;',
   'varying vec3 vLight;',
   'varying float vDist;',
@@ -9045,6 +9050,18 @@ const TERRAIN2_FS = [
   '  vec3 b = dp2p * du1.y + dp1p * du2.y;',
   '  float inv = inversesqrt(max(dot(t, t), dot(b, b)) + 1e-12);',
   '  return mat3(t * inv, b * inv, n);',
+  '}',
+  // 머리 위 구름이 드리우는 그늘. 해 쪽으로 구름 높이까지 뻗어 올라가
+  // 그 자리의 구름을 본다 — 실제로 하늘에 떠 있는 구름과 자리가 맞는다.
+  'float cloudLight(vec3 p) {',
+  '  if (uCloudAmt < 0.01 || uSunDir.y < 0.06) return 1.0;',
+  '  float t = (uCloudY - p.y) / max(uSunDir.y, 0.06);',
+  '  if (t < 0.0) return 1.0;',                      // 구름보다 높이 있으면 그늘 없음
+  '  vec2 q = p.xz + uSunDir.xz * t;',
+  '  q.x -= uCloudDrift;',
+  '  vec2 uv = q / max(uCloudSpan, 1.0);',
+  '  float c = texture2D(uCloudTex, uv).r;',
+  '  return 1.0 - uCloudAmt * c;',
   '}',
   'float shadowAt(vec3 p, float nl) {',
   '  vec4 lp = uLightVP * vec4(p, 1.0);',
@@ -9106,7 +9123,7 @@ const TERRAIN2_FS = [
   '    float a = rough * rough;',
   '    vec3 spec = F_Schlick(f0, max(dot(v, h), 0.0)) * D_GGX(max(dot(n, h), 0.0), a)',
   '              * V_Smith(nv, max(nl, 1e-4), a);',
-  '    col = (diffCol / PI + spec) * uSunCol * nl * sh * open * uDaylight * sunUp;',
+  '    col = (diffCol / PI + spec) * uSunCol * nl * sh * open * uDaylight * sunUp * cloudLight(vWorld);',
   // 하늘빛 — 위는 하늘, 아래는 땅에서 튄 빛. 하늘 그림 색을 그대로 쓰면 세상이 새파래진다.
   '    vec3 amb = mix(uAmbDn, uAmbUp, n.y * 0.5 + 0.5);',
   '    col += diffCol * amb * ao * max(skyVis, 0.05);',
@@ -9492,6 +9509,44 @@ const COMPOSITE_FS = [
   '}'
 ].join('\n');
 
+// 계단 다듬기(FXAA) — 톤 매핑까지 끝난 그림에서 밝기 차가 큰 가장자리를
+// 찾아 그 방향으로만 살짝 문지른다. 화면 한 장만 더 읽으므로 값이 싸고,
+// 도시처럼 곧은 선이 많은 그림에서 계단이 눈에 띄게 줄어든다.
+const FXAA_FS = [
+  'precision highp float;',
+  'uniform sampler2D uTex;',
+  'uniform vec2 uPix;',            // 1/폭, 1/높이
+  'varying vec2 vUV;',
+  'float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }',
+  'void main() {',
+  '  vec3 mC = texture2D(uTex, vUV).rgb;',
+  '  float lM  = luma(mC);',
+  '  float lNW = luma(texture2D(uTex, vUV + vec2(-uPix.x, -uPix.y)).rgb);',
+  '  float lNE = luma(texture2D(uTex, vUV + vec2( uPix.x, -uPix.y)).rgb);',
+  '  float lSW = luma(texture2D(uTex, vUV + vec2(-uPix.x,  uPix.y)).rgb);',
+  '  float lSE = luma(texture2D(uTex, vUV + vec2( uPix.x,  uPix.y)).rgb);',
+  '  float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));',
+  '  float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));',
+  // 밋밋한 자리는 건드리지 않는다 (텍스처 결이 뭉개지지 않게)
+  '  float range = lMax - lMin;',
+  '  if (range < max(0.028, lMax * 0.125)) { gl_FragColor = vec4(mC, 1.0); return; }',
+  // 가장자리가 가로로 누웠나 세로로 섰나
+  '  vec2 dir;',
+  '  dir.x = -((lNW + lNE) - (lSW + lSE));',
+  '  dir.y =  ((lNW + lSW) - (lNE + lSE));',
+  '  float red = max((lNW + lNE + lSW + lSE) * 0.03125, 0.0078);',
+  '  float scale = 1.0 / (min(abs(dir.x), abs(dir.y)) + red);',
+  '  dir = clamp(dir * scale, vec2(-8.0), vec2(8.0)) * uPix;',
+  // 가까운 두 점과 먼 두 점을 섞는다. 먼 쪽이 색을 벗어나면 가까운 쪽만 쓴다.
+  '  vec3 a = 0.5 * (texture2D(uTex, vUV + dir * (1.0 / 3.0 - 0.5)).rgb +',
+  '                  texture2D(uTex, vUV + dir * (2.0 / 3.0 - 0.5)).rgb);',
+  '  vec3 b = a * 0.5 + 0.25 * (texture2D(uTex, vUV - dir * 0.5).rgb +',
+  '                             texture2D(uTex, vUV + dir * 0.5).rgb);',
+  '  float lB = luma(b);',
+  '  gl_FragColor = vec4((lB < lMin || lB > lMax) ? a : b, 1.0);',
+  '}'
+].join('\n');
+
 // ── 프레임버퍼 ────────────────────────────────────────────────────────
 function makeFBO(gl, w, h, withDepth) {
   const tex = gl.createTexture();
@@ -9564,6 +9619,7 @@ function PostFX(gl, gl2, hdr) {
     this.blurProg = createProgram(gl, POST_VS, BLUR_FS, ['aPos']);
     this.compProg = createProgram(gl, POST_VS, COMPOSITE_FS, ['aPos']);
     if (this.gl2) this.ssaoProg = createProgram(gl, POST_VS, SSAO_FS, ['aPos']);
+    this.fxaaProg = createProgram(gl, POST_VS, FXAA_FS, ['aPos']);
     this.quad = makeBuffer(gl, gl.ARRAY_BUFFER,
       new Float32Array([-1, -1, 3, -1, -1, 3]));
     this.ok = true;
@@ -9572,6 +9628,7 @@ function PostFX(gl, gl2, hdr) {
     this.ok = false;
   }
   this.scene = null; this.half = null; this.blurA = null; this.blurB = null;
+  this.ldr = null;
 }
 
 PostFX.prototype.setLevel = function (n) {
@@ -9587,6 +9644,7 @@ PostFX.prototype.release = function () {
   freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
   if (this.ao) { freeTarget(gl, this.ao); this.ao = null; }
   if (this.aoBlur) { freeTarget(gl, this.aoBlur); this.aoBlur = null; }
+  freeFBO(gl, this.ldr); this.ldr = null;
   this.scene = this.half = this.blurA = this.blurB = null;
   this.color = this.normal = this.depthTex = this.sceneFB = null;
   this.w = this.h = 0;
@@ -9637,6 +9695,10 @@ PostFX.prototype.ensure = function (w, h) {
       freeFBO(gl, this.half); freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
       this.half = this.blurA = this.blurB = null;
     }
+  }
+  // 계단 다듬기용 — 합성한 그림을 여기 담았다가 문질러 화면에 낸다
+  if (this.level >= 2 && this.fxaaProg) {
+    this.ldr = makeFBO(gl, w, h, false);
   }
   this.w = w; this.h = h;
   return true;
@@ -9720,8 +9782,9 @@ PostFX.prototype.end = function (opts) {
     }
   }
 
-  // 3) 합성해서 화면으로
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  // 3) 합성 — 계단을 다듬을 참이면 한 번 텍스처에 받아 둔다
+  const useFxaa = !!(this.ldr && this.fxaaProg && lvl >= 2 && opts.fxaa !== false);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, useFxaa ? this.ldr.fb : null);
   gl.viewport(0, 0, this.w, this.h);
   const p = this.compProg;
   gl.useProgram(p);
@@ -9756,6 +9819,19 @@ PostFX.prototype.end = function (opts) {
   gl.uniform3fv(p.u.uInkColor, opts.inkColor || [0.13, 0.14, 0.20]);
   gl.uniform2f(p.u.uClip, opts.near || 0.06, opts.far || 1200);
   this.drawQuad();
+
+  // 4) 계단 다듬기 — 마지막에 화면으로
+  if (useFxaa) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.w, this.h);
+    const f = this.fxaaProg;
+    gl.useProgram(f);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.ldr.tex);
+    gl.uniform1i(f.u.uTex, 0);
+    gl.uniform2f(f.u.uPix, 1 / this.w, 1 / this.h);
+    this.drawQuad();
+  }
 
   gl.activeTexture(gl.TEXTURE0);
   gl.enable(gl.DEPTH_TEST);
@@ -11865,7 +11941,10 @@ function buildCloudMesh(seed) {
       if (!at(x, z + 1)) quad([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], 0.72);
     }
   }
-  return { verts: new Float32Array(v), idx: new Uint32Array(idx), span: N * C };
+  // 격자도 함께 넘긴다 — 땅에 지는 구름 그늘이 하늘의 구름과 자리가 맞으려면
+  // 그리는 쪽과 그늘 쪽이 같은 격자를 봐야 한다.
+  return { verts: new Float32Array(v), idx: new Uint32Array(idx), span: N * C,
+           grid: g, tiles: N, cell: C, y: CLOUD_Y };
 }
 
 // ── 날씨 ──────────────────────────────────────────────────────────────
@@ -20910,7 +20989,31 @@ Renderer.prototype.setClouds = function (mesh) {
     type = gl.UNSIGNED_SHORT;
   }
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.STATIC_DRAW);
-  this.cloud = { vbo: vbo, ibo: ibo, count: idxArr.length, type: type, span: mesh.span };
+  this.cloud = { vbo: vbo, ibo: ibo, count: idxArr.length, type: type, span: mesh.span,
+                 y: mesh.y, tiles: mesh.tiles, cell: mesh.cell };
+  // 구름 격자를 작은 텍스처로 — 땅에 그늘을 드리울 때 셰이더가 읽는다.
+  // 선형 보간과 반복 감싸기를 켜 두면 가장자리가 부드럽고 끝없이 이어진다.
+  if (mesh.grid) {
+    if (this.cloudTex) gl.deleteTexture(this.cloudTex);
+    const N = mesh.tiles;
+    const px = new Uint8Array(N * N);
+    for (let i = 0; i < px.length; i++) px[i] = mesh.grid[i] ? 255 : 0;
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    if (this.gl2) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, N, N, 0, gl.RED, gl.UNSIGNED_BYTE, px);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, N, N, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, px);
+    }
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    this.cloudTex = t;
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
 };
 
 // 구름 판을 플레이어 주변 3×3으로 이어 붙여 끝없이 보이게 한다.
@@ -21549,6 +21652,25 @@ Renderer.prototype.setupPBR = function (p, opts) {
   gl.uniform3fv(p.u.uSkyDn, opts.pbrSkyDn || opts.skyBottom);
   gl.uniform3fv(p.u.uCamPos, this.eyePos || [0, 0, 0]);
   gl.uniform2f(p.u.uPix, 1 / Math.max(1, this.canvas.width), 1 / Math.max(1, this.canvas.height));
+
+  // 구름 그늘 — 해가 낮게 깔리면 그늘이 한없이 길어지므로 살살 접는다
+  const c = this.cloud;
+  const sunUp = opts.sunDir ? opts.sunDir[1] : 0;
+  const amt = (c && this.cloudTex && lv >= 2 && sunUp > 0.10)
+    ? (opts.cloudShadow === undefined ? 0.55 : opts.cloudShadow) *
+      Math.min(1, (sunUp - 0.10) * 5) * (opts.cloudAlpha === undefined ? 1 : opts.cloudAlpha)
+    : 0;
+  gl.uniform1f(p.u.uCloudAmt, amt);
+  this._lastCloudAmt = amt;      // 검사용
+  this._lastSunDir = opts.sunDir;
+  if (amt > 0) {
+    gl.uniform1f(p.u.uCloudDrift, opts.cloudDrift || 0);
+    gl.uniform1f(p.u.uCloudY, c.y || 124);
+    gl.uniform1f(p.u.uCloudSpan, c.span || 560);
+    gl.uniform1i(p.u.uCloudTex, 5);
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_2D, this.cloudTex);
+  }
   gl.activeTexture(gl.TEXTURE0);
 };
 

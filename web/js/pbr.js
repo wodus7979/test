@@ -74,6 +74,11 @@ const TERRAIN2_FS = [
   'uniform vec3 uSkyDn;',
   'uniform vec3 uCamPos;',
   'uniform vec2 uPix;',
+  'uniform sampler2D uCloudTex;',   // 하늘에 뜬 구름 격자 (40×40)
+  'uniform float uCloudAmt;',       // 0 이면 구름 그늘 없음
+  'uniform float uCloudDrift;',     // 구름이 흘러간 거리 (블록)
+  'uniform float uCloudY;',         // 구름이 뜬 높이
+  'uniform float uCloudSpan;',      // 구름 격자 한 판의 크기 (블록)
   'varying vec2 vUV;',
   'varying vec3 vLight;',
   'varying float vDist;',
@@ -114,6 +119,18 @@ const TERRAIN2_FS = [
   '  vec3 b = dp2p * du1.y + dp1p * du2.y;',
   '  float inv = inversesqrt(max(dot(t, t), dot(b, b)) + 1e-12);',
   '  return mat3(t * inv, b * inv, n);',
+  '}',
+  // 머리 위 구름이 드리우는 그늘. 해 쪽으로 구름 높이까지 뻗어 올라가
+  // 그 자리의 구름을 본다 — 실제로 하늘에 떠 있는 구름과 자리가 맞는다.
+  'float cloudLight(vec3 p) {',
+  '  if (uCloudAmt < 0.01 || uSunDir.y < 0.06) return 1.0;',
+  '  float t = (uCloudY - p.y) / max(uSunDir.y, 0.06);',
+  '  if (t < 0.0) return 1.0;',                      // 구름보다 높이 있으면 그늘 없음
+  '  vec2 q = p.xz + uSunDir.xz * t;',
+  '  q.x -= uCloudDrift;',
+  '  vec2 uv = q / max(uCloudSpan, 1.0);',
+  '  float c = texture2D(uCloudTex, uv).r;',
+  '  return 1.0 - uCloudAmt * c;',
   '}',
   'float shadowAt(vec3 p, float nl) {',
   '  vec4 lp = uLightVP * vec4(p, 1.0);',
@@ -175,7 +192,7 @@ const TERRAIN2_FS = [
   '    float a = rough * rough;',
   '    vec3 spec = F_Schlick(f0, max(dot(v, h), 0.0)) * D_GGX(max(dot(n, h), 0.0), a)',
   '              * V_Smith(nv, max(nl, 1e-4), a);',
-  '    col = (diffCol / PI + spec) * uSunCol * nl * sh * open * uDaylight * sunUp;',
+  '    col = (diffCol / PI + spec) * uSunCol * nl * sh * open * uDaylight * sunUp * cloudLight(vWorld);',
   // 하늘빛 — 위는 하늘, 아래는 땅에서 튄 빛. 하늘 그림 색을 그대로 쓰면 세상이 새파래진다.
   '    vec3 amb = mix(uAmbDn, uAmbUp, n.y * 0.5 + 0.5);',
   '    col += diffCol * amb * ao * max(skyVis, 0.05);',

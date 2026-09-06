@@ -106,7 +106,31 @@ Renderer.prototype.setClouds = function (mesh) {
     type = gl.UNSIGNED_SHORT;
   }
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.STATIC_DRAW);
-  this.cloud = { vbo: vbo, ibo: ibo, count: idxArr.length, type: type, span: mesh.span };
+  this.cloud = { vbo: vbo, ibo: ibo, count: idxArr.length, type: type, span: mesh.span,
+                 y: mesh.y, tiles: mesh.tiles, cell: mesh.cell };
+  // 구름 격자를 작은 텍스처로 — 땅에 그늘을 드리울 때 셰이더가 읽는다.
+  // 선형 보간과 반복 감싸기를 켜 두면 가장자리가 부드럽고 끝없이 이어진다.
+  if (mesh.grid) {
+    if (this.cloudTex) gl.deleteTexture(this.cloudTex);
+    const N = mesh.tiles;
+    const px = new Uint8Array(N * N);
+    for (let i = 0; i < px.length; i++) px[i] = mesh.grid[i] ? 255 : 0;
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    if (this.gl2) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, N, N, 0, gl.RED, gl.UNSIGNED_BYTE, px);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, N, N, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, px);
+    }
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    this.cloudTex = t;
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
 };
 
 // 구름 판을 플레이어 주변 3×3으로 이어 붙여 끝없이 보이게 한다.
@@ -745,6 +769,25 @@ Renderer.prototype.setupPBR = function (p, opts) {
   gl.uniform3fv(p.u.uSkyDn, opts.pbrSkyDn || opts.skyBottom);
   gl.uniform3fv(p.u.uCamPos, this.eyePos || [0, 0, 0]);
   gl.uniform2f(p.u.uPix, 1 / Math.max(1, this.canvas.width), 1 / Math.max(1, this.canvas.height));
+
+  // 구름 그늘 — 해가 낮게 깔리면 그늘이 한없이 길어지므로 살살 접는다
+  const c = this.cloud;
+  const sunUp = opts.sunDir ? opts.sunDir[1] : 0;
+  const amt = (c && this.cloudTex && lv >= 2 && sunUp > 0.10)
+    ? (opts.cloudShadow === undefined ? 0.55 : opts.cloudShadow) *
+      Math.min(1, (sunUp - 0.10) * 5) * (opts.cloudAlpha === undefined ? 1 : opts.cloudAlpha)
+    : 0;
+  gl.uniform1f(p.u.uCloudAmt, amt);
+  this._lastCloudAmt = amt;      // 검사용
+  this._lastSunDir = opts.sunDir;
+  if (amt > 0) {
+    gl.uniform1f(p.u.uCloudDrift, opts.cloudDrift || 0);
+    gl.uniform1f(p.u.uCloudY, c.y || 124);
+    gl.uniform1f(p.u.uCloudSpan, c.span || 560);
+    gl.uniform1i(p.u.uCloudTex, 5);
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_2D, this.cloudTex);
+  }
   gl.activeTexture(gl.TEXTURE0);
 };
 

@@ -77,7 +77,10 @@ function buildCloudMesh(seed) {
       if (!at(x, z + 1)) quad([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], 0.72);
     }
   }
-  return { verts: new Float32Array(v), idx: new Uint32Array(idx), span: N * C };
+  // 격자도 함께 넘긴다 — 땅에 지는 구름 그늘이 하늘의 구름과 자리가 맞으려면
+  // 그리는 쪽과 그늘 쪽이 같은 격자를 봐야 한다.
+  return { verts: new Float32Array(v), idx: new Uint32Array(idx), span: N * C,
+           grid: g, tiles: N, cell: C, y: CLOUD_Y };
 }
 
 // ── 날씨 ──────────────────────────────────────────────────────────────

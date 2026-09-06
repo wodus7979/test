@@ -139,6 +139,44 @@ const COMPOSITE_FS = [
   '}'
 ].join('\n');
 
+// 계단 다듬기(FXAA) — 톤 매핑까지 끝난 그림에서 밝기 차가 큰 가장자리를
+// 찾아 그 방향으로만 살짝 문지른다. 화면 한 장만 더 읽으므로 값이 싸고,
+// 도시처럼 곧은 선이 많은 그림에서 계단이 눈에 띄게 줄어든다.
+const FXAA_FS = [
+  'precision highp float;',
+  'uniform sampler2D uTex;',
+  'uniform vec2 uPix;',            // 1/폭, 1/높이
+  'varying vec2 vUV;',
+  'float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }',
+  'void main() {',
+  '  vec3 mC = texture2D(uTex, vUV).rgb;',
+  '  float lM  = luma(mC);',
+  '  float lNW = luma(texture2D(uTex, vUV + vec2(-uPix.x, -uPix.y)).rgb);',
+  '  float lNE = luma(texture2D(uTex, vUV + vec2( uPix.x, -uPix.y)).rgb);',
+  '  float lSW = luma(texture2D(uTex, vUV + vec2(-uPix.x,  uPix.y)).rgb);',
+  '  float lSE = luma(texture2D(uTex, vUV + vec2( uPix.x,  uPix.y)).rgb);',
+  '  float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));',
+  '  float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));',
+  // 밋밋한 자리는 건드리지 않는다 (텍스처 결이 뭉개지지 않게)
+  '  float range = lMax - lMin;',
+  '  if (range < max(0.028, lMax * 0.125)) { gl_FragColor = vec4(mC, 1.0); return; }',
+  // 가장자리가 가로로 누웠나 세로로 섰나
+  '  vec2 dir;',
+  '  dir.x = -((lNW + lNE) - (lSW + lSE));',
+  '  dir.y =  ((lNW + lSW) - (lNE + lSE));',
+  '  float red = max((lNW + lNE + lSW + lSE) * 0.03125, 0.0078);',
+  '  float scale = 1.0 / (min(abs(dir.x), abs(dir.y)) + red);',
+  '  dir = clamp(dir * scale, vec2(-8.0), vec2(8.0)) * uPix;',
+  // 가까운 두 점과 먼 두 점을 섞는다. 먼 쪽이 색을 벗어나면 가까운 쪽만 쓴다.
+  '  vec3 a = 0.5 * (texture2D(uTex, vUV + dir * (1.0 / 3.0 - 0.5)).rgb +',
+  '                  texture2D(uTex, vUV + dir * (2.0 / 3.0 - 0.5)).rgb);',
+  '  vec3 b = a * 0.5 + 0.25 * (texture2D(uTex, vUV - dir * 0.5).rgb +',
+  '                             texture2D(uTex, vUV + dir * 0.5).rgb);',
+  '  float lB = luma(b);',
+  '  gl_FragColor = vec4((lB < lMin || lB > lMax) ? a : b, 1.0);',
+  '}'
+].join('\n');
+
 // ── 프레임버퍼 ────────────────────────────────────────────────────────
 function makeFBO(gl, w, h, withDepth) {
   const tex = gl.createTexture();
@@ -211,6 +249,7 @@ function PostFX(gl, gl2, hdr) {
     this.blurProg = createProgram(gl, POST_VS, BLUR_FS, ['aPos']);
     this.compProg = createProgram(gl, POST_VS, COMPOSITE_FS, ['aPos']);
     if (this.gl2) this.ssaoProg = createProgram(gl, POST_VS, SSAO_FS, ['aPos']);
+    this.fxaaProg = createProgram(gl, POST_VS, FXAA_FS, ['aPos']);
     this.quad = makeBuffer(gl, gl.ARRAY_BUFFER,
       new Float32Array([-1, -1, 3, -1, -1, 3]));
     this.ok = true;
@@ -219,6 +258,7 @@ function PostFX(gl, gl2, hdr) {
     this.ok = false;
   }
   this.scene = null; this.half = null; this.blurA = null; this.blurB = null;
+  this.ldr = null;
 }
 
 PostFX.prototype.setLevel = function (n) {
@@ -234,6 +274,7 @@ PostFX.prototype.release = function () {
   freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
   if (this.ao) { freeTarget(gl, this.ao); this.ao = null; }
   if (this.aoBlur) { freeTarget(gl, this.aoBlur); this.aoBlur = null; }
+  freeFBO(gl, this.ldr); this.ldr = null;
   this.scene = this.half = this.blurA = this.blurB = null;
   this.color = this.normal = this.depthTex = this.sceneFB = null;
   this.w = this.h = 0;
@@ -284,6 +325,10 @@ PostFX.prototype.ensure = function (w, h) {
       freeFBO(gl, this.half); freeFBO(gl, this.blurA); freeFBO(gl, this.blurB);
       this.half = this.blurA = this.blurB = null;
     }
+  }
+  // 계단 다듬기용 — 합성한 그림을 여기 담았다가 문질러 화면에 낸다
+  if (this.level >= 2 && this.fxaaProg) {
+    this.ldr = makeFBO(gl, w, h, false);
   }
   this.w = w; this.h = h;
   return true;
@@ -367,8 +412,9 @@ PostFX.prototype.end = function (opts) {
     }
   }
 
-  // 3) 합성해서 화면으로
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  // 3) 합성 — 계단을 다듬을 참이면 한 번 텍스처에 받아 둔다
+  const useFxaa = !!(this.ldr && this.fxaaProg && lvl >= 2 && opts.fxaa !== false);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, useFxaa ? this.ldr.fb : null);
   gl.viewport(0, 0, this.w, this.h);
   const p = this.compProg;
   gl.useProgram(p);
@@ -403,6 +449,19 @@ PostFX.prototype.end = function (opts) {
   gl.uniform3fv(p.u.uInkColor, opts.inkColor || [0.13, 0.14, 0.20]);
   gl.uniform2f(p.u.uClip, opts.near || 0.06, opts.far || 1200);
   this.drawQuad();
+
+  // 4) 계단 다듬기 — 마지막에 화면으로
+  if (useFxaa) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.w, this.h);
+    const f = this.fxaaProg;
+    gl.useProgram(f);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.ldr.tex);
+    gl.uniform1i(f.u.uTex, 0);
+    gl.uniform2f(f.u.uPix, 1 / this.w, 1 / this.h);
+    this.drawQuad();
+  }
 
   gl.activeTexture(gl.TEXTURE0);
   gl.enable(gl.DEPTH_TEST);
