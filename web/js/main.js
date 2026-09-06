@@ -544,8 +544,17 @@ Game.prototype.syncModeButton = function () {
   const on = !!this.player.creative;
   el.classList.toggle('on', on);
   el.textContent = on ? '생존' : '창작';
+  this.syncFlyButton();
+};
+
+// 비행 단추의 켜짐·흐림 표시. 슈트를 입으면 언제나 쓸 수 있다.
+Game.prototype.syncFlyButton = function () {
   const fly = document.getElementById('btn-fly');
-  if (fly) fly.classList.toggle('dim', !on);
+  if (!fly) return;
+  const p = this.player;
+  const usable = !!(p.creative || p.suit);
+  fly.classList.toggle('dim', !usable);
+  fly.classList.toggle('on', !!(p.suit ? p.suit.hold : p.flying));
 };
 
 Game.prototype.toggleWarp = function () {
@@ -1302,10 +1311,42 @@ Game.prototype.bindTouch = function () {
     if (self.ui.open) self.ui.closeScreen();
     else self.ui.openScreen('inventory');
   });
+  // 비행 단추 — 무엇을 입고 있느냐에 따라 뜻이 달라진다.
+  //  · 강철 슈트: 손발 분사를 켠 채로 둔다 (폰에서 점프를 계속 누르고 있을 수
+  //    없어서, 켜 두고 조이스틱만 밀면 엎드려 날아간다)
+  //  · 창작 모드: 예전처럼 나는 상태를 켜고 끈다
   btn('btn-fly', function () {
-    if (self.player.creative) self.player.flying = !self.player.flying;
-    else self.ui.toast('창작 모드에서만 날 수 있습니다 — 창작 단추를 누르세요');
+    const p = self.player;
+    if (p.suit) {
+      p.suit.hold = !p.suit.hold;
+      self.syncFlyButton();
+      self.ui.toast(p.suit.hold
+        ? '분사 켜짐 — 조이스틱을 앞으로 밀면 엎드려 날아갑니다'
+        : '분사 껐습니다');
+      return;
+    }
+    if (p.creative) { p.flying = !p.flying; self.syncFlyButton(); }
+    else self.ui.toast('창작 모드에서만 날 수 있습니다 — 창작 단추를 누르세요 (아이언맨 슈트를 입어도 납니다)');
   });
+  // 광선 단추 — 슈트를 입었을 때만 보인다. 누르고 있으면 계속 나간다.
+  const beamBtn = document.getElementById('btn-beam');
+  if (beamBtn) {
+    const on = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      self._beamHold = true;
+      if (self.suitBeam) self.suitBeam();
+    };
+    const off = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      self._beamHold = false;
+    };
+    beamBtn.addEventListener('touchstart', on, { passive: false });
+    beamBtn.addEventListener('touchend', off, { passive: false });
+    beamBtn.addEventListener('touchcancel', off, { passive: false });
+    beamBtn.addEventListener('mousedown', on);
+    beamBtn.addEventListener('mouseup', off);
+    beamBtn.addEventListener('mouseleave', off);
+  }
   // 창작/생존 전환 — 스마트폰에는 G 키가 없어서 단추로 넣는다
   btn('btn-mode', function () { self.toggleCreative(); });
   // 마이크는 눌러야 하므로 click 으로 단다 (PC 에서도 눌린다)

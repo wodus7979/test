@@ -156,14 +156,14 @@ const IM_PIVOT = 0.85;                // 허리께를 축으로 눕는다
 const IM_LEAN_RATE = 5.5;             // 자세가 바뀌는 빠르기 (약 0.2초)
 
 // 지금 얼마나 눕고 싶은가 (0 = 서 있기, 1 = 완전히 엎드리기)
-function imLeanWant(p, input) {
+function imLeanWant(p, forward, jump) {
   const s = p.suit;
   if (!s) return 0;
   if (!s.flying && p.onGround) return 0;
   const t = Math.min(1, Math.hypot(p.vx, p.vz) / 20);
   if (!s.flying) return t * 0.35;                       // 그냥 떨어지는 중
-  if (!input || !input.forward) return t * 0.45;        // 제자리 비행 — 거의 서 있다
-  if (input.jump) return 1;                             // 스페이스 + 앞으로 = 엎드리기
+  if (!forward) return t * 0.45;                        // 제자리 비행 — 거의 서 있다
+  if (jump) return 1;                                   // 스페이스 + 앞으로 = 엎드리기
   return Math.min(1, 0.25 + t);
 }
 
@@ -291,7 +291,7 @@ Game.prototype.suitUnlock = function () {
 Game.prototype.suitOn = function (quiet) {
   const p = this.player;
   if (p.suit) return;
-  p.suit = { fuel: 1, boost: 0, fired: 0, prone: 0, aim: 0 };
+  p.suit = { fuel: 1, boost: 0, fired: 0, prone: 0, aim: 0, hold: false };
   this.suitUnlock();             // 다음부터는 어디서든 부를 수 있다
   p.flying = false;              // 슈트는 제 방식으로 난다
   this.view3rd = true;           // 입은 모습이 보이게 3인칭으로
@@ -332,16 +332,18 @@ Player.prototype.suitFly = function (dt, input) {
   const cos = Math.cos(this.yaw), sin = Math.sin(this.yaw);
   const f = (input.forward ? 1 : 0) - (input.back ? 1 : 0);
   const r = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  // 폰에서는 점프를 계속 누르고 있을 수 없다. 비행 단추로 켜 두면 누른 셈 친다.
+  const jump = !!(input.jump || s.hold);
 
   // 서 있기 ↔ 엎드리기를 부드럽게 오간다 (조작에 따라 곧바로 반응한다)
-  const want = imLeanWant(this, input);
+  const want = imLeanWant(this, input.forward, jump);
   if (s.prone === undefined) s.prone = 0;
   s.prone += (want - s.prone) * Math.min(1, dt * IM_LEAN_RATE);
   // 겨눈 팔은 잠시 뒤 내려온다
   if (s.aim > 0) s.aim = Math.max(0, s.aim - dt / IM_AIM_HOLD);
 
   // 스페이스를 누르면 손발에서 밀어 올린다. 오래 누르면 더 세진다.
-  if (input.jump) {
+  if (jump) {
     s.boost = Math.min(1, s.boost + dt * 1.6);
     this.vy += (IM_HOVER + IM_FLY_ACC * s.boost) * dt;
     s.flying = true;
@@ -350,7 +352,7 @@ Player.prototype.suitFly = function (dt, input) {
     if (input.sneak) this.vy -= IM_FLY_ACC * 0.6 * dt;
   }
   // 땅에 닿으면 다시 걷는 상태로 돌아온다
-  if (this.onGround && !input.jump) s.flying = false;
+  if (this.onGround && !jump) s.flying = false;
 
   if (s.flying || !this.onGround) {
     // 보는 쪽으로 민다. 위아래로도 보는 각도만큼 기운다.
@@ -525,7 +527,18 @@ Game.prototype.updateSuit = function (dt) {
   }
   if (this._imCool > 0) this._imCool -= dt;
 
-  if (!p.suit) return;
+  // 폰 단추 — 슈트를 입었을 때만 보인다
+  const bb = document.getElementById('btn-beam');
+  if (bb) {
+    bb.style.display = p.suit ? 'block' : 'none';
+    bb.classList.toggle('on', !!(p.suit && p.suit.aim > 0.3));
+  }
+  if (this.syncFlyButton) this.syncFlyButton();
+
+  if (!p.suit) { this._beamHold = false; return; }
+
+  // 광선 단추를 누르고 있으면 쉬는 틈마다 계속 나간다
+  if (this._beamHold) this.suitBeam();
 
   // 손바닥과 발바닥에서 뿜는 작은 불꽃 — 그림과 같은 자세 식을 쓴다
   if (this.fx && (p.suit.flying || p.suit.boost > 0.05)) {
