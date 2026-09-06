@@ -47,6 +47,14 @@
       this.bumps = new Map();
       // 배경 장식 캐시
       this._decor = this._makeDecor();
+      this._grads = new Map();
+    }
+
+    /* 매 프레임 다시 만들지 않도록 그라디언트를 캐시한다 */
+    grad(key, make) {
+      let g = this._grads.get(key);
+      if (!g) { g = make(); this._grads.set(key, g); }
+      return g;
     }
 
     /* ── 타일 조회 ─────────────────────────────────── */
@@ -118,10 +126,13 @@
       const th = this.theme;
 
       // 하늘
-      const sky = ctx.createLinearGradient(0, 0, 0, H);
-      if (th === 'forest') { sky.addColorStop(0, '#4aa8e0'); sky.addColorStop(0.55, '#8fd3f4'); sky.addColorStop(1, '#d9f2ff'); }
-      else if (th === 'city') { sky.addColorStop(0, '#2e5f9e'); sky.addColorStop(0.5, '#7fb6e8'); sky.addColorStop(1, '#cfe6f7'); }
-      else { sky.addColorStop(0, '#2b1c53'); sky.addColorStop(0.4, '#8a3f7a'); sky.addColorStop(0.72, '#e8734a'); sky.addColorStop(1, '#ffc46b'); }
+      const sky = this.grad('sky', () => {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        if (th === 'forest') { g.addColorStop(0, '#4aa8e0'); g.addColorStop(0.55, '#8fd3f4'); g.addColorStop(1, '#d9f2ff'); }
+        else if (th === 'city') { g.addColorStop(0, '#2e5f9e'); g.addColorStop(0.5, '#7fb6e8'); g.addColorStop(1, '#cfe6f7'); }
+        else { g.addColorStop(0, '#2b1c53'); g.addColorStop(0.4, '#8a3f7a'); g.addColorStop(0.72, '#e8734a'); g.addColorStop(1, '#ffc46b'); }
+        return g;
+      });
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
 
@@ -238,11 +249,16 @@
           ctx.fillRect(x + 7 + ((c * 7) % 9), y + 12 + ((r * 5) % 10), 6, 5);
           ctx.fillRect(x + 21 + ((c * 3) % 6), y + 22 - ((r * 3) % 8), 5, 4);
           if (openAbove) {
-            const g = ctx.createLinearGradient(0, y, 0, y + 12);
-            if (this.theme === 'sunset') { g.addColorStop(0, '#a9713f'); g.addColorStop(1, '#7d5030'); }
-            else { g.addColorStop(0, '#6fd15f'); g.addColorStop(1, '#3f9c37'); }
+            const g = this.grad('grass', () => {
+              const gg = ctx.createLinearGradient(0, 0, 0, 12);
+              if (this.theme === 'sunset') { gg.addColorStop(0, '#a9713f'); gg.addColorStop(1, '#7d5030'); }
+              else { gg.addColorStop(0, '#6fd15f'); gg.addColorStop(1, '#3f9c37'); }
+              return gg;
+            });
+            ctx.save(); ctx.translate(x, y);
             ctx.fillStyle = g;
-            ctx.fillRect(x, y, T, 11);
+            ctx.fillRect(0, 0, T, 11);
+            ctx.restore();
             ctx.fillStyle = this.theme === 'sunset' ? '#c08a52' : '#7ade63';
             for (let i = 0; i < 4; i++) ctx.fillRect(x + 2 + i * 9, y - 3 + ((c + i) % 3), 6, 5);
           }
@@ -277,9 +293,14 @@
         }
         case '?': {
           const pulse = 0.5 + Math.sin(tick * 0.12 + c) * 0.5;
-          const g = ctx.createLinearGradient(0, y, 0, y + T);
-          g.addColorStop(0, '#ffd75e'); g.addColorStop(1, '#e79b12');
-          ctx.fillStyle = g; U.roundRect(ctx, x + 1, y + 1, T - 2, T - 2, 6); ctx.fill();
+          const g = this.grad('box', () => {
+            const gg = ctx.createLinearGradient(0, 0, 0, T);
+            gg.addColorStop(0, '#ffd75e'); gg.addColorStop(1, '#e79b12');
+            return gg;
+          });
+          ctx.save(); ctx.translate(x, y);
+          ctx.fillStyle = g; U.roundRect(ctx, 1, 1, T - 2, T - 2, 6); ctx.fill();
+          ctx.restore();
           ctx.strokeStyle = 'rgba(120,70,0,.75)'; ctx.lineWidth = 2; ctx.stroke();
           ctx.fillStyle = `rgba(255,255,255,${0.25 + pulse * 0.45})`;
           ctx.font = 'bold 22px system-ui, sans-serif';

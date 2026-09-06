@@ -71,7 +71,14 @@
       this.fadeIn = 0;
       this._titleWorld = null;
       this.resize();
-      global.addEventListener('resize', () => this.resize());
+      const onResize = () => this.resize();
+      global.addEventListener('resize', onResize);
+      global.addEventListener('orientationchange', () => setTimeout(onResize, 260));
+      if (global.visualViewport) global.visualViewport.addEventListener('resize', onResize);
+      // 화면을 벗어나면(전화·알림 등) 자동 일시정지
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && this.state === 'play') { this.state = 'pause'; KK.audio.stopMusic(); }
+      });
     }
 
     /* ── 저장 ────────────────────────────────────── */
@@ -95,10 +102,18 @@
     }
 
     resize() {
-      const pad = 34;
-      const availW = global.innerWidth - 20;
-      const availH = global.innerHeight - pad;
-      const scale = Math.min(availW / KK.W, availH / KK.H, 1.6);
+      const touch = KK.isTouch;
+      // #stage 의 안쪽 크기를 쓰면 노치·홈 인디케이터 안전영역이 자동 반영된다
+      const stage = document.getElementById('stage');
+      let availW = global.innerWidth, availH = global.innerHeight;
+      if (stage) {
+        const cs = getComputedStyle(stage);
+        availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      }
+      availW -= touch ? 0 : 20;
+      availH -= touch ? 0 : 42;
+      const scale = Math.min(availW / KK.W, availH / KK.H, touch ? 6 : 1.6);
       this.canvas.style.width = Math.floor(KK.W * scale) + 'px';
       this.canvas.style.height = Math.floor(KK.H * scale) + 'px';
     }
@@ -824,7 +839,7 @@
       ctx.fillStyle = 'rgba(4,7,15,.72)'; ctx.fillRect(0, 0, KK.W, KK.H);
       ctx.restore();
       text(ctx, '일시정지', KK.W / 2, 232, { size: 46, align: 'center', color: '#ffe27a' });
-      text(ctx, 'P / Enter : 계속하기', KK.W / 2, 292, { size: 18, align: 'center' });
+      text(ctx, KK.isTouch ? '아무 버튼이나 눌러서 계속하기' : 'P / Enter : 계속하기', KK.W / 2, 292, { size: 18, align: 'center' });
       text(ctx, 'R : 스테이지 처음부터', KK.W / 2, 324, { size: 18, align: 'center', color: 'rgba(255,255,255,.8)' });
       text(ctx, 'M : 음악 켜기/끄기', KK.W / 2, 356, { size: 18, align: 'center', color: 'rgba(255,255,255,.8)' });
     }

@@ -92,26 +92,95 @@
 
       global.addEventListener('blur', () => { ACTIONS.forEach(a => { this.down[a] = false; this._pending[a] = false; }); });
 
+      this._ensureViewport();
       this._initTouch();
+    },
+
+    // <head> 를 직접 쓸 수 없는 환경(아티팩트·iframe 임베드)에서도 확대를 막는다
+    _ensureViewport() {
+      try {
+        let m = document.querySelector('meta[name="viewport"]');
+        if (!m) { m = document.createElement('meta'); m.name = 'viewport'; document.head.appendChild(m); }
+        m.content = 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover';
+      } catch (e) {}
     },
 
     _initTouch() {
       const panel = document.getElementById('touch');
       if (!panel) return;
-      const isTouch = ('ontouchstart' in global) || navigator.maxTouchPoints > 0;
-      if (isTouch) panel.classList.remove('hidden');
 
-      panel.querySelectorAll('.tbtn').forEach(btn => {
-        const key = btn.dataset.key === 'aimUp' ? 'up' : btn.dataset.key;
-        const on = (e) => { e.preventDefault(); if (!this.down[key]) this._pending[key] = true; this.down[key] = true; if (!this.down.start) this._pending.start = true; this.down.start = true; };
-        const off = (e) => { e.preventDefault(); this.down[key] = false; this.down.start = false; };
-        btn.addEventListener('touchstart', on, { passive: false });
-        btn.addEventListener('touchend', off, { passive: false });
-        btn.addEventListener('touchcancel', off, { passive: false });
-        btn.addEventListener('mousedown', on);
-        btn.addEventListener('mouseup', off);
-        btn.addEventListener('mouseleave', off);
+      const isTouch = (global.matchMedia && global.matchMedia('(hover: none) and (pointer: coarse)').matches)
+                      || navigator.maxTouchPoints > 0
+                      || ('ontouchstart' in global);
+      KK.isTouch = isTouch;
+      if (!isTouch) return;
+
+      panel.hidden = false;
+      document.body.classList.add('touch');
+
+      const setKey = (btn, key, on) => {
+        if (on && !this.down[key]) this._pending[key] = true;
+        this.down[key] = on;
+        btn.classList.toggle('on', on);
+        // 메뉴에서는 어떤 버튼을 눌러도 "결정"으로 동작
+        if (on && key !== 'pause') this._pending.start = true;
+      };
+
+      const usePointer = !!global.PointerEvent;
+      panel.querySelectorAll('.tbtn[data-key]').forEach(btn => {
+        const key = btn.dataset.key;
+        const on = (e) => {
+          e.preventDefault();
+          // 포인터를 캡처해두면 손가락이 버튼 밖으로 미끄러져도 떼는 순간을 놓치지 않는다
+          if (usePointer) { try { btn.setPointerCapture(e.pointerId); } catch (_) {} }
+          setKey(btn, key, true);
+        };
+        const off = (e) => { e.preventDefault(); setKey(btn, key, false); };
+
+        if (usePointer) {
+          btn.addEventListener('pointerdown', on, { passive: false });
+          btn.addEventListener('pointerup', off, { passive: false });
+          btn.addEventListener('pointercancel', off, { passive: false });
+          btn.addEventListener('lostpointercapture', off, { passive: false });
+        } else {
+          btn.addEventListener('touchstart', on, { passive: false });
+          btn.addEventListener('touchend', off, { passive: false });
+          btn.addEventListener('touchcancel', off, { passive: false });
+        }
+        btn.addEventListener('contextmenu', e => e.preventDefault());
       });
+
+      // 전체화면 버튼 (지원하지 않는 브라우저에서는 숨김)
+      const fullBtn = document.getElementById('btn-full');
+      if (fullBtn) {
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (!req) fullBtn.hidden = true;
+        else {
+          const toggle = (e) => {
+            e.preventDefault();
+            const cur = document.fullscreenElement || document.webkitFullscreenElement;
+            if (cur) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+            else req.call(el);
+          };
+          fullBtn.addEventListener(usePointer ? 'pointerdown' : 'touchstart', toggle, { passive: false });
+        }
+      }
+
+      // 확대/스크롤 제스처 차단
+      document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+      document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+      document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+
+      // 세로 모드 안내
+      const rot = document.getElementById('rotate');
+      const checkOrientation = () => {
+        if (!rot) return;
+        rot.hidden = !(global.innerHeight > global.innerWidth);
+      };
+      global.addEventListener('resize', checkOrientation);
+      global.addEventListener('orientationchange', () => setTimeout(checkOrientation, 250));
+      checkOrientation();
     },
 
     // 매 프레임 끝에서 호출 → 엣지 계산

@@ -2,28 +2,46 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1220">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>꾹꾹이의 대모험 — Kkukkuki's Adventure</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div id="stage">
-    <canvas id="game" width="960" height="540"></canvas>
+    <div id="frame">
+      <canvas id="game" width="960" height="540"></canvas>
 
-    <!-- 모바일/태블릿 터치 컨트롤 -->
-    <div id="touch" class="hidden">
-      <div class="pad-left">
-        <button class="tbtn" data-key="left">◀</button>
-        <button class="tbtn" data-key="right">▶</button>
-      </div>
-      <div class="pad-right">
-        <button class="tbtn" data-key="aimUp">▲</button>
-        <button class="tbtn big" data-key="shoot">발사</button>
-        <button class="tbtn big" data-key="jump">점프</button>
+      <!-- 터치 컨트롤 (스마트폰·태블릿에서만 표시) -->
+      <div id="touch" hidden>
+        <div class="pad pad-left">
+          <button class="tbtn dir" data-key="left"  aria-label="왼쪽">◀</button>
+          <button class="tbtn dir" data-key="right" aria-label="오른쪽">▶</button>
+        </div>
+        <div class="pad pad-right">
+          <div class="col-sm">
+            <button class="tbtn sm" data-key="up"   aria-label="위 조준">▲</button>
+            <button class="tbtn sm" data-key="down" aria-label="내려가기">▼</button>
+          </div>
+          <button class="tbtn big shoot" data-key="shoot" aria-label="발사">발사</button>
+          <button class="tbtn big jump"  data-key="jump"  aria-label="점프">점프</button>
+        </div>
+        <div class="pad pad-sys">
+          <button class="tbtn tiny" data-key="pause" aria-label="일시정지">❚❚</button>
+          <button class="tbtn tiny" id="btn-full" aria-label="전체화면">⛶</button>
+        </div>
       </div>
     </div>
 
-    <div id="hint">방향키 이동 · Space 점프 · X 발사 · ↑ 위조준 · P 일시정지 · M 음악</div>
+    <p id="hint">방향키 이동 · Space 점프 · X 발사 · ↑ 위조준 · P 일시정지 · M 음악</p>
+    <div id="rotate" hidden>
+      <div class="rot-icon">📱</div>
+      <p><b>휴대폰을 가로로</b> 돌려주세요</p>
+      <small>가로 화면에서 훨씬 잘 보여요</small>
+    </div>
   </div>
 
   <script src="js/core.js"></script>
