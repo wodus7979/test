@@ -8,7 +8,7 @@ namespace SniperRidge
     public static class TerrainGenerator
     {
         public const float Size = 600f;        // 가로/세로 (m)
-        public const float MaxHeight = 120f;   // 최대 높이 (m)
+        public const float MaxHeight = 200f;   // 최대 높이 (m)
         const int HeightRes = 257;
         const int AlphaRes = 256;
 
@@ -32,10 +32,22 @@ namespace SniperRidge
             float enemyRidge = Gauss(wz - enemyCrest, 60f) * 60f
                              * (0.85f + 0.3f * Mathf.PerlinNoise(u * 2.5f + seed, 0.71f));
 
-            float rim = 45f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(275f, 300f, Mathf.Abs(wz)))
-                      + 35f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(240f, 300f, Mathf.Abs(wx)));
+            // 가장자리 산맥: 지평선을 가려 하늘 HDRI 의 지면이 보이지 않게 한다
+            float rimZ = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(262f, 300f, Mathf.Abs(wz)));
+            float rimX = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(225f, 300f, Mathf.Abs(wx)));
+            float rimNoise = 0.7f + 0.6f * Mathf.PerlinNoise(u * 6f + seed * 3f, v * 6f);
+            float rim = (110f * rimZ + 95f * rimX) * rimNoise;
 
-            return baseH + playerRidge + enemyRidge + rim;
+            // 능선/골짜기 세부 굴곡 (ridged noise): 경사면일수록 강하게
+            float ridged = 1f - Mathf.Abs(2f * Mathf.PerlinNoise(u * 18f + seed, v * 18f) - 1f);
+            float ridged2 = 1f - Mathf.Abs(2f * Mathf.PerlinNoise(u * 40f + seed * 2f, v * 40f) - 1f);
+            float slopeMask = Mathf.Clamp01((playerRidge + enemyRidge + rim) / 60f);
+            float detail = (4.5f * ridged * ridged + 1.5f * ridged2) * (0.3f + 0.7f * slopeMask)
+                         + 1.2f * Mathf.PerlinNoise(u * 60f, v * 60f + seed);
+            // 사수 위치 주변과 적 배치 사면은 굴곡을 줄여 사선이 막히지 않게 한다
+            detail *= (1f - 0.9f * Gauss(wz - PlayerRidgeZ, 45f)) * (1f - 0.75f * Gauss(wz - 212f, 30f));
+
+            return baseH + playerRidge + enemyRidge + rim + detail;
         }
 
         static float Gauss(float d, float sigma)
@@ -77,7 +89,8 @@ namespace SniperRidge
                     float nx = (x + 0.5f) / AlphaRes;
                     float steep = data.GetSteepness(nx, ny);
                     float h = data.GetInterpolatedHeight(nx, ny);
-                    float rockW = Mathf.InverseLerp(22f, 38f, steep) + 0.35f * Mathf.InverseLerp(0.62f, 0.8f, Mathf.PerlinNoise(nx * 9f + seed, ny * 9f));
+                    float rockW = Mathf.InverseLerp(20f, 34f, steep) + 0.35f * Mathf.InverseLerp(0.62f, 0.8f, Mathf.PerlinNoise(nx * 9f + seed, ny * 9f))
+                                + Mathf.InverseLerp(120f, 160f, h);   // 높은 산은 바위
                     rockW = Mathf.Clamp01(rockW);
                     float dirtW = (1f - rockW) * Mathf.InverseLerp(20f, 9f, h) * 0.8f;
                     float forestW = (1f - rockW - dirtW) * Mathf.InverseLerp(0.5f, 0.72f, Mathf.PerlinNoise(nx * 5f + seed * 2f, ny * 5f + 3f)) * 0.9f;
@@ -155,7 +168,7 @@ namespace SniperRidge
                     float nx = (x + 0.5f) / DetailRes;
                     float steep = data.GetSteepness(nx, ny);
                     float h = data.GetInterpolatedHeight(nx, ny);
-                    if (steep > 28f || h > 95f) continue;
+                    if (steep > 28f || h > 110f) continue;
                     float n = Mathf.PerlinNoise(nx * 40f, ny * 40f);
                     int density = Mathf.RoundToInt(Mathf.Lerp(1f, 7f, n) * Mathf.InverseLerp(28f, 15f, steep));
                     layer[y, x] = density;

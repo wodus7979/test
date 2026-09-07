@@ -30,7 +30,25 @@ namespace SniperRidge.EditorTools
             EnsureScene(false);
             EnsurePlayerSettings();
             EnsureAlwaysIncludedShaders();
+            EnsureLinearColorSpace();
             AutoSetupEnemyModel();
+        }
+
+        /// <summary>PBR 재질과 HDR 후처리가 제대로 보이도록 선형 색공간을 사용한다.</summary>
+        static void EnsureLinearColorSpace()
+        {
+            try
+            {
+                if (PlayerSettings.colorSpace != ColorSpace.Linear)
+                {
+                    PlayerSettings.colorSpace = ColorSpace.Linear;
+                    Debug.Log("[Sniper Ridge] 색공간을 Linear 로 변경했습니다.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning("[Sniper Ridge] 색공간 설정 실패: " + ex.Message);
+            }
         }
 
         /// <summary>Assets/EnemyModel 에 FBX 가 있고 프리팹이 아직 없으면 자동으로 만든다.</summary>
@@ -325,7 +343,7 @@ namespace SniperRidge.EditorTools
                 "Nature/Terrain/Standard", "Legacy Shaders/Diffuse",
                 "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
                 "Hidden/TerrainEngine/Details/WavingDoublePass",
-                "Skybox/Panoramic",
+                "Skybox/Panoramic", "Hidden/SniperRidge/Post",
             };
             try
             {
