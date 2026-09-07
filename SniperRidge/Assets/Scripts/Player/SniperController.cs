@@ -317,8 +317,8 @@ namespace SniperRidge
 
             Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
 
-            float pitch = gm.Sounds.UsingRecorded ? Random.Range(0.97f, 1.03f) : w.ShotPitch * Random.Range(0.96f, 1.04f);
-            gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, pitch);
+            float shotPitch = gm.Sounds.UsingRecorded ? Random.Range(0.97f, 1.03f) : w.ShotPitch * Random.Range(0.96f, 1.04f);
+            gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, shotPitch);
             StartCoroutine(MuzzleFlash());
             gm.OnPlayerShot();
         }
