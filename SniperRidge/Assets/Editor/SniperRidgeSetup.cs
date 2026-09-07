@@ -113,40 +113,50 @@ namespace SniperRidge.EditorTools
             GameObject modelAsset = null;
             AnimationClip idle = null, run = null, crouch = null, death = null;
             bool runIsRun = false;
+            var modelPaths = new System.Collections.Generic.List<string>();
             foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { ModelFolder }))
+                modelPaths.Add(AssetDatabase.GUIDToAssetPath(guid));
+
+            // 1차: 반복 재생이 필요한 클립(idle/run/walk/crouch)의 loopTime 을 켜고 재임포트
+            foreach (var path in modelPaths)
             {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
                 var importer = AssetImporter.GetAtPath(path) as ModelImporter;
+                if (importer == null) continue;
+                var clips = importer.clipAnimations.Length > 0 ? importer.clipAnimations : importer.defaultClipAnimations;
+                bool changed = false;
+                string f = System.IO.Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+                for (int i = 0; i < clips.Length; i++)
+                {
+                    string n = clips[i].name.ToLowerInvariant();
+                    bool loop = n.Contains("idle") || n.Contains("run") || n.Contains("walk") || n.Contains("crouch")
+                             || f.Contains("idle") || f.Contains("run") || f.Contains("walk") || f.Contains("crouch");
+                    if (loop && !clips[i].loopTime) { clips[i].loopTime = true; changed = true; }
+                }
+                if (changed)
+                {
+                    importer.clipAnimations = clips;
+                    importer.SaveAndReimport();
+                }
+            }
+
+            // 2차: 재임포트가 끝난 뒤 모델과 클립을 고른다
+            foreach (var path in modelPaths)
+            {
                 var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
                 if (go == null) continue;
-
-                bool hasSkin = go.GetComponentInChildren<SkinnedMeshRenderer>() != null;
-                if (hasSkin && modelAsset == null) modelAsset = go;
-
-                bool changed = false;
+                if (modelAsset == null && go.GetComponentInChildren<SkinnedMeshRenderer>() != null) modelAsset = go;
+                string f = System.IO.Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
                 foreach (var obj in AssetDatabase.LoadAllAssetRepresentationsAtPath(path))
                 {
                     var clip = obj as AnimationClip;
                     if (clip == null || clip.name.StartsWith("__preview__")) continue;
                     string n = clip.name.ToLowerInvariant();
-                    string f = System.IO.Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
-                    bool loop = false;
-                    if (idle == null && (n.Contains("idle") || f.Contains("idle")) && !n.Contains("crouch") && !f.Contains("crouch")) { idle = clip; loop = true; }
+                    if (idle == null && (n.Contains("idle") || f.Contains("idle")) && !n.Contains("crouch") && !f.Contains("crouch")) idle = clip;
                     else if ((run == null || (n.Contains("run") && !runIsRun)) && (n.Contains("run") || n.Contains("walk") || f.Contains("run") || f.Contains("walk")))
-                    { run = clip; runIsRun = n.Contains("run") || f.Contains("run"); loop = true; }
-                    else if (crouch == null && (n.Contains("crouch") || f.Contains("crouch"))) { crouch = clip; loop = true; }
-                    else if (death == null && (n.Contains("death") || n.Contains("dying") || f.Contains("death") || f.Contains("dying"))) { death = clip; }
-                    if (loop && importer != null)
-                    {
-                        var clips = importer.clipAnimations.Length > 0 ? importer.clipAnimations : importer.defaultClipAnimations;
-                        for (int i = 0; i < clips.Length; i++)
-                        {
-                            if (clips[i].name == clip.name && !clips[i].loopTime) { clips[i].loopTime = true; changed = true; }
-                        }
-                        if (changed) importer.clipAnimations = clips;
-                    }
+                    { run = clip; runIsRun = n.Contains("run") || f.Contains("run"); }
+                    else if (crouch == null && (n.Contains("crouch") || f.Contains("crouch"))) crouch = clip;
+                    else if (death == null && (n.Contains("death") || n.Contains("dying") || f.Contains("death") || f.Contains("dying"))) death = clip;
                 }
-                if (changed && importer != null) importer.SaveAndReimport();
             }
 
             if (modelAsset == null)
@@ -220,7 +230,8 @@ namespace SniperRidge.EditorTools
             }
 
             // 프리팹
-            System.IO.Directory.CreateDirectory("Assets/Resources/Enemies");
+            if (!AssetDatabase.IsValidFolder("Assets/Resources")) AssetDatabase.CreateFolder("Assets", "Resources");
+            if (!AssetDatabase.IsValidFolder("Assets/Resources/Enemies")) AssetDatabase.CreateFolder("Assets/Resources", "Enemies");
             var inst = (GameObject)PrefabUtility.InstantiatePrefab(modelAsset);
             var anim = inst.GetComponent<Animator>();
             if (anim == null) anim = inst.AddComponent<Animator>();

@@ -5,6 +5,9 @@ namespace SniperRidge.EditorTools
     /// <summary>*_normal 텍스처는 노멀맵으로, 지형/식생 텍스처는 반복 타일링으로 임포트한다.</summary>
     public class SniperRidgeAssetPostprocessor : AssetPostprocessor
     {
+        // 값을 올리면 관련 텍스처가 자동으로 다시 임포트된다.
+        public override uint GetVersion() => 1;
+
         void OnPreprocessTexture()
         {
             string path = assetPath.Replace('\\', '/');
