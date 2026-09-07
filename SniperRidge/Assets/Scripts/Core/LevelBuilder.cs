@@ -58,6 +58,7 @@ namespace SniperRidge
             gm.Wind = gmGo.AddComponent<WindSystem>();
 
             SetupLighting();
+            SetupAmbience(gm);
 
             var terrain = TerrainGenerator.Build(Seed);
             gm.Terrain = terrain;
@@ -95,7 +96,39 @@ namespace SniperRidge
             RenderSettings.fogEndDistance = 1300f;
             RenderSettings.fogColor = new Color(0.70f, 0.77f, 0.86f);
 
+            // 실사 하늘 (Resources/Sky 의 HDRI)
+            var hdr = ProceduralAssets.LoadTex("Sky/spruit_sunrise_1k");
+            var skyShader = Shader.Find("Skybox/Panoramic");
+            if (hdr != null && skyShader != null)
+            {
+                var sky = new Material(skyShader);
+                sky.SetTexture("_MainTex", hdr);
+                if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 1.15f);
+                if (sky.HasProperty("_Rotation")) sky.SetFloat("_Rotation", 200f);
+                RenderSettings.skybox = sky;
+                RenderSettings.ambientMode = AmbientMode.Skybox;
+                RenderSettings.ambientIntensity = 1.0f;
+                RenderSettings.fogColor = new Color(0.78f, 0.80f, 0.84f);
+                sunGo.transform.rotation = Quaternion.Euler(32f, 20f, 0f);
+                sun.color = new Color(1f, 0.9f, 0.75f);
+                sun.intensity = 1.3f;
+                DynamicGI.UpdateEnvironment();
+            }
+
             QualitySettings.shadowDistance = 90f;
+        }
+
+        static void SetupAmbience(GameManager gm)
+        {
+            if (gm.Sounds == null || gm.Sounds.Wind == null) return;
+            var go = new GameObject("Ambience");
+            var src = go.AddComponent<AudioSource>();
+            src.clip = gm.Sounds.Wind;
+            src.loop = true;
+            src.volume = 0.35f;
+            src.spatialBlend = 0f;
+            src.playOnAwake = false;
+            src.Play();
         }
 
         // ---------- 플레이어 ----------
@@ -135,7 +168,7 @@ namespace SniperRidge
             gm.Health = health;
 
             // 모래주머니 엄폐물 (눈높이보다 낮게)
-            var sandbag = ProceduralAssets.LitMaterial(new Color(0.55f, 0.48f, 0.32f), 0.05f);
+            var sandbag = ProceduralAssets.TexturedMaterial(new Color(0.75f, 0.68f, 0.5f), ProceduralAssets.LoadTex("Terrain/dirt_albedo"), ProceduralAssets.LoadTex("Terrain/dirt_normal"), 2f, 0.05f);
             for (int row = 0; row < 2; row++)
             {
                 for (int i = -1; i <= 1; i++)
@@ -184,7 +217,7 @@ namespace SniperRidge
             enemyBody = ProceduralAssets.LitMaterial(new Color(0.44f, 0.42f, 0.28f), 0.05f);
             enemySkin = ProceduralAssets.LitMaterial(new Color(0.78f, 0.62f, 0.48f), 0.1f);
             enemyGear = ProceduralAssets.LitMaterial(new Color(0.12f, 0.13f, 0.11f), 0.2f);
-            enemyRock = ProceduralAssets.LitMaterial(new Color(0.50f, 0.49f, 0.46f), 0.05f);
+            enemyRock = ProceduralAssets.TexturedMaterial(new Color(0.85f, 0.83f, 0.8f), ProceduralAssets.LoadTex("Terrain/rock_albedo"), ProceduralAssets.LoadTex("Terrain/rock_normal"), 0.6f, 0.05f);
         }
 
         static Transform EnemyRoot()
@@ -229,7 +262,7 @@ namespace SniperRidge
         {
             var rng = new System.Random(1234);
             var root = new GameObject("Decorations");
-            var rockMat = ProceduralAssets.LitMaterial(new Color(0.48f, 0.47f, 0.44f), 0.05f);
+            var rockMat = ProceduralAssets.TexturedMaterial(new Color(0.85f, 0.83f, 0.8f), ProceduralAssets.LoadTex("Terrain/rock_albedo"), ProceduralAssets.LoadTex("Terrain/rock_normal"), 0.6f, 0.05f);
 
             var enemyXZ = new List<Vector2>();
             patrolRoutes.Clear();

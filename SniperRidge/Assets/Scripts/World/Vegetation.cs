@@ -12,13 +12,18 @@ namespace SniperRidge
         static void EnsureMaterials()
         {
             if (trunk != null) return;
-            trunk = ProceduralAssets.LitMaterial(new Color(0.32f, 0.23f, 0.14f), 0.05f);
-            trunkDark = ProceduralAssets.LitMaterial(new Color(0.22f, 0.16f, 0.10f), 0.05f);
-            pineA = ProceduralAssets.LitMaterial(new Color(0.08f, 0.24f, 0.10f), 0.05f);
-            pineB = ProceduralAssets.LitMaterial(new Color(0.12f, 0.30f, 0.12f), 0.05f);
-            leafA = ProceduralAssets.LitMaterial(new Color(0.18f, 0.38f, 0.14f), 0.05f);
-            leafB = ProceduralAssets.LitMaterial(new Color(0.26f, 0.44f, 0.16f), 0.05f);
-            bushMat = ProceduralAssets.LitMaterial(new Color(0.14f, 0.30f, 0.11f), 0.05f);
+            var barkA = ProceduralAssets.LoadTex("Nature/bark_albedo");
+            var barkN = ProceduralAssets.LoadTex("Nature/bark_normal");
+            var leafT = ProceduralAssets.LoadTex("Nature/leaf_albedo");
+            var leafN = ProceduralAssets.LoadTex("Nature/leaf_normal");
+            bool tex = barkA != null;
+            trunk = ProceduralAssets.TexturedMaterial(tex ? new Color(0.95f, 0.9f, 0.85f) : new Color(0.32f, 0.23f, 0.14f), barkA, barkN, 1f, 0.05f);
+            trunkDark = ProceduralAssets.TexturedMaterial(tex ? new Color(0.7f, 0.65f, 0.6f) : new Color(0.22f, 0.16f, 0.10f), barkA, barkN, 1f, 0.05f);
+            pineA = ProceduralAssets.TexturedMaterial(tex ? new Color(0.55f, 0.65f, 0.5f) : new Color(0.08f, 0.24f, 0.10f), leafT, leafN, 2f, 0.05f);
+            pineB = ProceduralAssets.TexturedMaterial(tex ? new Color(0.7f, 0.8f, 0.6f) : new Color(0.12f, 0.30f, 0.12f), leafT, leafN, 2f, 0.05f);
+            leafA = ProceduralAssets.TexturedMaterial(tex ? new Color(0.9f, 1f, 0.8f) : new Color(0.18f, 0.38f, 0.14f), leafT, leafN, 2f, 0.05f);
+            leafB = ProceduralAssets.TexturedMaterial(tex ? new Color(1f, 1.05f, 0.85f) : new Color(0.26f, 0.44f, 0.16f), leafT, leafN, 2f, 0.05f);
+            bushMat = ProceduralAssets.TexturedMaterial(tex ? new Color(0.75f, 0.85f, 0.65f) : new Color(0.14f, 0.30f, 0.11f), leafT, leafN, 3f, 0.05f);
         }
 
         static GameObject Prim(PrimitiveType type, Transform parent, Vector3 pos, Vector3 scale, Quaternion rot, Material mat, bool collider)

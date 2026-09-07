@@ -270,6 +270,7 @@ namespace SniperRidge
                 {
                     Cursor.lockState = CursorLockMode.Locked;
                     Cursor.visible = false;
+                    fireTimer = 0.3f;   // 재잠금 클릭이 사격으로 이어지지 않도록
                 }
                 return;
             }
@@ -316,7 +317,8 @@ namespace SniperRidge
 
             Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
 
-            gm.PlaySound(gm.Sounds.Gunshot, w.ShotVolume, w.ShotPitch * Random.Range(0.96f, 1.04f));
+            float pitch = gm.Sounds.UsingRecorded ? Random.Range(0.97f, 1.03f) : w.ShotPitch * Random.Range(0.96f, 1.04f);
+            gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, pitch);
             StartCoroutine(MuzzleFlash());
             gm.OnPlayerShot();
         }
@@ -340,7 +342,7 @@ namespace SniperRidge
             if (Weapon == null || State != WeaponState.Ready || AmmoInMag >= Weapon.MagSize || Reserve <= 0) return;
             State = WeaponState.Reloading;
             stateTimer = Weapon.ReloadTime;
-            gm.PlaySound(gm.Sounds.Bolt, 0.5f, 0.8f);
+            gm.PlaySound(gm.Sounds.Reload, 0.7f, Weapon.ReloadTime > 3f ? 0.8f : 1f);
         }
     }
 }

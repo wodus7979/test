@@ -61,6 +61,27 @@ namespace SniperRidge
             return m;
         }
 
+        /// <summary>알베도/노멀 텍스처가 있는 재질. 텍스처가 null 이면 단색.</summary>
+        public static Material TexturedMaterial(Color tint, Texture2D albedo, Texture2D normal, float tiling, float smoothness = 0.1f)
+        {
+            var m = LitMaterial(tint, smoothness);
+            if (albedo != null)
+            {
+                m.mainTexture = albedo;
+                m.mainTextureScale = new Vector2(tiling, tiling);
+            }
+            if (normal != null && m.HasProperty("_BumpMap"))
+            {
+                m.SetTexture("_BumpMap", normal);
+                m.SetTextureScale("_BumpMap", new Vector2(tiling, tiling));
+                m.EnableKeyword("_NORMALMAP");
+            }
+            return m;
+        }
+
+        /// <summary>Resources 에서 텍스처 로드 (없으면 null).</summary>
+        public static Texture2D LoadTex(string path) => Resources.Load<Texture2D>(path);
+
         public static Material UnlitMaterial(Color color)
         {
             Shader shader = IsUrp ? Shader.Find("Universal Render Pipeline/Unlit") : Shader.Find("Unlit/Color");
@@ -280,21 +301,48 @@ namespace SniperRidge
         }
     }
 
+    /// <summary>
+    /// 효과음 모음. Assets/Resources/Audio 에 실제 녹음 파일이 있으면 그것을 쓰고, 없으면 합성음으로 대체한다.
+    /// </summary>
     public class SoundBank
     {
-        public AudioClip Gunshot, DistantShot, Crack, Bolt, HitTick, Click;
+        public AudioClip ShotSniper, ShotDmr, ShotRifle, ShotLmg, DistantShot, Crack, Bolt, Reload, HitTick, Click, Wind;
+        public bool UsingRecorded { get; private set; }
+
+        public AudioClip Shot(string weaponId)
+        {
+            switch (weaponId)
+            {
+                case "dmr": return ShotDmr;
+                case "rifle": return ShotRifle;
+                case "lmg": return ShotLmg;
+                default: return ShotSniper;
+            }
+        }
+
+        static AudioClip Load(string name) => Resources.Load<AudioClip>("Audio/" + name);
 
         public static SoundBank Create()
         {
-            return new SoundBank
-            {
-                Gunshot = ProceduralAssets.Gunshot(),
-                DistantShot = ProceduralAssets.DistantShot(),
-                Crack = ProceduralAssets.BulletCrack(),
-                Bolt = ProceduralAssets.Bolt(),
-                HitTick = ProceduralAssets.HitTick(),
-                Click = ProceduralAssets.EmptyClick(),
-            };
+            var b = new SoundBank();
+            b.ShotSniper = Load("shot_sniper");
+            b.UsingRecorded = b.ShotSniper != null;
+            AudioClip synthShot = null;
+            if (!b.UsingRecorded) synthShot = ProceduralAssets.Gunshot();
+
+            b.ShotSniper = b.ShotSniper ?? synthShot;
+            b.ShotDmr = Load("shot_dmr") ?? b.ShotSniper;
+            b.ShotRifle = Load("shot_rifle") ?? b.ShotSniper;
+            b.ShotLmg = Load("shot_lmg") ?? b.ShotSniper;
+            b.DistantShot = Load("shot_distant") ?? ProceduralAssets.DistantShot();
+            b.Crack = Load("crack") ?? ProceduralAssets.BulletCrack();
+            b.Bolt = Load("bolt") ?? ProceduralAssets.Bolt();
+            b.Reload = Load("reload") ?? b.Bolt;
+            b.HitTick = Load("hit") ?? ProceduralAssets.HitTick();
+            b.Click = Load("click") ?? ProceduralAssets.EmptyClick();
+            b.Wind = Load("wind");
+            if (b.UsingRecorded) Debug.Log("[Sniper Ridge] 녹음 효과음(Resources/Audio)을 사용합니다.");
+            return b;
         }
     }
 }

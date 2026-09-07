@@ -180,7 +180,7 @@ namespace SniperRidge
                     Bounds b = rends[0].bounds;
                     foreach (var r in rends) b.Encapsulate(r.bounds);
                     float h = b.size.y;
-                    if (h > 0.01f) inst.transform.localScale = Vector3.one * (1.85f / h);
+                    if (h > 0.01f) inst.transform.localScale = Vector3.one * (1.85f * soldier.scale / h);   // bounds 는 월드 크기이므로 루트 스케일 보정
                 }
                 foreach (var go in parts)
                 {
@@ -414,10 +414,23 @@ namespace SniperRidge
             }
             else
             {
-                rig.localPosition = Vector3.zero;
-                // 사용자 모델이 있으면 애니메이션으로 웅크리므로 스케일은 히트박스용으로만 살짝 줄인다
-                float factor = animator != null ? 0.75f : CrouchFactor;
-                rig.localScale = new Vector3(1f, 1f - (1f - factor) * cover, 1f);
+                if (animator != null && animParams != null && animParams.Contains("Crouch"))
+                {
+                    // 웅크리기 애니메이션이 있으면 히트박스만 살짝 줄인다
+                    rig.localPosition = Vector3.zero;
+                    rig.localScale = new Vector3(1f, 1f - 0.25f * cover, 1f);
+                }
+                else if (animator != null)
+                {
+                    // 웅크리기 클립이 없는 실사 모델: 찌그러뜨리는 대신 몸을 낮춘다 (땅에 가라앉힘)
+                    rig.localScale = Vector3.one;
+                    rig.localPosition = new Vector3(0f, -0.95f * cover, 0f);
+                }
+                else
+                {
+                    rig.localPosition = Vector3.zero;
+                    rig.localScale = new Vector3(1f, 1f - (1f - CrouchFactor) * cover, 1f);
+                }
             }
         }
 

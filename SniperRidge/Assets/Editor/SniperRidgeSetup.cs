@@ -30,6 +30,22 @@ namespace SniperRidge.EditorTools
             EnsureScene(false);
             EnsurePlayerSettings();
             EnsureAlwaysIncludedShaders();
+            AutoSetupEnemyModel();
+        }
+
+        /// <summary>Assets/EnemyModel 에 FBX 가 있고 프리팹이 아직 없으면 자동으로 만든다.</summary>
+        static void AutoSetupEnemyModel()
+        {
+            try
+            {
+                if (File.Exists(ModelPrefabPath) || !AssetDatabase.IsValidFolder(ModelFolder)) return;
+                if (AssetDatabase.FindAssets("t:Model", new[] { ModelFolder }).Length == 0) return;
+                SetupEnemyModel(false);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning("[Sniper Ridge] 적 모델 자동 설정 실패: " + ex.Message);
+            }
         }
 
         [MenuItem("Sniper Ridge/게임 씬 열기")]
@@ -84,16 +100,19 @@ namespace SniperRidge.EditorTools
         /// 애니메이션 클립 이름에 idle / run 또는 walk / crouch / death 또는 dying 이 들어 있으면 자동 연결된다.
         /// </summary>
         [MenuItem("Sniper Ridge/적 모델 자동 설정 (Assets/EnemyModel)")]
-        public static void SetupEnemyModel()
+        public static void SetupEnemyModelMenu() => SetupEnemyModel(true);
+
+        public static void SetupEnemyModel(bool interactive)
         {
             if (!AssetDatabase.IsValidFolder(ModelFolder))
             {
-                EditorUtility.DisplayDialog("Sniper Ridge", ModelFolder + " 폴더가 없습니다.\n병사 모델 FBX 와 애니메이션 FBX 를 그 폴더에 넣은 뒤 다시 실행하세요.", "확인");
+                if (interactive) EditorUtility.DisplayDialog("Sniper Ridge", ModelFolder + " 폴더가 없습니다.\n병사 모델 FBX 와 애니메이션 FBX 를 그 폴더에 넣은 뒤 다시 실행하세요.", "확인");
                 return;
             }
 
             GameObject modelAsset = null;
             AnimationClip idle = null, run = null, crouch = null, death = null;
+            bool runIsRun = false;
             foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { ModelFolder }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
@@ -109,12 +128,14 @@ namespace SniperRidge.EditorTools
                 {
                     var clip = obj as AnimationClip;
                     if (clip == null || clip.name.StartsWith("__preview__")) continue;
-                    string n = clip.name.ToLowerInvariant() + " " + System.IO.Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+                    string n = clip.name.ToLowerInvariant();
+                    string f = System.IO.Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
                     bool loop = false;
-                    if (idle == null && n.Contains("idle") && !n.Contains("crouch")) { idle = clip; loop = true; }
-                    else if (run == null && (n.Contains("run") || n.Contains("walk"))) { run = clip; loop = true; }
-                    else if (crouch == null && n.Contains("crouch")) { crouch = clip; loop = true; }
-                    else if (death == null && (n.Contains("death") || n.Contains("dying") || n.Contains("die"))) { death = clip; }
+                    if (idle == null && (n.Contains("idle") || f.Contains("idle")) && !n.Contains("crouch") && !f.Contains("crouch")) { idle = clip; loop = true; }
+                    else if ((run == null || (n.Contains("run") && !runIsRun)) && (n.Contains("run") || n.Contains("walk") || f.Contains("run") || f.Contains("walk")))
+                    { run = clip; runIsRun = n.Contains("run") || f.Contains("run"); loop = true; }
+                    else if (crouch == null && (n.Contains("crouch") || f.Contains("crouch"))) { crouch = clip; loop = true; }
+                    else if (death == null && (n.Contains("death") || n.Contains("dying") || f.Contains("death") || f.Contains("dying"))) { death = clip; }
                     if (loop && importer != null)
                     {
                         var clips = importer.clipAnimations.Length > 0 ? importer.clipAnimations : importer.defaultClipAnimations;
@@ -130,16 +151,39 @@ namespace SniperRidge.EditorTools
 
             if (modelAsset == null)
             {
-                EditorUtility.DisplayDialog("Sniper Ridge", "스킨 메시가 있는 모델 FBX 를 " + ModelFolder + " 에서 찾지 못했습니다.", "확인");
+                if (interactive) EditorUtility.DisplayDialog("Sniper Ridge", "스킨 메시가 있는 모델 FBX 를 " + ModelFolder + " 에서 찾지 못했습니다.", "확인");
                 return;
+            }
+
+            // 재질: 폴더 안의 *_albedo / *_normal 텍스처로 Standard 재질 생성
+            Texture2D albedoTex = null, normalTex = null;
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { ModelFolder }))
+            {
+                string tp = AssetDatabase.GUIDToAssetPath(guid);
+                string tn = System.IO.Path.GetFileNameWithoutExtension(tp).ToLowerInvariant();
+                if (albedoTex == null && (tn.Contains("albedo") || tn.Contains("diffuse") || tn.Contains("basecolor"))) albedoTex = AssetDatabase.LoadAssetAtPath<Texture2D>(tp);
+                if (normalTex == null && tn.Contains("normal")) normalTex = AssetDatabase.LoadAssetAtPath<Texture2D>(tp);
+            }
+            Material soldierMat = null;
+            if (albedoTex != null)
+            {
+                soldierMat = new Material(Shader.Find("Standard"));
+                soldierMat.mainTexture = albedoTex;
+                soldierMat.SetFloat("_Glossiness", 0.25f);
+                if (normalTex != null)
+                {
+                    soldierMat.SetTexture("_BumpMap", normalTex);
+                    soldierMat.EnableKeyword("_NORMALMAP");
+                }
+                AssetDatabase.CreateAsset(soldierMat, ModelFolder + "/Soldier.mat");
             }
 
             // Animator Controller
             string controllerPath = ModelFolder + "/Soldier.controller";
             var controller = UnityEditor.Animations.AnimatorController.CreateAnimatorControllerAtPath(controllerPath);
             controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
-            controller.AddParameter("Crouch", AnimatorControllerParameterType.Bool);
-            controller.AddParameter("Dead", AnimatorControllerParameterType.Bool);
+            if (crouch != null) controller.AddParameter("Crouch", AnimatorControllerParameterType.Bool);
+            if (death != null) controller.AddParameter("Dead", AnimatorControllerParameterType.Bool);   // 없으면 코드가 쓰러지는 연출을 담당
             var sm = controller.layers[0].stateMachine;
             var idleState = sm.AddState("Idle");
             idleState.motion = idle;
@@ -183,6 +227,15 @@ namespace SniperRidge.EditorTools
             anim.runtimeAnimatorController = controller;
             anim.applyRootMotion = false;
             anim.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+            if (soldierMat != null)
+            {
+                foreach (var r in inst.GetComponentsInChildren<Renderer>())
+                {
+                    var mats = r.sharedMaterials;
+                    for (int i = 0; i < mats.Length; i++) mats[i] = soldierMat;
+                    r.sharedMaterials = mats;
+                }
+            }
             PrefabUtility.SaveAsPrefabAsset(inst, ModelPrefabPath);
             Object.DestroyImmediate(inst);
             AssetDatabase.SaveAssets();
@@ -191,7 +244,7 @@ namespace SniperRidge.EditorTools
             string report = string.Format("프리팹 생성: {0}\nIdle: {1}\nRun: {2}\nCrouch: {3}\nDeath: {4}\n\n이제 Play 를 누르면 이 모델이 적으로 사용됩니다.",
                 ModelPrefabPath, idle ? idle.name : "(없음)", run ? run.name : "(없음)", crouch ? crouch.name : "(없음)", death ? death.name : "(없음)");
             Debug.Log("[Sniper Ridge] " + report.Replace("\n", " / "));
-            EditorUtility.DisplayDialog("Sniper Ridge", report, "확인");
+            if (interactive) EditorUtility.DisplayDialog("Sniper Ridge", report, "확인");
         }
 
         static void Report(BuildReport report, string path)
@@ -261,6 +314,7 @@ namespace SniperRidge.EditorTools
                 "Nature/Terrain/Standard", "Legacy Shaders/Diffuse",
                 "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
                 "Hidden/TerrainEngine/Details/WavingDoublePass",
+                "Skybox/Panoramic",
             };
             try
             {

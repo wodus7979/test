@@ -27,3 +27,11 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Unity 가 에디터에서 자동 생성하는 파일 (Sniper Ridge > 적 모델 자동 설정)
+Assets/Resources/Enemies/
+Assets/Resources/Enemies.meta
+Assets/EnemyModel/Soldier.controller
+Assets/EnemyModel/Soldier.controller.meta
+Assets/EnemyModel/Soldier.mat
+Assets/EnemyModel/Soldier.mat.meta

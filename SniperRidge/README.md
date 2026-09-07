@@ -59,24 +59,32 @@ Play 를 누르면 무기 선택 화면이 나옵니다. 카드를 클릭하거�
 - **방어전**: 웨이브마다 10 / 14 / 18 / 22 / 26명이 계곡에서 지그재그로 돌진하며 중간중간 멈춰 사격합니다. 10 m 앞에서 멈춰 계속 쏘므로 접근 전에 처리해야 합니다. 웨이브 사이 8초 휴식, 체력 회복이 빠릅니다.
 - 점수: 몸통 100, 헤드샷 250, 저격 임무는 거리 보너스(거리 × 0.5), 방어전은 웨이브 클리어 보너스.
 
-## 적을 실사 모델로 바꾸기 (선택)
+## 포함된 실사 에셋
 
-기본 적은 프리미티브 도형으로 만든 병사입니다. 실사풍 병사 모델과 애니메이션을 넣으면 코드가 자동으로 그 모델을 사용합니다.
+프로젝트에 아래 에셋이 이미 들어 있어 별도 다운로드 없이 실사풍으로 실행됩니다.
 
-1. **모델 받기**: https://www.mixamo.com (Adobe 계정, 무료) 접속 → Characters 에서 군인 캐릭터를 고릅니다 (예: "Swat", "Vanguard By T. Choonyung", "Maw J Laygo" 등 무기를 든 실사풍 캐릭터).
-   Download → Format **FBX for Unity**, Pose **T-pose** 로 받습니다.
-2. **애니메이션 받기**: 같은 캐릭터를 선택한 채 Animations 에서 아래 4개를 검색해 각각 Download 합니다. Format **FBX for Unity**, Skin **Without Skin**.
-   - `Rifle Idle` (대기)
-   - `Rifle Run` (달리기)
-   - `Rifle Crouch Idle` 또는 `Crouching Idle` (웅크리기)
-   - `Rifle Death` 또는 `Dying` (사망)
-3. 받은 FBX 5개를 프로젝트의 `Assets/EnemyModel/` 폴더에 넣습니다 (폴더는 직접 만드세요).
-4. Unity 상단 메뉴 **Sniper Ridge → 적 모델 자동 설정 (Assets/EnemyModel)** 을 누릅니다.
-   Animator Controller 와 `Assets/Resources/Enemies/SoldierModel.prefab` 이 만들어지고, 어떤 클립이 연결됐는지 알려줍니다.
-5. Play 를 누르면 모든 적이 그 모델로 나타나고, 달리기/웅크리기/사망 애니메이션이 재생됩니다. 히트박스는 기존 프리미티브를 투명하게 유지해 그대로 씁니다.
+| 위치 | 내용 | 출처 / 라이선스 |
+|---|---|---|
+| `Assets/EnemyModel/Soldier.fbx` | 실사풍 병사 모델(Mixamo "Vanguard") + 대기/걷기/달리기 애니메이션, 디퓨즈·노멀 텍스처 | three.js 예제 모델 (Mixamo 캐릭터, 게임 내 사용 무료) |
+| `Assets/Resources/Terrain/` | 풀(사진), 바위, 흙, 낙엽 알베도+노멀 텍스처 | 풀 사진: three.js 예제(MIT), 나머지: Blender 절차적 재질 베이크 |
+| `Assets/Resources/Nature/` | 나무껍질, 잎 텍스처 | Blender 절차적 재질 베이크 |
+| `Assets/Resources/Sky/spruit_sunrise_1k.hdr` | 실제 하늘 HDRI (스카이박스 + 환경광) | Poly Haven (CC0), three.js 예제 경유 |
+| `Assets/Resources/Audio/` | 무기별 총성(실제 총성 녹음 가공), 원거리 총성, 탄 크랙, 노리쇠, 재장전, 바람 | 총성 원본: Phaser 예제(MIT), 가공 및 나머지: 합성 |
 
-Mixamo 모델 텍스처가 분홍색으로 보이면 FBX 를 선택하고 Inspector → Materials 탭 → **Extract Textures / Extract Materials** 를 눌러 주세요.
-같은 방법으로 Unity Asset Store 의 무료 병사 모델(Humanoid 리그)도 쓸 수 있습니다. 클립 이름에 idle / run / crouch / death 가 들어 있으면 자동 연결됩니다.
+처음 프로젝트를 열면 편집기 스크립트가 `Assets/EnemyModel` 의 FBX 로 Animator Controller 와
+`Assets/Resources/Enemies/SoldierModel.prefab` 을 자동 생성합니다 (Console 에 "적 모델 자동 설정" 로그).
+안 되면 메뉴 **Sniper Ridge → 적 모델 자동 설정** 을 직접 누르세요.
+
+### 다른 병사 모델로 바꾸기
+
+1. https://www.mixamo.com (Adobe 계정, 무료) 에서 캐릭터를 **FBX for Unity** 로 받고, 같은 캐릭터로 애니메이션 `Rifle Idle`, `Rifle Run`, `Rifle Crouch Idle`, `Rifle Death` 를 **Without Skin** 으로 받습니다.
+2. `Assets/EnemyModel/` 의 기존 파일을 지우고 새 FBX 들을 넣습니다. 텍스처는 `*_albedo`, `*_normal` 이름이면 자동으로 재질에 연결됩니다.
+3. `Assets/Resources/Enemies/SoldierModel.prefab` 을 지우고 메뉴 **Sniper Ridge → 적 모델 자동 설정** 을 누릅니다.
+   클립 이름에 idle / run / crouch / death 가 들어 있으면 자동 연결되며, 웅크리기·사망 클립이 없으면 코드가 대신 연출합니다.
+
+### 효과음 바꾸기
+
+`Assets/Resources/Audio/` 의 파일을 같은 이름의 WAV 로 교체하면 됩니다: `shot_sniper`, `shot_dmr`, `shot_rifle`, `shot_lmg`, `shot_distant`, `crack`, `bolt`, `reload`, `hit`, `click`, `wind`(루프).
 
 ## 프로젝트 구조
 

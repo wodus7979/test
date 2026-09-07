@@ -275,7 +275,7 @@ namespace SniperRidge
 
             bool scoped = p.IsScoped && p.CurrentScopeFov < 20f;   // 저배율 광학(2x 등)은 오버레이 없이 총 모델로 조준
             if (scopeRoot.activeSelf != scoped) scopeRoot.SetActive(scoped);
-            bool showCross = !p.IsScoped;
+            bool showCross = !scoped;
             if (crosshair.activeSelf != showCross) crosshair.SetActive(showCross);
             if (scoped) LayoutScope();
 

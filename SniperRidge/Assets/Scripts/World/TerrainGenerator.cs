@@ -61,25 +61,14 @@ namespace SniperRidge
             }
             data.SetHeights(0, 0, heights);
 
-            var grass = new TerrainLayer
-            {
-                diffuseTexture = ProceduralAssets.NoiseTexture(256, new Color(0.20f, 0.36f, 0.12f), new Color(0.36f, 0.50f, 0.20f), 3f, 0.3f),
-                tileSize = new Vector2(7f, 7f),
-            };
-            var rock = new TerrainLayer
-            {
-                diffuseTexture = ProceduralAssets.NoiseTexture(256, new Color(0.40f, 0.40f, 0.38f), new Color(0.60f, 0.58f, 0.54f), 5f, 1.7f),
-                tileSize = new Vector2(9f, 9f),
-            };
-            var dirt = new TerrainLayer
-            {
-                diffuseTexture = ProceduralAssets.NoiseTexture(256, new Color(0.36f, 0.28f, 0.16f), new Color(0.52f, 0.42f, 0.26f), 4f, 2.9f),
-                tileSize = new Vector2(6f, 6f),
-            };
-            data.terrainLayers = new[] { grass, rock, dirt };
+            var grass = MakeLayer("grass", new Color(0.20f, 0.36f, 0.12f), new Color(0.36f, 0.50f, 0.20f), 3f, 0.3f, 6f);
+            var rock = MakeLayer("rock", new Color(0.40f, 0.40f, 0.38f), new Color(0.60f, 0.58f, 0.54f), 5f, 1.7f, 7f);
+            var dirt = MakeLayer("dirt", new Color(0.36f, 0.28f, 0.16f), new Color(0.52f, 0.42f, 0.26f), 4f, 2.9f, 5f);
+            var forest = MakeLayer("forest", new Color(0.22f, 0.17f, 0.10f), new Color(0.32f, 0.26f, 0.15f), 4f, 3.7f, 5f);
+            data.terrainLayers = new[] { grass, rock, dirt, forest };
 
             data.alphamapResolution = AlphaRes;
-            var maps = new float[AlphaRes, AlphaRes, 3];
+            var maps = new float[AlphaRes, AlphaRes, 4];
             for (int y = 0; y < AlphaRes; y++)
             {
                 float ny = (y + 0.5f) / AlphaRes;
@@ -88,12 +77,15 @@ namespace SniperRidge
                     float nx = (x + 0.5f) / AlphaRes;
                     float steep = data.GetSteepness(nx, ny);
                     float h = data.GetInterpolatedHeight(nx, ny);
-                    float rockW = Mathf.InverseLerp(22f, 38f, steep);
+                    float rockW = Mathf.InverseLerp(22f, 38f, steep) + 0.35f * Mathf.InverseLerp(0.62f, 0.8f, Mathf.PerlinNoise(nx * 9f + seed, ny * 9f));
+                    rockW = Mathf.Clamp01(rockW);
                     float dirtW = (1f - rockW) * Mathf.InverseLerp(20f, 9f, h) * 0.8f;
-                    float grassW = Mathf.Max(0f, 1f - rockW - dirtW);
+                    float forestW = (1f - rockW - dirtW) * Mathf.InverseLerp(0.5f, 0.72f, Mathf.PerlinNoise(nx * 5f + seed * 2f, ny * 5f + 3f)) * 0.9f;
+                    float grassW = Mathf.Max(0f, 1f - rockW - dirtW - forestW);
                     maps[y, x, 0] = grassW;
                     maps[y, x, 1] = rockW;
                     maps[y, x, 2] = dirtW;
+                    maps[y, x, 3] = forestW;
                 }
             }
             data.SetAlphamaps(0, 0, maps);
@@ -109,6 +101,25 @@ namespace SniperRidge
             terrain.detailObjectDistance = Application.isMobilePlatform ? 60f : 110f;
             terrain.detailObjectDensity = Application.isMobilePlatform ? 0.35f : 0.7f;
             return terrain;
+        }
+
+        /// <summary>Resources/Terrain 의 실사 텍스처가 있으면 사용하고, 없으면 절차적 노이즈 텍스처.</summary>
+        static TerrainLayer MakeLayer(string name, Color fallbackA, Color fallbackB, float noiseScale, float seed, float tile)
+        {
+            var albedo = ProceduralAssets.LoadTex("Terrain/" + name + "_albedo");
+            var normal = ProceduralAssets.LoadTex("Terrain/" + name + "_normal");
+            var layer = new TerrainLayer
+            {
+                diffuseTexture = albedo != null ? albedo : ProceduralAssets.NoiseTexture(256, fallbackA, fallbackB, noiseScale, seed),
+                tileSize = new Vector2(tile, tile),
+                smoothness = 0.05f,
+            };
+            if (normal != null)
+            {
+                layer.normalMapTexture = normal;
+                layer.normalScale = 1f;
+            }
+            return layer;
         }
 
         /// <summary>풀잎 빌보드 디테일 레이어. 완만한 초지 위주로 깔린다.</summary>
