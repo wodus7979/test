@@ -155,7 +155,7 @@ namespace SniperRidge.EditorTools
                         if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader) { exists = true; break; }
                     }
                     if (exists) continue;
-                    list.InsertArrayElementAtIndex(list.arraySize);
+                    list.arraySize++;
                     list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
                     changed = true;
                 }

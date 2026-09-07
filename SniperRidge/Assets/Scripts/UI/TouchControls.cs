@@ -58,7 +58,7 @@ namespace SniperRidge
             MakeButton(root, "Fire", "사격", 34, bg, fg, br, bc, new Vector2(-170f, 170f), new Vector2(200f, 200f), p.PressFire, null);
             MakeButton(root, "Scope", "조준경", 26, bg, fg, br, bc, new Vector2(-390f, 120f), new Vector2(160f, 100f), p.ToggleScope, null);
             MakeButton(root, "Breath", "숨 참기", 26, bg, fg, br, bc, new Vector2(-390f, 240f), new Vector2(160f, 100f), () => p.SetBreath(true), () => p.SetBreath(false));
-            MakeButton(root, "Reload", "재장전", 26, bg, fg, br, bc, new Vector2(-170f, 340f), new Vector2(160f, 90f), p.PressReload, null);
+            MakeButton(root, "Reload", "재장전", 26, bg, fg, br, bc, new Vector2(-170f, 390f), new Vector2(160f, 90f), p.PressReload, null);
             MakeButton(root, "Zoom", "배율", 26, bg, fg, br, bc, new Vector2(-390f, 360f), new Vector2(160f, 90f), p.CycleZoom, null);
             MakeButton(root, "ZeroUp", "영점 +", 24, bg, fg, br, bc, new Vector2(-570f, 240f), new Vector2(140f, 90f), () => p.AdjustZero(1), null);
             MakeButton(root, "ZeroDown", "영점 −", 24, bg, fg, br, bc, new Vector2(-570f, 120f), new Vector2(140f, 90f), () => p.AdjustZero(-1), null);
@@ -68,11 +68,11 @@ namespace SniperRidge
                                Vector2 anchor, Vector2 pivot, Vector2 pos, Vector2 size,
                                System.Action onDown, System.Action onUp)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(TouchButton));
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
-            go.GetComponent<Image>().color = bg;
+            go.GetComponent<Image>().color = bg;   // TouchButton.Awake 가 기본 색을 읽기 전에 설정
             UiKit.Place(go.GetComponent<RectTransform>(), anchor, anchor, pivot, pos, size);
-            var tb = go.GetComponent<TouchButton>();
+            var tb = go.AddComponent<TouchButton>();
             tb.OnDown = onDown;
             tb.OnUp = onUp;
             UiKit.Label(go.transform, "Label", label, fontSize, TextAnchor.MiddleCenter, fg,
