@@ -138,6 +138,8 @@ namespace SniperRidge.EditorTools
             {
                 "Standard", "Unlit/Color", "Sprites/Default", "UI/Default",
                 "Nature/Terrain/Standard", "Legacy Shaders/Diffuse",
+                "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
+                "Hidden/TerrainEngine/Details/WavingDoublePass",
             };
             try
             {

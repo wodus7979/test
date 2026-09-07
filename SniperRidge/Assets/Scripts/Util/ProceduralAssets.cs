@@ -169,6 +169,41 @@ namespace SniperRidge
             return tex;
         }
 
+        /// <summary>지형 디테일용 풀잎 빌보드 텍스처 (여러 가닥, 알파 있음).</summary>
+        public static Texture2D GrassBladeTexture(int w = 64, int h = 128)
+        {
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, true);
+            var px = new Color[w * h];
+            var clear = new Color(0.3f, 0.5f, 0.2f, 0f);
+            for (int i = 0; i < px.Length; i++) px[i] = clear;
+
+            float[] centers = { 0.18f, 0.34f, 0.5f, 0.66f, 0.82f };
+            float[] lean = { -0.10f, 0.06f, 0f, -0.05f, 0.11f };
+            float[] tops = { 0.75f, 0.92f, 1.0f, 0.88f, 0.7f };
+            for (int b = 0; b < centers.Length; b++)
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    float fy = (float)y / h;
+                    if (fy > tops[b]) continue;
+                    float t = fy / tops[b];
+                    float cx = centers[b] + lean[b] * t * t;
+                    float halfW = Mathf.Lerp(0.045f, 0.006f, t);
+                    float shade = Mathf.Lerp(0.55f, 1.0f, t);
+                    for (int x = 0; x < w; x++)
+                    {
+                        float fx = (x + 0.5f) / w;
+                        if (Mathf.Abs(fx - cx) < halfW)
+                            px[y * w + x] = new Color(0.35f * shade, 0.62f * shade, 0.22f * shade, 1f);
+                    }
+                }
+            }
+            tex.SetPixels(px);
+            tex.wrapMode = TextureWrapMode.Clamp;
+            tex.Apply(true);
+            return tex;
+        }
+
         public static Sprite SpriteFrom(Texture2D tex)
         {
             return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));

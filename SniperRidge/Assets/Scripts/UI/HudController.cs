@@ -118,7 +118,7 @@ namespace SniperRidge
             // ----- 킬 피드 / 안내 -----
             killFeed = UiKit.Label(root, "KillFeed", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.4f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(1000f, 50f), true);
             introText = UiKit.Label(root, "Intro",
-                "능선에 잠복 중.\n맞은편 능선의 바위 뒤에 숨은 적을 모두 제거하라.\n첫 발 이후 적은 경계 태세로 전환해 반격한다.",
+                "능선에 잠복 중.\n맞은편 능선의 바위와 나무 뒤에 숨은 적을 모두 제거하라.\n첫 발 이후 적은 경계 태세로 전환해 반격한다.",
                 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 230f), new Vector2(1300f, 140f));
             hintText = UiKit.Label(root, "Hint",
                 "우클릭 조준경  |  좌클릭 사격  |  Shift 숨 참기  |  R 재장전  |  휠/Z 배율  |  ↑↓ 영점  |  Esc 마우스",

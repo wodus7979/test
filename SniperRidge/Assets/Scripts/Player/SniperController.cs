@@ -17,8 +17,9 @@ namespace SniperRidge
         public float MaxPitch = 25f;    // 아래쪽
         public int MagSize = 5;
 
-        static readonly float[] ScopeFovs = { 15f, 7.5f, 4f };
-        static readonly string[] ScopeLabels = { "4x", "8x", "15x" };
+        // 조준경 배율 (기본 16배, 휠/Z 로 순환)
+        static readonly float[] ScopeFovs = { 7.5f, 3.75f, 2f };
+        static readonly string[] ScopeLabels = { "8x", "16x", "30x" };
         const float BaseFov = 60f;
 
         public bool IsScoped { get; private set; }

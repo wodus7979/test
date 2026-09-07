@@ -164,16 +164,10 @@ namespace SniperRidge
             }
 
             // 잠복용 덤불
-            var bush = ProceduralAssets.LitMaterial(new Color(0.14f, 0.28f, 0.10f), 0.05f);
-            Vector3[] bushOffsets = { new Vector3(-1.6f, 0f, 0.6f), new Vector3(1.7f, 0f, 0.4f), new Vector3(-1.2f, 0f, -1.2f), new Vector3(1.3f, 0f, -1.0f) };
+            var bushRng = new System.Random(5);
+            Vector3[] bushOffsets = { new Vector3(-1.9f, 0f, 0.6f), new Vector3(2.0f, 0f, 0.4f), new Vector3(-1.4f, 0f, -1.4f), new Vector3(1.5f, 0f, -1.2f) };
             foreach (var off in bushOffsets)
-            {
-                var b = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                b.name = "Bush";
-                b.transform.position = nest + off + Vector3.up * 0.5f;
-                b.transform.localScale = new Vector3(1.6f, 1.1f, 1.6f);
-                b.GetComponent<Renderer>().material = bush;
-            }
+                Vegetation.Bush(null, nest + off, 0.9f, bushRng);
         }
 
         static void Part(Transform parent, PrimitiveType type, Vector3 pos, Vector3 scale, Quaternion rot, Material mat)
@@ -194,14 +188,16 @@ namespace SniperRidge
         {
             return new List<EnemySpawn>
             {
-                new EnemySpawn(-55f, 205f, EnemyKind.Cover),
-                new EnemySpawn(-30f, 215f, EnemyKind.Cover),
-                new EnemySpawn(-8f, 200f, EnemyKind.Patrol, 12f, 208f),
-                new EnemySpawn(15f, 222f, EnemyKind.Cover),
-                new EnemySpawn(38f, 212f, EnemyKind.Cover),
-                new EnemySpawn(60f, 205f, EnemyKind.Patrol, 78f, 214f),
-                new EnemySpawn(-72f, 224f, EnemyKind.Patrol, -52f, 230f),
-                new EnemySpawn(88f, 220f, EnemyKind.Cover),
+                new EnemySpawn(-88f, 214f, EnemyKind.Cover),
+                new EnemySpawn(-62f, 202f, EnemyKind.Tree),
+                new EnemySpawn(-40f, 220f, EnemyKind.Cover),
+                new EnemySpawn(-20f, 206f, EnemyKind.Patrol, -4f, 212f),
+                new EnemySpawn(-2f, 226f, EnemyKind.Tree),
+                new EnemySpawn(24f, 212f, EnemyKind.Cover),
+                new EnemySpawn(44f, 222f, EnemyKind.Tree),
+                new EnemySpawn(58f, 204f, EnemyKind.Patrol, 74f, 212f),
+                new EnemySpawn(80f, 224f, EnemyKind.Cover),
+                new EnemySpawn(96f, 208f, EnemyKind.Tree),
             };
         }
 
@@ -212,89 +208,148 @@ namespace SniperRidge
             var gear = ProceduralAssets.LitMaterial(new Color(0.12f, 0.13f, 0.11f), 0.2f);
             var rock = ProceduralAssets.LitMaterial(new Color(0.50f, 0.49f, 0.46f), 0.05f);
 
+            var rng = new System.Random(77);
             var root = new GameObject("Enemies");
             for (int i = 0; i < spawns.Count; i++)
             {
-                var e = EnemySoldier.Create("Enemy_" + (i + 1), terrain, spawns[i], playerPos, body, skin, gear, rock);
+                var e = EnemySoldier.Create("Enemy_" + (i + 1), terrain, spawns[i], playerPos, body, skin, gear, rock, rng);
                 e.transform.SetParent(root.transform, true);
                 gm.RegisterEnemy(e);
             }
         }
 
-        // ---------- 장식 (나무, 바위) ----------
+        // ---------- 장식 (숲, 덤불, 바위) ----------
 
         static void BuildDecorations(Terrain terrain, Vector3 playerPos, List<EnemySpawn> spawns)
         {
             var rng = new System.Random(1234);
             var root = new GameObject("Decorations");
-            var trunk = ProceduralAssets.LitMaterial(new Color(0.30f, 0.22f, 0.14f), 0.05f);
-            var leafA = ProceduralAssets.LitMaterial(new Color(0.12f, 0.30f, 0.10f), 0.05f);
-            var leafB = ProceduralAssets.LitMaterial(new Color(0.18f, 0.36f, 0.13f), 0.05f);
             var rockMat = ProceduralAssets.LitMaterial(new Color(0.48f, 0.47f, 0.44f), 0.05f);
 
             var enemyXZ = new List<Vector2>();
-            foreach (var s in spawns)
+            foreach (var sp in spawns)
             {
-                enemyXZ.Add(s.Pos);
-                if (s.Kind == EnemyKind.Patrol) enemyXZ.Add(s.PosB);
+                enemyXZ.Add(sp.Pos);
+                if (sp.Kind == EnemyKind.Patrol) enemyXZ.Add(sp.PosB);
             }
             Vector2 playerXZ = new Vector2(playerPos.x, playerPos.z);
 
-            int trees = 0, attempts = 0;
-            while (trees < 170 && attempts < 4000)
+            int placed = 0;
+
+            // (1) 적 능선 뒤편: 빽빽한 침엽수림 (배경)
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, 238f, 285f, 260, 0.9f, 0.85f);
+            // (2) 적 능선 사면 좌우: 숲 가장자리
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, -115f, 150f, 240f, 90, 0.7f, 0.8f);
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, 115f, 280f, 150f, 240f, 90, 0.7f, 0.8f);
+            // (3) 적 사면 한가운데: 듬성듬성한 나무 군락 (적이 이 사이에 숨어 있다)
+            float[] groveX = { -75f, -30f, 12f, 52f, 92f };
+            foreach (float gx in groveX)
+                placed += Grove(root.transform, terrain, rng, playerXZ, enemyXZ, gx, 232f, 16f, 9);
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -110f, 110f, 160f, 236f, 45, 0.3f, 0.75f);
+            // (4) 계곡: 흩어진 활엽수 군락과 덤불
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, -60f, 130f, 110, 0.15f, 0.6f);
+            // (5) 플레이어 능선 뒤편과 좌우
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, -300f, TerrainGenerator.PlayerRidgeZ - 20f, 120, 0.8f, 0.7f);
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, -160f, TerrainGenerator.PlayerRidgeZ - 20f, 60f, 50, 0.6f, 0.7f);
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, 160f, 280f, TerrainGenerator.PlayerRidgeZ - 20f, 60f, 50, 0.6f, 0.7f);
+
+            // 덤불
+            for (int i = 0; i < 160; i++)
             {
-                attempts++;
                 float x = (float)(rng.NextDouble() * 560.0 - 280.0);
                 float z = (float)(rng.NextDouble() * 560.0 - 280.0);
-                if (!TreeAllowed(x, z, playerXZ, enemyXZ, rng)) continue;
+                if (Vector2.Distance(new Vector2(x, z), playerXZ) < 4f) continue;
+                if (NearEnemy(new Vector2(x, z), enemyXZ, 4f)) continue;
                 float h = TerrainGenerator.GroundHeight(terrain, x, z);
                 if (h > 95f) continue;
-                float scale = 0.8f + (float)rng.NextDouble() * 0.7f;
-                Tree(root.transform, new Vector3(x, h, z), scale, trunk, (trees % 2 == 0) ? leafA : leafB);
-                trees++;
+                Vegetation.Bush(root.transform, new Vector3(x, h, z), 0.7f + (float)rng.NextDouble() * 0.8f, rng);
             }
 
-            for (int i = 0; i < 70; i++)
+            // 바위
+            for (int i = 0; i < 80; i++)
             {
                 float x = (float)(rng.NextDouble() * 560.0 - 280.0);
                 float z = (float)(rng.NextDouble() * 560.0 - 280.0);
                 if (Vector2.Distance(new Vector2(x, z), playerXZ) < 6f) continue;
-                bool nearEnemy = false;
-                foreach (var e in enemyXZ) if (Vector2.Distance(e, new Vector2(x, z)) < 5f) nearEnemy = true;
-                if (nearEnemy) continue;
+                if (NearEnemy(new Vector2(x, z), enemyXZ, 6f)) continue;
                 var r = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 r.name = "Rock";
                 r.transform.SetParent(root.transform, true);
-                float s = 0.8f + (float)rng.NextDouble() * 2.2f;
-                r.transform.position = new Vector3(x, TerrainGenerator.GroundHeight(terrain, x, z) + s * 0.25f, z);
-                r.transform.localScale = new Vector3(s, s * 0.6f, s * 0.8f);
-                r.transform.rotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
+                float sc = 0.8f + (float)rng.NextDouble() * 2.4f;
+                r.transform.position = new Vector3(x, TerrainGenerator.GroundHeight(terrain, x, z) + sc * 0.2f, z);
+                r.transform.localScale = new Vector3(sc, sc * 0.55f, sc * 0.8f);
+                r.transform.rotation = Quaternion.Euler((float)rng.NextDouble() * 20f, (float)rng.NextDouble() * 360f, 0f);
                 r.GetComponent<Renderer>().material = rockMat;
             }
 
             StaticBatchingUtility.Combine(root);
         }
 
-        static bool TreeAllowed(float x, float z, Vector2 player, List<Vector2> enemies, System.Random rng)
+        /// <summary>사각 영역에 나무를 뿌린다. pineRatio 는 침엽수 비율.</summary>
+        static int Forest(Transform parent, Terrain terrain, System.Random rng, Vector2 player, List<Vector2> enemies,
+                          float x0, float x1, float z0, float z1, int count, float pineRatio, float minScale)
+        {
+            int placed = 0, attempts = 0;
+            while (placed < count && attempts < count * 12)
+            {
+                attempts++;
+                float x = (float)(x0 + rng.NextDouble() * (x1 - x0));
+                float z = (float)(z0 + rng.NextDouble() * (z1 - z0));
+                if (!TreeAllowed(x, z, player, enemies)) continue;
+                float h = TerrainGenerator.GroundHeight(terrain, x, z);
+                if (h > 100f) continue;
+                float scale = minScale + (float)rng.NextDouble() * 0.7f;
+                var type = rng.NextDouble() < pineRatio ? Vegetation.TreeType.Pine : Vegetation.TreeType.Broadleaf;
+                Vegetation.Tree(parent, new Vector3(x, h, z), scale, type, rng);
+                placed++;
+            }
+            return placed;
+        }
+
+        /// <summary>원형 군락.</summary>
+        static int Grove(Transform parent, Terrain terrain, System.Random rng, Vector2 player, List<Vector2> enemies,
+                         float cx, float cz, float radius, int count)
+        {
+            int placed = 0, attempts = 0;
+            while (placed < count && attempts < count * 12)
+            {
+                attempts++;
+                float ang = (float)(rng.NextDouble() * Mathf.PI * 2.0);
+                float rad = radius * Mathf.Sqrt((float)rng.NextDouble());
+                float x = cx + Mathf.Cos(ang) * rad;
+                float z = cz + Mathf.Sin(ang) * rad;
+                if (!TreeAllowed(x, z, player, enemies)) continue;
+                float h = TerrainGenerator.GroundHeight(terrain, x, z);
+                float scale = 0.8f + (float)rng.NextDouble() * 0.6f;
+                var type = rng.NextDouble() < 0.5 ? Vegetation.TreeType.Pine : Vegetation.TreeType.Broadleaf;
+                Vegetation.Tree(parent, new Vector3(x, h, z), scale, type, rng);
+                placed++;
+            }
+            return placed;
+        }
+
+        static bool NearEnemy(Vector2 p, List<Vector2> enemies, float dist)
+        {
+            foreach (var e in enemies) if (Vector2.Distance(p, e) < dist) return true;
+            return false;
+        }
+
+        static bool TreeAllowed(float x, float z, Vector2 player, List<Vector2> enemies)
         {
             var p = new Vector2(x, z);
-            if (Vector2.Distance(p, player) < 35f) return false;
+            float ridge = TerrainGenerator.PlayerRidgeZ;
+            if (Vector2.Distance(p, player) < 30f) return false;
             // 플레이어 앞쪽 사면: 시야 확보를 위해 비워 둔다
-            if (z > -205f && z < -110f && Mathf.Abs(x) < 150f) return false;
-            foreach (var e in enemies)
-            {
-                if (Vector2.Distance(p, e) < 12f) return false;
-            }
+            if (z > ridge - 5f && z < ridge + 90f && Mathf.Abs(x) < 150f) return false;
+            if (NearEnemy(p, enemies, 7f)) return false;
             // 적 사면/플레이어 사면에서는 사선(射線)을 가리는 위치를 피한다
-            if (z > 120f || z < -120f)
+            if (z > 100f || z < ridge + 80f)
             {
                 foreach (var e in enemies)
                 {
                     if (DistancePointSegment(p, player, e) < 6f) return false;
                 }
             }
-            // 적 능선 앞쪽은 듬성듬성
-            if (z > 150f && z < 240f && Mathf.Abs(x) < 120f && rng.NextDouble() < 0.7) return false;
             return true;
         }
 
@@ -305,30 +360,6 @@ namespace SniperRidge
             if (len2 < 0.0001f) return Vector2.Distance(p, a);
             float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / len2);
             return Vector2.Distance(p, a + ab * t);
-        }
-
-        static void Tree(Transform parent, Vector3 pos, float scale, Material trunk, Material leaf)
-        {
-            var t = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            t.name = "Trunk";
-            t.transform.SetParent(parent, true);
-            t.transform.position = pos + Vector3.up * (2f * scale);
-            t.transform.localScale = new Vector3(0.35f * scale, 2f * scale, 0.35f * scale);
-            t.GetComponent<Renderer>().material = trunk;
-
-            var f1 = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            f1.name = "Foliage";
-            f1.transform.SetParent(parent, true);
-            f1.transform.position = pos + Vector3.up * (4.6f * scale);
-            f1.transform.localScale = new Vector3(3.2f * scale, 3.6f * scale, 3.2f * scale);
-            f1.GetComponent<Renderer>().material = leaf;
-
-            var f2 = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            f2.name = "FoliageTop";
-            f2.transform.SetParent(parent, true);
-            f2.transform.position = pos + Vector3.up * (6.8f * scale);
-            f2.transform.localScale = new Vector3(2.2f * scale, 2.4f * scale, 2.2f * scale);
-            f2.GetComponent<Renderer>().material = leaf;
         }
     }
 }

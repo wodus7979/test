@@ -12,7 +12,7 @@ namespace SniperRidge
         const int HeightRes = 257;
         const int AlphaRes = 256;
 
-        public const float PlayerRidgeZ = -200f;
+        public const float PlayerRidgeZ = -120f;
         public const float EnemyRidgeZ = 250f;
 
         public static float HeightMeters(float wx, float wz, float seed)
@@ -98,13 +98,59 @@ namespace SniperRidge
             }
             data.SetAlphamaps(0, 0, maps);
 
+            AddGrassDetail(data);
+
             var go = Terrain.CreateTerrainGameObject(data);
             go.name = "Terrain";
             go.transform.position = new Vector3(-Size * 0.5f, 0f, -Size * 0.5f);
             var terrain = go.GetComponent<Terrain>();
             terrain.heightmapPixelError = 4f;
             terrain.basemapDistance = 2000f;
+            terrain.detailObjectDistance = Application.isMobilePlatform ? 60f : 110f;
+            terrain.detailObjectDensity = Application.isMobilePlatform ? 0.35f : 0.7f;
             return terrain;
+        }
+
+        /// <summary>풀잎 빌보드 디테일 레이어. 완만한 초지 위주로 깔린다.</summary>
+        static void AddGrassDetail(TerrainData data)
+        {
+            const int DetailRes = 512;
+            var proto = new DetailPrototype
+            {
+                prototypeTexture = ProceduralAssets.GrassBladeTexture(),
+                renderMode = DetailRenderMode.GrassBillboard,
+                usePrototypeMesh = false,
+                minWidth = 0.7f,
+                maxWidth = 1.3f,
+                minHeight = 0.5f,
+                maxHeight = 1.0f,
+                healthyColor = new Color(0.45f, 0.7f, 0.3f),
+                dryColor = new Color(0.65f, 0.6f, 0.3f),
+                noiseSpread = 0.25f,
+            };
+            data.SetDetailResolution(DetailRes, 32);
+            data.detailPrototypes = new[] { proto };
+            data.wavingGrassStrength = 0.4f;
+            data.wavingGrassAmount = 0.3f;
+            data.wavingGrassSpeed = 0.4f;
+            data.wavingGrassTint = new Color(0.8f, 0.85f, 0.6f);
+
+            var layer = new int[DetailRes, DetailRes];
+            for (int y = 0; y < DetailRes; y++)
+            {
+                float ny = (y + 0.5f) / DetailRes;
+                for (int x = 0; x < DetailRes; x++)
+                {
+                    float nx = (x + 0.5f) / DetailRes;
+                    float steep = data.GetSteepness(nx, ny);
+                    float h = data.GetInterpolatedHeight(nx, ny);
+                    if (steep > 28f || h > 95f) continue;
+                    float n = Mathf.PerlinNoise(nx * 40f, ny * 40f);
+                    int density = Mathf.RoundToInt(Mathf.Lerp(1f, 7f, n) * Mathf.InverseLerp(28f, 15f, steep));
+                    layer[y, x] = density;
+                }
+            }
+            data.SetDetailLayer(0, 0, 0, layer);
         }
 
         public static float GroundHeight(Terrain terrain, float wx, float wz)
