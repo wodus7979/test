@@ -66,14 +66,12 @@ namespace SniperRidge
             BuildPlayer(gm, nest);
 
             var spawns = EnemySpawns();
-            BuildEnemies(gm, terrain, spawns, nest);
             BuildDecorations(terrain, nest, spawns);
 
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
             gm.Hud = HudController.Build(gm);
             if (Application.isMobilePlatform) TouchControls.Build(gm);
-
-            gm.BeginMission();
+            // 적은 무기 선택 후 GameManager.StartMission 에서 생성된다.
         }
 
         // ---------- 조명 / 환경 ----------
@@ -118,17 +116,6 @@ namespace SniperRidge
             cam.farClipPlane = 3000f;
             eyeGo.AddComponent<AudioListener>();
 
-            // 1인칭 소총 모델
-            var rifle = new GameObject("RifleModel");
-            rifle.transform.SetParent(eyeGo.transform, false);
-            rifle.transform.localPosition = new Vector3(0.28f, -0.22f, 0.45f);
-            var black = ProceduralAssets.LitMaterial(new Color(0.08f, 0.08f, 0.09f), 0.45f);
-            var wood = ProceduralAssets.LitMaterial(new Color(0.30f, 0.20f, 0.12f), 0.3f);
-            Part(rifle.transform, PrimitiveType.Cube, new Vector3(0f, 0f, 0f), new Vector3(0.06f, 0.09f, 0.8f), Quaternion.identity, wood);
-            Part(rifle.transform, PrimitiveType.Cylinder, new Vector3(0f, 0.02f, 0.75f), new Vector3(0.025f, 0.35f, 0.025f), Quaternion.Euler(90f, 0f, 0f), black);
-            Part(rifle.transform, PrimitiveType.Cylinder, new Vector3(0f, 0.09f, 0.1f), new Vector3(0.045f, 0.13f, 0.045f), Quaternion.Euler(90f, 0f, 0f), black);
-            Part(rifle.transform, PrimitiveType.Cube, new Vector3(0f, -0.04f, -0.45f), new Vector3(0.05f, 0.11f, 0.3f), Quaternion.identity, wood);
-
             var muzzleGo = new GameObject("MuzzleFlash");
             muzzleGo.transform.SetParent(eyeGo.transform, false);
             muzzleGo.transform.localPosition = new Vector3(0.28f, -0.18f, 1.2f);
@@ -140,7 +127,7 @@ namespace SniperRidge
             muzzle.enabled = false;
 
             var ctrl = player.AddComponent<SniperController>();
-            ctrl.Init(cam, rifle, muzzle);
+            ctrl.Init(cam, muzzle);
             var health = player.AddComponent<PlayerHealth>();
 
             gm.Player = ctrl;
@@ -170,18 +157,6 @@ namespace SniperRidge
                 Vegetation.Bush(null, nest + off, 0.9f, bushRng);
         }
 
-        static void Part(Transform parent, PrimitiveType type, Vector3 pos, Vector3 scale, Quaternion rot, Material mat)
-        {
-            var go = GameObject.CreatePrimitive(type);
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = pos;
-            go.transform.localScale = scale;
-            go.transform.localRotation = rot;
-            go.GetComponent<Renderer>().material = mat;
-            go.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-            Object.Destroy(go.GetComponent<Collider>());
-        }
-
         // ---------- 적 ----------
 
         static List<EnemySpawn> EnemySpawns()
@@ -201,21 +176,51 @@ namespace SniperRidge
             };
         }
 
-        static void BuildEnemies(GameManager gm, Terrain terrain, List<EnemySpawn> spawns, Vector3 playerPos)
-        {
-            var body = ProceduralAssets.LitMaterial(new Color(0.44f, 0.42f, 0.28f), 0.05f);
-            var skin = ProceduralAssets.LitMaterial(new Color(0.78f, 0.62f, 0.48f), 0.1f);
-            var gear = ProceduralAssets.LitMaterial(new Color(0.12f, 0.13f, 0.11f), 0.2f);
-            var rock = ProceduralAssets.LitMaterial(new Color(0.50f, 0.49f, 0.46f), 0.05f);
+        static Material enemyBody, enemySkin, enemyGear, enemyRock;
 
+        static void EnsureEnemyMaterials()
+        {
+            if (enemyBody != null) return;
+            enemyBody = ProceduralAssets.LitMaterial(new Color(0.44f, 0.42f, 0.28f), 0.05f);
+            enemySkin = ProceduralAssets.LitMaterial(new Color(0.78f, 0.62f, 0.48f), 0.1f);
+            enemyGear = ProceduralAssets.LitMaterial(new Color(0.12f, 0.13f, 0.11f), 0.2f);
+            enemyRock = ProceduralAssets.LitMaterial(new Color(0.50f, 0.49f, 0.46f), 0.05f);
+        }
+
+        static Transform EnemyRoot()
+        {
+            var existing = GameObject.Find("Enemies");
+            return (existing != null ? existing : new GameObject("Enemies")).transform;
+        }
+
+        /// <summary>저격 임무: 맞은편 능선에 엄폐/순찰 적 배치.</summary>
+        public static void SpawnSniperEnemies(GameManager gm)
+        {
+            EnsureEnemyMaterials();
             var rng = new System.Random(77);
-            var root = new GameObject("Enemies");
+            var root = EnemyRoot();
+            var spawns = EnemySpawns();
+            Vector3 playerPos = gm.PlayerEye.position;
             for (int i = 0; i < spawns.Count; i++)
             {
-                var e = EnemySoldier.Create("Enemy_" + (i + 1), terrain, spawns[i], playerPos, body, skin, gear, rock, rng);
-                e.transform.SetParent(root.transform, true);
+                var e = EnemySoldier.Create("Enemy_" + (i + 1), gm.Terrain, spawns[i], playerPos, EnemySoldier.SniperModeScale,
+                                            enemyBody, enemySkin, enemyGear, enemyRock, rng);
+                e.transform.SetParent(root, true);
                 gm.RegisterEnemy(e);
             }
+        }
+
+        /// <summary>방어전: 지정 위치에 돌격형 적 하나 생성.</summary>
+        public static EnemySoldier SpawnRusher(GameManager gm, Vector2 xz, string name)
+        {
+            EnsureEnemyMaterials();
+            var rng = new System.Random(name.GetHashCode());
+            var spawn = new EnemySpawn(xz.x, xz.y, EnemyKind.Rusher);
+            var e = EnemySoldier.Create(name, gm.Terrain, spawn, gm.PlayerEye.position, EnemySoldier.DefenseModeScale,
+                                        enemyBody, enemySkin, enemyGear, enemyRock, rng);
+            e.transform.SetParent(EnemyRoot(), true);
+            gm.RegisterEnemy(e);
+            return e;
         }
 
         // ---------- 장식 (숲, 덤불, 바위) ----------

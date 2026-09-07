@@ -10,27 +10,27 @@ namespace SniperRidge
         public const float Gravity = 9.81f;
 
         /// <summary>영점 거리에서 조준선과 탄도가 만나도록 총구를 올려야 하는 각도(도).</summary>
-        public static float ZeroAngleDegrees(float zeroRange)
+        public static float ZeroAngleDegrees(float zeroRange, float muzzleVelocity = MuzzleVelocity, float dragK = DragK)
         {
             float angle = 0f; // 라디안
             for (int it = 0; it < 3; it++)
             {
-                float y = HeightAtRange(zeroRange, angle);
+                float y = HeightAtRange(zeroRange, angle, muzzleVelocity, dragK);
                 angle += Mathf.Atan2(-y, zeroRange);
             }
             return angle * Mathf.Rad2Deg;
         }
 
         /// <summary>수평 사거리 range 에 도달했을 때의 높이(음수면 조준선 아래).</summary>
-        static float HeightAtRange(float range, float angle)
+        static float HeightAtRange(float range, float angle, float muzzleVelocity, float dragK)
         {
             Vector2 p = Vector2.zero;
-            Vector2 v = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * MuzzleVelocity;
+            Vector2 v = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * muzzleVelocity;
             const float dt = 0.002f;
             for (int i = 0; i < 6000 && p.x < range; i++)
             {
                 float speed = v.magnitude;
-                Vector2 a = new Vector2(0f, -Gravity) - DragK * speed * v;
+                Vector2 a = new Vector2(0f, -Gravity) - dragK * speed * v;
                 v += a * dt;
                 p += v * dt;
             }
@@ -42,19 +42,22 @@ namespace SniperRidge
     public class Bullet : MonoBehaviour
     {
         Vector3 pos, vel, wind, origin;
-        float traveled;
+        float traveled, dragK = Ballistics.DragK, damage = 100f;
         bool done;
         LineRenderer lr;
 
-        public static void Fire(Vector3 origin, Vector3 direction, Vector3 wind)
+        public static void Fire(Vector3 origin, Vector3 direction, Vector3 wind,
+                                float muzzleVelocity = Ballistics.MuzzleVelocity, float dragK = Ballistics.DragK, float damage = 100f)
         {
             var go = new GameObject("Bullet");
             go.transform.position = origin;
             var b = go.AddComponent<Bullet>();
             b.pos = origin;
             b.origin = origin;
-            b.vel = direction.normalized * Ballistics.MuzzleVelocity;
+            b.vel = direction.normalized * muzzleVelocity;
             b.wind = wind;
+            b.dragK = dragK;
+            b.damage = damage;
 
             b.lr = go.AddComponent<LineRenderer>();
             b.lr.useWorldSpace = true;
@@ -81,7 +84,7 @@ namespace SniperRidge
                 remaining -= dt;
 
                 float speed = vel.magnitude;
-                Vector3 acc = Vector3.down * Ballistics.Gravity - Ballistics.DragK * speed * (vel - wind);
+                Vector3 acc = Vector3.down * Ballistics.Gravity - dragK * speed * (vel - wind);
                 vel += acc * dt;
                 Vector3 next = pos + vel * dt;
                 Vector3 seg = next - pos;
@@ -114,8 +117,9 @@ namespace SniperRidge
 
             if (hitbox != null && hitbox.Owner != null && !hitbox.Owner.IsDead)
             {
-                hitbox.Owner.Kill(hitbox.IsHead, vel.normalized);
-                if (gm != null) gm.OnEnemyKilled(hitbox.Owner, hitbox.IsHead, dist);
+                bool killed = hitbox.Owner.TakeHit(damage, hitbox.IsHead, vel.normalized);
+                Effects.Puff(hit.point, -vel.normalized, 0.18f, new Color(0.55f, 0.05f, 0.05f), 0.45f);
+                if (gm != null) gm.OnEnemyHit(hitbox.Owner, hitbox.IsHead, dist, killed);
             }
             else
             {

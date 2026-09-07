@@ -47,15 +47,22 @@ namespace SniperRidge
             return tc;
         }
 
-        void Construct(Transform root)
+        GameObject buttonsRoot;
+
+        void Construct(Transform canvas)
         {
             var p = gm.Player;
+            buttonsRoot = new GameObject("TouchButtons", typeof(RectTransform));
+            buttonsRoot.transform.SetParent(canvas, false);
+            UiKit.Place(buttonsRoot.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            Transform root = buttonsRoot.transform;
             var bg = new Color(1f, 1f, 1f, 0.22f);
             var fg = Color.white;
             var br = new Vector2(1f, 0f);
             var bc = new Vector2(1f, 0f);
 
-            MakeButton(root, "Fire", "사격", 34, bg, fg, br, bc, new Vector2(-170f, 170f), new Vector2(200f, 200f), p.PressFire, null);
+            MakeButton(root, "Fire", "사격", 34, bg, fg, br, bc, new Vector2(-170f, 170f), new Vector2(200f, 200f),
+                       () => { p.PressFire(); p.SetFireHeld(true); }, () => p.SetFireHeld(false));
             MakeButton(root, "Scope", "조준경", 26, bg, fg, br, bc, new Vector2(-390f, 120f), new Vector2(160f, 100f), p.ToggleScope, null);
             MakeButton(root, "Breath", "숨 참기", 26, bg, fg, br, bc, new Vector2(-390f, 240f), new Vector2(160f, 100f), () => p.SetBreath(true), () => p.SetBreath(false));
             MakeButton(root, "Reload", "재장전", 26, bg, fg, br, bc, new Vector2(-170f, 390f), new Vector2(160f, 90f), p.PressReload, null);
@@ -82,6 +89,9 @@ namespace SniperRidge
         void Update()
         {
             if (gm == null || gm.Player == null) return;
+            bool show = gm.IsPlaying;
+            if (buttonsRoot.activeSelf != show) buttonsRoot.SetActive(show);
+            if (!show) return;
             var es = EventSystem.current;
 
             for (int i = 0; i < Input.touchCount; i++)

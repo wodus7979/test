@@ -8,7 +8,15 @@ namespace SniperRidge
         public float Current { get; private set; } = 100f;
         public float Fraction => Current / Max;
 
+        float regenDelay = 5f, regenRate = 6f;
         float lastHitTime = -99f;
+
+        public void Configure(float delay, float rate)
+        {
+            regenDelay = delay;
+            regenRate = rate;
+            Current = Max;
+        }
 
         public void TakeDamage(float amount)
         {
@@ -23,8 +31,8 @@ namespace SniperRidge
 
         void Update()
         {
-            if (Current > 0f && Current < Max && Time.time - lastHitTime > 5f)
-                Current = Mathf.Min(Max, Current + 6f * Time.deltaTime);
+            if (Current > 0f && Current < Max && Time.time - lastHitTime > regenDelay)
+                Current = Mathf.Min(Max, Current + regenRate * Time.deltaTime);
         }
     }
 }

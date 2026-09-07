@@ -5,14 +5,18 @@ using UnityEngine.SceneManagement;
 
 namespace SniperRidge
 {
-    /// <summary>임무 상태, 점수, 사운드, 적 관리.</summary>
+    /// <summary>임무 선택, 임무 진행(저격 / 방어전 웨이브), 점수, 사운드, 적 관리.</summary>
     public class GameManager : MonoBehaviour
     {
         public static GameManager Instance { get; private set; }
 
-        public enum GameState { Playing, Won, Lost }
-        public GameState State { get; private set; } = GameState.Playing;
+        public enum GameState { Select, Playing, Won, Lost }
+        public GameState State { get; private set; } = GameState.Select;
         public bool IsPlaying => State == GameState.Playing;
+        public bool IsSelecting => State == GameState.Select;
+
+        public MissionType Mission { get; private set; }
+        public WeaponDefinition Weapon { get; private set; }
 
         public Transform PlayerEye;
         public SniperController Player;
@@ -30,6 +34,20 @@ namespace SniperRidge
         public int TotalEnemies => enemies.Count;
         public float Elapsed => (IsPlaying ? Time.time : endTime) - startTime;
 
+        // 방어전
+        public int Wave { get; private set; }
+        public int TotalWaves { get; private set; } = 5;
+        public bool WaveSpawning { get; private set; }
+        public int AliveEnemies
+        {
+            get
+            {
+                int n = 0;
+                foreach (var e in enemies) if (e != null && !e.IsDead) n++;
+                return n;
+            }
+        }
+
         readonly List<EnemySoldier> enemies = new List<EnemySoldier>();
         AudioSource[] audioPool;
         int audioIndex;
@@ -39,7 +57,7 @@ namespace SniperRidge
         {
             Instance = this;
             Sounds = SoundBank.Create();
-            audioPool = new AudioSource[6];
+            audioPool = new AudioSource[8];
             for (int i = 0; i < audioPool.Length; i++)
             {
                 var src = gameObject.AddComponent<AudioSource>();
@@ -51,17 +69,90 @@ namespace SniperRidge
 
         void Update()
         {
-            if (!IsPlaying && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            if (IsSelecting)
+            {
+                for (int i = 0; i < WeaponDefinition.All.Length && i < 9; i++)
+                {
+                    if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
+                        StartMission(WeaponDefinition.All[i]);
+                }
+            }
+            else if (!IsPlaying && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            {
                 Restart();
+            }
         }
 
-        public void BeginMission()
+        // ---------- 임무 시작 ----------
+
+        public void StartMission(WeaponDefinition weapon)
         {
+            if (!IsSelecting) return;
+            Weapon = weapon;
+            Mission = weapon.Mission;
             State = GameState.Playing;
             startTime = Time.time;
+            Player.Equip(weapon);
+
+            if (Mission == MissionType.Sniper)
+            {
+                Health.Configure(5f, 6f);
+                LevelBuilder.SpawnSniperEnemies(this);
+                Hud.OnMissionStart("능선에 잠복 중.\n맞은편 능선의 바위와 나무 뒤에 숨은 적을 모두 제거하라.\n첫 발 이후 적은 경계 태세로 전환해 반격한다.");
+            }
+            else
+            {
+                Health.Configure(3f, 12f);
+                Hud.OnMissionStart("진지 방어.\n맞은편 사면에서 적이 웨이브로 몰려온다.\n" + TotalWaves + "개 웨이브를 모두 막아내라.");
+                StartCoroutine(RunWaves());
+            }
+        }
+
+        IEnumerator RunWaves()
+        {
+            yield return new WaitForSeconds(4f);
+            var rng = new System.Random();
+            for (int wave = 1; wave <= TotalWaves && IsPlaying; wave++)
+            {
+                Wave = wave;
+                int count = 6 + wave * 4;
+                Hud.Announce(string.Format("웨이브 {0} / {1}   적 {2}명", wave, TotalWaves, count));
+                PlaySound(Sounds.Bolt, 0.6f, 0.6f);
+
+                WaveSpawning = true;
+                var waveEnemies = new List<EnemySoldier>();
+                for (int i = 0; i < count && IsPlaying; i++)
+                {
+                    float x = (float)(rng.NextDouble() * 260.0 - 130.0);
+                    float z = (float)(40.0 + rng.NextDouble() * 110.0 + Mathf.Min(wave, 4) * 6.0);
+                    var e = LevelBuilder.SpawnRusher(this, new Vector2(x, z), "Rusher_" + wave + "_" + (i + 1));
+                    waveEnemies.Add(e);
+                    yield return new WaitForSeconds(Mathf.Lerp(0.9f, 0.45f, (wave - 1f) / (TotalWaves - 1f)));
+                }
+                WaveSpawning = false;
+
+                while (IsPlaying)
+                {
+                    bool anyAlive = false;
+                    foreach (var e in waveEnemies) if (e != null && !e.IsDead) { anyAlive = true; break; }
+                    if (!anyAlive) break;
+                    yield return new WaitForSeconds(0.5f);
+                }
+                if (!IsPlaying) yield break;
+
+                if (wave < TotalWaves)
+                {
+                    Hud.Announce("웨이브 격퇴!  다음 웨이브까지 8초");
+                    Score += 500 * wave;
+                    yield return new WaitForSeconds(8f);
+                }
+            }
+            if (IsPlaying) EndMission(true);
         }
 
         public void RegisterEnemy(EnemySoldier e) => enemies.Add(e);
+
+        // ---------- 사운드 ----------
 
         public void PlaySound(AudioClip clip, float volume = 1f, float pitch = 1f)
         {
@@ -77,9 +168,10 @@ namespace SniperRidge
         public void OnPlayerShot()
         {
             Shots++;
+            if (Mission != MissionType.Sniper) return;
             foreach (var e in enemies)
             {
-                if (e.IsDead || e.IsAware) continue;
+                if (e == null || e.IsDead || e.IsAware) continue;
                 float delay = Vector3.Distance(e.transform.position, PlayerEye.position) / 340f;
                 StartCoroutine(AwareAfter(e, delay));
             }
@@ -91,12 +183,12 @@ namespace SniperRidge
             if (e != null) e.SetAware();
         }
 
-        /// <summary>탄이 적 근처를 스쳐 지나가면 경계.</summary>
         public void NotifyBulletPass(Vector3 a, Vector3 b)
         {
+            if (Mission != MissionType.Sniper) return;
             foreach (var e in enemies)
             {
-                if (e.IsDead) continue;
+                if (e == null || e.IsDead) continue;
                 Vector3 c = e.transform.position + Vector3.up;
                 if (DistancePointSegment(c, a, b) < 2.5f)
                     e.Alert(Random.Range(3f, 7f));
@@ -105,46 +197,59 @@ namespace SniperRidge
 
         public void OnBulletImpact(Vector3 point)
         {
+            if (Mission != MissionType.Sniper) return;
             foreach (var e in enemies)
             {
-                if (e.IsDead) continue;
+                if (e == null || e.IsDead) continue;
                 if (Vector3.Distance(e.transform.position, point) < 15f)
                     e.Alert(Random.Range(4f, 8f));
             }
         }
 
-        public void OnEnemyKilled(EnemySoldier e, bool headshot, float distance)
+        public void OnEnemyHit(EnemySoldier e, bool headshot, float distance, bool killed)
         {
             if (!IsPlaying) return;
-            Kills++;
             Hits++;
+            Hud.ShowHitMarker(headshot, killed);
+            if (!killed)
+            {
+                PlaySound(Sounds.HitTick, 0.35f, 1.3f);
+                return;
+            }
+
+            Kills++;
             if (headshot) Headshots++;
             int points = (headshot ? 250 : 100) + Mathf.RoundToInt(distance * 0.5f);
             Score += points;
-
-            Hud.ShowHitMarker(headshot);
-            Hud.KillFeed(headshot
-                ? string.Format("헤드샷!  +{0}  ({1:0} m)", points, distance)
-                : string.Format("명중  +{0}  ({1:0} m)", points, distance));
+            if (Mission == MissionType.Sniper)
+            {
+                Hud.KillFeed(headshot
+                    ? string.Format("헤드샷!  +{0}  ({1:0} m)", points, distance)
+                    : string.Format("명중  +{0}  ({1:0} m)", points, distance));
+            }
+            else
+            {
+                Hud.KillFeed(headshot ? string.Format("헤드샷!  +{0}", points) : string.Format("+{0}", points));
+            }
             PlaySound(Sounds.HitTick, 0.8f);
 
-            if (Kills >= enemies.Count) EndMission(true);
+            if (Mission == MissionType.Sniper && Kills >= enemies.Count) EndMission(true);
         }
 
         // ---------- 적 사격 관련 ----------
 
-        public IEnumerator EnemyShotArrival(float dist, bool hit)
+        public IEnumerator EnemyShotArrival(float dist, bool hit, float damage)
         {
             float bulletT = dist / 800f;
             float soundT = dist / 340f;
             yield return new WaitForSeconds(bulletT);
             if (IsPlaying)
             {
-                if (hit) Health.TakeDamage(Random.Range(18f, 26f));
+                if (hit) Health.TakeDamage(damage);
                 else PlaySound(Sounds.Crack, 0.5f, Random.Range(0.9f, 1.1f));
             }
             yield return new WaitForSeconds(Mathf.Max(0f, soundT - bulletT));
-            PlaySound(Sounds.DistantShot, Mathf.Clamp01(1.1f - dist / 900f) * 0.7f, Random.Range(0.85f, 1f));
+            PlaySound(Sounds.DistantShot, Mathf.Clamp01(1.1f - dist / 900f) * 0.6f, Random.Range(0.85f, 1.05f));
         }
 
         public void PlayerDied() => EndMission(false);

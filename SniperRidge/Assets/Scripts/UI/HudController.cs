@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 namespace SniperRidge
 {
-    /// <summary>화면 표시: 조준경, 십자선, 탄약, 체력, 호흡, 바람, 영점, 거리, 킬 피드, 결과 화면.</summary>
+    /// <summary>화면 표시: 무기 선택, 조준경, 십자선, 탄약, 체력, 호흡, 바람, 영점, 거리, 웨이브, 킬 피드, 결과 화면.</summary>
     public class HudController : MonoBehaviour
     {
         public Canvas RootCanvas { get; private set; }
@@ -11,13 +11,13 @@ namespace SniperRidge
         GameManager gm;
         RectTransform canvasRect;
 
-        Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, killFeed, introText, hintText, endTitle, endStats;
+        Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, weaponText, killFeed, introText, announceText, hintText, endTitle, endStats;
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
         Image[] hitLines;
-        GameObject scopeRoot, crosshair, endPanel;
+        GameObject scopeRoot, crosshair, endPanel, selectPanel, gameplayRoot;
 
-        float hitTimer, killFeedTimer, introTimer = 8f, damageTimer;
+        float hitTimer, killFeedTimer, introTimer, announceTimer, damageTimer;
 
         public static HudController Build(GameManager gm)
         {
@@ -49,9 +49,15 @@ namespace SniperRidge
             var bottomRight = new Vector2(1f, 0f);
             var center = new Vector2(0.5f, 0.5f);
 
-            // ----- 조준경 (맨 아래 레이어) -----
+            // ===== 게임플레이 HUD (임무 시작 후 표시) =====
+            gameplayRoot = new GameObject("Gameplay", typeof(RectTransform));
+            gameplayRoot.transform.SetParent(root, false);
+            UiKit.Place(gameplayRoot.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, center, Vector2.zero, Vector2.zero);
+            Transform g = gameplayRoot.transform;
+
+            // 조준경
             scopeRoot = new GameObject("Scope", typeof(RectTransform));
-            scopeRoot.transform.SetParent(root, false);
+            scopeRoot.transform.SetParent(g, false);
             UiKit.Place(scopeRoot.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, center, Vector2.zero, Vector2.zero);
             var scopeSprite = ProceduralAssets.SpriteFrom(ProceduralAssets.ScopeOverlay(1024));
             scopeImage = UiKit.Panel(scopeRoot.transform, "Reticle", white, center, center, center, Vector2.zero, new Vector2(1080f, 1080f));
@@ -62,9 +68,9 @@ namespace SniperRidge
             barBottom = UiKit.Panel(scopeRoot.transform, "BarB", Color.black, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), Vector2.zero, Vector2.zero);
             scopeRoot.SetActive(false);
 
-            // ----- 십자선 (비조준 상태) -----
+            // 십자선
             crosshair = new GameObject("Crosshair", typeof(RectTransform));
-            crosshair.transform.SetParent(root, false);
+            crosshair.transform.SetParent(g, false);
             UiKit.Place(crosshair.GetComponent<RectTransform>(), center, center, center, Vector2.zero, Vector2.zero);
             var chColor = new Color(1f, 1f, 1f, 0.8f);
             UiKit.Panel(crosshair.transform, "Dot", chColor, center, center, center, Vector2.zero, new Vector2(4f, 4f));
@@ -73,9 +79,9 @@ namespace SniperRidge
             UiKit.Panel(crosshair.transform, "U", chColor, center, center, center, new Vector2(0f, 14f), new Vector2(2f, 12f));
             UiKit.Panel(crosshair.transform, "D", chColor, center, center, center, new Vector2(0f, -14f), new Vector2(2f, 12f));
 
-            // ----- 피격 표시 (X) -----
+            // 피격 표시 (X)
             var hm = new GameObject("HitMarker", typeof(RectTransform));
-            hm.transform.SetParent(root, false);
+            hm.transform.SetParent(g, false);
             hitMarker = hm.GetComponent<RectTransform>();
             UiKit.Place(hitMarker, center, center, center, Vector2.zero, Vector2.zero);
             var l1 = UiKit.Panel(hm.transform, "X1", white, center, center, center, Vector2.zero, new Vector2(44f, 3f));
@@ -85,64 +91,114 @@ namespace SniperRidge
             hitLines = new[] { l1.GetComponent<Image>(), l2.GetComponent<Image>() };
             hm.SetActive(false);
 
-            // ----- 피해 플래시 -----
-            damageFlash = UiKit.Fullscreen(root, "DamageFlash", new Color(0.8f, 0f, 0f, 0f)).GetComponent<Image>();
+            damageFlash = UiKit.Fullscreen(g, "DamageFlash", new Color(0.8f, 0f, 0f, 0f)).GetComponent<Image>();
 
-            // ----- 좌상단: 임무 상태 -----
-            enemyText = UiKit.Label(root, "Enemies", "", 30, TextAnchor.UpperLeft, white, topLeft, topLeft, new Vector2(30f, -25f), new Vector2(700f, 40f), true);
-            scoreText = UiKit.Label(root, "Score", "", 26, TextAnchor.UpperLeft, dim, topLeft, topLeft, new Vector2(30f, -66f), new Vector2(700f, 34f));
-            timeText = UiKit.Label(root, "Time", "", 24, TextAnchor.UpperLeft, dim, topLeft, topLeft, new Vector2(30f, -100f), new Vector2(700f, 32f));
+            // 좌상단
+            enemyText = UiKit.Label(g, "Enemies", "", 30, TextAnchor.UpperLeft, white, topLeft, topLeft, new Vector2(30f, -25f), new Vector2(800f, 40f), true);
+            scoreText = UiKit.Label(g, "Score", "", 26, TextAnchor.UpperLeft, dim, topLeft, topLeft, new Vector2(30f, -66f), new Vector2(700f, 34f));
+            timeText = UiKit.Label(g, "Time", "", 24, TextAnchor.UpperLeft, dim, topLeft, topLeft, new Vector2(30f, -100f), new Vector2(700f, 32f));
 
-            // ----- 우상단: 바람 / 영점 -----
-            windText = UiKit.Label(root, "Wind", "", 26, TextAnchor.UpperRight, white, topRight, topRight, new Vector2(-30f, -25f), new Vector2(700f, 36f), true);
-            var arrowGo = UiKit.Panel(root, "WindArrow", white, topRight, topRight, center, new Vector2(-62f, -92f), new Vector2(54f, 54f));
+            // 우상단
+            windText = UiKit.Label(g, "Wind", "", 26, TextAnchor.UpperRight, white, topRight, topRight, new Vector2(-30f, -25f), new Vector2(700f, 36f), true);
+            var arrowGo = UiKit.Panel(g, "WindArrow", white, topRight, topRight, center, new Vector2(-62f, -92f), new Vector2(54f, 54f));
             arrowGo.GetComponent<Image>().sprite = ProceduralAssets.SpriteFrom(ProceduralAssets.ArrowTexture(64));
             windArrow = arrowGo;
-            zeroText = UiKit.Label(root, "Zero", "", 24, TextAnchor.UpperRight, dim, topRight, topRight, new Vector2(-30f, -132f), new Vector2(700f, 32f));
+            zeroText = UiKit.Label(g, "Zero", "", 24, TextAnchor.UpperRight, dim, topRight, topRight, new Vector2(-30f, -132f), new Vector2(700f, 32f));
 
-            // ----- 중앙 하단: 거리 -----
-            rangeText = UiKit.Label(root, "Range", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, -150f), new Vector2(300f, 40f), true);
+            rangeText = UiKit.Label(g, "Range", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, -150f), new Vector2(300f, 40f), true);
 
-            // ----- 좌하단: 체력 / 호흡 -----
-            UiKit.Label(root, "HpLabel", "체력", 20, TextAnchor.LowerLeft, dim, bottomLeft, bottomLeft, new Vector2(30f, 56f), new Vector2(200f, 26f));
-            var hpBg = UiKit.Panel(root, "HpBg", new Color(0f, 0f, 0f, 0.55f), bottomLeft, bottomLeft, bottomLeft, new Vector2(30f, 30f), new Vector2(320f, 22f));
+            // 좌하단
+            UiKit.Label(g, "HpLabel", "체력", 20, TextAnchor.LowerLeft, dim, bottomLeft, bottomLeft, new Vector2(30f, 56f), new Vector2(200f, 26f));
+            var hpBg = UiKit.Panel(g, "HpBg", new Color(0f, 0f, 0f, 0.55f), bottomLeft, bottomLeft, bottomLeft, new Vector2(30f, 30f), new Vector2(320f, 22f));
             hpFill = UiKit.Panel(hpBg, "HpFill", new Color(0.85f, 0.2f, 0.2f), new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(2f, 0f), new Vector2(316f, -4f));
-            UiKit.Label(root, "BreathLabel", "호흡", 20, TextAnchor.LowerLeft, dim, bottomLeft, bottomLeft, new Vector2(30f, 108f), new Vector2(200f, 26f));
-            var brBg = UiKit.Panel(root, "BreathBg", new Color(0f, 0f, 0f, 0.55f), bottomLeft, bottomLeft, bottomLeft, new Vector2(30f, 86f), new Vector2(320f, 18f));
+            UiKit.Label(g, "BreathLabel", "호흡", 20, TextAnchor.LowerLeft, dim, bottomLeft, bottomLeft, new Vector2(30f, 108f), new Vector2(200f, 26f));
+            var brBg = UiKit.Panel(g, "BreathBg", new Color(0f, 0f, 0f, 0.55f), bottomLeft, bottomLeft, bottomLeft, new Vector2(30f, 86f), new Vector2(320f, 18f));
             breathFill = UiKit.Panel(brBg, "BreathFill", new Color(0.3f, 0.7f, 1f), new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(2f, 0f), new Vector2(316f, -4f));
 
-            // ----- 우하단: 탄약 -----
-            ammoText = UiKit.Label(root, "Ammo", "", 46, TextAnchor.LowerRight, white, bottomRight, bottomRight, new Vector2(-30f, 36f), new Vector2(400f, 60f), true);
-            stateText = UiKit.Label(root, "WeaponState", "", 24, TextAnchor.LowerRight, dim, bottomRight, bottomRight, new Vector2(-30f, 100f), new Vector2(400f, 34f));
+            // 우하단
+            ammoText = UiKit.Label(g, "Ammo", "", 46, TextAnchor.LowerRight, white, bottomRight, bottomRight, new Vector2(-30f, 36f), new Vector2(400f, 60f), true);
+            stateText = UiKit.Label(g, "WeaponState", "", 24, TextAnchor.LowerRight, dim, bottomRight, bottomRight, new Vector2(-30f, 100f), new Vector2(400f, 34f));
+            weaponText = UiKit.Label(g, "WeaponName", "", 22, TextAnchor.LowerRight, dim, bottomRight, bottomRight, new Vector2(-30f, 134f), new Vector2(400f, 30f));
 
-            // ----- 킬 피드 / 안내 -----
-            killFeed = UiKit.Label(root, "KillFeed", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.4f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(1000f, 50f), true);
-            introText = UiKit.Label(root, "Intro",
-                "능선에 잠복 중.\n맞은편 능선의 바위와 나무 뒤에 숨은 적을 모두 제거하라.\n첫 발 이후 적은 경계 태세로 전환해 반격한다.",
-                30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 230f), new Vector2(1300f, 140f));
-            hintText = UiKit.Label(root, "Hint",
-                "우클릭 조준경  |  좌클릭 사격  |  Shift 숨 참기  |  R 재장전  |  휠/Z 배율  |  ↑↓ 영점  |  Esc 마우스",
-                20, TextAnchor.LowerCenter, new Color(1f, 1f, 1f, 0.6f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(1600f, 30f));
+            // 킬 피드 / 안내
+            killFeed = UiKit.Label(g, "KillFeed", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.4f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(1000f, 50f), true);
+            announceText = UiKit.Label(g, "Announce", "", 44, TextAnchor.MiddleCenter, new Color(1f, 0.6f, 0.3f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(1200f, 60f), true);
+            introText = UiKit.Label(g, "Intro", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 230f), new Vector2(1300f, 140f));
+            hintText = UiKit.Label(g, "Hint",
+                "우클릭 조준  |  좌클릭 사격(자동화기는 누르고 있기)  |  Shift 숨 참기  |  R 재장전  |  휠/Z 배율  |  ↑↓ 영점  |  Esc 마우스",
+                20, TextAnchor.LowerCenter, new Color(1f, 1f, 1f, 0.6f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(1700f, 30f));
             if (Application.isMobilePlatform) hintText.gameObject.SetActive(false);
+            gameplayRoot.SetActive(false);
 
-            // ----- 결과 화면 -----
+            // ===== 무기 선택 화면 =====
+            BuildSelectPanel(root);
+
+            // ===== 결과 화면 =====
             var panel = UiKit.Fullscreen(root, "EndPanel", new Color(0f, 0f, 0f, 0.72f));
             panel.GetComponent<Image>().raycastTarget = true;
             endPanel = panel.gameObject;
-            endTitle = UiKit.Label(panel, "Title", "", 76, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 130f), new Vector2(1200f, 100f), true);
-            endStats = UiKit.Label(panel, "Stats", "", 30, TextAnchor.MiddleCenter, dim, center, center, new Vector2(0f, -20f), new Vector2(1200f, 180f));
-            UiKit.TextButton(panel, "Restart", "다시 시작", 32, new Color(0.9f, 0.9f, 0.9f, 0.95f), Color.black,
-                             center, center, new Vector2(0f, -190f), new Vector2(340f, 84f), () => gm.Restart());
+            endTitle = UiKit.Label(panel, "Title", "", 76, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 150f), new Vector2(1200f, 100f), true);
+            endStats = UiKit.Label(panel, "Stats", "", 30, TextAnchor.MiddleCenter, dim, center, center, new Vector2(0f, -10f), new Vector2(1200f, 200f));
+            UiKit.TextButton(panel, "Restart", "무기 선택으로", 32, new Color(0.9f, 0.9f, 0.9f, 0.95f), Color.black,
+                             center, center, new Vector2(0f, -200f), new Vector2(360f, 84f), () => gm.Restart());
             endPanel.SetActive(false);
+        }
+
+        void BuildSelectPanel(Transform root)
+        {
+            var center = new Vector2(0.5f, 0.5f);
+            var panel = UiKit.Fullscreen(root, "SelectPanel", new Color(0f, 0f, 0f, 0.55f));
+            panel.GetComponent<Image>().raycastTarget = true;
+            selectPanel = panel.gameObject;
+
+            UiKit.Label(panel, "Title", "SNIPER RIDGE", 64, TextAnchor.MiddleCenter, Color.white, center, center, new Vector2(0f, 380f), new Vector2(1200f, 90f), true);
+            UiKit.Label(panel, "Sub", "무기를 선택하세요.  무기에 따라 임무가 달라집니다.", 28, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.85f), center, center, new Vector2(0f, 310f), new Vector2(1200f, 40f));
+
+            var weapons = WeaponDefinition.All;
+            float cardW = 400f, cardH = 300f, gap = 30f;
+            float totalW = weapons.Length * cardW + (weapons.Length - 1) * gap;
+            for (int i = 0; i < weapons.Length; i++)
+            {
+                var w = weapons[i];
+                float x = -totalW * 0.5f + cardW * 0.5f + i * (cardW + gap);
+                var card = UiKit.TextButton(panel, "Card_" + w.Id, "", 20,
+                    w.Mission == MissionType.Sniper ? new Color(0.16f, 0.22f, 0.16f, 0.95f) : new Color(0.26f, 0.18f, 0.12f, 0.95f),
+                    Color.white, center, center, new Vector2(x, 60f), new Vector2(cardW, cardH), null);
+                var def = w;
+                card.onClick.AddListener(() => gm.StartMission(def));
+                var rt = card.GetComponent<RectTransform>();
+                UiKit.Label(rt, "Num", (i + 1).ToString(), 30, TextAnchor.UpperLeft, new Color(1f, 0.85f, 0.4f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -12f), new Vector2(60f, 40f), true);
+                UiKit.Label(rt, "Name", w.Name, 34, TextAnchor.UpperCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(cardW - 30f, 44f), true);
+                UiKit.Label(rt, "Mode", w.Mission == MissionType.Sniper ? "저격 임무" : "방어전 임무", 22, TextAnchor.UpperCenter,
+                            w.Mission == MissionType.Sniper ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.7f, 0.4f),
+                            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -68f), new Vector2(cardW - 30f, 30f), true);
+                UiKit.Label(rt, "Desc", w.Description, 20, TextAnchor.UpperLeft, new Color(0.9f, 0.9f, 0.9f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -108f), new Vector2(cardW - 40f, 120f));
+                string stats = string.Format("{0}  |  {1}발  |  {2} m/s  |  피해 {3}",
+                    w.Fire == FireMode.Bolt ? "볼트액션" : (w.Fire == FireMode.Semi ? "반자동" : "자동"),
+                    w.MagSize, w.MuzzleVelocity, w.Damage);
+                UiKit.Label(rt, "Stats", stats, 18, TextAnchor.LowerCenter, new Color(0.7f, 0.7f, 0.7f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(cardW - 30f, 26f));
+            }
+            UiKit.Label(panel, "Keys", Application.isMobilePlatform ? "카드를 터치하면 시작합니다" : "카드를 클릭하거나 1~4 키를 누르면 시작합니다", 22,
+                        TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.8f), center, center, new Vector2(0f, -150f), new Vector2(1200f, 34f));
         }
 
         // ---------- 외부 호출 ----------
 
-        public void ShowHitMarker(bool headshot)
+        public void OnMissionStart(string intro)
         {
-            hitTimer = 0.3f;
-            var c = headshot ? new Color(1f, 0.25f, 0.2f) : Color.white;
+            selectPanel.SetActive(false);
+            gameplayRoot.SetActive(true);
+            introText.text = intro;
+            introTimer = 8f;
+            var c = introText.color; c.a = 1f; introText.color = c;
+        }
+
+        public void ShowHitMarker(bool headshot, bool killed)
+        {
+            hitTimer = killed ? 0.3f : 0.15f;
+            Color c = killed ? (headshot ? new Color(1f, 0.25f, 0.2f) : Color.white) : new Color(1f, 1f, 1f, 0.6f);
             foreach (var img in hitLines) img.color = c;
+            hitMarker.localScale = Vector3.one * (killed ? 1f : 0.7f);
             hitMarker.gameObject.SetActive(true);
         }
 
@@ -150,6 +206,12 @@ namespace SniperRidge
         {
             killFeed.text = text;
             killFeedTimer = 2.5f;
+        }
+
+        public void Announce(string text)
+        {
+            announceText.text = text;
+            announceTimer = 4f;
         }
 
         public void FlashDamage()
@@ -165,10 +227,11 @@ namespace SniperRidge
             int m = Mathf.FloorToInt(gm.Elapsed / 60f);
             int s = Mathf.FloorToInt(gm.Elapsed % 60f);
             float acc = gm.Shots > 0 ? 100f * gm.Hits / gm.Shots : 0f;
+            string waveLine = gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
             endStats.text = string.Format(
-                "소요 시간  {0:00}:{1:00}\n사격 {2}발  /  명중 {3}발  (명중률 {4:0}%)\n헤드샷  {5}\n점수  {6}\n\n{7}",
-                m, s, gm.Shots, gm.Hits, acc, gm.Headshots, gm.Score,
-                Application.isMobilePlatform ? "" : "Enter 키로 다시 시작");
+                "{0}\n{1}소요 시간  {2:00}:{3:00}\n사격 {4}발  /  명중 {5}발  (명중률 {6:0}%)\n사살 {7}  (헤드샷 {8})\n점수  {9}\n\n{10}",
+                gm.Weapon != null ? gm.Weapon.Name : "", waveLine, m, s, gm.Shots, gm.Hits, acc, gm.Kills, gm.Headshots, gm.Score,
+                Application.isMobilePlatform ? "" : "Enter 키로 무기 선택 화면");
         }
 
         // ---------- 갱신 ----------
@@ -176,12 +239,21 @@ namespace SniperRidge
         void Update()
         {
             if (gm == null || gm.Player == null) return;
+            if (gm.IsSelecting) return;
             var p = gm.Player;
             float dt = Time.deltaTime;
 
-            int remaining = gm.TotalEnemies - gm.Kills;
-            enemyText.text = string.Format("적 잔여  {0} / {1}", remaining, gm.TotalEnemies);
-            scoreText.text = string.Format("점수  {0}", gm.Score);
+            if (gm.Mission == MissionType.Sniper)
+            {
+                enemyText.text = string.Format("적 잔여  {0} / {1}", gm.TotalEnemies - gm.Kills, gm.TotalEnemies);
+            }
+            else
+            {
+                enemyText.text = gm.Wave == 0
+                    ? "웨이브 준비 중..."
+                    : string.Format("웨이브 {0} / {1}    남은 적 {2}{3}", gm.Wave, gm.TotalWaves, gm.AliveEnemies, gm.WaveSpawning ? " (증원 중)" : "");
+            }
+            scoreText.text = string.Format("점수  {0}    사살 {1}", gm.Score, gm.Kills);
             timeText.text = string.Format("시간  {0:00}:{1:00}", Mathf.FloorToInt(gm.Elapsed / 60f), Mathf.FloorToInt(gm.Elapsed % 60f));
 
             Vector3 w = gm.Wind.Wind;
@@ -189,18 +261,22 @@ namespace SniperRidge
             float cross = local.x;
             windText.text = string.Format("바람  {0:0.0} m/s   횡풍 {1}{2:0.0}", w.magnitude, cross >= 0f ? "→ " : "← ", Mathf.Abs(cross));
             windArrow.localRotation = Quaternion.Euler(0f, 0f, -Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg);
-            zeroText.text = string.Format("영점 {0} m   배율 {1}", p.ZeroRange, p.ZoomLabel);
+            zeroText.text = p.Weapon != null && p.Weapon.HasZeroing
+                ? string.Format("영점 {0} m   배율 {1}", p.ZeroRange, p.ZoomLabel)
+                : string.Format("배율 {0}", p.ZoomLabel);
 
             rangeText.text = p.RangeMeters > 0f ? string.Format("{0:0} m", p.RangeMeters) : "---";
             ammoText.text = string.Format("{0} / {1}", p.AmmoInMag, p.Reserve);
             stateText.text = p.StateLabel;
+            weaponText.text = p.Weapon != null ? p.Weapon.Name : "";
 
             hpFill.localScale = new Vector3(Mathf.Clamp01(gm.Health.Fraction), 1f, 1f);
             breathFill.localScale = new Vector3(Mathf.Clamp01(p.Breath), 1f, 1f);
 
-            bool scoped = p.IsScoped;
+            bool scoped = p.IsScoped && p.CurrentScopeFov < 20f;   // 저배율 광학(2x 등)은 오버레이 없이 총 모델로 조준
             if (scopeRoot.activeSelf != scoped) scopeRoot.SetActive(scoped);
-            if (crosshair.activeSelf == scoped) crosshair.SetActive(!scoped);
+            bool showCross = !p.IsScoped;
+            if (crosshair.activeSelf != showCross) crosshair.SetActive(showCross);
             if (scoped) LayoutScope();
 
             if (hitTimer > 0f)
@@ -208,20 +284,9 @@ namespace SniperRidge
                 hitTimer -= dt;
                 if (hitTimer <= 0f) hitMarker.gameObject.SetActive(false);
             }
-            if (killFeedTimer > 0f)
-            {
-                killFeedTimer -= dt;
-                var c = killFeed.color;
-                c.a = Mathf.Clamp01(killFeedTimer / 0.6f);
-                killFeed.color = c;
-            }
-            if (introTimer > 0f)
-            {
-                introTimer -= dt;
-                var c = introText.color;
-                c.a = Mathf.Clamp01(introTimer / 1.5f);
-                introText.color = c;
-            }
+            Fade(killFeed, ref killFeedTimer, dt, 0.6f);
+            Fade(announceText, ref announceTimer, dt, 1.0f);
+            Fade(introText, ref introTimer, dt, 1.5f);
             if (damageTimer > 0f)
             {
                 damageTimer -= dt;
@@ -229,6 +294,15 @@ namespace SniperRidge
                 c.a = Mathf.Clamp01(damageTimer / 0.6f) * 0.45f;
                 damageFlash.color = c;
             }
+        }
+
+        static void Fade(Text t, ref float timer, float dt, float fadeLen)
+        {
+            if (timer <= 0f) return;
+            timer -= dt;
+            var c = t.color;
+            c.a = Mathf.Clamp01(timer / fadeLen);
+            t.color = c;
         }
 
         void LayoutScope()

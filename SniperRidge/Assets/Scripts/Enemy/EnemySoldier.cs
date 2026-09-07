@@ -1,9 +1,10 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SniperRidge
 {
-    public enum EnemyKind { Cover, Patrol, Tree }
+    public enum EnemyKind { Cover, Patrol, Tree, Rusher }
 
     public struct EnemySpawn
     {
@@ -24,40 +25,50 @@ namespace SniperRidge
     ///  - Cover : 바위 뒤에 웅크렸다가 주기적으로 몸을 일으킨다.
     ///  - Tree  : 굵은 나무 뒤에 숨었다가 옆으로 몸을 내민다.
     ///  - Patrol: 두 지점 사이를 오간다.
-    /// 플레이어가 사격하면 경계 태세로 전환해 노출 시간을 줄이고 반격한다.
+    ///  - Rusher: 플레이어를 향해 돌진하며 중간중간 멈춰 사격한다 (방어전).
     /// </summary>
     public class EnemySoldier : MonoBehaviour
     {
-        /// <summary>적 전체 크기 배율 (조준 난이도 조절용).</summary>
-        public const float Scale = 1.5f;
-        const float CrouchFactor = 0.5f;     // 웅크렸을 때 키 비율
-        const float PeekSlide = 0.85f;       // 나무 옆으로 내미는 거리 (로컬 단위)
+        public const float SniperModeScale = 1.5f;   // 저격 임무의 적 크기 배율
+        public const float DefenseModeScale = 1.15f; // 방어전 적 크기 배율
+        const float CrouchFactor = 0.5f;
+        const float PeekSlide = 0.85f;
+        const float MaxHealth = 100f;
 
         public EnemyKind Kind;
         public Vector3 PointA, PointB;
 
         public bool IsDead { get; private set; }
         public bool IsAware { get; private set; }
+        public float Health { get; private set; } = MaxHealth;
         public Transform Head => head;
 
-        enum State { Hidden, Peeking, Walking, Waiting }
+        enum State { Hidden, Peeking, Walking, Waiting, Rushing, Halt }
 
         Transform rig, head, rifleTip;
         Renderer[] renderers;
         Terrain terrain;
         GameManager gm;
+        Animator animator;
+        HashSet<string> animParams;
 
         State state;
         float stateTimer;
-        float cover, coverTarget = 1f;   // 1 = 완전히 숨음, 0 = 완전히 노출
-        int peekSide = 1;                // Tree: 어느 쪽으로 내밀지
+        float cover, coverTarget = 1f;
+        int peekSide = 1;
         Vector3 walkTarget;
         Vector3 faceDir = Vector3.forward;
         float nextShotTime;
+        float scale = 1f;
+
+        // Rusher 전용
+        float burstTimer, zigzagPhase, avoidTimer;
+        int avoidSide = 1;
+        float moveSpeed;
 
         // ---------- 생성 ----------
 
-        public static EnemySoldier Create(string name, Terrain terrain, EnemySpawn spawn, Vector3 playerPos,
+        public static EnemySoldier Create(string name, Terrain terrain, EnemySpawn spawn, Vector3 playerPos, float scale,
                                           Material body, Material skin, Material gear, Material rock, System.Random rng)
         {
             Vector3 ground = TerrainGenerator.OnGround(terrain, spawn.Pos.x, spawn.Pos.y);
@@ -68,7 +79,7 @@ namespace SniperRidge
             var root = new GameObject(name);
             root.transform.position = ground;
             root.transform.rotation = Quaternion.LookRotation(toPlayer);
-            root.transform.localScale = Vector3.one * Scale;
+            root.transform.localScale = Vector3.one * scale;
 
             var rigGo = new GameObject("Rig");
             rigGo.transform.SetParent(root.transform, false);
@@ -77,43 +88,44 @@ namespace SniperRidge
             soldier.Kind = spawn.Kind;
             soldier.terrain = terrain;
             soldier.rig = rigGo.transform;
+            soldier.scale = scale;
             soldier.PointA = ground;
             soldier.PointB = spawn.Kind == EnemyKind.Patrol
                 ? TerrainGenerator.OnGround(terrain, spawn.PosB.x, spawn.PosB.y)
                 : ground;
             soldier.peekSide = rng.NextDouble() < 0.5 ? -1 : 1;
             soldier.faceDir = toPlayer;
+            soldier.zigzagPhase = (float)(rng.NextDouble() * 6.28);
+            soldier.moveSpeed = 4.2f + (float)rng.NextDouble() * 1.4f;
+            soldier.burstTimer = 2f + (float)rng.NextDouble() * 4f;
 
             BuildModel(soldier, rigGo.transform, body, skin, gear);
 
-            // 엄폐물
             if (spawn.Kind == EnemyKind.Cover)
             {
                 var rockGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 rockGo.name = name + "_Cover";
-                rockGo.transform.position = ground + toPlayer * (1.15f * Scale) + Vector3.up * (0.25f * Scale);
+                rockGo.transform.position = ground + toPlayer * (1.15f * scale) + Vector3.up * (0.25f * scale);
                 rockGo.transform.rotation = Quaternion.LookRotation(toPlayer) * Quaternion.Euler(0f, (float)(rng.NextDouble() * 10.0 - 5.0), 0f);
-                rockGo.transform.localScale = new Vector3(1.9f, 1.7f, 0.9f) * Scale;
+                rockGo.transform.localScale = new Vector3(1.9f, 1.7f, 0.9f) * scale;
                 rockGo.GetComponent<Renderer>().material = rock;
-                // 작은 돌 몇 개
                 for (int i = 0; i < 3; i++)
                 {
                     var pebble = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                     pebble.name = "Pebble";
                     Vector3 side = Vector3.Cross(Vector3.up, toPlayer);
-                    pebble.transform.position = rockGo.transform.position + side * (float)((rng.NextDouble() - 0.5) * 3.0 * Scale) + toPlayer * 0.6f;
-                    pebble.transform.position = new Vector3(pebble.transform.position.x,
-                        TerrainGenerator.GroundHeight(terrain, pebble.transform.position.x, pebble.transform.position.z) + 0.1f, pebble.transform.position.z);
-                    float ps = (float)(0.4 + rng.NextDouble() * 0.6) * Scale;
+                    Vector3 pp = rockGo.transform.position + side * (float)((rng.NextDouble() - 0.5) * 3.0 * scale) + toPlayer * 0.6f;
+                    pp.y = TerrainGenerator.GroundHeight(terrain, pp.x, pp.z) + 0.1f;
+                    pebble.transform.position = pp;
+                    float ps = (float)(0.4 + rng.NextDouble() * 0.6) * scale;
                     pebble.transform.localScale = new Vector3(ps, ps * 0.6f, ps * 0.8f);
                     pebble.GetComponent<Renderer>().material = rock;
                 }
             }
             else if (spawn.Kind == EnemyKind.Tree)
             {
-                // 플레이어 쪽에 굵은 나무. 몸통 지름은 병사 몸 폭보다 넉넉히 크게.
-                float trunkDiameter = 0.95f * Scale;
-                Vector3 treePos = ground + toPlayer * (1.05f * Scale);
+                float trunkDiameter = 0.95f * scale;
+                Vector3 treePos = ground + toPlayer * (1.05f * scale);
                 treePos.y = TerrainGenerator.GroundHeight(terrain, treePos.x, treePos.z) - 0.3f;
                 Vegetation.CoverTree(null, treePos, trunkDiameter, 1.1f);
             }
@@ -121,103 +133,92 @@ namespace SniperRidge
             return soldier;
         }
 
-        /// <summary>다리, 몸통, 머리, 헬멧, 배낭, 소총으로 구성된 병사 모델.</summary>
         static void BuildModel(EnemySoldier soldier, Transform rig, Material body, Material skin, Material gear)
         {
-            // 다리 두 개 (몸통 히트박스)
+            // ----- 히트박스 겸 기본 모델 (프리미티브) -----
+            var parts = new List<GameObject>();
             for (int i = -1; i <= 1; i += 2)
             {
-                var leg = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                leg.name = "Leg";
-                leg.transform.SetParent(rig, false);
-                leg.transform.localPosition = new Vector3(0.13f * i, 0.42f, 0f);
-                leg.transform.localScale = new Vector3(0.24f, 0.42f, 0.24f);
-                leg.GetComponent<Renderer>().material = body;
-                var hb = leg.AddComponent<EnemyHitbox>();
-                hb.Owner = soldier;
-                hb.IsHead = false;
+                var leg = Part(PrimitiveType.Capsule, rig, "Leg", new Vector3(0.13f * i, 0.42f, 0f), new Vector3(0.24f, 0.42f, 0.24f), Quaternion.identity, body, parts);
+                Hitbox(leg, soldier, false);
             }
-
-            // 몸통
-            var torso = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            torso.name = "Torso";
-            torso.transform.SetParent(rig, false);
-            torso.transform.localPosition = new Vector3(0f, 1.15f, 0f);
-            torso.transform.localScale = new Vector3(0.56f, 0.42f, 0.4f);
-            torso.GetComponent<Renderer>().material = body;
-            var torsoHb = torso.AddComponent<EnemyHitbox>();
-            torsoHb.Owner = soldier;
-            torsoHb.IsHead = false;
-
-            // 배낭
-            var pack = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            pack.name = "Backpack";
-            pack.transform.SetParent(rig, false);
-            pack.transform.localPosition = new Vector3(0f, 1.2f, -0.27f);
-            pack.transform.localScale = new Vector3(0.38f, 0.42f, 0.2f);
-            pack.GetComponent<Renderer>().material = gear;
+            var torso = Part(PrimitiveType.Capsule, rig, "Torso", new Vector3(0f, 1.15f, 0f), new Vector3(0.56f, 0.42f, 0.4f), Quaternion.identity, body, parts);
+            Hitbox(torso, soldier, false);
+            var pack = Part(PrimitiveType.Cube, rig, "Backpack", new Vector3(0f, 1.2f, -0.27f), new Vector3(0.38f, 0.42f, 0.2f), Quaternion.identity, gear, parts);
             Destroy(pack.GetComponent<Collider>());
-
-            // 팔 (소총을 든 자세)
-            var armL = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            armL.name = "ArmL";
-            armL.transform.SetParent(rig, false);
-            armL.transform.localPosition = new Vector3(-0.12f, 1.28f, 0.28f);
-            armL.transform.localRotation = Quaternion.Euler(80f, 0f, 20f);
-            armL.transform.localScale = new Vector3(0.14f, 0.26f, 0.14f);
-            armL.GetComponent<Renderer>().material = body;
+            var armL = Part(PrimitiveType.Capsule, rig, "ArmL", new Vector3(-0.12f, 1.28f, 0.28f), new Vector3(0.14f, 0.26f, 0.14f), Quaternion.Euler(80f, 0f, 20f), body, parts);
             Destroy(armL.GetComponent<Collider>());
-            var armR = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            armR.name = "ArmR";
-            armR.transform.SetParent(rig, false);
-            armR.transform.localPosition = new Vector3(0.24f, 1.22f, 0.18f);
-            armR.transform.localRotation = Quaternion.Euler(70f, 0f, -25f);
-            armR.transform.localScale = new Vector3(0.14f, 0.24f, 0.14f);
-            armR.GetComponent<Renderer>().material = body;
+            var armR = Part(PrimitiveType.Capsule, rig, "ArmR", new Vector3(0.24f, 1.22f, 0.18f), new Vector3(0.14f, 0.24f, 0.14f), Quaternion.Euler(70f, 0f, -25f), body, parts);
             Destroy(armR.GetComponent<Collider>());
-
-            // 머리 (헤드샷 히트박스)
-            var headGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            headGo.name = "Head";
-            headGo.transform.SetParent(rig, false);
-            headGo.transform.localPosition = new Vector3(0f, 1.72f, 0f);
-            headGo.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
-            headGo.GetComponent<Renderer>().material = skin;
-            var headHb = headGo.AddComponent<EnemyHitbox>();
-            headHb.Owner = soldier;
-            headHb.IsHead = true;
+            var headGo = Part(PrimitiveType.Sphere, rig, "Head", new Vector3(0f, 1.72f, 0f), new Vector3(0.3f, 0.3f, 0.3f), Quaternion.identity, skin, parts);
+            Hitbox(headGo, soldier, true);
             soldier.head = headGo.transform;
-
-            // 헬멧
-            var helmet = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            helmet.name = "Helmet";
-            helmet.transform.SetParent(rig, false);
-            helmet.transform.localPosition = new Vector3(0f, 1.79f, -0.01f);
-            helmet.transform.localScale = new Vector3(0.36f, 0.27f, 0.37f);
-            helmet.GetComponent<Renderer>().material = gear;
+            var helmet = Part(PrimitiveType.Sphere, rig, "Helmet", new Vector3(0f, 1.79f, -0.01f), new Vector3(0.36f, 0.27f, 0.37f), Quaternion.identity, gear, parts);
             Destroy(helmet.GetComponent<Collider>());
-
-            // 소총 (총열 + 몸체 + 탄창)
-            var rifle = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            rifle.name = "Rifle";
-            rifle.transform.SetParent(rig, false);
-            rifle.transform.localPosition = new Vector3(0.1f, 1.32f, 0.25f);
-            rifle.transform.localScale = new Vector3(0.06f, 0.08f, 0.7f);
-            rifle.GetComponent<Renderer>().material = gear;
+            var rifle = Part(PrimitiveType.Cube, rig, "Rifle", new Vector3(0.1f, 1.32f, 0.25f), new Vector3(0.06f, 0.08f, 0.7f), Quaternion.identity, gear, parts);
             Destroy(rifle.GetComponent<Collider>());
-            var mag = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            mag.name = "Magazine";
-            mag.transform.SetParent(rifle.transform, false);
-            mag.transform.localPosition = new Vector3(0f, -1.1f, 0.05f);
-            mag.transform.localScale = new Vector3(0.8f, 1.6f, 0.12f);
-            mag.GetComponent<Renderer>().material = gear;
+            var mag = Part(PrimitiveType.Cube, rifle.transform, "Magazine", new Vector3(0f, -1.1f, 0.05f), new Vector3(0.8f, 1.6f, 0.12f), Quaternion.identity, gear, parts);
             Destroy(mag.GetComponent<Collider>());
             var tip = new GameObject("Tip");
             tip.transform.SetParent(rifle.transform, false);
             tip.transform.localPosition = new Vector3(0f, 0f, 0.5f);
             soldier.rifleTip = tip.transform;
 
-            soldier.renderers = rig.GetComponentsInChildren<Renderer>();
+            // ----- 사용자 모델 (있으면 프리미티브 렌더러를 끄고 그 위에 덮는다) -----
+            var custom = EnemyModels.Prefab;
+            if (custom != null)
+            {
+                var inst = Instantiate(custom, rig);
+                inst.name = "Model";
+                inst.transform.localPosition = Vector3.zero;
+                inst.transform.localRotation = Quaternion.identity;
+                inst.transform.localScale = Vector3.one;
+                // 키를 약 1.85m 로 맞춘다
+                var rends = inst.GetComponentsInChildren<Renderer>();
+                if (rends.Length > 0)
+                {
+                    Bounds b = rends[0].bounds;
+                    foreach (var r in rends) b.Encapsulate(r.bounds);
+                    float h = b.size.y;
+                    if (h > 0.01f) inst.transform.localScale = Vector3.one * (1.85f / h);
+                }
+                foreach (var go in parts)
+                {
+                    var r = go.GetComponent<Renderer>();
+                    if (r != null) r.enabled = false;
+                }
+                soldier.animator = inst.GetComponentInChildren<Animator>();
+                if (soldier.animator != null)
+                {
+                    soldier.animParams = new HashSet<string>();
+                    foreach (var prm in soldier.animator.parameters) soldier.animParams.Add(prm.name);
+                }
+                soldier.renderers = rends;
+            }
+            else
+            {
+                soldier.renderers = rig.GetComponentsInChildren<Renderer>();
+            }
+        }
+
+        static GameObject Part(PrimitiveType type, Transform parent, string name, Vector3 pos, Vector3 scale, Quaternion rot, Material mat, List<GameObject> list)
+        {
+            var go = GameObject.CreatePrimitive(type);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = pos;
+            go.transform.localScale = scale;
+            go.transform.localRotation = rot;
+            go.GetComponent<Renderer>().material = mat;
+            list.Add(go);
+            return go;
+        }
+
+        static void Hitbox(GameObject go, EnemySoldier owner, bool head)
+        {
+            var hb = go.AddComponent<EnemyHitbox>();
+            hb.Owner = owner;
+            hb.IsHead = head;
         }
 
         // ---------- 수명주기 ----------
@@ -225,19 +226,23 @@ namespace SniperRidge
         void Start()
         {
             gm = GameManager.Instance;
-            if (Kind == EnemyKind.Patrol)
+            switch (Kind)
             {
-                state = State.Walking;
-                walkTarget = PointB;
-                cover = 0f;
-                coverTarget = 0f;
-            }
-            else
-            {
-                state = State.Hidden;
-                stateTimer = Random.Range(0.5f, 4f);
-                cover = 1f;
-                coverTarget = 1f;
+                case EnemyKind.Patrol:
+                    state = State.Walking;
+                    walkTarget = PointB;
+                    cover = coverTarget = 0f;
+                    break;
+                case EnemyKind.Rusher:
+                    state = State.Rushing;
+                    cover = coverTarget = 0f;
+                    IsAware = true;
+                    break;
+                default:
+                    state = State.Hidden;
+                    stateTimer = Random.Range(0.5f, 4f);
+                    cover = coverTarget = 1f;
+                    break;
             }
             ApplyCover();
         }
@@ -250,6 +255,7 @@ namespace SniperRidge
             cover = Mathf.MoveTowards(cover, coverTarget, dt * 2.5f);
             ApplyCover();
 
+            float speedForAnim = 0f;
             switch (state)
             {
                 case State.Hidden:
@@ -266,7 +272,7 @@ namespace SniperRidge
                 case State.Peeking:
                     coverTarget = 0f;
                     stateTimer -= dt;
-                    if (IsAware) TryShoot();
+                    if (IsAware) TryShoot(StandardHitChance());
                     if (stateTimer <= 0f)
                     {
                         state = State.Hidden;
@@ -289,10 +295,9 @@ namespace SniperRidge
                         }
                         else
                         {
-                            Vector3 p = transform.position + to.normalized * speed * dt;
-                            p.y = TerrainGenerator.GroundHeight(terrain, p.x, p.z);
-                            transform.position = p;
+                            MoveOnTerrain(to.normalized, speed, dt);
                             faceDir = to.normalized;
+                            speedForAnim = speed;
                         }
                         break;
                     }
@@ -300,25 +305,106 @@ namespace SniperRidge
                 case State.Waiting:
                     coverTarget = 0f;
                     stateTimer -= dt;
-                    if (IsAware) TryShoot();
+                    if (IsAware) TryShoot(StandardHitChance());
                     if (stateTimer <= 0f)
                     {
                         walkTarget = (walkTarget == PointA) ? PointB : PointA;
                         state = State.Walking;
                     }
                     break;
+
+                case State.Rushing:
+                    speedForAnim = UpdateRushing(dt);
+                    break;
+
+                case State.Halt:
+                    coverTarget = 0.55f;   // 무릎쏴
+                    stateTimer -= dt;
+                    TryShoot(RusherHitChance(), 0.35f, 0.7f);
+                    if (stateTimer <= 0f)
+                    {
+                        state = State.Rushing;
+                        burstTimer = Random.Range(3f, 7f);
+                    }
+                    break;
             }
 
-            if (state != State.Walking)
+            if (state != State.Walking && state != State.Rushing)
             {
                 Vector3 d = gm.PlayerEye.position - transform.position;
                 d.y = 0f;
                 if (d.sqrMagnitude > 0.01f) faceDir = d.normalized;
             }
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(faceDir), 360f * dt);
+
+            if (animator != null)
+            {
+                SetAnim("Speed", speedForAnim);
+                SetAnim("Crouch", cover > 0.4f);
+            }
         }
 
-        /// <summary>엄폐 정도(cover)를 모델에 적용: Cover/Patrol 은 웅크리기, Tree 는 옆으로 숨기.</summary>
+        /// <summary>플레이어를 향해 지그재그로 달리며, 장애물을 피하고, 가끔 멈춰서 사격한다.</summary>
+        float UpdateRushing(float dt)
+        {
+            coverTarget = 0f;
+            Vector3 toPlayer = gm.PlayerEye.position - transform.position;
+            toPlayer.y = 0f;
+            float dist = toPlayer.magnitude;
+            Vector3 dir = toPlayer.normalized;
+
+            // 10m 안으로는 접근하지 않고 멈춰서 사격
+            if (dist < 10f)
+            {
+                state = State.Halt;
+                stateTimer = Random.Range(1.5f, 3f);
+                nextShotTime = Time.time + 0.2f;
+                return 0f;
+            }
+
+            // 지그재그
+            float zig = Mathf.Sin(Time.time * 1.3f + zigzagPhase) * 28f;
+            dir = Quaternion.Euler(0f, zig, 0f) * dir;
+
+            // 장애물 회피 (나무, 바위)
+            if (avoidTimer > 0f)
+            {
+                avoidTimer -= dt;
+                dir = Quaternion.Euler(0f, 70f * avoidSide, 0f) * dir;
+            }
+            else if (Physics.Raycast(transform.position + Vector3.up * 1f, dir, out RaycastHit hit, 3.5f, ~0, QueryTriggerInteraction.Ignore)
+                     && hit.collider.GetComponent<TerrainCollider>() == null
+                     && hit.collider.GetComponent<EnemyHitbox>() == null)
+            {
+                avoidSide = Random.value < 0.5f ? -1 : 1;
+                avoidTimer = 0.7f;
+                dir = Quaternion.Euler(0f, 70f * avoidSide, 0f) * dir;
+            }
+
+            MoveOnTerrain(dir, moveSpeed, dt);
+            faceDir = dir;
+
+            // 사격을 위해 잠시 정지
+            burstTimer -= dt;
+            if (burstTimer <= 0f && dist < 160f && HasLineOfSight())
+            {
+                state = State.Halt;
+                stateTimer = Random.Range(1.2f, 2.2f);
+                nextShotTime = Time.time + 0.3f;
+            }
+            return moveSpeed;
+        }
+
+        void MoveOnTerrain(Vector3 dir, float speed, float dt)
+        {
+            Vector3 p = transform.position + dir * speed * dt;
+            float half = TerrainGenerator.Size * 0.5f - 5f;
+            p.x = Mathf.Clamp(p.x, -half, half);
+            p.z = Mathf.Clamp(p.z, -half, half);
+            p.y = TerrainGenerator.GroundHeight(terrain, p.x, p.z);
+            transform.position = p;
+        }
+
         void ApplyCover()
         {
             if (Kind == EnemyKind.Tree)
@@ -329,8 +415,20 @@ namespace SniperRidge
             else
             {
                 rig.localPosition = Vector3.zero;
-                rig.localScale = new Vector3(1f, 1f - (1f - CrouchFactor) * cover, 1f);
+                // 사용자 모델이 있으면 애니메이션으로 웅크리므로 스케일은 히트박스용으로만 살짝 줄인다
+                float factor = animator != null ? 0.75f : CrouchFactor;
+                rig.localScale = new Vector3(1f, 1f - (1f - factor) * cover, 1f);
             }
+        }
+
+        void SetAnim(string name, float v)
+        {
+            if (animParams != null && animParams.Contains(name)) animator.SetFloat(name, v);
+        }
+
+        void SetAnim(string name, bool v)
+        {
+            if (animParams != null && animParams.Contains(name)) animator.SetBool(name, v);
         }
 
         // ---------- 반응 ----------
@@ -338,7 +436,7 @@ namespace SniperRidge
         public void SetAware()
         {
             if (IsDead) return;
-            if (!IsAware && Kind != EnemyKind.Patrol && state == State.Peeking)
+            if (!IsAware && (Kind == EnemyKind.Cover || Kind == EnemyKind.Tree) && state == State.Peeking)
                 stateTimer = Mathf.Min(stateTimer, Random.Range(0.3f, 1f));
             IsAware = true;
         }
@@ -347,7 +445,7 @@ namespace SniperRidge
         {
             if (IsDead) return;
             SetAware();
-            if (Kind != EnemyKind.Patrol)
+            if (Kind == EnemyKind.Cover || Kind == EnemyKind.Tree)
             {
                 state = State.Hidden;
                 stateTimer = Mathf.Max(stateTimer, hideTime);
@@ -358,20 +456,49 @@ namespace SniperRidge
             }
         }
 
+        /// <summary>피격. 사망하면 true.</summary>
+        public bool TakeHit(float damage, bool headshot, Vector3 bulletDir)
+        {
+            if (IsDead) return false;
+            Health -= damage * (headshot ? 3f : 1f);
+            SetAware();
+            if (Health <= 0f)
+            {
+                Kill(headshot, bulletDir);
+                return true;
+            }
+            // 부상: 돌격 중이면 잠깐 멈칫, 엄폐형이면 숨는다
+            if (Kind == EnemyKind.Rusher)
+            {
+                burstTimer = Mathf.Min(burstTimer, 0.5f);
+            }
+            else if (Kind != EnemyKind.Patrol)
+            {
+                Alert(Random.Range(2f, 4f));
+            }
+            return false;
+        }
+
         public void Kill(bool headshot, Vector3 bulletDir)
         {
             if (IsDead) return;
             IsDead = true;
+            Health = 0f;
             foreach (var r in renderers)
             {
+                if (r == null) continue;
                 var m = r.material;
-                m.color = m.color * 0.6f;
+                if (m.HasProperty("_Color")) m.color = m.color * 0.6f;
             }
+            foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
+            if (animator != null) SetAnim("Dead", true);
             StartCoroutine(FallDown(bulletDir));
+            if (Kind == EnemyKind.Rusher) Destroy(gameObject, 25f);
         }
 
         IEnumerator FallDown(Vector3 bulletDir)
         {
+            if (animator != null && animParams != null && animParams.Contains("Dead")) yield break; // 애니메이션이 처리
             Vector3 flat = bulletDir;
             flat.y = 0f;
             if (flat.sqrMagnitude < 0.001f) flat = transform.forward;
@@ -394,38 +521,49 @@ namespace SniperRidge
 
         // ---------- 사격 ----------
 
-        void TryShoot()
+        float StandardHitChance()
+        {
+            float dist = Vector3.Distance(transform.position, gm.PlayerEye.position);
+            return 0.2f * Mathf.Clamp01(1.3f - dist / 700f);
+        }
+
+        float RusherHitChance()
+        {
+            float dist = Vector3.Distance(transform.position, gm.PlayerEye.position);
+            return Mathf.Clamp(0.04f + 0.22f * (1f - dist / 160f), 0.03f, 0.26f);
+        }
+
+        void TryShoot(float hitChance, float minInterval = 1.6f, float maxInterval = 3.2f)
         {
             if (Time.time < nextShotTime) return;
-            nextShotTime = Time.time + Random.Range(1.6f, 3.2f);
-            if (cover > 0.3f) return;
+            nextShotTime = Time.time + Random.Range(minInterval, maxInterval);
+            if (cover > 0.7f) return;
             if (!HasLineOfSight()) return;
-            FireAtPlayer();
+            FireAtPlayer(hitChance);
         }
 
         bool HasLineOfSight()
         {
-            Vector3 from = head.position + transform.forward * (0.3f * Scale);
+            Vector3 from = head.position + transform.forward * (0.3f * scale);
             Vector3 to = gm.PlayerEye.position;
             return !Physics.Linecast(from, to, out _, ~0, QueryTriggerInteraction.Ignore);
         }
 
-        void FireAtPlayer()
+        void FireAtPlayer(float hitChance)
         {
             Vector3 muzzle = rifleTip.position;
             Vector3 eye = gm.PlayerEye.position;
             float dist = Vector3.Distance(muzzle, eye);
-
-            float hitChance = 0.2f * Mathf.Clamp01(1.3f - dist / 700f);
             bool hit = Random.value < hitChance;
 
             Vector3 target = hit ? eye : eye + Random.onUnitSphere * Random.Range(1f, 3.5f);
             Vector3 dir = (target - muzzle).normalized;
             Vector3 end = hit ? eye : target + dir * 25f;
 
-            Effects.Tracer(muzzle, end, new Color(1f, 0.85f, 0.4f), 0.16f, 0.25f);
+            Effects.Tracer(muzzle, end, new Color(1f, 0.85f, 0.4f), 0.16f, Kind == EnemyKind.Rusher ? 0.12f : 0.25f);
             Effects.Flash(muzzle, new Color(1f, 0.8f, 0.5f), 4f, 6f, 0.06f);
-            gm.StartCoroutine(gm.EnemyShotArrival(dist, hit));
+            float damage = Kind == EnemyKind.Rusher ? Random.Range(7f, 13f) : Random.Range(18f, 26f);
+            gm.StartCoroutine(gm.EnemyShotArrival(dist, hit, damage));
         }
     }
 }

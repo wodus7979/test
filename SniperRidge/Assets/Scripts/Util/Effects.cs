@@ -37,7 +37,12 @@ namespace SniperRidge
 
         public static void Dust(Vector3 pos, Vector3 normal, float size)
         {
-            var mat = Unlit(new Color(0.62f, 0.55f, 0.42f));
+            Puff(pos, normal, size, new Color(0.62f, 0.55f, 0.42f), 0.7f);
+        }
+
+        public static void Puff(Vector3 pos, Vector3 normal, float size, Color color, float life)
+        {
+            var mat = Unlit(color);
             for (int i = 0; i < 3; i++)
             {
                 var s = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -48,7 +53,7 @@ namespace SniperRidge
                 var r = s.GetComponent<Renderer>();
                 r.material = mat;
                 r.shadowCastingMode = ShadowCastingMode.Off;
-                s.AddComponent<DustPuff>();
+                s.AddComponent<DustPuff>().Life = life;
             }
         }
 
