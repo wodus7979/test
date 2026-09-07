@@ -190,7 +190,7 @@ namespace SniperRidge
                     var bag = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                     bag.name = "Sandbag";
                     bag.transform.position = nest + new Vector3(xOff, y, 1.15f + (float)(bagRng.NextDouble() * 0.06 - 0.03));
-                    bag.transform.rotation = Quaternion.Euler(0f, 90f + (float)(bagRng.NextDouble() * 12.0 - 6.0), 90f);
+                    bag.transform.rotation = Quaternion.Euler(0f, (float)(bagRng.NextDouble() * 12.0 - 6.0), 90f);   // 자루가 좌우로 눕도록
                     bag.transform.localScale = new Vector3(0.28f, 0.27f, 0.24f);   // 캡슐: 지름 0.28, 길이 0.54
                     bag.GetComponent<Renderer>().material = sandbag;
                 }

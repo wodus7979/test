@@ -159,17 +159,18 @@ namespace SniperRidge
                     int i1 = i0 + 1;
                     int i2 = i0 + segs + 1;
                     int i3 = i2 + 1;
-                    tris.Add(i0); tris.Add(i1); tris.Add(i2);
-                    tris.Add(i1); tris.Add(i3); tris.Add(i2);
+                    // 바깥쪽을 향하도록 (원기둥과 같은 감김 방향: 위 링이 y+ 이므로)
+                    tris.Add(i0); tris.Add(i2); tris.Add(i1);
+                    tris.Add(i1); tris.Add(i2); tris.Add(i3);
                 }
             }
-            // 바닥 뚜껑 (아래에서 올려다볼 때 구멍이 안 보이게)
+            // 바닥 뚜껑 (아래에서 올려다볼 때 구멍이 안 보이게, 아래쪽을 향하도록)
             int center = b.V.Count;
             b.V.Add(new Vector3(basePos.x, basePos.y - droop * radius * 0.3f, basePos.z));
             b.UV.Add(new Vector2(0.5f, 0.5f));
             for (int s = 0; s < segs; s++)
             {
-                tris.Add(center); tris.Add(baseIdx + s + 1); tris.Add(baseIdx + s);
+                tris.Add(center); tris.Add(baseIdx + s); tris.Add(baseIdx + s + 1);
             }
         }
 
