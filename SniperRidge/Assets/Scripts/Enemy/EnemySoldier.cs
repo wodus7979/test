@@ -201,8 +201,8 @@ namespace SniperRidge
             var rifle = GameObject.CreatePrimitive(PrimitiveType.Cube);
             rifle.name = "Rifle";
             rifle.transform.SetParent(rig, false);
-            rifle.transform.localPosition = new Vector3(0.1f, 1.32f, 0.45f);
-            rifle.transform.localScale = new Vector3(0.06f, 0.08f, 0.95f);
+            rifle.transform.localPosition = new Vector3(0.1f, 1.32f, 0.25f);
+            rifle.transform.localScale = new Vector3(0.06f, 0.08f, 0.7f);
             rifle.GetComponent<Renderer>().material = gear;
             Destroy(rifle.GetComponent<Collider>());
             var mag = GameObject.CreatePrimitive(PrimitiveType.Cube);

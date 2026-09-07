@@ -227,10 +227,16 @@ namespace SniperRidge
             var rockMat = ProceduralAssets.LitMaterial(new Color(0.48f, 0.47f, 0.44f), 0.05f);
 
             var enemyXZ = new List<Vector2>();
+            patrolRoutes.Clear();
             foreach (var sp in spawns)
             {
                 enemyXZ.Add(sp.Pos);
-                if (sp.Kind == EnemyKind.Patrol) enemyXZ.Add(sp.PosB);
+                if (sp.Kind == EnemyKind.Patrol)
+                {
+                    enemyXZ.Add(sp.PosB);
+                    enemyXZ.Add((sp.Pos + sp.PosB) * 0.5f);
+                    patrolRoutes.Add(new Vector4(sp.Pos.x, sp.Pos.y, sp.PosB.x, sp.PosB.y));
+                }
             }
             Vector2 playerXZ = new Vector2(playerPos.x, playerPos.z);
 
@@ -265,13 +271,12 @@ namespace SniperRidge
                 Vegetation.Bush(root.transform, new Vector3(x, h, z), 0.7f + (float)rng.NextDouble() * 0.8f, rng);
             }
 
-            // 바위
+            // 바위 (나무와 같은 규칙으로 사선을 가리지 않는 곳에만)
             for (int i = 0; i < 80; i++)
             {
                 float x = (float)(rng.NextDouble() * 560.0 - 280.0);
                 float z = (float)(rng.NextDouble() * 560.0 - 280.0);
-                if (Vector2.Distance(new Vector2(x, z), playerXZ) < 6f) continue;
-                if (NearEnemy(new Vector2(x, z), enemyXZ, 6f)) continue;
+                if (!TreeAllowed(x, z, playerXZ, enemyXZ)) continue;
                 var r = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 r.name = "Rock";
                 r.transform.SetParent(root.transform, true);
@@ -328,6 +333,8 @@ namespace SniperRidge
             return placed;
         }
 
+        static readonly List<Vector4> patrolRoutes = new List<Vector4>();
+
         static bool NearEnemy(Vector2 p, List<Vector2> enemies, float dist)
         {
             foreach (var e in enemies) if (Vector2.Distance(p, e) < dist) return true;
@@ -342,6 +349,11 @@ namespace SniperRidge
             // 플레이어 앞쪽 사면: 시야 확보를 위해 비워 둔다
             if (z > ridge - 5f && z < ridge + 90f && Mathf.Abs(x) < 150f) return false;
             if (NearEnemy(p, enemies, 7f)) return false;
+            // 순찰 경로 위에는 놓지 않는다
+            foreach (var r in patrolRoutes)
+            {
+                if (DistancePointSegment(p, new Vector2(r.x, r.y), new Vector2(r.z, r.w)) < 5f) return false;
+            }
             // 적 사면/플레이어 사면에서는 사선(射線)을 가리는 위치를 피한다
             if (z > 100f || z < ridge + 80f)
             {
