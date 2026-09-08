@@ -306,7 +306,7 @@ namespace SniperRidge
     /// </summary>
     public class SoundBank
     {
-        public AudioClip ShotSniper, ShotDmr, ShotRifle, ShotLmg, DistantShot, Crack, Bolt, Reload, HitTick, Click, Wind;
+        public AudioClip ShotSniper, ShotDmr, ShotRifle, ShotLmg, ShotSmg, ShotShotgun, ShotPistol, DistantShot, Crack, Bolt, Pump, Reload, HitTick, Click, Wind;
         public bool UsingRecorded { get; private set; }
 
         public AudioClip Shot(string weaponId)
@@ -316,6 +316,9 @@ namespace SniperRidge
                 case "dmr": return ShotDmr;
                 case "rifle": return ShotRifle;
                 case "lmg": return ShotLmg;
+                case "smg": return ShotSmg;
+                case "shotgun": return ShotShotgun;
+                case "pistol": return ShotPistol;
                 default: return ShotSniper;
             }
         }
@@ -334,9 +337,13 @@ namespace SniperRidge
             b.ShotDmr = Load("shot_dmr") ?? b.ShotSniper;
             b.ShotRifle = Load("shot_rifle") ?? b.ShotSniper;
             b.ShotLmg = Load("shot_lmg") ?? b.ShotSniper;
+            b.ShotSmg = Load("shot_smg") ?? b.ShotRifle;
+            b.ShotShotgun = Load("shot_shotgun") ?? b.ShotSniper;
+            b.ShotPistol = Load("shot_pistol") ?? b.ShotRifle;
             b.DistantShot = Load("shot_distant") ?? ProceduralAssets.DistantShot();
             b.Crack = Load("crack") ?? ProceduralAssets.BulletCrack();
             b.Bolt = Load("bolt") ?? ProceduralAssets.Bolt();
+            b.Pump = Load("pump") ?? b.Bolt;
             b.Reload = Load("reload") ?? b.Bolt;
             b.HitTick = Load("hit") ?? ProceduralAssets.HitTick();
             b.Click = Load("click") ?? ProceduralAssets.EmptyClick();

@@ -32,6 +32,14 @@ namespace SniperRidge.EditorTools
             EnsureAlwaysIncludedShaders();
             EnsureLinearColorSpace();
             AutoSetupEnemyModel();
+            AutoBuildFirearms();
+        }
+
+        /// <summary>Firearm Asset Pack 프리팹이 없으면 생성한다.</summary>
+        static void AutoBuildFirearms()
+        {
+            try { OriginalFirearmAssets.FirearmPackBuilder.BuildIfMissing(); }
+            catch (System.Exception ex) { Debug.LogWarning("[Sniper Ridge] 총기 프리팹 자동 생성 실패: " + ex.Message); }
         }
 
         /// <summary>PBR 재질과 HDR 후처리가 제대로 보이도록 선형 색공간을 사용한다.</summary>

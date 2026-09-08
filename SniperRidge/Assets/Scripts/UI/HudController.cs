@@ -151,19 +151,24 @@ namespace SniperRidge
             panel.GetComponent<Image>().raycastTarget = true;
             selectPanel = panel.gameObject;
 
-            UiKit.Label(panel, "Title", "SNIPER RIDGE", 64, TextAnchor.MiddleCenter, Color.white, center, center, new Vector2(0f, 380f), new Vector2(1200f, 90f), true);
-            UiKit.Label(panel, "Sub", "무기를 선택하세요.  무기에 따라 임무가 달라집니다.", 28, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.85f), center, center, new Vector2(0f, 310f), new Vector2(1200f, 40f));
+            UiKit.Label(panel, "Title", "SNIPER RIDGE", 60, TextAnchor.MiddleCenter, Color.white, center, center, new Vector2(0f, 440f), new Vector2(1200f, 80f), true);
+            UiKit.Label(panel, "Sub", "무기를 선택하세요.  무기에 따라 임무가 달라집니다.", 26, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.85f), center, center, new Vector2(0f, 385f), new Vector2(1200f, 36f));
 
             var weapons = WeaponDefinition.All;
-            float cardW = 400f, cardH = 300f, gap = 30f;
-            float totalW = weapons.Length * cardW + (weapons.Length - 1) * gap;
+            const int perRow = 4;
+            float cardW = 400f, cardH = 250f, gap = 24f;
+            int rows = (weapons.Length + perRow - 1) / perRow;
             for (int i = 0; i < weapons.Length; i++)
             {
                 var w = weapons[i];
-                float x = -totalW * 0.5f + cardW * 0.5f + i * (cardW + gap);
+                int row = i / perRow, col = i % perRow;
+                int inRow = Mathf.Min(perRow, weapons.Length - row * perRow);
+                float rowW = inRow * cardW + (inRow - 1) * gap;
+                float x = -rowW * 0.5f + cardW * 0.5f + col * (cardW + gap);
+                float y = 120f - row * (cardH + gap) + (rows - 1) * (cardH + gap) * 0.5f - 60f;
                 var card = UiKit.TextButton(panel, "Card_" + w.Id, "", 20,
                     w.Mission == MissionType.Sniper ? new Color(0.16f, 0.22f, 0.16f, 0.95f) : new Color(0.26f, 0.18f, 0.12f, 0.95f),
-                    Color.white, center, center, new Vector2(x, 60f), new Vector2(cardW, cardH), null);
+                    Color.white, center, center, new Vector2(x, y), new Vector2(cardW, cardH), null);
                 var def = w;
                 card.onClick.AddListener(() => gm.StartMission(def));
                 var rt = card.GetComponent<RectTransform>();
@@ -172,14 +177,14 @@ namespace SniperRidge
                 UiKit.Label(rt, "Mode", w.Mission == MissionType.Sniper ? "저격 임무" : "방어전 임무", 22, TextAnchor.UpperCenter,
                             w.Mission == MissionType.Sniper ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.7f, 0.4f),
                             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -68f), new Vector2(cardW - 30f, 30f), true);
-                UiKit.Label(rt, "Desc", w.Description, 20, TextAnchor.UpperLeft, new Color(0.9f, 0.9f, 0.9f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -108f), new Vector2(cardW - 40f, 120f));
+                UiKit.Label(rt, "Desc", w.Description, 18, TextAnchor.UpperLeft, new Color(0.9f, 0.9f, 0.9f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(cardW - 40f, 110f));
                 string stats = string.Format("{0}  |  {1}발  |  {2} m/s  |  피해 {3}",
                     w.Fire == FireMode.Bolt ? "볼트액션" : (w.Fire == FireMode.Semi ? "반자동" : "자동"),
                     w.MagSize, w.MuzzleVelocity, w.Damage);
                 UiKit.Label(rt, "Stats", stats, 18, TextAnchor.LowerCenter, new Color(0.7f, 0.7f, 0.7f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(cardW - 30f, 26f));
             }
-            UiKit.Label(panel, "Keys", Application.isMobilePlatform ? "카드를 터치하면 시작합니다" : "카드를 클릭하거나 1~4 키를 누르면 시작합니다", 22,
-                        TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.8f), center, center, new Vector2(0f, -150f), new Vector2(1200f, 34f));
+            UiKit.Label(panel, "Keys", Application.isMobilePlatform ? "카드를 터치하면 시작합니다" : "카드를 클릭하거나 1~7 키를 누르면 시작합니다", 22,
+                        TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.8f), center, center, new Vector2(0f, -430f), new Vector2(1200f, 34f));
         }
 
         // ---------- 외부 호출 ----------
@@ -226,7 +231,7 @@ namespace SniperRidge
             endTitle.color = won ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.45f, 0.4f);
             int m = Mathf.FloorToInt(gm.Elapsed / 60f);
             int s = Mathf.FloorToInt(gm.Elapsed % 60f);
-            float acc = gm.Shots > 0 ? 100f * gm.Hits / gm.Shots : 0f;
+            float acc = gm.Shots > 0 ? Mathf.Min(100f, 100f * gm.Hits / gm.Shots) : 0f;
             string waveLine = gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
             endStats.text = string.Format(
                 "{0}\n{1}소요 시간  {2:00}:{3:00}\n사격 {4}발  /  명중 {5}발  (명중률 {6:0}%)\n사살 {7}  (헤드샷 {8})\n점수  {9}\n\n{10}",

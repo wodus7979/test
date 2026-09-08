@@ -17,7 +17,40 @@ namespace SniperRidge
             steel = ProceduralAssets.LitMaterial(new Color(0.35f, 0.36f, 0.38f), 0.6f);
         }
 
+        /// <summary>Firearm Asset Pack 프리팹 (Resources/Weapons/Prefabs) 을 찾는다. 없으면 null.</summary>
+        public static GameObject LoadPrefab(string modelName)
+        {
+            if (string.IsNullOrEmpty(modelName)) return null;
+            return Resources.Load<GameObject>("Weapons/Prefabs/" + modelName);
+        }
+
+        /// <summary>루트 아래의 "Muzzle" 지점. 없으면 null.</summary>
+        public static Transform FindMuzzle(GameObject root)
+        {
+            if (root == null) return null;
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t.name == "Muzzle") return t;
+            return null;
+        }
+
         public static GameObject Build(Transform parent, WeaponDefinition def)
+        {
+            var prefab = LoadPrefab(def.ModelName);
+            if (prefab != null)
+            {
+                var inst = Object.Instantiate(prefab, parent);
+                inst.name = "WeaponModel_" + def.Id;
+                inst.transform.localPosition = def.ViewOffset;
+                inst.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                inst.transform.localScale = Vector3.one;
+                foreach (var c in inst.GetComponentsInChildren<Collider>()) Object.Destroy(c);
+                foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = ShadowCastingMode.Off;
+                return inst;
+            }
+            return BuildPrimitive(parent, def);
+        }
+
+        static GameObject BuildPrimitive(Transform parent, WeaponDefinition def)
         {
             EnsureMaterials();
             var root = new GameObject("WeaponModel_" + def.Id);

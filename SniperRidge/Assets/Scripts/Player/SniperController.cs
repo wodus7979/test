@@ -39,7 +39,7 @@ namespace SniperRidge
                 if (Weapon == null) return "";
                 switch (State)
                 {
-                    case WeaponState.Bolting: return "노리쇠 작동";
+                    case WeaponState.Bolting: return Weapon.Pellets > 1 ? "펌프 장전" : "노리쇠 작동";
                     case WeaponState.Reloading: return "재장전 중";
                     default:
                         if (AmmoInMag > 0) return Weapon.Fire == FireMode.Auto ? "자동" : (Weapon.Fire == FireMode.Semi ? "반자동" : "사격 준비");
@@ -98,8 +98,15 @@ namespace SniperRidge
             fireTimer = 0.6f;      // 선택 버튼 클릭이 곧바로 사격으로 이어지지 않도록
             fireQueued = false;
             IsScoped = false;
+            if (muzzleLight != null) muzzleLight.transform.SetParent(cam.transform, false);   // 이전 무기 모델과 함께 지워지지 않도록
             if (weaponModel != null) Destroy(weaponModel);
             weaponModel = WeaponModels.Build(cam.transform, weapon);
+            if (muzzleLight != null)
+            {
+                var muzzle = WeaponModels.FindMuzzle(weaponModel);
+                muzzleLight.transform.SetParent(muzzle != null ? muzzle : cam.transform, false);
+                muzzleLight.transform.localPosition = muzzle != null ? new Vector3(0f, 0f, 0.05f) : new Vector3(0.28f, -0.18f, 1.2f);
+            }
             inputEnabled = true;
             if (desktop)
             {
@@ -309,13 +316,16 @@ namespace SniperRidge
             recoilYaw += Random.Range(-w.RecoilKick, w.RecoilKick) * 0.35f;
             pitch -= w.RecoilKick * w.RecoilClimb;
 
-            // 산포
+            // 산포 (샷건은 산탄 여러 개)
             float spread = IsScoped ? w.AdsSpread : w.HipSpread;
-            Vector2 s = Random.insideUnitCircle * spread;
-            Vector3 dir = Quaternion.AngleAxis(-zeroAngle, cam.transform.right) * cam.transform.forward;
-            dir = Quaternion.AngleAxis(s.x, cam.transform.up) * Quaternion.AngleAxis(s.y, cam.transform.right) * dir;
-
-            Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
+            Vector3 baseDir = Quaternion.AngleAxis(-zeroAngle, cam.transform.right) * cam.transform.forward;
+            int pellets = Mathf.Max(1, w.Pellets);
+            for (int i = 0; i < pellets; i++)
+            {
+                Vector2 s = Random.insideUnitCircle * spread;
+                Vector3 dir = Quaternion.AngleAxis(s.x, cam.transform.up) * Quaternion.AngleAxis(s.y, cam.transform.right) * baseDir;
+                Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
+            }
 
             float shotPitch = gm.Sounds.UsingRecorded ? Random.Range(0.97f, 1.03f) : w.ShotPitch * Random.Range(0.96f, 1.04f);
             gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, shotPitch);
@@ -333,8 +343,9 @@ namespace SniperRidge
 
         IEnumerator BoltCycle()
         {
-            yield return new WaitForSeconds(0.35f);
-            gm.PlaySound(gm.Sounds.Bolt, 0.7f);
+            yield return new WaitForSeconds(0.3f);
+            bool pump = Weapon != null && Weapon.Pellets > 1;
+            gm.PlaySound(pump ? gm.Sounds.Pump : gm.Sounds.Bolt, 0.7f);
         }
 
         void TryReload()

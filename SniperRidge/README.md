@@ -51,7 +51,14 @@ Play 를 누르면 무기 선택 화면이 나옵니다. 카드를 클릭하거�
 | 1 | 볼트액션 저격소총 | 볼트액션, 5발, 8/16/30배 | **저격**: 맞은편 능선의 적 10명 제거 |
 | 2 | 지정사수 소총 | 반자동, 10발, 4/8배 | **저격**: 맞은편 능선의 적 10명 제거 |
 | 3 | 돌격소총 | 자동 650발/분, 30발, 2/4배 | **방어전**: 몰려오는 적 5개 웨이브 방어 |
-| 4 | 경기관총 | 자동 700발/분, 100발 탄띠, 1.5/3배 | **방어전**: 몰려오는 적 5개 웨이브 방어 |
+| 4 | 경기관총 | 자동 700발/분, 100발 탄띠, 1.5/3배 | **방어전** |
+| 5 | 기관단총 | 자동 900발/분, 30발, 사거리 짧음 | **방어전** |
+| 6 | 펌프 샷건 | 펌프액션, 8발, 산탄 10개 | **방어전** |
+| 7 | 권총 | 반자동, 15발 | **방어전** |
+
+무기 3D 모델은 저장소 루트의 `firearm_asset_pack` (원본 하드서피스 총기 6종) 을 사용합니다.
+프로젝트를 열면 `Assets/FirearmAssetPack/Source` 의 메시 데이터에서 `Assets/Resources/Weapons/Prefabs` 프리팹이 자동 생성되고
+(메뉴 **Sniper Ridge → 총기 프리팹 생성**), 1인칭 무기와 적 병사의 소총에 사용됩니다.
 
 - 자동화기는 좌클릭(모바일은 사격 버튼)을 **누르고 있으면** 연사됩니다. 반동으로 조준점이 올라가고, 조준(우클릭) 시 산포가 줄어듭니다.
 - 적 체력은 100입니다. 저격/지정사수 소총은 몸통 한 발, 돌격소총·경기관총은 몸통 2~3발, 헤드샷은 모든 무기 한 발입니다.
@@ -84,14 +91,15 @@ Play 를 누르면 무기 선택 화면이 나옵니다. 카드를 클릭하거�
 
 ### 효과음 바꾸기
 
-`Assets/Resources/Audio/` 의 파일을 같은 이름의 WAV 로 교체하면 됩니다: `shot_sniper`, `shot_dmr`, `shot_rifle`, `shot_lmg`, `shot_distant`, `crack`, `bolt`, `reload`, `hit`, `click`, `wind`(루프).
+`Assets/Resources/Audio/` 의 파일을 같은 이름의 WAV 로 교체하면 됩니다: `shot_sniper`, `shot_dmr`, `shot_rifle`, `shot_lmg`, `shot_smg`, `shot_shotgun`, `shot_pistol`, `shot_distant`, `crack`, `bolt`, `pump`, `reload`, `hit`, `click`, `wind`(루프).
 
 ## 프로젝트 구조
 
 ```
 SniperRidge/
 ├─ Assets/
-│  ├─ Editor/SniperRidgeSetup.cs     씬 자동 생성, 빌드 메뉴, 안드로이드 설정, 적 모델 자동 설정
+│  ├─ Editor/SniperRidgeSetup.cs     씬 자동 생성, 빌드 메뉴, 안드로이드 설정, 적 모델·총기 프리팹 자동 설정
+│  ├─ FirearmAssetPack/              총기 메시 데이터(JSON) + 프리팹 생성기
 │  └─ Scripts/
 │     ├─ Core/LevelBuilder.cs        씬 로드 시 레벨 전체 생성
 │     ├─ Core/GameManager.cs         무기 선택, 임무 진행, 방어전 웨이브, 점수, 사운드

@@ -164,6 +164,23 @@ namespace SniperRidge
             tip.transform.localPosition = new Vector3(0f, 0f, 0.5f);
             soldier.rifleTip = tip.transform;
 
+            // Firearm Asset Pack 돌격소총 모델이 있으면 프리미티브 소총 대신 사용 (모바일은 성능상 제외)
+            var rifleModel = Application.isMobilePlatform ? null : WeaponModels.LoadPrefab("03_assault_rifle");
+            if (rifleModel != null)
+            {
+                rifle.GetComponent<Renderer>().enabled = false;
+                mag.GetComponent<Renderer>().enabled = false;
+                var inst = Instantiate(rifleModel, rig);
+                inst.name = "RifleModel";
+                inst.transform.localPosition = new Vector3(0.12f, 1.3f, 0.3f);
+                inst.transform.localRotation = Quaternion.identity;
+                inst.transform.localScale = Vector3.one;
+                foreach (var c in inst.GetComponentsInChildren<Collider>()) Destroy(c);
+                var muzzle = WeaponModels.FindMuzzle(inst);
+                if (muzzle != null) soldier.rifleTip = muzzle;
+                // (parts 에 넣지 않는다: 실사 병사 모델이 있어도 소총은 계속 보여야 한다)
+            }
+
             // ----- 사용자 모델 (있으면 프리미티브 렌더러를 끄고 그 위에 덮는다) -----
             var custom = EnemyModels.Prefab;
             if (custom != null)
