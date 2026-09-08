@@ -34,6 +34,7 @@ namespace SniperRidge
             public Transform start, end, shape;
             public CapsuleCollider capsule;
             public float radius;
+            public float endOffset;
         }
         readonly List<HitShape> hitShapes = new List<HitShape>();
 
@@ -97,7 +98,9 @@ namespace SniperRidge
                 var collider = part.GetComponent<Collider>();
                 if (collider != null) collider.enabled = false;
             }
-            AddHitShape("AnimatedHead", head, null, .16f, true);
+            // The head joint is near the base of the skull, not its centre. Extend
+            // towards the crown so visible upper-head/helmet shots have a hit shape.
+            AddHitShape("AnimatedHead", head, null, .16f, true, .12f);
             AddHitShape("AnimatedTorso", hips, chest, .23f, false);
             AddHitShape("LeftThighHit", leftThigh, leftKnee, .105f, false);
             AddHitShape("LeftShinHit", leftKnee, leftFoot, .09f, false);
@@ -114,21 +117,21 @@ namespace SniperRidge
             UpdateHitboxes();
         }
 
-        void AddHitShape(string name, Transform start, Transform end, float radius, bool isHead)
+        void AddHitShape(string name, Transform start, Transform end, float radius, bool isHead, float endOffset = 0f)
         {
             var go = new GameObject(name);
             go.transform.SetParent(owner.transform, false);
             var capsule = go.AddComponent<CapsuleCollider>();
             capsule.radius = radius; capsule.height = radius * 2f;
             var hit = go.AddComponent<EnemyHitbox>(); hit.Owner = owner; hit.IsHead = isHead;
-            hitShapes.Add(new HitShape { start = start, end = end, shape = go.transform, capsule = capsule, radius = radius });
+            hitShapes.Add(new HitShape { start = start, end = end, shape = go.transform, capsule = capsule, radius = radius, endOffset = endOffset });
         }
 
         void UpdateHitboxes()
         {
             foreach (var h in hitShapes)
             {
-                Vector3 a = h.start.position, b = h.end != null ? h.end.position : a;
+                Vector3 a = h.start.position, b = h.end != null ? h.end.position : a + h.start.up * (h.endOffset * unitScale);
                 h.shape.position = (a + b) * .5f;
                 if ((b - a).sqrMagnitude > .00001f) h.shape.rotation = Quaternion.FromToRotation(Vector3.up, b - a);
                 h.capsule.height = Vector3.Distance(a, b) / unitScale + h.radius * 2f;

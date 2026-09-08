@@ -14,9 +14,17 @@ namespace SniperRidge
         Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, weaponText, killFeed, introText, announceText, hintText, endTitle, endStats;
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
-        Text coverText, threatText;
+        Text coverText, threatText, shotFeedback;
+        float shotFeedbackTimer;
         float threatUntil;
         Vector3 threatSource;
+
+        public void ShowShotFeedback(string message)
+        {
+            shotFeedback.text = message;
+            shotFeedbackTimer = 2f;
+            var color = shotFeedback.color; color.a = 1f; shotFeedback.color = color;
+        }
 
         public void WarnIncoming(Vector3 source, float duration)
         {
@@ -106,6 +114,9 @@ namespace SniperRidge
                 new Vector2(.5f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 90f), new Vector2(1000f, 80f), true);
             threatText = UiKit.Label(g, "IncomingFire", "", 30, TextAnchor.MiddleCenter, new Color(1f, .55f, .2f),
                 new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -195f), new Vector2(1000f, 45f), true);
+
+            shotFeedback = UiKit.Label(g, "ShotFeedback", "", 22, TextAnchor.MiddleCenter, new Color(1f, .8f, .45f),
+                center, center, new Vector2(0f, -205f), new Vector2(850f, 35f));
 
             // 좌상단
             enemyText = UiKit.Label(g, "Enemies", "", 30, TextAnchor.UpperLeft, white, topLeft, topLeft, new Vector2(30f, -25f), new Vector2(800f, 40f), true);
@@ -215,6 +226,7 @@ namespace SniperRidge
 
         public void ShowHitMarker(bool headshot, bool killed)
         {
+            ShowShotFeedback(killed ? "처치 확인" : "명중 · 적 생존");
             hitTimer = killed ? 0.3f : 0.15f;
             Color c = killed ? (headshot ? new Color(1f, 0.25f, 0.2f) : Color.white) : new Color(1f, 1f, 1f, 0.6f);
             foreach (var img in hitLines) img.color = c;
@@ -320,6 +332,7 @@ namespace SniperRidge
                 hitTimer -= dt;
                 if (hitTimer <= 0f) hitMarker.gameObject.SetActive(false);
             }
+            Fade(shotFeedback, ref shotFeedbackTimer, dt, .6f);
             Fade(killFeed, ref killFeedTimer, dt, 0.6f);
             Fade(announceText, ref announceTimer, dt, 1.0f);
             Fade(introText, ref introTimer, dt, 1.5f);
