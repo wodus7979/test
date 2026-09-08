@@ -14,7 +14,7 @@ namespace SniperRidge
         public float MouseSensitivity = 2.2f;
         public float TouchSensitivity = 0.12f;
         public float MinPitch = -30f;
-        public float MaxPitch = 25f;
+        public float MaxPitch = 70f; // Let the player inspect the trench floor and rear passage.
 
         const float BaseFov = 60f;
 

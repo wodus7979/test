@@ -63,8 +63,10 @@ namespace SniperRidge
             var terrain = TerrainGenerator.Build(Seed);
             gm.Terrain = terrain;
 
-            Vector3 nest = TerrainGenerator.OnGround(terrain, 0f, TerrainGenerator.PlayerRidgeZ);
+            Vector3 surface = TerrainGenerator.OnGround(terrain, 0f, TerrainGenerator.PlayerRidgeZ);
+            Vector3 nest = TrenchTerrain.Excavate(terrain, surface);
             BuildPlayer(gm, nest);
+            TrenchBuilder.Build(terrain, nest);
 
             var spawns = EnemySpawns();
             BuildDecorations(terrain, nest, spawns);
@@ -202,51 +204,7 @@ namespace SniperRidge
             gm.PlayerEye = eyeGo.transform;
             gm.Health = health;
 
-            // Four sandbag rows plus a solid visible core block incoming rounds while ducked.
-            var sandbag = ProceduralAssets.TexturedMaterial(new Color(0.72f, 0.66f, 0.5f), ProceduralAssets.LoadTex("Terrain/dirt_albedo"), ProceduralAssets.LoadTex("Terrain/dirt_normal"), 0.8f, 0.02f);
-            var bagRng = new System.Random(11);
-            for (int row = 0; row < 4; row++)
-            {
-                int count = row % 2 == 0 ? 10 : 9;
-                for (int i = 0; i < count; i++)
-                {
-                    float xOff = (i - (count - 1) * 0.5f) * 0.5f;
-                    float y = .14f + row * .28f;
-                    var bag = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                    bag.name = "Sandbag";
-                    bag.transform.position = nest + new Vector3(xOff, y, 1.15f + (float)(bagRng.NextDouble() * 0.06 - 0.03));
-                    bag.transform.rotation = Quaternion.Euler(0f, (float)(bagRng.NextDouble() * 12.0 - 6.0), 90f);   // 자루가 좌우로 눕도록
-                    bag.transform.localScale = new Vector3(0.28f, 0.27f, 0.24f);   // 캡슐: 지름 0.28, 길이 0.54
-                    bag.GetComponent<Renderer>().material = sandbag;
-                }
-            }
-            // A visible, recessed packed-earth core closes the gaps between rounded bags.
-            var coverCore = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            coverCore.name = "PlayerCover";
-            coverCore.transform.position = nest + new Vector3(0f, CounterfireRules.CoverHeight * .5f, 1.18f);
-            coverCore.transform.localScale = new Vector3(4.9f, CounterfireRules.CoverHeight, .32f);
-            coverCore.GetComponent<Renderer>().sharedMaterial = sandbag;
-            // Short side walls protect the bounded sidestep area against oblique fire.
-            foreach (float side in new[] { -1f, 1f })
-            {
-                var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                wall.name = "PlayerCoverSide";
-                wall.transform.position = nest + new Vector3(side * 2.32f, CounterfireRules.CoverHeight * .5f, .10f);
-                wall.transform.localScale = new Vector3(.32f, CounterfireRules.CoverHeight, 2.16f);
-                wall.GetComponent<Renderer>().sharedMaterial = sandbag;
-            }
-            // 파낸 흙 둔덕
-            var berm = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            berm.name = "Berm";
-            berm.transform.position = nest + new Vector3(0f, -0.25f, 1.6f);
-            berm.transform.localScale = new Vector3(4.2f, 0.9f, 1.6f);
-            berm.GetComponent<Renderer>().material = sandbag;
 
-            // 잠복용 덤불
-            var bushRng = new System.Random(5);
-            Vector3[] bushOffsets = { new Vector3(-1.9f, 0f, 0.6f), new Vector3(2.0f, 0f, 0.4f), new Vector3(-1.4f, 0f, -1.4f), new Vector3(1.5f, 0f, -1.2f) };
-            foreach (var off in bushOffsets)
-                Vegetation.Bush(null, nest + off, 0.9f, bushRng);
         }
 
         // ---------- 적 ----------
