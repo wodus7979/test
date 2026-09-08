@@ -29,8 +29,8 @@ namespace SniperRidge
     /// </summary>
     public class EnemySoldier : MonoBehaviour
     {
-        public const float SniperModeScale = 1.5f;   // 저격 임무의 적 크기 배율
-        public const float DefenseModeScale = 1.15f; // 방어전 적 크기 배율
+        public const float SniperModeScale = 2.0f;   // 저격 임무의 적 크기 배율
+        public const float DefenseModeScale = 1.5f;  // 방어전 적 크기 배율
         const float CrouchFactor = 0.5f;
         const float PeekSlide = 0.85f;
         const float MaxHealth = 100f;
