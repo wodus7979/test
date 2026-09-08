@@ -50,9 +50,9 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "sniper", Name = "볼트액션 저격소총",
-                Description = "7.62mm 볼트액션. 5발 탄창, 8~30배 조준경.\n임무: 능선 잠복 저격 (적 10명)",
+                Description = "7.62mm 볼트액션. 5발 탄창(예비 80발), 8~30배 조준경.\n임무: 능선 잠복 저격 (적 10명)",
                 Mission = MissionType.Sniper, Fire = FireMode.Bolt,
-                RoundsPerMinute = 40f, BoltTime = 1.15f, MagSize = 5, Reserve = 25, ReloadTime = 2.6f,
+                RoundsPerMinute = 40f, BoltTime = 1.15f, MagSize = 5, Reserve = 80, ReloadTime = 2.6f,
                 MuzzleVelocity = 850f, DragK = 0.00087f, Damage = 100f,
                 ScopeFovs = new[] { 7.5f, 3.75f, 2f }, ScopeLabels = new[] { "8x", "16x", "30x" }, DefaultZoomIndex = 1, HasZeroing = true,
                 RecoilKick = 2.4f, RecoilClimb = 0f, SwayScoped = 0.32f, SwayHip = 0.9f, HipSpread = 0f, AdsSpread = 0f,
@@ -62,9 +62,9 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "dmr", Name = "지정사수 소총",
-                Description = "7.62mm 반자동. 10발 탄창, 4~8배 조준경. 연사가 되지만 반동이 큼.\n임무: 능선 잠복 저격 (적 10명)",
+                Description = "7.62mm 반자동. 10발 탄창(예비 150발), 4~8배 조준경. 반동이 큼.\n임무: 능선 잠복 저격 (적 10명)",
                 Mission = MissionType.Sniper, Fire = FireMode.Semi,
-                RoundsPerMinute = 180f, BoltTime = 0f, MagSize = 10, Reserve = 40, ReloadTime = 2.4f,
+                RoundsPerMinute = 180f, BoltTime = 0f, MagSize = 10, Reserve = 150, ReloadTime = 2.4f,
                 MuzzleVelocity = 800f, DragK = 0.00095f, Damage = 90f,
                 ScopeFovs = new[] { 15f, 7.5f }, ScopeLabels = new[] { "4x", "8x" }, DefaultZoomIndex = 1, HasZeroing = true,
                 RecoilKick = 1.4f, RecoilClimb = 0.12f, SwayScoped = 0.4f, SwayHip = 1.0f, HipSpread = 0.5f, AdsSpread = 0.06f,
@@ -74,9 +74,9 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "rifle", Name = "돌격소총",
-                Description = "5.56mm 자동. 30발 탄창, 2~4배 광학 조준기.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
+                Description = "5.56mm 자동. 30발 탄창(예비 480발), 2~4배 광학 조준기.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
                 Mission = MissionType.Defense, Fire = FireMode.Auto,
-                RoundsPerMinute = 650f, BoltTime = 0f, MagSize = 30, Reserve = 180, ReloadTime = 2.2f,
+                RoundsPerMinute = 650f, BoltTime = 0f, MagSize = 30, Reserve = 480, ReloadTime = 2.2f,
                 MuzzleVelocity = 900f, DragK = 0.0012f, Damage = 40f,
                 ScopeFovs = new[] { 30f, 15f }, ScopeLabels = new[] { "2x", "4x" }, DefaultZoomIndex = 0, HasZeroing = false,
                 RecoilKick = 0.55f, RecoilClimb = 0.25f, SwayScoped = 0.45f, SwayHip = 1.1f, HipSpread = 2.2f, AdsSpread = 0.35f,
@@ -86,9 +86,9 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "lmg", Name = "경기관총",
-                Description = "7.62mm 자동, 100발 탄띠. 양각대 거치 시(조준) 산포 감소. 재장전이 느림.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
+                Description = "7.62mm 자동, 100발 탄띠(예비 900발). 조준 시 산포 감소, 재장전이 느림.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
                 Mission = MissionType.Defense, Fire = FireMode.Auto,
-                RoundsPerMinute = 700f, BoltTime = 0f, MagSize = 100, Reserve = 300, ReloadTime = 4.5f,
+                RoundsPerMinute = 700f, BoltTime = 0f, MagSize = 100, Reserve = 900, ReloadTime = 4.5f,
                 MuzzleVelocity = 850f, DragK = 0.001f, Damage = 45f,
                 ScopeFovs = new[] { 40f, 20f }, ScopeLabels = new[] { "1.5x", "3x" }, DefaultZoomIndex = 0, HasZeroing = false,
                 RecoilKick = 0.7f, RecoilClimb = 0.18f, SwayScoped = 0.3f, SwayHip = 1.4f, HipSpread = 3.2f, AdsSpread = 0.7f,
@@ -98,9 +98,9 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "smg", Name = "기관단총",
-                Description = "9mm 자동 900발/분. 30발 탄창, 가볍고 반동이 작지만 사거리가 짧음.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
+                Description = "9mm 자동 900발/분. 30발 탄창(예비 600발), 가볍지만 사거리가 짧음.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
                 Mission = MissionType.Defense, Fire = FireMode.Auto,
-                RoundsPerMinute = 900f, BoltTime = 0f, MagSize = 30, Reserve = 210, ReloadTime = 1.9f,
+                RoundsPerMinute = 900f, BoltTime = 0f, MagSize = 30, Reserve = 600, ReloadTime = 1.9f,
                 MuzzleVelocity = 400f, DragK = 0.0025f, Damage = 26f,
                 ScopeFovs = new[] { 40f, 25f }, ScopeLabels = new[] { "1.5x", "2.5x" }, DefaultZoomIndex = 0, HasZeroing = false,
                 RecoilKick = 0.35f, RecoilClimb = 0.2f, SwayScoped = 0.4f, SwayHip = 0.9f, HipSpread = 1.8f, AdsSpread = 0.5f,
@@ -110,9 +110,9 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "shotgun", Name = "펌프 샷건",
-                Description = "12게이지 펌프액션. 8발, 한 발에 산탄 10개. 근거리에서 압도적, 40m 이상은 거의 무의미.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
+                Description = "12게이지 펌프액션. 8발(예비 160발), 한 발에 산탄 10개. 근거리 압도적.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
                 Mission = MissionType.Defense, Fire = FireMode.Bolt,
-                RoundsPerMinute = 60f, BoltTime = 0.85f, MagSize = 8, Reserve = 48, ReloadTime = 3.2f,
+                RoundsPerMinute = 60f, BoltTime = 0.85f, MagSize = 8, Reserve = 160, ReloadTime = 3.2f,
                 MuzzleVelocity = 380f, DragK = 0.004f, Damage = 16f, Pellets = 10,
                 ScopeFovs = new[] { 45f }, ScopeLabels = new[] { "1.3x" }, DefaultZoomIndex = 0, HasZeroing = false,
                 RecoilKick = 3.5f, RecoilClimb = 0.1f, SwayScoped = 0.5f, SwayHip = 1.0f, HipSpread = 3.2f, AdsSpread = 2.4f,
@@ -122,9 +122,9 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "pistol", Name = "권총",
-                Description = "9mm 반자동 권총. 15발 탄창. 보조무기 수준의 화력으로 방어전에 도전.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
+                Description = "9mm 반자동 권총. 15발 탄창(예비 330발). 보조무기로 방어전에 도전.\n임무: 진지 방어 (몰려오는 적 5개 웨이브)",
                 Mission = MissionType.Defense, Fire = FireMode.Semi,
-                RoundsPerMinute = 300f, BoltTime = 0f, MagSize = 15, Reserve = 120, ReloadTime = 1.5f,
+                RoundsPerMinute = 300f, BoltTime = 0f, MagSize = 15, Reserve = 330, ReloadTime = 1.5f,
                 MuzzleVelocity = 370f, DragK = 0.0028f, Damage = 30f,
                 ScopeFovs = new[] { 45f }, ScopeLabels = new[] { "1.3x" }, DefaultZoomIndex = 0, HasZeroing = false,
                 RecoilKick = 1.6f, RecoilClimb = 0.15f, SwayScoped = 0.45f, SwayHip = 0.8f, HipSpread = 1.2f, AdsSpread = 0.4f,

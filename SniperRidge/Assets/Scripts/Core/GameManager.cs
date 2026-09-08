@@ -142,7 +142,9 @@ namespace SniperRidge
 
                 if (wave < TotalWaves)
                 {
-                    Hud.Announce("웨이브 격퇴!  다음 웨이브까지 8초");
+                    int resupply = Mathf.RoundToInt(Weapon.Reserve * 0.4f);
+                    Player.Resupply(resupply);
+                    Hud.Announce(string.Format("웨이브 격퇴!  탄약 재보급 +{0}발   다음 웨이브까지 8초", resupply));
                     Score += 500 * wave;
                     yield return new WaitForSeconds(8f);
                 }

@@ -121,6 +121,13 @@ namespace SniperRidge
         public void CycleZoom() => zoomQueued = true;
         public void AdjustZero(int steps) => zeroDelta += steps;
 
+        /// <summary>웨이브 사이 재보급: 예비 탄약을 채운다.</summary>
+        public void Resupply(int rounds)
+        {
+            if (Weapon == null) return;
+            Reserve = Mathf.Min(Weapon.Reserve, Reserve + rounds);
+        }
+
         public void OnMissionEnd()
         {
             inputEnabled = false;
