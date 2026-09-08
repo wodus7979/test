@@ -14,6 +14,15 @@ namespace SniperRidge
         Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, weaponText, killFeed, introText, announceText, hintText, endTitle, endStats;
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
+        Text coverText, threatText;
+        float threatUntil;
+        Vector3 threatSource;
+
+        public void WarnIncoming(Vector3 source, float duration)
+        {
+            threatSource = source;
+            threatUntil = Mathf.Max(threatUntil, Time.time + duration);
+        }
         Image[] hitLines;
         GameObject scopeRoot, crosshair, endPanel, selectPanel, gameplayRoot;
 
@@ -93,6 +102,11 @@ namespace SniperRidge
 
             damageFlash = UiKit.Fullscreen(g, "DamageFlash", new Color(0.8f, 0f, 0f, 0f)).GetComponent<Image>();
 
+            coverText = UiKit.Label(g, "CoverState", "", 24, TextAnchor.MiddleCenter, white,
+                new Vector2(.5f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 90f), new Vector2(1000f, 80f), true);
+            threatText = UiKit.Label(g, "IncomingFire", "", 30, TextAnchor.MiddleCenter, new Color(1f, .55f, .2f),
+                new Vector2(.5f, 1f), new Vector2(.5f, 1f), new Vector2(0f, -195f), new Vector2(1000f, 45f), true);
+
             // 좌상단
             enemyText = UiKit.Label(g, "Enemies", "", 30, TextAnchor.UpperLeft, white, topLeft, topLeft, new Vector2(30f, -25f), new Vector2(800f, 40f), true);
             scoreText = UiKit.Label(g, "Score", "", 26, TextAnchor.UpperLeft, dim, topLeft, topLeft, new Vector2(30f, -66f), new Vector2(700f, 34f));
@@ -123,9 +137,9 @@ namespace SniperRidge
             // 킬 피드 / 안내
             killFeed = UiKit.Label(g, "KillFeed", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.4f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(1000f, 50f), true);
             announceText = UiKit.Label(g, "Announce", "", 44, TextAnchor.MiddleCenter, new Color(1f, 0.6f, 0.3f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(1200f, 60f), true);
-            introText = UiKit.Label(g, "Intro", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 230f), new Vector2(1300f, 140f));
+            introText = UiKit.Label(g, "Intro", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 230f), new Vector2(1300f, 180f));
             hintText = UiKit.Label(g, "Hint",
-                "우클릭 조준  |  좌클릭 사격(자동화기는 누르고 있기)  |  Shift 숨 참기  |  R 재장전  |  휠/Z 배율  |  ↑↓ 영점  |  Esc 마우스",
+                "C/Ctrl 누르기 엄폐  |  A/D 이동  |  우클릭 조준  |  좌클릭 사격  |  Shift 숨 참기  |  R 재장전  |  휠/Z 배율  |  ↑↓ 영점",
                 20, TextAnchor.LowerCenter, new Color(1f, 1f, 1f, 0.6f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(1700f, 30f));
             if (Application.isMobilePlatform) hintText.gameObject.SetActive(false);
             gameplayRoot.SetActive(false);
@@ -247,6 +261,22 @@ namespace SniperRidge
             if (gm == null || gm.Player == null) return;
             if (gm.IsSelecting) return;
             var p = gm.Player;
+            string posture = p.IsHidden ? "엄폐 중 · 키를 놓으면 일어섭니다" :
+                p.CanFireFromCover ? "노출 중 · C/Ctrl로 숨기 / A·D로 피하기" : "자세 전환 중";
+            string contact = gm.Mission == MissionType.Sniper
+                ? (!gm.PositionRevealed ? "은폐 유지" : p.IsHidden
+                    ? string.Format("추적 해제까지 {0:0.0}초", (1f - gm.HideProgress) * CounterfireRules.LoseContactSeconds)
+                    : "위치 발각 · 적 반격 중")
+                : "적이 사격하며 접근합니다 · 엄폐 후 반격";
+            coverText.text = posture + "\n" + contact;
+            coverText.color = p.IsHidden ? new Color(.55f, 1f, .7f) : new Color(1f, .8f, .45f);
+            if (gm.IsPlaying && Time.time < threatUntil)
+            {
+                Vector3 direction = p.transform.InverseTransformPoint(threatSource);
+                string side = direction.z < 0f ? "후방" : Mathf.Abs(direction.x) < Mathf.Abs(direction.z) * .25f ? "정면" : direction.x < 0f ? "← 좌측" : "우측 →";
+                threatText.text = "적 조준 / 탄 접근  " + side + "  ·  C/Ctrl 엄폐";
+            }
+            else threatText.text = "";
             float dt = Time.deltaTime;
 
             if (gm.Mission == MissionType.Sniper)

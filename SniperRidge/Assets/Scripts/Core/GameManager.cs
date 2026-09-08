@@ -52,6 +52,37 @@ namespace SniperRidge
         AudioSource[] audioPool;
         int audioIndex;
         float startTime, endTime;
+        readonly SniperContact contact = new SniperContact();
+        Vector3 defenseAimPoint;
+        float nextEnemyAttack;
+        public bool PositionRevealed => Mission == MissionType.Defense || contact.Revealed;
+        public float HideProgress => contact.HiddenSeconds / CounterfireRules.LoseContactSeconds;
+        public Vector3 EnemyAimPoint => Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
+
+        void LateUpdate()
+        {
+            if (!IsPlaying || Player == null) return;
+            if (Mission == MissionType.Defense)
+            {
+                if (Player.CanFireFromCover) defenseAimPoint = Player.AimPoint;
+                return;
+            }
+            bool visible = false;
+            if (contact.Revealed)
+                foreach (var enemy in enemies)
+                    if (enemy != null && !enemy.IsDead && enemy.CanSee(Player.AimPoint)) { visible = true; break; }
+            bool wasRevealed = contact.Revealed;
+            contact.Tick(Time.deltaTime, Player.IsHidden, visible, Player.AimPoint);
+            if (wasRevealed && !contact.Revealed) Hud.Announce("추적 해제 — 다시 조용히 조준하세요");
+        }
+
+        // Stagger squad fire so every enemy cannot start a burst on the same frame.
+        public bool TryBeginEnemyAttack()
+        {
+            if (!IsPlaying || !PositionRevealed || Time.time < nextEnemyAttack) return false;
+            nextEnemyAttack = Time.time + (Mission == MissionType.Sniper ? .55f : .32f);
+            return true;
+        }
 
         void Awake()
         {
@@ -93,17 +124,19 @@ namespace SniperRidge
             State = GameState.Playing;
             startTime = Time.time;
             Player.Equip(weapon);
+            defenseAimPoint = Player.AimPoint;
+            nextEnemyAttack = Time.time + 2f;
 
             if (Mission == MissionType.Sniper)
             {
                 Health.Configure(5f, 6f);
                 LevelBuilder.SpawnSniperEnemies(this);
-                Hud.OnMissionStart("능선에 잠복 중.\n맞은편 능선의 바위와 나무 뒤에 숨은 적을 모두 제거하라.\n첫 발 이후 적은 경계 태세로 전환해 반격한다.");
+                Hud.OnMissionStart("능선에 잠복 중.\n맞은편 능선의 바위와 나무 뒤에 숨은 적을 모두 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
             }
             else
             {
                 Health.Configure(3f, 12f);
-                Hud.OnMissionStart("진지 방어.\n맞은편 사면에서 적이 웨이브로 몰려온다.\n" + TotalWaves + "개 웨이브를 모두 막아내라.");
+                Hud.OnMissionStart("진지 방어.\n적들이 사격하며 접근한다.\nC/Ctrl로 숨고 A/D로 피한 뒤 반격하라.\n" + TotalWaves + "개 웨이브를 모두 막아내라.");
                 StartCoroutine(RunWaves());
             }
         }
@@ -179,22 +212,21 @@ namespace SniperRidge
 
         // ---------- 플레이어 사격 관련 ----------
 
-        public void OnPlayerShot()
+        public void OnPlayerShot(Vector3 shotPosition)
         {
             Shots++;
-            if (Mission != MissionType.Sniper) return;
-            foreach (var e in enemies)
-            {
-                if (e == null || e.IsDead || e.IsAware) continue;
-                float delay = Vector3.Distance(e.transform.position, PlayerEye.position) / 340f;
-                StartCoroutine(AwareAfter(e, delay));
-            }
+            if (Mission == MissionType.Sniper && contact.Revealed)
+                contact.Reveal(shotPosition - Vector3.up * .18f);
         }
 
-        IEnumerator AwareAfter(EnemySoldier e, float delay)
+        public void OnPlayerShotResolved(bool cleanKill, Vector3 shotPosition)
         {
-            yield return new WaitForSeconds(delay);
-            if (e != null) e.SetAware();
+            if (!IsPlaying || Mission != MissionType.Sniper || cleanKill) return;
+            bool first = !contact.Revealed;
+            contact.Reveal(shotPosition - Vector3.up * .18f);
+            foreach (var enemy in enemies)
+                if (enemy != null && !enemy.IsDead) enemy.SetAware();
+            if (first) Hud.Announce("위치 발각! C/Ctrl로 5초 엄폐");
         }
 
         public void NotifyBulletPass(Vector3 a, Vector3 b)
@@ -252,18 +284,11 @@ namespace SniperRidge
 
         // ---------- 적 사격 관련 ----------
 
-        public IEnumerator EnemyShotArrival(float dist, bool hit, float damage)
+        public IEnumerator EnemyShotSound(float distance)
         {
-            float bulletT = dist / 800f;
-            float soundT = dist / 340f;
-            yield return new WaitForSeconds(bulletT);
-            if (IsPlaying)
-            {
-                if (hit) Health.TakeDamage(damage);
-                else PlaySound(Sounds.Crack, 0.5f, Random.Range(0.9f, 1.1f));
-            }
-            yield return new WaitForSeconds(Mathf.Max(0f, soundT - bulletT));
-            PlaySound(Sounds.DistantShot, Mathf.Clamp01(1.1f - dist / 900f) * 0.6f, Random.Range(0.85f, 1.05f));
+            yield return new WaitForSeconds(distance / 340f);
+            if (!IsPlaying) yield break;
+            PlaySound(Sounds.DistantShot, Mathf.Clamp01(1.1f - distance / 900f) * .45f, Random.Range(.985f, 1.015f));
         }
 
         public void PlayerDied() => EndMission(false);

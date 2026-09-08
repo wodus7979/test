@@ -31,6 +31,36 @@ namespace SniperRidge
         public float CurrentScopeFov => Weapon != null ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
         public Transform Eye => cam.transform;
         public bool IsDesktop => desktop;
+        public bool IsHidden => cam.transform.localPosition.y <= .78f;
+        public bool CanFireFromCover => !coverHeld && cam.transform.localPosition.y >= 1.42f;
+        public Vector3 AimPoint => Eye.position - Vector3.up * .18f;
+        Vector3 nestOrigin;
+        bool coverHeld, touchCover;
+        float lateralOffset;
+
+        public void SetCover(bool held) => touchCover = held;
+
+        public void GetDamageCapsule(out Vector3 bottom, out Vector3 top)
+        {
+            bottom = transform.position + Vector3.up * .30f;
+            top = Eye.position - Vector3.up * .10f;
+        }
+
+        void UpdateCover(float dt)
+        {
+            bool keysActive = desktop && Cursor.lockState == CursorLockMode.Locked;
+            coverHeld = inputEnabled && (touchCover || (keysActive &&
+                (Input.GetKey(KeyCode.C) || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))));
+            float lateral = inputEnabled && keysActive
+                ? (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f) : 0f;
+            lateralOffset = Mathf.Clamp(lateralOffset + lateral * dt * (coverHeld ? 1.6f : 2.8f), -1.15f, 1.15f);
+            // The firing platform is level and bounded inside the physical sandbag walls.
+            transform.position = nestOrigin + Vector3.right * lateralOffset;
+            Vector3 eye = cam.transform.localPosition;
+            eye.y = Mathf.MoveTowards(eye.y, coverHeld ? CounterfireRules.HiddenEye : CounterfireRules.StandingEye, dt * 4.8f);
+            cam.transform.localPosition = eye;
+            if (coverHeld) { IsScoped = false; HoldingBreath = false; scopeToggleQueued = false; }
+        }
 
         public string StateLabel
         {
@@ -69,6 +99,7 @@ namespace SniperRidge
         public void Init(Camera camera, Light muzzle)
         {
             cam = camera;
+            nestOrigin = transform.position;
             muzzleLight = muzzle;
             yaw = transform.eulerAngles.y;
             desktop = !Application.isMobilePlatform;
@@ -135,6 +166,7 @@ namespace SniperRidge
             HoldingBreath = false;
             touchBreath = false;
             fireHeld = false;
+            touchCover = coverHeld = false;
             if (desktop)
             {
                 Cursor.lockState = CursorLockMode.None;
@@ -158,6 +190,8 @@ namespace SniperRidge
                 zeroDelta = 0;
             }
 
+            UpdateCover(dt);
+
             // 시점 회전 (배율이 높을수록 감도 감소)
             float sens = cam.fieldOfView / BaseFov;
             yaw += lookInput.x * sens;
@@ -166,7 +200,7 @@ namespace SniperRidge
             lookInput = Vector2.zero;
 
             // 숨 참기
-            bool wantHold = inputEnabled &&
+            bool wantHold = inputEnabled && !coverHeld &&
                             (touchBreath || (desktop && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.Space))));
             if (breathLocked && Breath > 0.35f) breathLocked = false;
             HoldingBreath = wantHold && !breathLocked && Breath > 0f;
@@ -201,7 +235,7 @@ namespace SniperRidge
             // 조준경 / 배율 / 영점
             if (Weapon != null)
             {
-                if (scopeToggleQueued)
+                if (scopeToggleQueued && CanFireFromCover)
                 {
                     scopeToggleQueued = false;
                     IsScoped = !IsScoped;
@@ -223,7 +257,7 @@ namespace SniperRidge
             }
             float targetFov = (IsScoped && Weapon != null) ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, dt * 14f);
-            bool showModel = !IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f);   // 저배율 광학은 총이 보인다
+            bool showModel = !IsHidden && (!IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f));   // 저배율 광학은 총이 보인다
             if (weaponModel != null && weaponModel.activeSelf != showModel) weaponModel.SetActive(showModel);
 
             // 무기 상태
@@ -251,7 +285,7 @@ namespace SniperRidge
 
             bool wantFire = fireQueued || (Weapon != null && Weapon.Fire == FireMode.Auto && fireHeld);
             fireQueued = false;
-            if (wantFire && Weapon != null && State == WeaponState.Ready && fireTimer <= 0f)
+            if (wantFire && CanFireFromCover && Weapon != null && State == WeaponState.Ready && fireTimer <= 0f)
             {
                 if (AmmoInMag > 0) Fire();
                 else if (Reserve > 0) TryReload();
@@ -332,7 +366,7 @@ namespace SniperRidge
             float shotPitch = gm.Sounds.UsingRecorded ? Random.Range(0.985f, 1.015f) : w.ShotPitch * Random.Range(0.96f, 1.04f);
             gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, shotPitch);
             StartCoroutine(MuzzleFlash());
-            gm.OnPlayerShot();
+            gm.OnPlayerShot(cam.transform.position);
         }
 
         IEnumerator MuzzleFlash()

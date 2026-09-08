@@ -47,6 +47,7 @@ namespace SniperRidge
             {
                 var s = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 s.name = "Dust";
+                s.GetComponent<Collider>().enabled = false;
                 Object.Destroy(s.GetComponent<Collider>());
                 s.transform.position = pos + normal * 0.15f + Random.insideUnitSphere * size * 0.6f;
                 s.transform.localScale = Vector3.one * size * Random.Range(0.6f, 1.1f);

@@ -62,6 +62,9 @@ namespace SniperRidge
         Vector3 walkTarget;
         Vector3 faceDir = Vector3.forward;
         float nextShotTime;
+        bool preparingShot;
+        float aimTimer;
+        Vector3 plannedTarget;
         float scale = 1f;
 
         // Rusher 전용
@@ -303,7 +306,7 @@ namespace SniperRidge
                 case State.Peeking:
                     coverTarget = 0f;
                     stateTimer -= dt;
-                    if (IsAware) TryShoot(StandardHitChance());
+                    if (IsAware) TryShoot(.85f);
                     if (stateTimer <= 0f)
                     {
                         state = State.Hidden;
@@ -336,7 +339,7 @@ namespace SniperRidge
                 case State.Waiting:
                     coverTarget = 0f;
                     stateTimer -= dt;
-                    if (IsAware) TryShoot(StandardHitChance());
+                    if (IsAware) TryShoot(.85f);
                     if (stateTimer <= 0f)
                     {
                         walkTarget = (walkTarget == PointA) ? PointB : PointA;
@@ -346,12 +349,13 @@ namespace SniperRidge
 
                 case State.Rushing:
                     speedForAnim = UpdateRushing(dt);
+                    TryShoot(1.6f, 1.8f, 3f);
                     break;
 
                 case State.Halt:
                     coverTarget = 0.55f;   // 무릎쏴
                     stateTimer -= dt;
-                    TryShoot(RusherHitChance(), 0.35f, 0.7f);
+                    TryShoot(.72f, 1.0f, 1.8f);
                     if (stateTimer <= 0f)
                     {
                         state = State.Rushing;
@@ -368,12 +372,15 @@ namespace SniperRidge
             }
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(faceDir), 360f * dt);
 
+            UpdatePreparedShot(dt);
+
             float actualSpeed = Vector3.ProjectOnPlane(rig.position - previousRigPosition, Vector3.up).magnitude / Mathf.Max(dt, .0001f);
             previousRigPosition = rig.position;
             if (motion != null)
                 motion.Drive(actualSpeed, Kind == EnemyKind.Tree ? 0f : cover,
                     Kind == EnemyKind.Tree ? peekSide * (1f - cover) : 0f,
-                    IsAware && state != State.Walking && state != State.Rushing, gm.PlayerEye.position, dt);
+                    IsAware && (preparingShot || state != State.Walking && state != State.Rushing),
+                    preparingShot ? plannedTarget : gm.EnemyAimPoint, dt);
             else if (animator != null)
             {
                 SetAnim("Speed", speedForAnim);
@@ -418,8 +425,9 @@ namespace SniperRidge
                 dir = Quaternion.Euler(0f, 70f * avoidSide, 0f) * dir;
             }
 
-            MoveOnTerrain(dir, moveSpeed, dt);
-            faceDir = dir;
+            float advancingSpeed = preparingShot ? moveSpeed * .65f : moveSpeed;
+            MoveOnTerrain(dir, advancingSpeed, dt);
+            faceDir = preparingShot ? toPlayer.normalized : dir;
 
             // 사격을 위해 잠시 정지
             burstTimer -= dt;
@@ -429,7 +437,7 @@ namespace SniperRidge
                 stateTimer = Random.Range(1.2f, 2.2f);
                 nextShotTime = Time.time + 0.3f;
             }
-            return moveSpeed;
+            return advancingSpeed;
         }
 
         void MoveOnTerrain(Vector3 dir, float speed, float dt)
@@ -494,6 +502,7 @@ namespace SniperRidge
         public void SetAware()
         {
             if (IsDead) return;
+            if (!IsAware) nextShotTime = Time.time + Random.Range(.8f, 1.5f);
             if (!IsAware && (Kind == EnemyKind.Cover || Kind == EnemyKind.Tree) && state == State.Peeking)
                 stateTimer = Mathf.Min(stateTimer, Random.Range(0.3f, 1f));
             IsAware = true;
@@ -579,50 +588,54 @@ namespace SniperRidge
 
         // ---------- 사격 ----------
 
-        float StandardHitChance()
+        void TryShoot(float spreadRadius, float minInterval = 2.2f, float maxInterval = 4.2f)
         {
-            float dist = Vector3.Distance(transform.position, gm.PlayerEye.position);
-            return 0.2f * Mathf.Clamp01(1.3f - dist / 700f);
-        }
-
-        float RusherHitChance()
-        {
-            float dist = Vector3.Distance(transform.position, gm.PlayerEye.position);
-            return Mathf.Clamp(0.04f + 0.22f * (1f - dist / 160f), 0.03f, 0.26f);
-        }
-
-        void TryShoot(float hitChance, float minInterval = 1.6f, float maxInterval = 3.2f)
-        {
-            if (Time.time < nextShotTime) return;
+            if (preparingShot || Time.time < nextShotTime || !gm.PositionRevealed || staggerTimer > 0f) return;
+            if (cover > .7f || !HasLineOfSight()) return;
+            if (!gm.TryBeginEnemyAttack()) return;
             nextShotTime = Time.time + Random.Range(minInterval, maxInterval);
-            if (cover > 0.7f) return;
-            if (!HasLineOfSight()) return;
-            FireAtPlayer(hitChance);
+            Vector3 target = gm.EnemyAimPoint;
+            Vector3 forward = (target - rifleTip.position).normalized;
+            Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
+            Vector3 up = Vector3.Cross(forward, right).normalized;
+            Vector2 spread = Random.insideUnitCircle * spreadRadius;
+            plannedTarget = target + right * spread.x + up * spread.y;
+            preparingShot = true;
+            aimTimer = Kind == EnemyKind.Rusher ? .5f : .8f;
+            gm.Hud.WarnIncoming(transform.position, aimTimer + CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position, target)));
         }
 
-        bool HasLineOfSight()
+        void UpdatePreparedShot(float dt)
         {
-            Vector3 from = head.position + transform.forward * (0.3f * scale);
-            Vector3 to = gm.PlayerEye.position;
-            return !Physics.Linecast(from, to, out _, ~0, QueryTriggerInteraction.Ignore);
+            if (!preparingShot) return;
+            // Ducking does not retarget a prepared shot. It continues towards the old position.
+            if (!gm.PositionRevealed || cover > .7f || staggerTimer > 0f)
+            {
+                preparingShot = false;
+                return;
+            }
+            aimTimer -= dt;
+            if (aimTimer > 0f) return;
+            preparingShot = false;
+            FireAtPlayer(plannedTarget);
         }
 
-        void FireAtPlayer(float hitChance)
+        bool HasLineOfSight() => CanSee(gm.EnemyAimPoint);
+
+        public bool CanSee(Vector3 target)
+        {
+            Vector3 from = head.position + transform.forward * (.3f * scale);
+            return !EnemyProjectile.WorldHit(from, target, this, out _);
+        }
+
+        void FireAtPlayer(Vector3 target)
         {
             if (motion != null) motion.Fire();
             Vector3 muzzle = rifleTip.position;
-            Vector3 eye = gm.PlayerEye.position;
-            float dist = Vector3.Distance(muzzle, eye);
-            bool hit = Random.value < hitChance;
-
-            Vector3 target = hit ? eye : eye + Random.onUnitSphere * Random.Range(1f, 3.5f);
-            Vector3 dir = (target - muzzle).normalized;
-            Vector3 end = hit ? eye : target + dir * 25f;
-
-            Effects.Tracer(muzzle, end, new Color(1f, 0.85f, 0.4f), 0.16f, Kind == EnemyKind.Rusher ? 0.12f : 0.25f);
-            Effects.Flash(muzzle, new Color(1f, 0.8f, 0.5f), 4f, 6f, 0.06f);
-            float damage = Kind == EnemyKind.Rusher ? Random.Range(7f, 13f) : Random.Range(18f, 26f);
-            gm.StartCoroutine(gm.EnemyShotArrival(dist, hit, damage));
+            Effects.Flash(muzzle, new Color(1f, .8f, .5f), 4f, 6f, .06f);
+            float damage = Kind == EnemyKind.Rusher ? Random.Range(7f, 11f) : Random.Range(18f, 24f);
+            EnemyProjectile.Launch(gm, this, muzzle, target, damage);
+            gm.StartCoroutine(gm.EnemyShotSound(Vector3.Distance(muzzle, gm.PlayerEye.position)));
         }
     }
 }

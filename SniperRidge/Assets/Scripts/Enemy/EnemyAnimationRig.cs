@@ -143,7 +143,8 @@ namespace SniperRidge
             animator.SetFloat("MotionRate", speed > RunReferenceSpeed ? Mathf.Clamp(speed / RunReferenceSpeed, 1f, 1.5f) : 1f);
             crouch = Mathf.MoveTowards(crouch, coverAmount, dt * 3f);
             peek = Mathf.MoveTowards(peek, peekAmount, dt * 3f);
-            aim = Mathf.MoveTowards(aim, aiming ? Mathf.InverseLerp(3f, .3f, speed) : 0f, dt * 5f);
+            // Keep the rifle raised during advancing fire instead of fading aiming to zero.
+            aim = Mathf.MoveTowards(aim, aiming ? Mathf.Lerp(1f, .65f, Mathf.InverseLerp(.3f, 3f, speed)) : 0f, dt * 5f);
             aimTarget = target;
         }
 

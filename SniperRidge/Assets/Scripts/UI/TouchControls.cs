@@ -68,6 +68,7 @@ namespace SniperRidge
             MakeButton(root, "Reload", "재장전", 26, bg, fg, br, bc, new Vector2(-170f, 390f), new Vector2(160f, 90f), p.PressReload, null);
             MakeButton(root, "Zoom", "배율", 26, bg, fg, br, bc, new Vector2(-390f, 360f), new Vector2(160f, 90f), p.CycleZoom, null);
             MakeButton(root, "ZeroUp", "영점 +", 24, bg, fg, br, bc, new Vector2(-570f, 240f), new Vector2(140f, 90f), () => p.AdjustZero(1), null);
+            MakeButton(root, "Cover", "엄폐", 26, bg, fg, br, bc, new Vector2(-570f, 360f), new Vector2(140f, 90f), () => p.SetCover(true), () => p.SetCover(false));
             MakeButton(root, "ZeroDown", "영점 −", 24, bg, fg, br, bc, new Vector2(-570f, 120f), new Vector2(140f, 90f), () => p.AdjustZero(-1), null);
         }
 

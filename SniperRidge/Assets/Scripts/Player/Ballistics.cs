@@ -44,6 +44,7 @@ namespace SniperRidge
         Vector3 pos, vel, wind, origin;
         float traveled, dragK = Ballistics.DragK, damage = 100f;
         bool done;
+        float age;
         LineRenderer lr;
 
         public static void Fire(Vector3 origin, Vector3 direction, Vector3 wind,
@@ -74,6 +75,10 @@ namespace SniperRidge
         void Update()
         {
             if (done) return;
+            var activeGame = GameManager.Instance;
+            if (activeGame == null || !activeGame.IsPlaying) { done = true; Destroy(gameObject); return; }
+            age += Time.deltaTime;
+            if (age > 6f) { Finish(); return; }
             float remaining = Time.deltaTime;
             Vector3 frameStart = pos;
             var gm = GameManager.Instance;
@@ -119,19 +124,30 @@ namespace SniperRidge
             {
                 bool killed = hitbox.Owner.TakeHit(damage, hitbox.IsHead, vel.normalized);
                 Effects.Puff(hit.point, -vel.normalized, 0.18f, new Color(0.55f, 0.05f, 0.05f), 0.45f);
-                if (gm != null) gm.OnEnemyHit(hitbox.Owner, hitbox.IsHead, dist, killed);
+                if (gm != null)
+                {
+                    gm.OnEnemyHit(hitbox.Owner, hitbox.IsHead, dist, killed);
+                    gm.OnPlayerShotResolved(killed, origin);
+                }
             }
             else
             {
                 Effects.Dust(hit.point, hit.normal, 0.25f);
-                if (gm != null) gm.OnBulletImpact(hit.point);
+                if (gm != null)
+                {
+                    gm.OnBulletImpact(hit.point);
+                    gm.OnPlayerShotResolved(false, origin);
+                }
             }
             Destroy(gameObject);
         }
 
         void Finish()
         {
+            if (done) return;
             done = true;
+            var gm = GameManager.Instance;
+            if (gm != null) gm.OnPlayerShotResolved(false, origin);
             Destroy(gameObject);
         }
     }
