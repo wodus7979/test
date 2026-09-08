@@ -155,7 +155,11 @@ Game.prototype.setupCallbacks = function () {
     self.entities.spawnFallingBlock(x, y, z, id, meta);
   };
   // 물이 용암을 굳힐 때 나는 소리
-  this.world.onFluidHiss = function () { self.playSound('hiss'); };
+  this.world.onFluidHiss = function (x, y, z) {
+    self.playSound('hiss');
+    // 물에 닿아 굳는 자리에서 김이 오른다
+    if (self.fx && x !== undefined) self.fx.steam(x + 0.5, y + 1, z + 0.5, 4, false);
+  };
   // 터질 때마다 불덩이와 연기가 피어오른다
   this.entities.onExplosion = function (x, y, z, power) {
     self.playSound('boom');
@@ -2069,6 +2073,8 @@ Game.prototype.interactBlock = function (hit) {
 
     case 'toggle':
       w.setMeta(hit.x, hit.y, hit.z, w.getMeta(hit.x, hit.y, hit.z) ^ META_OPEN);
+      // 실험장의 레버면 마개를 열고 닫는다 (소리는 그쪽에서 낸다)
+      if (this.labToggle && this.labToggle(hit.x, hit.y, hit.z)) return true;
       this.playSound('place');
       return true;
 
@@ -3046,6 +3052,7 @@ Game.prototype.update = function (dt) {
   if (this.updateBuddyHud) this.updateBuddyHud();
   if (this.updateSpider) this.updateSpider(dt);
   if (this.updateSuit) this.updateSuit(dt);
+  if (this.updateLab) this.updateLab(dt);
   if (this.ensureBuses) this.ensureBuses();       // 도시마다 노선버스 한 대
   if (this.updateBus) this.updateBus(dt);
   this.updateTrainInfo(dt);

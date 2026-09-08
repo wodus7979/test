@@ -2385,6 +2385,7 @@ function buildCityPlan(world, ap, index, code) {
 
   citySignals(plan, st);
   cityHelipads(plan, st);
+  cityLab(plan, st);          // 용암·물 실험장 (도시 남쪽 하늘)
 
 // ── 여객선 터미널 ─────────────────────────────────────────────────────
 // 바다가 가까운 도시에만 짓는다 (인천 송도·제주시). 물가를 메워 부두를 만들고,

@@ -250,6 +250,23 @@ ParticleFX.prototype.jet = function (x, y, z, dx, dy, dz, pw, dt, acc, size) {
   return left;
 };
 
+// 수증기 한 움큼 (dark 면 굴뚝 연기처럼 어둡고 오래 남는다)
+ParticleFX.prototype.steam = function (x, y, z, n, dark) {
+  const d = this._d;
+  for (let i = 0; i < (n || 1); i++) {
+    fxDir(d);
+    this.add({
+      kind: FX_SMOKE, floor: -1e9,
+      x: x + d[0] * 0.3, y: y, z: z + d[2] * 0.3,
+      vx: d[0] * 0.5, vy: 1.2 + Math.random() * 0.8, vz: d[2] * 0.5,
+      s0: dark ? 0.6 : 0.5, s1: dark ? 3.0 : 2.2,
+      age: 0, life: dark ? 3.0 + Math.random() * 2.0 : 1.4 + Math.random() * 1.0,
+      hue: dark ? 0.10 + Math.random() * 0.08 : 0.58 + Math.random() * 0.14,   // 어두운 연기 / 하얀 김
+      drag: 1.2, buoy: dark ? 1.0 : 1.6, a0: dark ? 0.55 : 0.5
+    });
+  }
+};
+
 ParticleFX.prototype.update = function (dt) {
   const list = this.list;
   if (!list.length) return;
