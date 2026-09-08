@@ -21,12 +21,39 @@ The eight `shot_*.wav` files were replaced on 2026-09-08 with edited recordings 
 
 These are sound-design choices, not an assertion that every recording matches the game's fictional weapon model or calibre. The distant sound is not a calibrated recording at 300 metres.
 
-Processing: remove leading silence, anti-aliased 96→48 kHz conversion, high-pass filtering to reduce rumble, modest high-frequency emphasis on player shots, narrower stereo image, natural recorded decay with an end fade, peak headroom, PCM16 export. No bass oscillator, synthesized crack, or repeated artificial echo was added. The original recordings may contain microphone/source distortion; processing cannot recover information absent from those recordings.
+### Punch revision (2026-09-08)
+
+Player shots now combine a near recording with a short, aligned blast from the same firearm at mid distance:
+
+| Game weapon | Additional body recording |
+| --- | --- |
+| sniper | Tikka/W_24P.wav |
+| dmr | SKS/U_19P.wav |
+| rifle | AR-15/D_24P.wav |
+| lmg | AK-47/C_31P.wav |
+| smg | Carl Gustav M45/G_20P.wav |
+| shotgun | Nova/O_17P.wav |
+| pistol | Walther PPQ/X_31P.wav |
+
+All additional files are from the same CC0 library and its master sheet. These are intentionally layered game effects, not unprocessed recordings from a single microphone position.
+
+Processing: trim leading silence; anti-aliased 96→48 kHz conversion; 65–100 Hz high-pass on player shots; choose the stronger near microphone for the dry centre; band-limit the additional blast to 180–4200 Hz, align its strongest 4 ms window and apply a short decay; soft-saturate to increase the blast's density; retain quiet stereo ambience after 80 ms; end fade and PCM16 export. Player peak levels remain at the previous 0.62–0.76 limits. The distant clip keeps its previous processing and PCM bytes.
+
+No bass oscillator, synthesized crack or repeated artificial echo was added. The original recordings contain some saturated peaks; processing cannot recover information absent from those recordings. Keeping the dry blast identical in both channels prevents its cancellation when downmixed to mono.
+
 
 Rebuild with Python 3 and NumPy after extracting the original library:
 
 ```sh
 python3 SniperRidge/Tools/build_recorded_gunshots.py "/path/to/Prepared SFX Library"
 ```
+
+Validate the shipped files and sustained fire (Python 3 + NumPy):
+
+```sh
+python3 SniperRidge/Tools/validate_gunshots.py
+```
+
+The check covers PCM format, endpoint fades, onset timing, attack level, mono compatibility and 3-second bursts with runtime pitch variation across ten seeds. It does not validate the entire game mix, speakers, or perceived realism.
 
 This file documents only the eight replaced gunshot files. Bolt, pump, reload, hit, click, crack and wind files retain their previous provenance.
