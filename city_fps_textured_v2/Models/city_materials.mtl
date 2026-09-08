@@ -1,0 +1,136 @@
+newmtl Concrete
+Kd 0.85 0.86 0.84
+Pm 0
+Pr 0.85
+map_Kd ../Textures/PBR/concrete_albedo.jpg
+norm ../Textures/PBR/concrete_normal_unity.png
+map_Pr ../Textures/PBR/concrete_roughness.png
+newmtl Warm_Plaster
+Kd 1 0.96 0.84
+Pm 0
+Pr 0.85
+map_Kd ../Textures/PBR/concrete_albedo.jpg
+norm ../Textures/PBR/concrete_normal_unity.png
+map_Pr ../Textures/PBR/concrete_roughness.png
+newmtl Apartment_White
+Kd 1 1 1
+Pm 0
+Pr 0.85
+map_Kd ../Textures/PBR/concrete_albedo.jpg
+norm ../Textures/PBR/concrete_normal_unity.png
+map_Pr ../Textures/PBR/concrete_roughness.png
+newmtl Brick
+Kd 1 1 1
+Pm 0
+Pr 0.83
+map_Kd ../Textures/PBR/brick_albedo.jpg
+norm ../Textures/PBR/brick_normal_unity.png
+map_Pr ../Textures/PBR/brick_roughness.png
+newmtl Window_Glass
+Kd 0.045 0.14 0.19
+Pm 0.62
+Pr 0.22
+newmtl Window_Light
+Kd 0.4 0.45 0.42
+Pm 0.25
+Pr 0.35
+newmtl Dark_Frame
+Kd 0.13 0.16 0.17
+Pm 0.65
+Pr 0.43
+map_Kd ../Textures/PBR/metal_albedo.jpg
+norm ../Textures/PBR/metal_normal_unity.png
+map_Pr ../Textures/PBR/metal_roughness.png
+newmtl Roof_Metal
+Kd 0.25 0.38 0.46
+Pm 0.58
+Pr 0.43
+map_Kd ../Textures/PBR/metal_albedo.jpg
+norm ../Textures/PBR/metal_normal_unity.png
+map_Pr ../Textures/PBR/metal_roughness.png
+newmtl Industrial_Blue
+Kd 0.065 0.3 0.53
+Pm 0.35
+Pr 0.43
+map_Kd ../Textures/PBR/metal_albedo.jpg
+norm ../Textures/PBR/metal_normal_unity.png
+map_Pr ../Textures/PBR/metal_roughness.png
+newmtl Asphalt
+Kd 0.8 0.83 0.85
+Pm 0
+Pr 0.9299994773968997
+map_Kd ../Textures/PBR/asphalt_albedo.jpg
+norm ../Textures/PBR/asphalt_normal_unity.png
+map_Pr ../Textures/PBR/asphalt_roughness.png
+newmtl White_Paint
+Kd 0.82 0.81 0.72
+Pm 0
+Pr 0.74
+newmtl Yellow_Paint
+Kd 0.87 0.55 0.075
+Pm 0
+Pr 0.65
+newmtl Sidewalk
+Kd 1 1 1
+Pm 0
+Pr 0.8799982260513737
+map_Kd ../Textures/PBR/pavers_albedo.jpg
+norm ../Textures/PBR/pavers_normal_unity.png
+map_Pr ../Textures/PBR/pavers_roughness.png
+newmtl Paver_Accent
+Kd 0.63 0.72 0.75
+Pm 0
+Pr 0.8799982260513737
+map_Kd ../Textures/PBR/pavers_albedo.jpg
+norm ../Textures/PBR/pavers_normal_unity.png
+map_Pr ../Textures/PBR/pavers_roughness.png
+newmtl Wood
+Kd 0.35 0.21 0.1
+Pm 0
+Pr 0.91
+newmtl Foliage
+Kd 0.105 0.22 0.085
+Pm 0
+Pr 0.91
+newmtl Soil
+Kd 0.18 0.21 0.14
+Pm 0
+Pr 1
+newmtl Orange
+Kd 0.7 0.19 0.025
+Pm 0
+Pr 0.8
+newmtl Sign_Atlas
+Kd 1 1 1
+Pm 0
+Pr 0.72
+map_Kd ../Textures/sign_atlas.png
+newmtl Rubber
+Kd 0.022 0.026 0.03
+Pm 0
+Pr 0.96
+newmtl Metal_Silver
+Kd 0.86 0.94 1
+Pm 0.85
+Pr 0.43
+map_Kd ../Textures/PBR/metal_albedo.jpg
+norm ../Textures/PBR/metal_normal_unity.png
+map_Pr ../Textures/PBR/metal_roughness.png
+newmtl AC_White
+Kd 1 1 0.96
+Pm 0.35
+Pr 0.43
+map_Kd ../Textures/PBR/metal_albedo.jpg
+norm ../Textures/PBR/metal_normal_unity.png
+map_Pr ../Textures/PBR/metal_roughness.png
+newmtl Interior_Floor
+Kd 0.84 0.82 0.75
+Pm 0
+Pr 0.85
+map_Kd ../Textures/PBR/concrete_albedo.jpg
+norm ../Textures/PBR/concrete_normal_unity.png
+map_Pr ../Textures/PBR/concrete_roughness.png
+newmtl Safety_Red
+Kd 0.48 0.045 0.026
+Pm 0.2
+Pr 0.63

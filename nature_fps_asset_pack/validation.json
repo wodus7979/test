@@ -1,0 +1,120 @@
+{
+  "geometry": [
+    {
+      "asset": "broadleaf_1",
+      "lod_triangles": [
+        15462,
+        5310
+      ],
+      "valid": true
+    },
+    {
+      "asset": "pine_1",
+      "lod_triangles": [
+        42716,
+        11490
+      ],
+      "valid": true
+    },
+    {
+      "asset": "boulder_2",
+      "lod_triangles": [
+        660,
+        216
+      ],
+      "valid": true
+    },
+    {
+      "asset": "terrain_ridge",
+      "lod_triangles": [
+        32768,
+        8192
+      ],
+      "valid": true
+    },
+    {
+      "asset": "terrain_rocky",
+      "lod_triangles": [
+        32768,
+        8192
+      ],
+      "valid": true
+    },
+    {
+      "asset": "grass_short",
+      "lod_triangles": [
+        360,
+        115
+      ],
+      "valid": true
+    },
+    {
+      "asset": "terrain_meadow",
+      "lod_triangles": [
+        4608,
+        1152
+      ],
+      "valid": true
+    },
+    {
+      "asset": "boulder_1",
+      "lod_triangles": [
+        660,
+        216
+      ],
+      "valid": true
+    },
+    {
+      "asset": "broadleaf_2",
+      "lod_triangles": [
+        15462,
+        5310
+      ],
+      "valid": true
+    },
+    {
+      "asset": "pine_2",
+      "lod_triangles": [
+        42716,
+        11490
+      ],
+      "valid": true
+    },
+    {
+      "asset": "terrain_hill",
+      "lod_triangles": [
+        4608,
+        1152
+      ],
+      "valid": true
+    },
+    {
+      "asset": "grass_tall",
+      "lod_triangles": [
+        360,
+        115
+      ],
+      "valid": true
+    },
+    {
+      "asset": "bush",
+      "lod_triangles": [
+        7194,
+        2502
+      ],
+      "valid": true
+    }
+  ],
+  "glb_files": 14,
+  "decoded_image_references": 48,
+  "texture_channels": "PASS",
+  "meadow_edge_height_match": true,
+  "sample_clearing_path": {
+    "grid_m": 1,
+    "max_slope_degrees": 40,
+    "body_radius_m": 0.35,
+    "start_to_clearing_reachable": true,
+    "method": "heightfield and conservative obstacle footprint BFS; not Unity physics"
+  },
+  "unity_editor": "C# compilation, rendering and Play Mode have not been run."
+}

@@ -1,0 +1,36 @@
+{
+  "geometry": [
+    {
+      "model": "01_precision_rifle",
+      "triangles": 12604,
+      "checks": "GLB structure/accessors, OBJ face indices, Unity source counts, finite values and normalized normals: PASS"
+    },
+    {
+      "model": "02_light_machine_gun",
+      "triangles": 10408,
+      "checks": "GLB structure/accessors, OBJ face indices, Unity source counts, finite values and normalized normals: PASS"
+    },
+    {
+      "model": "03_assault_rifle",
+      "triangles": 9752,
+      "checks": "GLB structure/accessors, OBJ face indices, Unity source counts, finite values and normalized normals: PASS"
+    },
+    {
+      "model": "04_submachine_gun",
+      "triangles": 7008,
+      "checks": "GLB structure/accessors, OBJ face indices, Unity source counts, finite values and normalized normals: PASS"
+    },
+    {
+      "model": "05_pump_shotgun",
+      "triangles": 4680,
+      "checks": "GLB structure/accessors, OBJ face indices, Unity source counts, finite values and normalized normals: PASS"
+    },
+    {
+      "model": "06_service_pistol",
+      "triangles": 4352,
+      "checks": "GLB structure/accessors, OBJ face indices, Unity source counts, finite values and normalized normals: PASS"
+    }
+  ],
+  "unity_editor": "Not available; compilation/import/rendering not executed.",
+  "viewer": "JavaScript syntax check passed; browser runtime not verified."
+}

@@ -1,0 +1,128 @@
+[
+  {
+    "name": "01_precision_rifle",
+    "label": "PRECISION RIFLE",
+    "triangles": 12604,
+    "components": 190,
+    "bounds_m": [
+      [
+        -0.6214999999999999,
+        0.6326
+      ],
+      [
+        -0.209,
+        0.226
+      ],
+      [
+        -0.133,
+        0.133
+      ]
+    ],
+    "materials": 8
+  },
+  {
+    "name": "02_light_machine_gun",
+    "label": "LIGHT MACHINE GUN",
+    "triangles": 10408,
+    "components": 161,
+    "bounds_m": [
+      [
+        -0.5465,
+        0.5266000000000001
+      ],
+      [
+        -0.20400000000000001,
+        0.1885
+      ],
+      [
+        -0.133,
+        0.133
+      ]
+    ],
+    "materials": 7
+  },
+  {
+    "name": "03_assault_rifle",
+    "label": "ASSAULT RIFLE",
+    "triangles": 9752,
+    "components": 161,
+    "bounds_m": [
+      [
+        -0.4885,
+        0.4516
+      ],
+      [
+        -0.21100000000000002,
+        0.16199999999999998
+      ],
+      [
+        -0.0575,
+        0.035
+      ]
+    ],
+    "materials": 7
+  },
+  {
+    "name": "04_submachine_gun",
+    "label": "SUBMACHINE GUN",
+    "triangles": 7008,
+    "components": 117,
+    "bounds_m": [
+      [
+        -0.41700000000000004,
+        0.3006
+      ],
+      [
+        -0.209,
+        0.1605
+      ],
+      [
+        -0.057,
+        0.035
+      ]
+    ],
+    "materials": 6
+  },
+  {
+    "name": "05_pump_shotgun",
+    "label": "PUMP SHOTGUN",
+    "triangles": 4680,
+    "components": 72,
+    "bounds_m": [
+      [
+        -0.5705,
+        0.5186000000000001
+      ],
+      [
+        -0.07450000000000001,
+        0.11050000000000001
+      ],
+      [
+        -0.055,
+        0.035
+      ]
+    ],
+    "materials": 6
+  },
+  {
+    "name": "06_service_pistol",
+    "label": "SERVICE PISTOL",
+    "triangles": 4352,
+    "components": 71,
+    "bounds_m": [
+      [
+        -0.093,
+        0.1173
+      ],
+      [
+        -0.07050000000000001,
+        0.10300000000000001
+      ],
+      [
+        -0.020999999999999998,
+        0.01971
+      ]
+    ],
+    "materials": 6
+  }
+]

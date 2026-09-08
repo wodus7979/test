@@ -1,0 +1,17 @@
+{
+  "mode": "Built-in image_gen.imagegen",
+  "prompts": [
+    {
+      "name": "rock",
+      "prompt": "Use case: photorealistic-natural. Asset type: game environment base color texture. Generate one square 1024x1024 full-bleed tileable material texture. Weathered Korean mountain granite, medium warm grey with fine quartz mineral flecks, irregular shallow fissures and subtle darker mineral veins. No isolated boulders, moss or grass. Flat rock surface filling the frame. Orthographic surface scan with even diffuse cross-polarized lighting. Fine realistic surface detail, no directional illumination, no cast shadows, no highlights, no vignette. Seamless periodic repeat across both pairs of opposite edges. Single material only, no panels, text, logos, borders or contact sheet. Color image only, not a normal map."
+    },
+    {
+      "name": "bark",
+      "prompt": "Use case: photorealistic-natural. Asset type: game environment base color texture. Generate one square 1024x1024 full-bleed tileable material texture. Real mature oak and pine compatible rough brown-grey tree bark surface, narrow irregular vertical fissures, medium scale woody ridges, restrained warm brown variation. A flat unwrapped bark scan, no visible curved trunk outline, no foliage or moss. Orthographic surface scan with even diffuse cross-polarized lighting. Fine realistic surface detail, no directional illumination, no cast shadows, no highlights, no vignette. Seamless periodic repeat across both pairs of opposite edges. Single material only, no panels, text, logos, borders or contact sheet. Color image only, not a normal map."
+    },
+    {
+      "name": "meadow",
+      "prompt": "Use case: photorealistic-natural. Asset type: game environment base color texture. Generate one square 1024x1024 full-bleed tileable material texture. Real low-growing mixed meadow grass ground viewed exactly from above, dense small fine green blades interwoven with a little dry straw and tiny soil glimpses. Natural muted olive and sage summer greens, irregular fine distribution, no large clumps, flowers, stones or recognizable objects. Orthographic surface scan with even diffuse cross-polarized lighting. Fine realistic surface detail, no directional illumination, no cast shadows, no highlights, no vignette. Seamless periodic repeat across both pairs of opposite edges. Single material only, no panels, text, logos, borders or contact sheet. Color image only, not a normal map."
+    }
+  ]
+}

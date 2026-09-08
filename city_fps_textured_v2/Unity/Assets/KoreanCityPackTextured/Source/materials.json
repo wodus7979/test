@@ -1,0 +1,359 @@
+{
+  "materials": [
+    {
+      "name": "Concrete",
+      "color": [
+        0.85,
+        0.86,
+        0.84
+      ],
+      "metallic": 0,
+      "roughness": 0.85,
+      "atlas": false,
+      "surface": "concrete",
+      "albedo": "Textures/PBR/concrete_albedo.jpg",
+      "normal": "Textures/PBR/concrete_normal_unity.png",
+      "orm": "Textures/PBR/concrete_orm.png",
+      "normalGltf": "Textures/PBR/concrete_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Concrete_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Concrete_hdrp_mask.png"
+    },
+    {
+      "name": "Warm_Plaster",
+      "color": [
+        1,
+        0.96,
+        0.84
+      ],
+      "metallic": 0,
+      "roughness": 0.85,
+      "atlas": false,
+      "surface": "concrete",
+      "albedo": "Textures/PBR/concrete_albedo.jpg",
+      "normal": "Textures/PBR/concrete_normal_unity.png",
+      "orm": "Textures/PBR/concrete_orm.png",
+      "normalGltf": "Textures/PBR/concrete_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Warm_Plaster_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Warm_Plaster_hdrp_mask.png"
+    },
+    {
+      "name": "Apartment_White",
+      "color": [
+        1,
+        1,
+        1
+      ],
+      "metallic": 0,
+      "roughness": 0.85,
+      "atlas": false,
+      "surface": "concrete",
+      "albedo": "Textures/PBR/concrete_albedo.jpg",
+      "normal": "Textures/PBR/concrete_normal_unity.png",
+      "orm": "Textures/PBR/concrete_orm.png",
+      "normalGltf": "Textures/PBR/concrete_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Apartment_White_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Apartment_White_hdrp_mask.png"
+    },
+    {
+      "name": "Brick",
+      "color": [
+        1,
+        1,
+        1
+      ],
+      "metallic": 0,
+      "roughness": 0.83,
+      "atlas": false,
+      "surface": "brick",
+      "albedo": "Textures/PBR/brick_albedo.jpg",
+      "normal": "Textures/PBR/brick_normal_unity.png",
+      "orm": "Textures/PBR/brick_orm.png",
+      "normalGltf": "Textures/PBR/brick_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Brick_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Brick_hdrp_mask.png"
+    },
+    {
+      "name": "Window_Glass",
+      "color": [
+        0.045,
+        0.14,
+        0.19
+      ],
+      "metallic": 0.62,
+      "roughness": 0.22,
+      "atlas": false
+    },
+    {
+      "name": "Window_Light",
+      "color": [
+        0.4,
+        0.45,
+        0.42
+      ],
+      "metallic": 0.25,
+      "roughness": 0.35,
+      "atlas": false
+    },
+    {
+      "name": "Dark_Frame",
+      "color": [
+        0.13,
+        0.16,
+        0.17
+      ],
+      "metallic": 0.65,
+      "roughness": 0.43,
+      "atlas": false,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "orm": "Textures/PBR/metal_orm.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Dark_Frame_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Dark_Frame_hdrp_mask.png"
+    },
+    {
+      "name": "Roof_Metal",
+      "color": [
+        0.25,
+        0.38,
+        0.46
+      ],
+      "metallic": 0.58,
+      "roughness": 0.43,
+      "atlas": false,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "orm": "Textures/PBR/metal_orm.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Roof_Metal_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Roof_Metal_hdrp_mask.png"
+    },
+    {
+      "name": "Industrial_Blue",
+      "color": [
+        0.065,
+        0.3,
+        0.53
+      ],
+      "metallic": 0.35,
+      "roughness": 0.43,
+      "atlas": false,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "orm": "Textures/PBR/metal_orm.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Industrial_Blue_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Industrial_Blue_hdrp_mask.png"
+    },
+    {
+      "name": "Asphalt",
+      "color": [
+        0.8,
+        0.83,
+        0.85
+      ],
+      "metallic": 0,
+      "roughness": 0.9299994773968997,
+      "atlas": false,
+      "surface": "asphalt",
+      "albedo": "Textures/PBR/asphalt_albedo.jpg",
+      "normal": "Textures/PBR/asphalt_normal_unity.png",
+      "orm": "Textures/PBR/asphalt_orm.png",
+      "normalGltf": "Textures/PBR/asphalt_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Asphalt_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Asphalt_hdrp_mask.png"
+    },
+    {
+      "name": "White_Paint",
+      "color": [
+        0.82,
+        0.81,
+        0.72
+      ],
+      "metallic": 0,
+      "roughness": 0.74,
+      "atlas": false
+    },
+    {
+      "name": "Yellow_Paint",
+      "color": [
+        0.87,
+        0.55,
+        0.075
+      ],
+      "metallic": 0,
+      "roughness": 0.65,
+      "atlas": false
+    },
+    {
+      "name": "Sidewalk",
+      "color": [
+        1,
+        1,
+        1
+      ],
+      "metallic": 0,
+      "roughness": 0.8799982260513737,
+      "atlas": false,
+      "surface": "pavers",
+      "albedo": "Textures/PBR/pavers_albedo.jpg",
+      "normal": "Textures/PBR/pavers_normal_unity.png",
+      "orm": "Textures/PBR/pavers_orm.png",
+      "normalGltf": "Textures/PBR/pavers_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Sidewalk_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Sidewalk_hdrp_mask.png"
+    },
+    {
+      "name": "Paver_Accent",
+      "color": [
+        0.63,
+        0.72,
+        0.75
+      ],
+      "metallic": 0,
+      "roughness": 0.8799982260513737,
+      "atlas": false,
+      "surface": "pavers",
+      "albedo": "Textures/PBR/pavers_albedo.jpg",
+      "normal": "Textures/PBR/pavers_normal_unity.png",
+      "orm": "Textures/PBR/pavers_orm.png",
+      "normalGltf": "Textures/PBR/pavers_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Paver_Accent_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Paver_Accent_hdrp_mask.png"
+    },
+    {
+      "name": "Wood",
+      "color": [
+        0.35,
+        0.21,
+        0.1
+      ],
+      "metallic": 0,
+      "roughness": 0.91,
+      "atlas": false
+    },
+    {
+      "name": "Foliage",
+      "color": [
+        0.105,
+        0.22,
+        0.085
+      ],
+      "metallic": 0,
+      "roughness": 0.91,
+      "atlas": false
+    },
+    {
+      "name": "Soil",
+      "color": [
+        0.18,
+        0.21,
+        0.14
+      ],
+      "metallic": 0,
+      "roughness": 1,
+      "atlas": false
+    },
+    {
+      "name": "Orange",
+      "color": [
+        0.7,
+        0.19,
+        0.025
+      ],
+      "metallic": 0,
+      "roughness": 0.8,
+      "atlas": false
+    },
+    {
+      "name": "Sign_Atlas",
+      "color": [
+        1,
+        1,
+        1
+      ],
+      "metallic": 0,
+      "roughness": 0.72,
+      "atlas": true
+    },
+    {
+      "name": "Rubber",
+      "color": [
+        0.022,
+        0.026,
+        0.03
+      ],
+      "metallic": 0,
+      "roughness": 0.96,
+      "atlas": false
+    },
+    {
+      "name": "Metal_Silver",
+      "color": [
+        0.86,
+        0.94,
+        1
+      ],
+      "metallic": 0.85,
+      "roughness": 0.43,
+      "atlas": false,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "orm": "Textures/PBR/metal_orm.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Metal_Silver_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Metal_Silver_hdrp_mask.png"
+    },
+    {
+      "name": "AC_White",
+      "color": [
+        1,
+        1,
+        0.96
+      ],
+      "metallic": 0.35,
+      "roughness": 0.43,
+      "atlas": false,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "orm": "Textures/PBR/metal_orm.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/AC_White_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/AC_White_hdrp_mask.png"
+    },
+    {
+      "name": "Interior_Floor",
+      "color": [
+        0.84,
+        0.82,
+        0.75
+      ],
+      "metallic": 0,
+      "roughness": 0.85,
+      "atlas": false,
+      "surface": "concrete",
+      "albedo": "Textures/PBR/concrete_albedo.jpg",
+      "normal": "Textures/PBR/concrete_normal_unity.png",
+      "orm": "Textures/PBR/concrete_orm.png",
+      "normalGltf": "Textures/PBR/concrete_normal_gltf.png",
+      "metallicSmoothness": "Textures/PBR/Interior_Floor_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Interior_Floor_hdrp_mask.png"
+    },
+    {
+      "name": "Safety_Red",
+      "color": [
+        0.48,
+        0.045,
+        0.026
+      ],
+      "metallic": 0.2,
+      "roughness": 0.63,
+      "atlas": false
+    }
+  ]
+}

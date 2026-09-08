@@ -1,0 +1,129 @@
+{
+  "assets": [
+    {
+      "name": "terrain_ridge",
+      "label": "산 능선",
+      "category": "terrain",
+      "lod_triangles": [
+        32768,
+        8192
+      ]
+    },
+    {
+      "name": "terrain_rocky",
+      "label": "암산",
+      "category": "terrain",
+      "lod_triangles": [
+        32768,
+        8192
+      ]
+    },
+    {
+      "name": "terrain_hill",
+      "label": "완만한 언덕",
+      "category": "terrain",
+      "lod_triangles": [
+        4608,
+        1152
+      ]
+    },
+    {
+      "name": "terrain_meadow",
+      "label": "들판 타일",
+      "category": "terrain",
+      "lod_triangles": [
+        4608,
+        1152
+      ]
+    },
+    {
+      "name": "broadleaf_1",
+      "label": "활엽수 1",
+      "category": "tree",
+      "lod_triangles": [
+        15462,
+        5310
+      ]
+    },
+    {
+      "name": "pine_1",
+      "label": "침엽수 1",
+      "category": "tree",
+      "lod_triangles": [
+        42716,
+        11490
+      ]
+    },
+    {
+      "name": "broadleaf_2",
+      "label": "활엽수 2",
+      "category": "tree",
+      "lod_triangles": [
+        15462,
+        5310
+      ]
+    },
+    {
+      "name": "pine_2",
+      "label": "침엽수 2",
+      "category": "tree",
+      "lod_triangles": [
+        42716,
+        11490
+      ]
+    },
+    {
+      "name": "bush",
+      "label": "관목",
+      "category": "foliage",
+      "lod_triangles": [
+        7194,
+        2502
+      ]
+    },
+    {
+      "name": "grass_short",
+      "label": "짧은 풀",
+      "category": "foliage",
+      "lod_triangles": [
+        360,
+        115
+      ]
+    },
+    {
+      "name": "boulder_1",
+      "label": "바위 1",
+      "category": "rock",
+      "lod_triangles": [
+        660,
+        216
+      ]
+    },
+    {
+      "name": "grass_tall",
+      "label": "억새형 풀",
+      "category": "foliage",
+      "lod_triangles": [
+        360,
+        115
+      ]
+    },
+    {
+      "name": "boulder_2",
+      "label": "바위 2",
+      "category": "rock",
+      "lod_triangles": [
+        660,
+        216
+      ]
+    }
+  ],
+  "instances": 143,
+  "scene_lod0_triangles": 1789802,
+  "version": "1.0",
+  "texture_surfaces": 3,
+  "texture_resolution": 1024,
+  "lod_levels": 2,
+  "unity_editor_verified": false,
+  "terrain_type": "mesh_heightfield"
+}

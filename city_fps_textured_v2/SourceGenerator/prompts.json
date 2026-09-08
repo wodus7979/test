@@ -1,0 +1,34 @@
+{
+  "mode": "Built-in image_gen.imagegen",
+  "prompts": [
+    {
+      "surface": "concrete",
+      "prompt": "Use case: photorealistic-natural. Asset type: seamless tileable game environment PBR BASE COLOR texture, not a scene or presentation. Generate ONE square 2048 x 2048 full-bleed texture image for concrete. Weathered light gray architectural concrete, subtle pores and fine mineral aggregate, faint age mottling, a few tiny hairline cracks, ordinary maintained Korean city building exterior, restrained wear. No panel joints or formwork grids. Neutral medium light gray. Strictly orthographic straight-on surface scan, physically plausible photoreal microdetail, even diffuse cross-polarized lighting, no cast shadows, no ambient occlusion baked into corners, no directional gradients, no specular highlights. Completely fill frame with this single material. Seamless repeat on both X and Y: opposite edges must match; no borders or vignettes. Color texture only, NOT a normal map, NOT a contact sheet. No text, labels, watermark, objects, people or logos."
+    },
+    {
+      "surface": "asphalt",
+      "prompt": "Use case: photorealistic-natural. Asset type: seamless tileable game environment PBR BASE COLOR texture, not a scene or presentation. Generate ONE square 2048 x 2048 full-bleed texture image for asphalt. Dark charcoal urban road asphalt, fine sharp exposed stone aggregate, tiny irregular grain, sparse subtle gray wear. No road markings, no painted lines, no potholes, no large cracks, no loose stones. Real maintained Korean city street pavement. Strictly orthographic straight-on surface scan, physically plausible photoreal microdetail, even diffuse cross-polarized lighting, no cast shadows, no ambient occlusion baked into corners, no directional gradients, no specular highlights. Completely fill frame with this single material. Seamless repeat on both X and Y: opposite edges must match; no borders or vignettes. Color texture only, NOT a normal map, NOT a contact sheet. No text, labels, watermark, objects, people or logos."
+    },
+    {
+      "surface": "brick",
+      "prompt": "Use case: photorealistic-natural. Asset type: seamless tileable game environment PBR BASE COLOR texture, not a scene or presentation. Generate ONE square 2048 x 2048 full-bleed texture image for brick. Real aged warm red-brown clay brick wall in regular horizontal running bond. Eight full brick widths across, twelve courses vertically, thin recessed muted gray mortar. Plausible brick proportions, subtle irregular red/brown clay variation and pores. Straight undistorted horizontal mortar lines. Strictly orthographic straight-on surface scan, physically plausible photoreal microdetail, even diffuse cross-polarized lighting, no cast shadows, no ambient occlusion baked into corners, no directional gradients, no specular highlights. Completely fill frame with this single material. Seamless repeat on both X and Y: opposite edges must match; no borders or vignettes. Color texture only, NOT a normal map, NOT a contact sheet. No text, labels, watermark, objects, people or logos."
+    },
+    {
+      "surface": "metal",
+      "prompt": "Use case: photorealistic-natural. Asset type: seamless tileable game environment PBR BASE COLOR texture, not a scene or presentation. Generate ONE square 2048 x 2048 full-bleed texture image for metal. Light-medium neutral gray galvanized steel industrial surface, fine zinc spangle grain, very subtle shallow scratches and mild oxidation, nearly matte. Flat sheet without seams, bolts, corrugations or large stains. Suitable as neutral base multiplied by blue factory paint or gray frame colors. Strictly orthographic straight-on surface scan, physically plausible photoreal microdetail, even diffuse cross-polarized lighting, no cast shadows, no ambient occlusion baked into corners, no directional gradients, no specular highlights. Completely fill frame with this single material. Seamless repeat on both X and Y: opposite edges must match; no borders or vignettes. Color texture only, NOT a normal map, NOT a contact sheet. No text, labels, watermark, objects, people or logos."
+    },
+    {
+      "surface": "pavers",
+      "prompt": "Use case: photorealistic-natural. Asset type: seamless tileable game environment PBR BASE COLOR texture, not a scene or presentation. Generate ONE square 2048 x 2048 full-bleed texture image for pavers. Real light warm-gray concrete sidewalk paving blocks, regular rectangular running-bond pavement pattern, subtle worn stone texture, narrow darker joints. Eight rectangular pavers across and twelve courses vertically, small consistent color variation, clean maintained Korean urban sidewalk. No weeds, no markings, no perspective. Strictly orthographic straight-on surface scan, physically plausible photoreal microdetail, even diffuse cross-polarized lighting, no cast shadows, no ambient occlusion baked into corners, no directional gradients, no specular highlights. Completely fill frame with this single material. Seamless repeat on both X and Y: opposite edges must match; no borders or vignettes. Color texture only, NOT a normal map, NOT a contact sheet. No text, labels, watermark, objects, people or logos."
+    }
+  ],
+  "actual_source_resolution": [
+    1254,
+    1254
+  ],
+  "baked_map_resolution": [
+    1024,
+    1024
+  ],
+  "note": "Requested resolution/pattern are intent; actual outputs are inspected and are not guaranteed seamless."
+}

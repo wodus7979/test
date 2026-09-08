@@ -1,0 +1,97 @@
+newmtl Concrete
+Kd 0.44 0.45 0.43
+Pm 0
+Pr 0.86
+newmtl Warm_Plaster
+Kd 0.67 0.65 0.57
+Pm 0
+Pr 0.85
+newmtl Apartment_White
+Kd 0.77 0.79 0.77
+Pm 0
+Pr 0.7
+newmtl Brick
+Kd 0.3 0.125 0.075
+Pm 0
+Pr 0.91
+newmtl Window_Glass
+Kd 0.045 0.14 0.19
+Pm 0.62
+Pr 0.22
+newmtl Window_Light
+Kd 0.4 0.45 0.42
+Pm 0.25
+Pr 0.35
+newmtl Dark_Frame
+Kd 0.065 0.082 0.087
+Pm 0.65
+Pr 0.38
+newmtl Roof_Metal
+Kd 0.15 0.22 0.25
+Pm 0.58
+Pr 0.51
+newmtl Industrial_Blue
+Kd 0.055 0.19 0.31
+Pm 0.35
+Pr 0.51
+newmtl Asphalt
+Kd 0.075 0.08 0.083
+Pm 0
+Pr 0.96
+newmtl White_Paint
+Kd 0.82 0.81 0.72
+Pm 0
+Pr 0.74
+newmtl Yellow_Paint
+Kd 0.87 0.55 0.075
+Pm 0
+Pr 0.65
+newmtl Sidewalk
+Kd 0.47 0.45 0.41
+Pm 0
+Pr 0.9
+newmtl Paver_Accent
+Kd 0.28 0.31 0.31
+Pm 0
+Pr 0.91
+newmtl Wood
+Kd 0.35 0.21 0.1
+Pm 0
+Pr 0.91
+newmtl Foliage
+Kd 0.105 0.22 0.085
+Pm 0
+Pr 0.91
+newmtl Soil
+Kd 0.18 0.21 0.14
+Pm 0
+Pr 1
+newmtl Orange
+Kd 0.7 0.19 0.025
+Pm 0
+Pr 0.8
+newmtl Sign_Atlas
+Kd 1 1 1
+Pm 0
+Pr 0.72
+map_Kd ../Textures/sign_atlas.png
+newmtl Rubber
+Kd 0.022 0.026 0.03
+Pm 0
+Pr 0.96
+newmtl Metal_Silver
+Kd 0.35 0.4 0.42
+Pm 0.85
+Pr 0.28
+newmtl AC_White
+Kd 0.61 0.64 0.61
+Pm 0.35
+Pr 0.62
+newmtl Interior_Floor
+Kd 0.47 0.46 0.42
+Pm 0
+Pr 0.92
+newmtl Safety_Red
+Kd 0.48 0.045 0.026
+Pm 0.2
+Pr 0.63

@@ -1,0 +1,107 @@
+{
+  "concrete": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "map_size": [
+      1024,
+      1024
+    ],
+    "tile_meters": [
+      3,
+      3
+    ],
+    "edge_mean_difference": 0.04782,
+    "adjacent_pixel_mean_difference": 0.03893,
+    "seamless_guaranteed": false,
+    "roughness_range": [
+      0.789,
+      0.958
+    ]
+  },
+  "asphalt": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "map_size": [
+      1024,
+      1024
+    ],
+    "tile_meters": [
+      2,
+      2
+    ],
+    "edge_mean_difference": 0.09041,
+    "adjacent_pixel_mean_difference": 0.06933,
+    "seamless_guaranteed": false,
+    "roughness_range": [
+      0.77,
+      0.99
+    ]
+  },
+  "brick": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "map_size": [
+      1024,
+      1024
+    ],
+    "tile_meters": [
+      1.04,
+      0.84
+    ],
+    "edge_mean_difference": 0.04636,
+    "adjacent_pixel_mean_difference": 0.03512,
+    "seamless_guaranteed": false,
+    "roughness_range": [
+      0.747,
+      0.906
+    ]
+  },
+  "metal": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "map_size": [
+      1024,
+      1024
+    ],
+    "tile_meters": [
+      2,
+      2
+    ],
+    "edge_mean_difference": 0.03197,
+    "adjacent_pixel_mean_difference": 0.02166,
+    "seamless_guaranteed": false,
+    "roughness_range": [
+      0.372,
+      0.486
+    ]
+  },
+  "pavers": {
+    "source_size": [
+      1254,
+      1254
+    ],
+    "map_size": [
+      1024,
+      1024
+    ],
+    "tile_meters": [
+      1.72,
+      1.8
+    ],
+    "edge_mean_difference": 0.05548,
+    "adjacent_pixel_mean_difference": 0.04195,
+    "seamless_guaranteed": false,
+    "roughness_range": [
+      0.815,
+      0.99
+    ]
+  }
+}

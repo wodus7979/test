@@ -1,0 +1,204 @@
+{
+  "assets": [
+    {
+      "name": "factory_hall",
+      "label": "공장 · 내부 진입",
+      "category": "building",
+      "triangles": 678,
+      "materials": 9,
+      "colliders": 36,
+      "enterable": true
+    },
+    {
+      "name": "warehouse",
+      "label": "물류창고 · 내부 진입",
+      "category": "building",
+      "triangles": 866,
+      "materials": 7,
+      "colliders": 40,
+      "enterable": true
+    },
+    {
+      "name": "office_tower",
+      "label": "오피스 빌딩",
+      "category": "building",
+      "triangles": 3330,
+      "materials": 8,
+      "colliders": 10,
+      "enterable": false
+    },
+    {
+      "name": "office_midrise",
+      "label": "오피스 빌딩",
+      "category": "building",
+      "triangles": 1866,
+      "materials": 8,
+      "colliders": 10,
+      "enterable": false
+    },
+    {
+      "name": "apartment_slab",
+      "label": "아파트",
+      "category": "building",
+      "triangles": 5006,
+      "materials": 10,
+      "colliders": 10,
+      "enterable": false
+    },
+    {
+      "name": "apartment_tower",
+      "label": "아파트",
+      "category": "building",
+      "triangles": 5150,
+      "materials": 10,
+      "colliders": 10,
+      "enterable": false
+    },
+    {
+      "name": "retail_row",
+      "label": "상가 · 1층 진입",
+      "category": "building",
+      "triangles": 1140,
+      "materials": 15,
+      "colliders": 52,
+      "enterable": true
+    },
+    {
+      "name": "auto_workshop",
+      "label": "정비소 · 내부 진입",
+      "category": "building",
+      "triangles": 182,
+      "materials": 7,
+      "colliders": 15,
+      "enterable": true
+    },
+    {
+      "name": "boulevard_30m",
+      "label": "4차로 대로 30m",
+      "category": "road",
+      "triangles": 180,
+      "materials": 3,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "street_20m",
+      "label": "이면도로 20m",
+      "category": "road",
+      "triangles": 36,
+      "materials": 2,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "sidewalk_10m",
+      "label": "보도 10m",
+      "category": "road",
+      "triangles": 156,
+      "materials": 4,
+      "colliders": 2,
+      "enterable": false
+    },
+    {
+      "name": "intersection",
+      "label": "교차로 및 횡단보도",
+      "category": "road",
+      "triangles": 228,
+      "materials": 2,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "street_lamp",
+      "label": "가로등",
+      "category": "prop",
+      "triangles": 124,
+      "materials": 4,
+      "colliders": 2,
+      "enterable": false
+    },
+    {
+      "name": "traffic_signal",
+      "label": "신호등",
+      "category": "prop",
+      "triangles": 292,
+      "materials": 4,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "shipping_container",
+      "label": "컨테이너",
+      "category": "prop",
+      "triangles": 612,
+      "materials": 4,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "concrete_barrier",
+      "label": "콘크리트 엄폐물",
+      "category": "prop",
+      "triangles": 60,
+      "materials": 2,
+      "colliders": 2,
+      "enterable": false
+    },
+    {
+      "name": "pallet_crates",
+      "label": "팔레트 적재물",
+      "category": "prop",
+      "triangles": 132,
+      "materials": 2,
+      "colliders": 3,
+      "enterable": false
+    },
+    {
+      "name": "planter_tree",
+      "label": "화단과 가로수",
+      "category": "prop",
+      "triangles": 172,
+      "materials": 4,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "bus_shelter",
+      "label": "버스 정류장",
+      "category": "prop",
+      "triangles": 86,
+      "materials": 5,
+      "colliders": 7,
+      "enterable": false
+    },
+    {
+      "name": "parking_lot",
+      "label": "주차장",
+      "category": "road",
+      "triangles": 228,
+      "materials": 2,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "rooftop_hvac",
+      "label": "실외기",
+      "category": "prop",
+      "triangles": 120,
+      "materials": 2,
+      "colliders": 1,
+      "enterable": false
+    },
+    {
+      "name": "city_ground",
+      "label": "기반 지형",
+      "category": "road",
+      "triangles": 60,
+      "materials": 3,
+      "colliders": 9,
+      "enterable": false
+    }
+  ],
+  "instance_count": 131,
+  "scene_triangles": 41528
+}

@@ -1,0 +1,38 @@
+{
+  "rock": {
+    "source_resolution": [
+      1254,
+      1254
+    ],
+    "game_resolution": [
+      1024,
+      1024
+    ],
+    "normal_roughness": "estimated from image, not scanned",
+    "seamless_guaranteed": false
+  },
+  "bark": {
+    "source_resolution": [
+      1254,
+      1254
+    ],
+    "game_resolution": [
+      1024,
+      1024
+    ],
+    "normal_roughness": "estimated from image, not scanned",
+    "seamless_guaranteed": false
+  },
+  "meadow": {
+    "source_resolution": [
+      1254,
+      1254
+    ],
+    "game_resolution": [
+      1024,
+      1024
+    ],
+    "normal_roughness": "estimated from image, not scanned",
+    "seamless_guaranteed": false
+  }
+}

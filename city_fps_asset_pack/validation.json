@@ -1,0 +1,203 @@
+{
+  "geometry": [
+    {
+      "asset": "apartment_slab",
+      "triangles": 5006,
+      "valid": true
+    },
+    {
+      "asset": "apartment_tower",
+      "triangles": 5150,
+      "valid": true
+    },
+    {
+      "asset": "auto_workshop",
+      "triangles": 182,
+      "valid": true
+    },
+    {
+      "asset": "boulevard_30m",
+      "triangles": 180,
+      "valid": true
+    },
+    {
+      "asset": "bus_shelter",
+      "triangles": 86,
+      "valid": true
+    },
+    {
+      "asset": "city_ground",
+      "triangles": 60,
+      "valid": true
+    },
+    {
+      "asset": "concrete_barrier",
+      "triangles": 60,
+      "valid": true
+    },
+    {
+      "asset": "factory_hall",
+      "triangles": 678,
+      "valid": true
+    },
+    {
+      "asset": "intersection",
+      "triangles": 228,
+      "valid": true
+    },
+    {
+      "asset": "office_midrise",
+      "triangles": 1866,
+      "valid": true
+    },
+    {
+      "asset": "office_tower",
+      "triangles": 3330,
+      "valid": true
+    },
+    {
+      "asset": "pallet_crates",
+      "triangles": 132,
+      "valid": true
+    },
+    {
+      "asset": "parking_lot",
+      "triangles": 228,
+      "valid": true
+    },
+    {
+      "asset": "planter_tree",
+      "triangles": 172,
+      "valid": true
+    },
+    {
+      "asset": "retail_row",
+      "triangles": 1140,
+      "valid": true
+    },
+    {
+      "asset": "rooftop_hvac",
+      "triangles": 120,
+      "valid": true
+    },
+    {
+      "asset": "shipping_container",
+      "triangles": 612,
+      "valid": true
+    },
+    {
+      "asset": "sidewalk_10m",
+      "triangles": 156,
+      "valid": true
+    },
+    {
+      "asset": "street_20m",
+      "triangles": 36,
+      "valid": true
+    },
+    {
+      "asset": "street_lamp",
+      "triangles": 124,
+      "valid": true
+    },
+    {
+      "asset": "traffic_signal",
+      "triangles": 292,
+      "valid": true
+    },
+    {
+      "asset": "warehouse",
+      "triangles": 866,
+      "valid": true
+    }
+  ],
+  "portals": [
+    {
+      "asset": "auto_workshop",
+      "portal": 0,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "auto_workshop",
+      "portal": 1,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "factory_hall",
+      "portal": 0,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "factory_hall",
+      "portal": 1,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 0,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 1,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 2,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 3,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 4,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 5,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 6,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "retail_row",
+      "portal": 7,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "warehouse",
+      "portal": 0,
+      "standing_clearance_pass": true
+    },
+    {
+      "asset": "warehouse",
+      "portal": 1,
+      "standing_clearance_pass": true
+    }
+  ],
+  "navigation": {
+    "grid_step_m": 0.5,
+    "body_width_m": 0.7,
+    "body_height_m": 1.8,
+    "method": "2D occupancy of colliders at standing-body height, 0.35m clearance expansion; not Unity physics or NavMesh.",
+    "reachable_markers": [
+      "Spawn_West",
+      "Spawn_East",
+      "Factory_Entry",
+      "Shop_Entry",
+      "Courtyard"
+    ],
+    "all_placed_open_portals_reachable": true,
+    "reachable_grid_cells": 108366
+  },
+  "unity_editor": "Not available. Editor compilation, import and play-mode physics not executed.",
+  "glb_validation": "23 GLB files: headers, chunk lengths, buffer ranges, accessor sizes and embedded atlas verified."
+}
