@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace SniperRidge
 {
@@ -9,7 +10,7 @@ namespace SniperRidge
     /// </summary>
     public class SniperController : MonoBehaviour
     {
-        public enum WeaponState { Ready, Bolting, Reloading }
+        public enum WeaponState { Ready, Bolting, Reloading, Switching }
 
         public float MouseSensitivity = 2.2f;
         public float TouchSensitivity = 0.12f;
@@ -18,10 +19,14 @@ namespace SniperRidge
 
         const float BaseFov = 60f;
 
-        public WeaponDefinition Weapon { get; private set; }
+        readonly WeaponLoadout loadout = new WeaponLoadout();
+        public WeaponDefinition Weapon => loadout.Active?.Definition;
+        public bool UsingLauncher => Weapon != null && Weapon.IsRocket;
+        public int RocketsRemaining => loadout.Rocket == null ? 0 : loadout.Rocket.Magazine + loadout.Rocket.Reserve;
+        public bool CanSwitchWeapon => inputEnabled && State != WeaponState.Switching;
         public bool IsScoped { get; private set; }
-        public int AmmoInMag { get; private set; }
-        public int Reserve { get; private set; }
+        public int AmmoInMag { get => loadout.Active?.Magazine ?? 0; private set => loadout.Active.Magazine = value; }
+        public int Reserve { get => loadout.Active?.Reserve ?? 0; private set => loadout.Active.Reserve = value; }
         public int ZeroRange { get; private set; } = 300;
         public float RangeMeters { get; private set; } = -1f;
         public float Breath { get; private set; } = 1f;
@@ -69,6 +74,7 @@ namespace SniperRidge
                 if (Weapon == null) return "";
                 switch (State)
                 {
+                    case WeaponState.Switching: return "무기 교체 중";
                     case WeaponState.Bolting: return Weapon.Pellets > 1 ? "펌프 장전" : "노리쇠 작동";
                     case WeaponState.Reloading: return "재장전 중";
                     default:
@@ -119,26 +125,54 @@ namespace SniperRidge
         /// <summary>임무 시작 시 무기 장착.</summary>
         public void Equip(WeaponDefinition weapon)
         {
-            Weapon = weapon;
-            AmmoInMag = weapon.MagSize;
-            Reserve = weapon.Reserve;
-            zoomIndex = Mathf.Clamp(weapon.DefaultZoomIndex, 0, weapon.ScopeFovs.Length - 1);
-            ZeroRange = weapon.HasZeroing ? 300 : 100;
-            zeroAngle = Ballistics.ZeroAngleDegrees(ZeroRange, weapon.MuzzleVelocity, weapon.DragK);
-            State = WeaponState.Ready;
-            stateTimer = 0f;
-            fireTimer = 0.6f;      // 선택 버튼 클릭이 곧바로 사격으로 이어지지 않도록
-            fireQueued = false;
+            loadout.Reset(weapon);
+            ActivateSlot();
+            inputEnabled = true;
+            LockCursor();
+        }
+
+        void ActivateSlot()
+        {
+            var weapon = Weapon;
+            StopAllCoroutines();
+            if (muzzleLight != null) muzzleLight.enabled = false;
+            zoomIndex = Mathf.Clamp(loadout.Active.Zoom, 0, weapon.ScopeFovs.Length - 1);
+            ZeroRange = loadout.Active.Zero;
+            zeroAngle = weapon.IsRocket ? 0f : Ballistics.ZeroAngleDegrees(ZeroRange, weapon.MuzzleVelocity, weapon.DragK);
+            State = WeaponState.Switching;
+            stateTimer = .6f;
+            fireTimer = Mathf.Max(.6f, loadout.Active.ReadyAt - Time.time);      // 선택 버튼 클릭이 곧바로 사격으로 이어지지 않도록
+            fireQueued = fireHeld = reloadQueued = scopeToggleQueued = zoomQueued = false;
+            touchBreath = HoldingBreath = false;
+            zeroDelta = 0;
+            recoil = recoilYaw = 0f;
             IsScoped = false;
-            if (weaponModel != null) Destroy(weaponModel);
+            if (weaponModel != null) { weaponModel.SetActive(false); Destroy(weaponModel); }
             weaponModel = WeaponModels.Build(cam.transform, weapon);
             muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);   // 광원은 카메라 아래에 두고 사격 시 총구 위치로 옮긴다 (모델이 꺼져 있어도 동작)
-            inputEnabled = true;
+        }
+
+        void LockCursor()
+        {
             if (desktop)
             {
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
             }
+        }
+
+        public void ToggleLauncher()
+        {
+            if (!CanSwitchWeapon || gm == null || !gm.IsPlaying) return;
+            loadout.Active.Zoom = zoomIndex;
+            loadout.Active.Zero = ZeroRange;
+            // A swap cancels an unfinished reload, but cannot bypass a bolt/fire cooldown.
+            loadout.Active.ReadyAt = Time.time + Mathf.Max(fireTimer,
+                State == WeaponState.Bolting ? stateTimer : 0f);
+            loadout.Toggle();
+            ActivateSlot();
+            LockCursor();
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
         }
 
         // ---------- 외부(터치 UI) 입력 ----------
@@ -153,11 +187,12 @@ namespace SniperRidge
         public void AdjustZero(int steps) => zeroDelta += steps;
 
         /// <summary>웨이브 사이 재보급: 예비 탄약을 채운다.</summary>
-        public void Resupply(int rounds)
+        public int Resupply(int rounds)
         {
-            if (Weapon == null) return;
-            Reserve = Mathf.Min(Weapon.Reserve, Reserve + rounds);
+            return loadout.Primary != null ? loadout.Primary.Supply(rounds) : 0;
         }
+
+        public int ResupplyRockets(int rounds) => loadout.Rocket != null ? loadout.Rocket.Supply(rounds) : 0;
 
         public void OnMissionEnd()
         {
@@ -258,7 +293,14 @@ namespace SniperRidge
             float targetFov = (IsScoped && Weapon != null) ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, dt * 14f);
             bool showModel = !IsHidden && (!IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f));   // 저배율 광학은 총이 보인다
-            if (weaponModel != null && weaponModel.activeSelf != showModel) weaponModel.SetActive(showModel);
+            if (weaponModel != null)
+            {
+                if (weaponModel.activeSelf != showModel) weaponModel.SetActive(showModel);
+                float lower = State == WeaponState.Switching ? Mathf.Clamp01(stateTimer / .6f) :
+                    State == WeaponState.Reloading ? Mathf.Sin(Mathf.Clamp01(stateTimer / Weapon.ReloadTime) * Mathf.PI) * .65f : 0f;
+                weaponModel.transform.localPosition = Weapon.ViewOffset + Vector3.down * lower * .42f;
+                weaponModel.transform.localRotation = Quaternion.Euler(lower * 30f, 0f, lower * -12f);
+            }
 
             // 무기 상태
             if (fireTimer > 0f) fireTimer -= dt;
@@ -269,10 +311,7 @@ namespace SniperRidge
                 {
                     if (State == WeaponState.Reloading && Weapon != null)
                     {
-                        int need = Weapon.MagSize - AmmoInMag;
-                        int take = Mathf.Min(need, Reserve);
-                        AmmoInMag += take;
-                        Reserve -= take;
+                        loadout.Active.FinishReload();
                     }
                     State = WeaponState.Ready;
                 }
@@ -309,7 +348,7 @@ namespace SniperRidge
             if (Cursor.lockState != CursorLockMode.Locked)
             {
                 fireHeld = false;
-                if (Input.GetMouseButtonDown(0))
+                if (Input.GetMouseButtonDown(0) && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
                 {
                     Cursor.lockState = CursorLockMode.Locked;
                     Cursor.visible = false;
@@ -318,6 +357,7 @@ namespace SniperRidge
                 return;
             }
 
+            if (Input.GetKeyDown(KeyCode.Q)) { ToggleLauncher(); return; }
             lookInput += new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * MouseSensitivity;
             if (Input.GetMouseButtonDown(0)) fireQueued = true;
             fireHeld = Input.GetMouseButton(0);
@@ -351,6 +391,18 @@ namespace SniperRidge
             recoil += w.RecoilKick;
             recoilYaw += Random.Range(-w.RecoilKick, w.RecoilKick) * 0.35f;
             pitch -= w.RecoilKick * w.RecoilClimb;
+
+            if (w.IsRocket)
+            {
+                // Record/reveal before flight; a point-blank impact can end the mission.
+                gm.OnPlayerShot(cam.transform.position);
+                gm.OnPlayerShotResolved(false, cam.transform.position);
+                Vector3 muzzle = muzzleAnchor != null ? muzzleAnchor.position : cam.transform.TransformPoint(.25f, -.15f, .8f);
+                RocketProjectile.Fire(cam.transform.position, cam.transform.forward, muzzle, w);
+                gm.PlaySound(gm.Sounds.RocketLaunch, w.ShotVolume);
+                StartCoroutine(MuzzleFlash());
+                return;
+            }
 
             // 산포 (샷건은 산탄 여러 개)
             float spread = IsScoped ? w.AdsSpread : w.HipSpread;

@@ -309,6 +309,7 @@ namespace SniperRidge
     public class SoundBank
     {
         public AudioClip ShotSniper, ShotDmr, ShotRifle, ShotLmg, ShotSmg, ShotShotgun, ShotPistol, DistantShot, Crack, Bolt, Pump, Reload, HitTick, Click, Wind;
+        public AudioClip RocketLaunch, RocketExplosion;
         public bool UsingRecorded { get; private set; }
 
         public AudioClip Shot(string weaponId)
@@ -342,6 +343,8 @@ namespace SniperRidge
             b.ShotSmg = Load("shot_smg") ?? b.ShotRifle;
             b.ShotShotgun = Load("shot_shotgun") ?? b.ShotSniper;
             b.ShotPistol = Load("shot_pistol") ?? b.ShotRifle;
+            b.RocketLaunch = Load("rocket_launch") ?? b.ShotRifle;
+            b.RocketExplosion = Load("rocket_explosion") ?? b.ShotSniper;
             b.DistantShot = Load("shot_distant") ?? ProceduralAssets.DistantShot();
             b.Crack = Load("crack") ?? ProceduralAssets.BulletCrack();
             b.Bolt = Load("bolt") ?? ProceduralAssets.Bolt();

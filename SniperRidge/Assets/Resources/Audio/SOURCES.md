@@ -57,3 +57,7 @@ python3 SniperRidge/Tools/validate_gunshots.py
 The check covers PCM format, endpoint fades, onset timing, attack level, mono compatibility and 3-second bursts with runtime pitch variation across ten seeds. It does not validate the entire game mix, speakers, or perceived realism.
 
 This file documents only the eight replaced gunshot files. Bolt, pump, reload, hit, click, crack and wind files retain their previous provenance.
+
+## Rocket effects
+
+`rocket_launch.wav` (1.25 s) and `rocket_explosion.wav` (3.2 s) are designed game effects built by `Tools/build_rocket_audio.py`. They combine the existing CC0-derived `shot_sniper.wav` attack (credited above) with deterministically generated filtered noise and reflections. They are not real launcher/explosion field recordings. 44.1 kHz mono 16-bit PCM, peak 0.89, no additional third-party sources.

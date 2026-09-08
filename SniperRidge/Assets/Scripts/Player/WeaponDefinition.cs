@@ -40,10 +40,24 @@ namespace SniperRidge
         public float ShotPitch;
 
         public string ModelName;        // Resources/Weapons/Prefabs/<ModelName> (Firearm Asset Pack)
+        public bool IsRocket;
         public int Pellets = 1;         // 샷건: 한 발에 나가는 산탄 수
         public Vector3 ViewOffset = new Vector3(0.22f, -0.2f, 0.38f);   // 1인칭 위치
 
         public float Interval => 60f / RoundsPerMinute;
+
+        // Secondary equipment shared by both missions; never changes the selected mission.
+        public static readonly WeaponDefinition Launcher = new WeaponDefinition
+        {
+            Id = "launcher", Name = "로켓포", IsRocket = true, Fire = FireMode.Semi,
+            Description = "범위 피해 · 1발 장전 / 예비 8발 · Q로 주무기 복귀",
+            RoundsPerMinute = 30f, MagSize = 1, Reserve = 8, ReloadTime = 3.2f,
+            MuzzleVelocity = 150f, Damage = 220f, DragK = 0f,
+            ScopeFovs = new[] { 30f }, ScopeLabels = new[] { "2x" },
+            RecoilKick = 3f, RecoilClimb = .1f, SwayScoped = .2f, SwayHip = .6f,
+            HipSpread = .15f, AdsSpread = 0f, ShotVolume = 1f, ShotPitch = 1f,
+            ModelName = "launcher_reusable", ViewOffset = new Vector3(.27f, -.30f, .42f),
+        };
 
         public static readonly WeaponDefinition[] All =
         {

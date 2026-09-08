@@ -6,11 +6,13 @@ namespace SniperRidge.EditorTools
     /// <summary>Keep gunshot transients in PCM instead of lossy compression.</summary>
     public class GunshotAudioImporter : AssetPostprocessor
     {
-        public override uint GetVersion() => 1;
+        public override uint GetVersion() => 2;
+
+        static bool IsWeaponAudio(string path) => path.StartsWith("Assets/Resources/Audio/shot_") || path.StartsWith("Assets/Resources/Audio/rocket_");
 
         void OnPreprocessAudio()
         {
-            if (!assetPath.StartsWith("Assets/Resources/Audio/shot_")) return;
+            if (!IsWeaponAudio(assetPath)) return;
             var importer = (AudioImporter)assetImporter;
             importer.forceToMono = false;
             importer.loadInBackground = false;
@@ -29,7 +31,7 @@ namespace SniperRidge.EditorTools
             foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Resources/Audio" }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.StartsWith("Assets/Resources/Audio/shot_"))
+                if (IsWeaponAudio(path))
                     AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
             Debug.Log("[Sniper Ridge] 총성 PCM 오디오 가져오기 완료.");

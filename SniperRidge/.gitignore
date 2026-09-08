@@ -43,3 +43,7 @@ Assets/Resources/Weapons.meta
 # Generated from the repository nature pack by NaturePackSetup
 Assets/Resources/NaturePack/
 Assets/Resources/NaturePack.meta
+
+# Generated automatically from LauncherAssetPack source
+Assets/Resources/Launchers/
+Assets/Resources/Launchers.meta

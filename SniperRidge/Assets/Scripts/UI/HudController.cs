@@ -14,7 +14,8 @@ namespace SniperRidge
         Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, weaponText, killFeed, introText, announceText, hintText, endTitle, endStats;
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
-        Text coverText, threatText, shotFeedback;
+        Text coverText, threatText, shotFeedback, launcherLabel;
+        Button launcherButton;
         float shotFeedbackTimer;
         float threatUntil;
         Vector3 threatSource;
@@ -145,12 +146,20 @@ namespace SniperRidge
             stateText = UiKit.Label(g, "WeaponState", "", 24, TextAnchor.LowerRight, dim, bottomRight, bottomRight, new Vector2(-30f, 100f), new Vector2(400f, 34f));
             weaponText = UiKit.Label(g, "WeaponName", "", 22, TextAnchor.LowerRight, dim, bottomRight, bottomRight, new Vector2(-30f, 134f), new Vector2(400f, 30f));
 
+            launcherButton = UiKit.TextButton(g, "SwitchLauncher", "", 23,
+                new Color(.19f, .24f, .12f, .92f), Color.white, topRight, topRight,
+                new Vector2(-30f, -220f), new Vector2(300f, 65f), () => gm.Player.ToggleLauncher());
+            launcherLabel = launcherButton.GetComponentInChildren<Text>();
+            var nav = launcherButton.navigation; nav.mode = Navigation.Mode.None; launcherButton.navigation = nav;
+            UiKit.Label(g, "LauncherHelp", Application.isMobilePlatform ? "로켓은 발사 즉시 위치 발각" : "Q: 즉시 교체 · Esc: 버튼 클릭",
+                18, TextAnchor.UpperRight, dim, topRight, topRight, new Vector2(-30f, -291f), new Vector2(350f, 30f));
+
             // 킬 피드 / 안내
             killFeed = UiKit.Label(g, "KillFeed", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.4f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(1000f, 50f), true);
             announceText = UiKit.Label(g, "Announce", "", 44, TextAnchor.MiddleCenter, new Color(1f, 0.6f, 0.3f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(1200f, 60f), true);
             introText = UiKit.Label(g, "Intro", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 230f), new Vector2(1300f, 180f));
             hintText = UiKit.Label(g, "Hint",
-                "C/Ctrl 누르기 엄폐  |  A/D 이동  |  우클릭 조준  |  좌클릭 사격  |  Shift 숨 참기  |  R 재장전  |  휠/Z 배율  |  ↑↓ 영점",
+                "C/Ctrl 누르기 엄폐  |  A/D 이동  |  우클릭 조준  |  좌클릭 사격  |  Shift 숨 참기  |  R 재장전  |  Q 로켓포  |  휠/Z 배율  |  ↑↓ 영점",
                 20, TextAnchor.LowerCenter, new Color(1f, 1f, 1f, 0.6f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(1700f, 30f));
             if (Application.isMobilePlatform) hintText.gameObject.SetActive(false);
             gameplayRoot.SetActive(false);
@@ -273,6 +282,8 @@ namespace SniperRidge
             if (gm == null || gm.Player == null) return;
             if (gm.IsSelecting) return;
             var p = gm.Player;
+            launcherButton.interactable = gm.IsPlaying && p.CanSwitchWeapon;
+            launcherLabel.text = p.UsingLauncher ? "[Q] 원래 총으로 복귀" : string.Format("[Q] 로켓포 · {0}발", p.RocketsRemaining);
             string posture = p.IsHidden ? "엄폐 중 · 키를 놓으면 일어섭니다" :
                 p.CanFireFromCover ? "노출 중 · C/Ctrl로 숨기 / A·D로 피하기" : "자세 전환 중";
             string contact = gm.Mission == MissionType.Sniper

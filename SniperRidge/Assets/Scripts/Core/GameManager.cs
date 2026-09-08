@@ -176,8 +176,9 @@ namespace SniperRidge
                 if (wave < TotalWaves)
                 {
                     int resupply = Mathf.RoundToInt(Weapon.Reserve * 0.4f);
-                    Player.Resupply(resupply);
-                    Hud.Announce(string.Format("웨이브 격퇴!  탄약 재보급 +{0}발   다음 웨이브까지 8초", resupply));
+                    int bulletsAdded = Player.Resupply(resupply);
+                    int rocketsAdded = Player.ResupplyRockets(2);
+                    Hud.Announce(string.Format("웨이브 격퇴!  총알 +{0} / 로켓 +{1}   다음 웨이브까지 8초", bulletsAdded, rocketsAdded));
                     Score += 500 * wave;
                     yield return new WaitForSeconds(8f);
                 }
@@ -252,10 +253,10 @@ namespace SniperRidge
             }
         }
 
-        public void OnEnemyHit(EnemySoldier e, bool headshot, float distance, bool killed)
+        public void OnEnemyHit(EnemySoldier e, bool headshot, float distance, bool killed, bool countHit = true)
         {
             if (!IsPlaying) return;
-            Hits++;
+            if (countHit) Hits++;
             Hud.ShowHitMarker(headshot, killed);
             if (!killed)
             {

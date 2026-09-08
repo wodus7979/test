@@ -21,7 +21,7 @@ namespace SniperRidge
         public static GameObject LoadPrefab(string modelName)
         {
             if (string.IsNullOrEmpty(modelName)) return null;
-            return Resources.Load<GameObject>("Weapons/Prefabs/" + modelName);
+            return Resources.Load<GameObject>((modelName.StartsWith("launcher_") ? "Launchers/Prefabs/" : "Weapons/Prefabs/") + modelName);
         }
 
         /// <summary>루트 아래의 "Muzzle" 지점. 없으면 null.</summary>
@@ -43,6 +43,8 @@ namespace SniperRidge
                 inst.transform.localPosition = def.ViewOffset;
                 inst.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
                 inst.transform.localScale = Vector3.one;
+                var lod = inst.GetComponent<LODGroup>();
+                if (lod != null) lod.ForceLOD(0); // First-person equipment always uses the detailed mesh.
                 foreach (var c in inst.GetComponentsInChildren<Collider>()) { c.enabled = false; Object.Destroy(c); }
                 foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = ShadowCastingMode.Off;
                 return inst;
@@ -59,6 +61,14 @@ namespace SniperRidge
 
             switch (def.Id)
             {
+                case "launcher":
+                    Debug.LogWarning("[Sniper Ridge] 로켓포 에셋 누락: 로켓포 프리팹 생성 메뉴를 실행하세요.");
+                    Part(root, PrimitiveType.Cylinder, new Vector3(0f, .02f, .15f), new Vector3(.16f, .48f, .16f), Quaternion.Euler(90f, 0f, 0f), tan);
+                    Part(root, PrimitiveType.Cube, new Vector3(0f, -.12f, .03f), new Vector3(.05f, .18f, .08f), Quaternion.identity, black);
+                    var muzzle = new GameObject("Muzzle");
+                    muzzle.transform.SetParent(root.transform, false);
+                    muzzle.transform.localPosition = new Vector3(0f, .02f, .63f);
+                    break;
                 case "dmr":
                     Part(root, PrimitiveType.Cube, new Vector3(0f, 0f, 0f), new Vector3(0.06f, 0.09f, 0.7f), Quaternion.identity, tan);
                     Part(root, PrimitiveType.Cylinder, new Vector3(0f, 0.02f, 0.7f), new Vector3(0.025f, 0.32f, 0.025f), Quaternion.Euler(90f, 0f, 0f), black);
@@ -109,6 +119,7 @@ namespace SniperRidge
             var r = go.GetComponent<Renderer>();
             r.material = mat;
             r.shadowCastingMode = ShadowCastingMode.Off;
+            go.GetComponent<Collider>().enabled = false;
             Object.Destroy(go.GetComponent<Collider>());
         }
     }
