@@ -68,7 +68,7 @@ Play 를 누르면 무기 선택 화면이 나옵니다. 카드를 클릭하거�
 | `Assets/EnemyModel/Soldier.fbx` | 실사풍 병사 모델(Mixamo "Vanguard") + 대기/걷기/달리기 애니메이션, 디퓨즈·노멀 텍스처 | three.js 예제 모델 (Mixamo 캐릭터, 게임 내 사용 무료) |
 | `Assets/Resources/Terrain/` | 풀(사진), 바위, 흙, 낙엽 알베도+노멀 텍스처 | 풀 사진: three.js 예제(MIT), 나머지: Blender 절차적 재질 베이크 |
 | `Assets/Resources/Nature/` | 나무껍질, 잎 텍스처 | Blender 절차적 재질 베이크 |
-| `Assets/Resources/Sky/spruit_sunrise_1k.hdr` | 실제 하늘 HDRI (스카이박스 + 환경광) | Poly Haven (CC0), three.js 예제 경유 |
+| `Assets/Resources/Sky/quarry_01_1k.hdr` | 실제 하늘 HDRI (스카이박스 + 환경광) | Poly Haven (CC0), three.js 예제 경유 |
 | `Assets/Resources/Audio/` | 무기별 총성(실제 총성 녹음 가공), 원거리 총성, 탄 크랙, 노리쇠, 재장전, 바람 | 총성 원본: Phaser 예제(MIT), 가공 및 나머지: 합성 |
 
 처음 프로젝트를 열면 편집기 스크립트가 `Assets/EnemyModel` 의 FBX 로 Animator Controller 와
@@ -106,6 +106,8 @@ SniperRidge/
 │     ├─ World/TerrainGenerator.cs   두 능선 지형 생성
 │     ├─ World/WindSystem.cs
 │     ├─ World/Vegetation.cs        나무(침엽/활엽), 엄폐용 굵은 나무, 덤불
+│     ├─ World/MeshBuilder.cs       나무/덤불 메시 생성
+│     ├─ Util/PostEffect.cs         후처리(블룸, ACES 톤매핑, 비네트) + Shaders/SniperRidgePost.shader
 │     ├─ UI/HudController.cs         HUD, 조준경 오버레이, 결과 화면
 │     ├─ UI/TouchControls.cs         모바일 터치 조작
 │     ├─ UI/UiKit.cs

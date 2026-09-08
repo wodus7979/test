@@ -1,105 +1,99 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SniperRidge
 {
-    /// <summary>나무, 덤불 등 식생 오브젝트 생성.</summary>
+    /// <summary>나무, 덤불 등 식생 오브젝트 생성 (MeshBuilder 로 만든 메시 + 텍스처 재질).</summary>
     public static class Vegetation
     {
         public enum TreeType { Pine, Broadleaf }
 
-        static Material trunk, trunkDark, pineA, pineB, leafA, leafB, bushMat;
+        const int Variants = 5;
+        static Material trunkMat, pineMat, leafMat, bushMat;
+        static readonly List<Mesh> pineMeshes = new List<Mesh>();
+        static readonly List<Mesh> leafMeshes = new List<Mesh>();
+        static readonly List<Mesh> bushMeshes = new List<Mesh>();
+        static readonly System.Random meshRng = new System.Random(4242);
 
-        static void EnsureMaterials()
+        static void EnsureAssets()
         {
-            if (trunk != null) return;
+            if (trunkMat != null) return;
             var barkA = ProceduralAssets.LoadTex("Nature/bark_albedo");
             var barkN = ProceduralAssets.LoadTex("Nature/bark_normal");
             var leafT = ProceduralAssets.LoadTex("Nature/leaf_albedo");
             var leafN = ProceduralAssets.LoadTex("Nature/leaf_normal");
             bool tex = barkA != null;
-            trunk = ProceduralAssets.TexturedMaterial(tex ? new Color(0.95f, 0.9f, 0.85f) : new Color(0.32f, 0.23f, 0.14f), barkA, barkN, 1f, 0.05f);
-            trunkDark = ProceduralAssets.TexturedMaterial(tex ? new Color(0.7f, 0.65f, 0.6f) : new Color(0.22f, 0.16f, 0.10f), barkA, barkN, 1f, 0.05f);
-            pineA = ProceduralAssets.TexturedMaterial(tex ? new Color(0.55f, 0.65f, 0.5f) : new Color(0.08f, 0.24f, 0.10f), leafT, leafN, 2f, 0.05f);
-            pineB = ProceduralAssets.TexturedMaterial(tex ? new Color(0.7f, 0.8f, 0.6f) : new Color(0.12f, 0.30f, 0.12f), leafT, leafN, 2f, 0.05f);
-            leafA = ProceduralAssets.TexturedMaterial(tex ? new Color(0.9f, 1f, 0.8f) : new Color(0.18f, 0.38f, 0.14f), leafT, leafN, 2f, 0.05f);
-            leafB = ProceduralAssets.TexturedMaterial(tex ? new Color(1f, 1.05f, 0.85f) : new Color(0.26f, 0.44f, 0.16f), leafT, leafN, 2f, 0.05f);
-            bushMat = ProceduralAssets.TexturedMaterial(tex ? new Color(0.75f, 0.85f, 0.65f) : new Color(0.14f, 0.30f, 0.11f), leafT, leafN, 3f, 0.05f);
+            trunkMat = ProceduralAssets.TexturedMaterial(tex ? new Color(0.8f, 0.75f, 0.7f) : new Color(0.28f, 0.20f, 0.12f), barkA, barkN, 1f, 0.03f);
+            pineMat = ProceduralAssets.TexturedMaterial(tex ? new Color(0.42f, 0.55f, 0.36f) : new Color(0.10f, 0.26f, 0.11f), leafT, leafN, 1.5f, 0.02f);
+            leafMat = ProceduralAssets.TexturedMaterial(tex ? new Color(0.62f, 0.78f, 0.5f) : new Color(0.20f, 0.40f, 0.15f), leafT, leafN, 1.5f, 0.02f);
+            bushMat = ProceduralAssets.TexturedMaterial(tex ? new Color(0.5f, 0.68f, 0.42f) : new Color(0.14f, 0.30f, 0.11f), leafT, leafN, 2f, 0.02f);
+
+            for (int i = 0; i < Variants; i++)
+            {
+                pineMeshes.Add(MeshBuilder.Pine(meshRng, 1f));
+                leafMeshes.Add(MeshBuilder.Broadleaf(meshRng, 1f));
+                bushMeshes.Add(MeshBuilder.Bush(meshRng, 1f));
+            }
         }
 
-        static GameObject Prim(PrimitiveType type, Transform parent, Vector3 pos, Vector3 scale, Quaternion rot, Material mat, bool collider)
+        static GameObject Make(string name, Transform parent, Vector3 pos, float yaw, float scale, Mesh mesh, Material a, Material b)
         {
-            var go = GameObject.CreatePrimitive(type);
-            go.transform.SetParent(parent, false);
-            go.transform.localPosition = pos;
-            go.transform.localScale = scale;
-            go.transform.localRotation = rot;
-            go.GetComponent<Renderer>().material = mat;
-            if (!collider) Object.Destroy(go.GetComponent<Collider>());
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, true);
+            go.transform.position = pos;
+            go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            go.transform.localScale = Vector3.one * scale;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterials = new[] { a, b };
             return go;
         }
 
-        /// <summary>일반 숲 나무. 소나무형은 층층이 쌓인 침엽, 활엽형은 둥근 수관.</summary>
+        /// <summary>일반 숲 나무. scale 1 ≈ 침엽수 9 m, 활엽수 8 m.</summary>
         public static GameObject Tree(Transform parent, Vector3 pos, float s, TreeType type, System.Random rng)
         {
-            EnsureMaterials();
-            var root = new GameObject(type == TreeType.Pine ? "Pine" : "Tree");
-            root.transform.SetParent(parent, true);
-            root.transform.position = pos;
-            root.transform.rotation = Quaternion.Euler(
-                (float)(rng.NextDouble() * 4.0 - 2.0), (float)(rng.NextDouble() * 360.0), (float)(rng.NextDouble() * 4.0 - 2.0));
-            bool alt = rng.NextDouble() < 0.5;
-
+            EnsureAssets();
+            float yaw = (float)(rng.NextDouble() * 360.0);
+            GameObject go;
             if (type == TreeType.Pine)
             {
-                // 줄기 (cylinder 기본 높이 2 → scale.y * 2)
-                Prim(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 2.4f * s, 0f), new Vector3(0.32f * s, 2.4f * s, 0.32f * s), Quaternion.identity, trunkDark, true);
-                float[] heights = { 2.6f, 3.8f, 4.9f, 5.9f, 6.7f };
-                float[] radii = { 2.6f, 2.2f, 1.7f, 1.2f, 0.7f };
-                for (int i = 0; i < heights.Length; i++)
-                {
-                    float r = radii[i] * s;
-                    Prim(PrimitiveType.Sphere, root.transform, new Vector3(0f, heights[i] * s, 0f),
-                         new Vector3(r, r * 0.5f, r), Quaternion.identity, (alt ^ (i % 2 == 0)) ? pineA : pineB, false);
-                }
+                float h = 9f * s;
+                go = Make("Pine", parent, pos, yaw, h, pineMeshes[rng.Next(pineMeshes.Count)], trunkMat, pineMat);
+                var col = go.AddComponent<CapsuleCollider>();
+                col.center = new Vector3(0f, 0.45f, 0f);
+                col.radius = 0.035f;
+                col.height = 0.9f;
             }
             else
             {
-                Prim(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 1.8f * s, 0f), new Vector3(0.42f * s, 1.8f * s, 0.42f * s), Quaternion.identity, trunk, true);
-                Prim(PrimitiveType.Sphere, root.transform, new Vector3(0f, 4.6f * s, 0f), new Vector3(3.4f * s, 3.0f * s, 3.4f * s), Quaternion.identity, alt ? leafA : leafB, false);
-                Prim(PrimitiveType.Sphere, root.transform, new Vector3(0.9f * s, 5.4f * s, 0.5f * s), new Vector3(2.2f * s, 2.0f * s, 2.2f * s), Quaternion.identity, alt ? leafB : leafA, false);
-                Prim(PrimitiveType.Sphere, root.transform, new Vector3(-0.8f * s, 5.6f * s, -0.6f * s), new Vector3(2.0f * s, 1.8f * s, 2.0f * s), Quaternion.identity, leafA, false);
-                Prim(PrimitiveType.Sphere, root.transform, new Vector3(0f, 6.6f * s, 0f), new Vector3(1.6f * s, 1.5f * s, 1.6f * s), Quaternion.identity, alt ? leafA : leafB, false);
+                float h = 8f * s;
+                go = Make("Tree", parent, pos, yaw, h, leafMeshes[rng.Next(leafMeshes.Count)], trunkMat, leafMat);
+                var col = go.AddComponent<CapsuleCollider>();
+                col.center = new Vector3(0f, 0.25f, 0f);
+                col.radius = 0.04f;
+                col.height = 0.5f;
             }
-            return root;
+            return go;
         }
 
-        /// <summary>적이 숨는 굵은 나무. 줄기 지름 trunkDiameter, 수관은 높게 달려 있어 몸통을 가리지 않는다.</summary>
+        /// <summary>적이 숨는 굵은 나무. 줄기 지름 trunkDiameter(m), 높이 약 11 m.</summary>
         public static GameObject CoverTree(Transform parent, Vector3 pos, float trunkDiameter, float s)
         {
-            EnsureMaterials();
-            var root = new GameObject("CoverTree");
-            root.transform.SetParent(parent, true);
-            root.transform.position = pos;
-            float d = trunkDiameter;
-            Prim(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 3.0f * s, 0f), new Vector3(d, 3.0f * s, d), Quaternion.identity, trunkDark, true);
-            // 뿌리 부분을 살짝 넓게
-            Prim(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 0.25f * s, 0f), new Vector3(d * 1.35f, 0.25f * s, d * 1.35f), Quaternion.identity, trunkDark, false);
-            Prim(PrimitiveType.Sphere, root.transform, new Vector3(0f, 7.2f * s, 0f), new Vector3(4.2f * s, 3.4f * s, 4.2f * s), Quaternion.identity, leafA, false);
-            Prim(PrimitiveType.Sphere, root.transform, new Vector3(1.2f * s, 8.0f * s, 0.8f * s), new Vector3(2.6f * s, 2.2f * s, 2.6f * s), Quaternion.identity, leafB, false);
-            Prim(PrimitiveType.Sphere, root.transform, new Vector3(-1.1f * s, 8.3f * s, -0.7f * s), new Vector3(2.4f * s, 2.0f * s, 2.4f * s), Quaternion.identity, leafB, false);
-            return root;
+            EnsureAssets();
+            float h = 11f * s;
+            var mesh = MeshBuilder.CoverTree(meshRng, 1f, trunkDiameter / h);
+            var go = Make("CoverTree", parent, pos, (float)(meshRng.NextDouble() * 360.0), h, mesh, trunkMat, leafMat);
+            var col = go.AddComponent<CapsuleCollider>();
+            col.center = new Vector3(0f, 0.3f, 0f);
+            col.radius = trunkDiameter * 0.5f / h;
+            col.height = 0.66f;
+            return go;
         }
 
         public static GameObject Bush(Transform parent, Vector3 pos, float s, System.Random rng)
         {
-            EnsureMaterials();
-            var root = new GameObject("Bush");
-            root.transform.SetParent(parent, true);
-            root.transform.position = pos;
-            root.transform.rotation = Quaternion.Euler(0f, (float)(rng.NextDouble() * 360.0), 0f);
-            Prim(PrimitiveType.Sphere, root.transform, new Vector3(0f, 0.55f * s, 0f), new Vector3(1.8f * s, 1.1f * s, 1.6f * s), Quaternion.identity, bushMat, false);
-            Prim(PrimitiveType.Sphere, root.transform, new Vector3(0.7f * s, 0.45f * s, 0.4f * s), new Vector3(1.2f * s, 0.9f * s, 1.2f * s), Quaternion.identity, bushMat, false);
-            return root;
+            EnsureAssets();
+            return Make("Bush", parent, pos, (float)(rng.NextDouble() * 360.0), 1.6f * s, bushMeshes[rng.Next(bushMeshes.Count)], trunkMat, bushMat);
         }
     }
 }

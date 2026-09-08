@@ -10,6 +10,9 @@ namespace SniperRidge
     public static class EnemyModels
     {
         const string ResourcePath = "Enemies/SoldierModel";
+
+        /// <summary>모델의 정면이 +Z 가 아니면 여기서 보정한다 (변환된 Mixamo FBX 는 180도).</summary>
+        public const float YawOffset = 180f;
         static GameObject prefab;
         static bool searched;
 

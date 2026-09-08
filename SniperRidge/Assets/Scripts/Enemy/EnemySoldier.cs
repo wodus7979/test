@@ -171,7 +171,7 @@ namespace SniperRidge
                 var inst = Instantiate(custom, rig);
                 inst.name = "Model";
                 inst.transform.localPosition = Vector3.zero;
-                inst.transform.localRotation = Quaternion.identity;
+                inst.transform.localRotation = Quaternion.Euler(0f, EnemyModels.YawOffset, 0f);
                 inst.transform.localScale = Vector3.one;
                 // 키를 약 1.85m 로 맞춘다
                 var rends = inst.GetComponentsInChildren<Renderer>();

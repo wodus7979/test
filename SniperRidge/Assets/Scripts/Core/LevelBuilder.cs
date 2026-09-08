@@ -82,40 +82,45 @@ namespace SniperRidge
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.95f, 0.85f);
-            sun.intensity = 1.15f;
+            sun.color = new Color(1f, 0.93f, 0.82f);
+            sun.intensity = 1.05f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.8f;
-            sunGo.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
+            sun.shadowStrength = 0.85f;
+            sun.shadowBias = 0.03f;
+            sun.shadowNormalBias = 0.5f;
+            sunGo.transform.rotation = Quaternion.Euler(42f, -25f, 0f);
             RenderSettings.sun = sun;
 
-            RenderSettings.ambientIntensity = 1.1f;
             RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 120f;
-            RenderSettings.fogEndDistance = 1300f;
-            RenderSettings.fogColor = new Color(0.70f, 0.77f, 0.86f);
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogDensity = 0.0009f;
+            RenderSettings.fogColor = new Color(0.66f, 0.72f, 0.80f);
+            RenderSettings.ambientIntensity = 0.9f;
 
-            // 실사 하늘 (Resources/Sky 의 HDRI)
-            var hdr = ProceduralAssets.LoadTex("Sky/spruit_sunrise_1k");
+            // 실사 하늘 (Resources/Sky 의 HDRI) + 환경광
+            var hdr = ProceduralAssets.LoadTex("Sky/quarry_01_1k");
             var skyShader = Shader.Find("Skybox/Panoramic");
             if (hdr != null && skyShader != null)
             {
                 var sky = new Material(skyShader);
                 sky.SetTexture("_MainTex", hdr);
-                if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 1.15f);
-                if (sky.HasProperty("_Rotation")) sky.SetFloat("_Rotation", 200f);
+                if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 0.9f);
+                if (sky.HasProperty("_Rotation")) sky.SetFloat("_Rotation", 40f);
                 RenderSettings.skybox = sky;
                 RenderSettings.ambientMode = AmbientMode.Skybox;
-                RenderSettings.ambientIntensity = 1.0f;
-                RenderSettings.fogColor = new Color(0.78f, 0.80f, 0.84f);
-                sunGo.transform.rotation = Quaternion.Euler(32f, 20f, 0f);
-                sun.color = new Color(1f, 0.9f, 0.75f);
-                sun.intensity = 1.3f;
+                RenderSettings.ambientIntensity = 0.75f;
+                RenderSettings.fogColor = new Color(0.70f, 0.74f, 0.80f);
                 DynamicGI.UpdateEnvironment();
             }
 
-            QualitySettings.shadowDistance = 90f;
+            bool mobile = Application.isMobilePlatform;
+            QualitySettings.shadowDistance = mobile ? 90f : 260f;
+            QualitySettings.shadowCascades = mobile ? 2 : 4;
+            QualitySettings.shadowResolution = mobile ? ShadowResolution.Medium : ShadowResolution.VeryHigh;
+            QualitySettings.shadows = ShadowQuality.All;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+            QualitySettings.antiAliasing = mobile ? 2 : 4;
+            QualitySettings.lodBias = 1.5f;
         }
 
         static void SetupAmbience(GameManager gm)
@@ -147,7 +152,12 @@ namespace SniperRidge
             cam.fieldOfView = 60f;
             cam.nearClipPlane = 0.05f;
             cam.farClipPlane = 3000f;
+            cam.allowHDR = true;
+            cam.allowMSAA = true;
             eyeGo.AddComponent<AudioListener>();
+            var post = eyeGo.AddComponent<PostEffect>();
+            post.Exposure = 1.05f;
+            post.BloomIntensity = Application.isMobilePlatform ? 0.2f : 0.3f;
 
             var muzzleGo = new GameObject("MuzzleFlash");
             muzzleGo.transform.SetParent(eyeGo.transform, false);
@@ -167,21 +177,30 @@ namespace SniperRidge
             gm.PlayerEye = eyeGo.transform;
             gm.Health = health;
 
-            // 모래주머니 엄폐물 (눈높이보다 낮게)
-            var sandbag = ProceduralAssets.TexturedMaterial(new Color(0.75f, 0.68f, 0.5f), ProceduralAssets.LoadTex("Terrain/dirt_albedo"), ProceduralAssets.LoadTex("Terrain/dirt_normal"), 2f, 0.05f);
+            // 모래주머니 엄폐물: 실제 크기의 둥근 자루를 두 줄로 (눈높이보다 낮게)
+            var sandbag = ProceduralAssets.TexturedMaterial(new Color(0.72f, 0.66f, 0.5f), ProceduralAssets.LoadTex("Terrain/dirt_albedo"), ProceduralAssets.LoadTex("Terrain/dirt_normal"), 0.8f, 0.02f);
+            var bagRng = new System.Random(11);
             for (int row = 0; row < 2; row++)
             {
-                for (int i = -1; i <= 1; i++)
+                int count = row == 0 ? 6 : 5;
+                for (int i = 0; i < count; i++)
                 {
-                    float y = row == 0 ? 0.2f : 0.55f;
-                    float xOff = i * 0.78f + (row == 1 ? 0.39f : 0f);
-                    var bag = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    float xOff = (i - (count - 1) * 0.5f) * 0.5f;
+                    float y = row == 0 ? 0.13f : 0.38f;
+                    var bag = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                     bag.name = "Sandbag";
-                    bag.transform.position = nest + new Vector3(xOff, y, 1.15f);
-                    bag.transform.localScale = new Vector3(0.75f, 0.5f, 0.45f);
+                    bag.transform.position = nest + new Vector3(xOff, y, 1.15f + (float)(bagRng.NextDouble() * 0.06 - 0.03));
+                    bag.transform.rotation = Quaternion.Euler(0f, (float)(bagRng.NextDouble() * 12.0 - 6.0), 90f);   // 자루가 좌우로 눕도록
+                    bag.transform.localScale = new Vector3(0.28f, 0.27f, 0.24f);   // 캡슐: 지름 0.28, 길이 0.54
                     bag.GetComponent<Renderer>().material = sandbag;
                 }
             }
+            // 파낸 흙 둔덕
+            var berm = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            berm.name = "Berm";
+            berm.transform.position = nest + new Vector3(0f, -0.25f, 1.6f);
+            berm.transform.localScale = new Vector3(4.2f, 0.9f, 1.6f);
+            berm.GetComponent<Renderer>().material = sandbag;
 
             // 잠복용 덤불
             var bushRng = new System.Random(5);
