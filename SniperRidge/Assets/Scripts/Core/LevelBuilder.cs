@@ -68,6 +68,7 @@ namespace SniperRidge
 
             var spawns = EnemySpawns();
             BuildDecorations(terrain, nest, spawns);
+            SetupReflection(nest);
 
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
             gm.Hud = HudController.Build(gm);
@@ -82,18 +83,18 @@ namespace SniperRidge
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.93f, 0.82f);
-            sun.intensity = 1.05f;
+            sun.color = new Color(1f, 0.94f, 0.85f);
+            sun.intensity = 1.2f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.85f;
             sun.shadowBias = 0.03f;
-            sun.shadowNormalBias = 0.5f;
-            sunGo.transform.rotation = Quaternion.Euler(42f, -25f, 0f);
+            sun.shadowNormalBias = 0.25f;
+            sunGo.transform.rotation = Quaternion.Euler(32f, -35f, 0f);
             RenderSettings.sun = sun;
 
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.0009f;
+            RenderSettings.fogDensity = 0.00065f;
             RenderSettings.fogColor = new Color(0.66f, 0.72f, 0.80f);
             RenderSettings.ambientIntensity = 0.9f;
 
@@ -108,19 +109,43 @@ namespace SniperRidge
                 if (sky.HasProperty("_Rotation")) sky.SetFloat("_Rotation", 40f);
                 RenderSettings.skybox = sky;
                 RenderSettings.ambientMode = AmbientMode.Skybox;
-                RenderSettings.ambientIntensity = 0.75f;
+                RenderSettings.ambientIntensity = 0.65f;
                 RenderSettings.fogColor = new Color(0.70f, 0.74f, 0.80f);
                 DynamicGI.UpdateEnvironment();
             }
 
             bool mobile = Application.isMobilePlatform;
-            QualitySettings.shadowDistance = mobile ? 90f : 260f;
+            QualitySettings.shadowDistance = mobile ? 90f : 460f;
             QualitySettings.shadowCascades = mobile ? 2 : 4;
             QualitySettings.shadowResolution = mobile ? ShadowResolution.Medium : ShadowResolution.VeryHigh;
             QualitySettings.shadows = ShadowQuality.All;
             QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
             QualitySettings.antiAliasing = mobile ? 2 : 4;
-            QualitySettings.lodBias = 1.5f;
+            QualitySettings.lodBias = mobile ? 1f : 1.25f;
+            QualitySettings.shadowCascade4Split = new Vector3(.08f, .23f, .5f);
+            QualitySettings.pixelLightCount = mobile ? 2 : 8;
+            RenderSettings.reflectionIntensity = .8f;
+        }
+
+        static void SetupReflection(Vector3 nest)
+        {
+            if (Application.isMobilePlatform) return;
+            var go = new GameObject("Nest Reflection");
+            go.transform.position = nest + Vector3.up * 2f;
+            var probe = go.AddComponent<ReflectionProbe>();
+            probe.mode = ReflectionProbeMode.Realtime;
+            probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
+            probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
+            probe.resolution = 256;
+            probe.hdr = true;
+            probe.size = new Vector3(600f, 400f, 600f);
+            probe.boxProjection = false;
+            probe.clearFlags = ReflectionProbeClearFlags.Skybox;
+            probe.farClipPlane = 900f;
+            probe.nearClipPlane = 3f;
+            // Ignore UI and effects layers; a 3 m near plane excludes the first-person weapon.
+            probe.cullingMask = ~(1 << 2 | 1 << 5);
+            probe.RenderProbe();
         }
 
         static void SetupAmbience(GameManager gm)
@@ -156,8 +181,8 @@ namespace SniperRidge
             cam.allowMSAA = true;
             eyeGo.AddComponent<AudioListener>();
             var post = eyeGo.AddComponent<PostEffect>();
-            post.Exposure = 1.05f;
-            post.BloomIntensity = Application.isMobilePlatform ? 0.2f : 0.3f;
+            post.Exposure = 1.0f;
+            post.BloomIntensity = Application.isMobilePlatform ? 0.2f : 0.16f;
 
             var muzzleGo = new GameObject("MuzzleFlash");
             muzzleGo.transform.SetParent(eyeGo.transform, false);
@@ -341,10 +366,13 @@ namespace SniperRidge
                 r.transform.position = new Vector3(x, TerrainGenerator.GroundHeight(terrain, x, z) + sc * 0.2f, z);
                 r.transform.localScale = new Vector3(sc, sc * 0.55f, sc * 0.8f);
                 r.transform.rotation = Quaternion.Euler((float)rng.NextDouble() * 20f, (float)rng.NextDouble() * 360f, 0f);
-                r.GetComponent<Renderer>().material = rockMat;
+                r.GetComponent<Renderer>().sharedMaterial = rockMat;
+                NatureModels.Upgrade(r, i % 2 == 0 ? "boulder_1" : "boulder_2");
             }
 
-            StaticBatchingUtility.Combine(root);
+            NatureModels.GroundCover(root.transform, terrain, playerPos);
+            // GPU instancing keeps repeated meshes shared and allows each LOD renderer to cull independently.
+            if (Application.isMobilePlatform) StaticBatchingUtility.Combine(root);
         }
 
         /// <summary>사각 영역에 나무를 뿌린다. pineRatio 는 침엽수 비율.</summary>

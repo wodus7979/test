@@ -351,7 +351,7 @@ namespace SniperRidge.EditorTools
                 "Nature/Terrain/Standard", "Legacy Shaders/Diffuse",
                 "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
                 "Hidden/TerrainEngine/Details/WavingDoublePass",
-                "Skybox/Panoramic", "Hidden/SniperRidge/Post",
+                "Skybox/Panoramic", "Hidden/SniperRidge/Post", "SniperRidge/Foliage",
             };
             try
             {

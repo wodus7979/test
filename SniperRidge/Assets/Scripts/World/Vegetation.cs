@@ -73,7 +73,7 @@ namespace SniperRidge
                 col.radius = 0.04f;
                 col.height = 0.5f;
             }
-            return go;
+            return NatureModels.Upgrade(go, type == TreeType.Pine ? (yaw < 180f ? "pine_1" : "pine_2") : (yaw < 180f ? "broadleaf_1" : "broadleaf_2"));
         }
 
         /// <summary>적이 숨는 굵은 나무. 줄기 지름 trunkDiameter(m), 높이 약 11 m.</summary>
@@ -93,7 +93,8 @@ namespace SniperRidge
         public static GameObject Bush(Transform parent, Vector3 pos, float s, System.Random rng)
         {
             EnsureAssets();
-            return Make("Bush", parent, pos, (float)(rng.NextDouble() * 360.0), 1.6f * s, bushMeshes[rng.Next(bushMeshes.Count)], trunkMat, bushMat);
+            var go = Make("Bush", parent, pos, (float)(rng.NextDouble() * 360.0), 1.6f * s, bushMeshes[rng.Next(bushMeshes.Count)], trunkMat, bushMat);
+            return NatureModels.Upgrade(go, "bush");
         }
     }
 }

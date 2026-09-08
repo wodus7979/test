@@ -39,3 +39,7 @@ Assets/EnemyModel/Soldier.mat.meta
 # 총기 프리팹은 Firearm Asset Pack 소스에서 자동 생성된다
 Assets/Resources/Weapons/
 Assets/Resources/Weapons.meta
+
+# Generated from the repository nature pack by NaturePackSetup
+Assets/Resources/NaturePack/
+Assets/Resources/NaturePack.meta

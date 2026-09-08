@@ -56,6 +56,7 @@ namespace SniperRidge
             if (shader == null) shader = Shader.Find("Standard");
             var m = new Material(shader);
             m.color = color;
+            m.enableInstancing = true;
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", smoothness);
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smoothness);
             return m;
@@ -89,6 +90,7 @@ namespace SniperRidge
             if (shader == null) shader = DefaultLitShader;
             var m = new Material(shader);
             m.color = color;
+            m.enableInstancing = true;
             return m;
         }
 

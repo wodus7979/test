@@ -18,9 +18,9 @@ Shader "Hidden/SniperRidge/Post"
             #include "UnityCG.cginc"
             sampler2D _MainTex;
             float _Threshold;
-            fixed4 frag(v2f_img i) : SV_Target
+            half4 frag(v2f_img i) : SV_Target
             {
-                fixed4 c = tex2D(_MainTex, i.uv);
+                half4 c = tex2D(_MainTex, i.uv);
                 float l = max(c.r, max(c.g, c.b));
                 float k = max(0.0, l - _Threshold);
                 return c * (k / max(l, 1e-4));
@@ -37,10 +37,10 @@ Shader "Hidden/SniperRidge/Post"
             #include "UnityCG.cginc"
             sampler2D _MainTex;
             float4 _BlurDir;
-            fixed4 frag(v2f_img i) : SV_Target
+            half4 frag(v2f_img i) : SV_Target
             {
                 float w0 = 0.227, w1 = 0.194, w2 = 0.121, w3 = 0.054, w4 = 0.016;
-                fixed4 s = tex2D(_MainTex, i.uv) * w0;
+                half4 s = tex2D(_MainTex, i.uv) * w0;
                 s += (tex2D(_MainTex, i.uv + _BlurDir.xy * 1.0) + tex2D(_MainTex, i.uv - _BlurDir.xy * 1.0)) * w1;
                 s += (tex2D(_MainTex, i.uv + _BlurDir.xy * 2.0) + tex2D(_MainTex, i.uv - _BlurDir.xy * 2.0)) * w2;
                 s += (tex2D(_MainTex, i.uv + _BlurDir.xy * 3.0) + tex2D(_MainTex, i.uv - _BlurDir.xy * 3.0)) * w3;
@@ -67,7 +67,7 @@ Shader "Hidden/SniperRidge/Post"
                 return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
             }
 
-            fixed4 frag(v2f_img i) : SV_Target
+            half4 frag(v2f_img i) : SV_Target
             {
                 float3 c = tex2D(_MainTex, i.uv).rgb;
                 c += tex2D(_Bloom, i.uv).rgb * _BloomIntensity;
@@ -78,7 +78,7 @@ Shader "Hidden/SniperRidge/Post"
                 c = (c - 0.5) * _Contrast + 0.5;
                 float2 d = i.uv - 0.5;
                 c *= 1.0 - _Vignette * dot(d, d) * 2.5;
-                return fixed4(saturate(c), 1.0);
+                return half4(saturate(c), 1.0);
             }
             ENDCG
         }

@@ -9,8 +9,6 @@ namespace SniperRidge
     {
         public const float Size = 600f;        // 가로/세로 (m)
         public const float MaxHeight = 200f;   // 최대 높이 (m)
-        const int HeightRes = 257;
-        const int AlphaRes = 256;
 
         public const float PlayerRidgeZ = -120f;
         public const float EnemyRidgeZ = 250f;
@@ -57,17 +55,19 @@ namespace SniperRidge
 
         public static Terrain Build(float seed)
         {
+            int heightRes = Application.isMobilePlatform ? 257 : 1025;
+            int alphaRes = Application.isMobilePlatform ? 256 : 1024;
             var data = new TerrainData();
-            data.heightmapResolution = HeightRes;
+            data.heightmapResolution = heightRes;
             data.size = new Vector3(Size, MaxHeight, Size);
 
-            var heights = new float[HeightRes, HeightRes];
-            for (int z = 0; z < HeightRes; z++)
+            var heights = new float[heightRes, heightRes];
+            for (int z = 0; z < heightRes; z++)
             {
-                float wz = z / (float)(HeightRes - 1) * Size - Size * 0.5f;
-                for (int x = 0; x < HeightRes; x++)
+                float wz = z / (float)(heightRes - 1) * Size - Size * 0.5f;
+                for (int x = 0; x < heightRes; x++)
                 {
-                    float wx = x / (float)(HeightRes - 1) * Size - Size * 0.5f;
+                    float wx = x / (float)(heightRes - 1) * Size - Size * 0.5f;
                     heights[z, x] = Mathf.Clamp01(HeightMeters(wx, wz, seed) / MaxHeight);
                 }
             }
@@ -79,14 +79,14 @@ namespace SniperRidge
             var forest = MakeLayer("forest", new Color(0.22f, 0.17f, 0.10f), new Color(0.32f, 0.26f, 0.15f), 4f, 3.7f, 5f);
             data.terrainLayers = new[] { grass, rock, dirt, forest };
 
-            data.alphamapResolution = AlphaRes;
-            var maps = new float[AlphaRes, AlphaRes, 4];
-            for (int y = 0; y < AlphaRes; y++)
+            data.alphamapResolution = alphaRes;
+            var maps = new float[alphaRes, alphaRes, 4];
+            for (int y = 0; y < alphaRes; y++)
             {
-                float ny = (y + 0.5f) / AlphaRes;
-                for (int x = 0; x < AlphaRes; x++)
+                float ny = (y + 0.5f) / alphaRes;
+                for (int x = 0; x < alphaRes; x++)
                 {
-                    float nx = (x + 0.5f) / AlphaRes;
+                    float nx = (x + 0.5f) / alphaRes;
                     float steep = data.GetSteepness(nx, ny);
                     float h = data.GetInterpolatedHeight(nx, ny);
                     float rockW = Mathf.InverseLerp(20f, 34f, steep) + 0.35f * Mathf.InverseLerp(0.62f, 0.8f, Mathf.PerlinNoise(nx * 9f + seed, ny * 9f))
@@ -109,10 +109,11 @@ namespace SniperRidge
             go.name = "Terrain";
             go.transform.position = new Vector3(-Size * 0.5f, 0f, -Size * 0.5f);
             var terrain = go.GetComponent<Terrain>();
-            terrain.heightmapPixelError = 4f;
+            terrain.heightmapPixelError = Application.isMobilePlatform ? 4f : 1.5f;
             terrain.basemapDistance = 2000f;
-            terrain.detailObjectDistance = Application.isMobilePlatform ? 60f : 110f;
-            terrain.detailObjectDensity = Application.isMobilePlatform ? 0.35f : 0.7f;
+            terrain.drawInstanced = !Application.isMobilePlatform;
+            terrain.detailObjectDistance = Application.isMobilePlatform ? 60f : 180f;
+            terrain.detailObjectDensity = Application.isMobilePlatform ? 0.35f : 0.85f;
             return terrain;
         }
 
@@ -148,8 +149,8 @@ namespace SniperRidge
                 maxWidth = 1.3f,
                 minHeight = 0.5f,
                 maxHeight = 1.0f,
-                healthyColor = new Color(0.45f, 0.7f, 0.3f),
-                dryColor = new Color(0.65f, 0.6f, 0.3f),
+                healthyColor = new Color(0.42f, 0.52f, 0.28f),
+                dryColor = new Color(0.55f, 0.50f, 0.31f),
                 noiseSpread = 0.25f,
             };
             data.SetDetailResolution(DetailRes, 32);
@@ -168,7 +169,7 @@ namespace SniperRidge
                     float nx = (x + 0.5f) / DetailRes;
                     float steep = data.GetSteepness(nx, ny);
                     float h = data.GetInterpolatedHeight(nx, ny);
-                    if (steep > 28f || h > 110f) continue;
+                    if (steep > 25f || h > 110f) continue;
                     float n = Mathf.PerlinNoise(nx * 40f, ny * 40f);
                     int density = Mathf.RoundToInt(Mathf.Lerp(1f, 7f, n) * Mathf.InverseLerp(28f, 15f, steep));
                     layer[y, x] = density;

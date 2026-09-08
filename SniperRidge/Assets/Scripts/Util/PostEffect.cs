@@ -9,9 +9,9 @@ namespace SniperRidge
         public float Exposure = 1.0f;
         public float BloomThreshold = 1.0f;
         public float BloomIntensity = 0.35f;
-        public float Saturation = 1.08f;
-        public float Contrast = 1.06f;
-        public float Vignette = 0.28f;
+        public float Saturation = 1.0f;
+        public float Contrast = 1.03f;
+        public float Vignette = 0.14f;
 
         Material mat;
 
@@ -27,6 +27,12 @@ namespace SniperRidge
             mat = new Material(shader);
         }
 
+        void OnDisable()
+        {
+            if (mat != null) Destroy(mat);
+            mat = null;
+        }
+
         void OnRenderImage(RenderTexture src, RenderTexture dst)
         {
             if (mat == null) { Graphics.Blit(src, dst); return; }
@@ -35,6 +41,8 @@ namespace SniperRidge
             var a = RenderTexture.GetTemporary(w, h, 0, src.format);
             var b = RenderTexture.GetTemporary(w, h, 0, src.format);
 
+            a.filterMode = b.filterMode = FilterMode.Bilinear;
+            a.wrapMode = b.wrapMode = TextureWrapMode.Clamp;
             mat.SetFloat("_Threshold", BloomThreshold);
             Graphics.Blit(src, a, mat, 0);
             mat.SetVector("_BlurDir", new Vector4(1f / w, 0f, 0f, 0f));
