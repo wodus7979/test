@@ -50,6 +50,7 @@ namespace SniperRidge
 
         Camera cam;
         GameObject weaponModel;
+        Transform muzzleAnchor;
         Light muzzleLight;
         GameManager gm;
 
@@ -98,15 +99,9 @@ namespace SniperRidge
             fireTimer = 0.6f;      // 선택 버튼 클릭이 곧바로 사격으로 이어지지 않도록
             fireQueued = false;
             IsScoped = false;
-            if (muzzleLight != null) muzzleLight.transform.SetParent(cam.transform, false);   // 이전 무기 모델과 함께 지워지지 않도록
             if (weaponModel != null) Destroy(weaponModel);
             weaponModel = WeaponModels.Build(cam.transform, weapon);
-            if (muzzleLight != null)
-            {
-                var muzzle = WeaponModels.FindMuzzle(weaponModel);
-                muzzleLight.transform.SetParent(muzzle != null ? muzzle : cam.transform, false);
-                muzzleLight.transform.localPosition = muzzle != null ? new Vector3(0f, 0f, 0.05f) : new Vector3(0.28f, -0.18f, 1.2f);
-            }
+            muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);   // 광원은 카메라 아래에 두고 사격 시 총구 위치로 옮긴다 (모델이 꺼져 있어도 동작)
             inputEnabled = true;
             if (desktop)
             {
@@ -336,6 +331,9 @@ namespace SniperRidge
         IEnumerator MuzzleFlash()
         {
             if (muzzleLight == null) yield break;
+            muzzleLight.transform.position = muzzleAnchor != null
+                ? muzzleAnchor.TransformPoint(0f, 0f, 0.05f)
+                : cam.transform.TransformPoint(0.28f, -0.18f, 1.2f);
             muzzleLight.enabled = true;
             yield return new WaitForSeconds(0.05f);
             muzzleLight.enabled = false;

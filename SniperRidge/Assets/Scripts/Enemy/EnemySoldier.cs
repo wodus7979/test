@@ -175,7 +175,7 @@ namespace SniperRidge
                 inst.transform.localPosition = new Vector3(0.12f, 1.3f, 0.3f);
                 inst.transform.localRotation = Quaternion.identity;
                 inst.transform.localScale = Vector3.one;
-                foreach (var c in inst.GetComponentsInChildren<Collider>()) Destroy(c);
+                foreach (var c in inst.GetComponentsInChildren<Collider>()) { c.enabled = false; Destroy(c); }
                 var muzzle = WeaponModels.FindMuzzle(inst);
                 if (muzzle != null) soldier.rifleTip = muzzle;
                 // (parts 에 넣지 않는다: 실사 병사 모델이 있어도 소총은 계속 보여야 한다)

@@ -148,7 +148,12 @@ namespace OriginalFirearmAssets
                             int uvIndex = i / 3 * 2; uvs.Add(new Vector2(p.uv[uvIndex], p.uv[uvIndex + 1]));
                             if (!hasBounds) { fullBounds = new Bounds(v, Vector3.zero); hasBounds = true; } else fullBounds.Encapsulate(v);
                         }
-                        for (int i = 0; i < p.p.Length / 3; i++) triangles[p.mat].Add(start + i);
+                        // X<->Z 교환은 반사 변환이라 감김 방향이 뒤집힌다. 삼각형마다 순서를 되돌려 바깥면을 유지한다.
+                        for (int i = 0; i < p.p.Length / 3; i += 3)
+                        {
+                            var t = triangles[p.mat];
+                            t.Add(start + i); t.Add(start + i + 2); t.Add(start + i + 1);
+                        }
                     }
                     Bounds groupBounds = new Bounds(vertices[0], Vector3.zero);
                     foreach (Vector3 v in vertices) groupBounds.Encapsulate(v);

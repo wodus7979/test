@@ -177,7 +177,8 @@ namespace SniperRidge
                 UiKit.Label(rt, "Mode", w.Mission == MissionType.Sniper ? "저격 임무" : "방어전 임무", 22, TextAnchor.UpperCenter,
                             w.Mission == MissionType.Sniper ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.7f, 0.4f),
                             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -68f), new Vector2(cardW - 30f, 30f), true);
-                UiKit.Label(rt, "Desc", w.Description, 18, TextAnchor.UpperLeft, new Color(0.9f, 0.9f, 0.9f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(cardW - 40f, 110f));
+                var desc = UiKit.Label(rt, "Desc", w.Description, 18, TextAnchor.UpperLeft, new Color(0.9f, 0.9f, 0.9f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(cardW - 40f, 110f));
+                desc.horizontalOverflow = HorizontalWrapMode.Wrap;
                 string stats = string.Format("{0}  |  {1}발  |  {2} m/s  |  피해 {3}",
                     w.Fire == FireMode.Bolt ? "볼트액션" : (w.Fire == FireMode.Semi ? "반자동" : "자동"),
                     w.MagSize, w.MuzzleVelocity, w.Damage);

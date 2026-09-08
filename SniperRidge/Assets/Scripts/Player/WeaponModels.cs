@@ -43,7 +43,7 @@ namespace SniperRidge
                 inst.transform.localPosition = def.ViewOffset;
                 inst.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
                 inst.transform.localScale = Vector3.one;
-                foreach (var c in inst.GetComponentsInChildren<Collider>()) Object.Destroy(c);
+                foreach (var c in inst.GetComponentsInChildren<Collider>()) { c.enabled = false; Object.Destroy(c); }
                 foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = ShadowCastingMode.Off;
                 return inst;
             }
