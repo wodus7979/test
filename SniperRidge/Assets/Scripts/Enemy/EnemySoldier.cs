@@ -46,10 +46,13 @@ namespace SniperRidge
         enum State { Hidden, Peeking, Walking, Waiting, Rushing, Halt }
 
         Transform rig, head, rifleTip;
-        Renderer[] renderers;
         Terrain terrain;
         GameManager gm;
         Animator animator;
+        EnemyAnimationRig motion;
+        Transform weaponVisual;
+        Vector3 previousRigPosition;
+        float staggerTimer;
         HashSet<string> animParams;
 
         State state;
@@ -157,6 +160,7 @@ namespace SniperRidge
             Destroy(helmet.GetComponent<Collider>());
             var rifle = Part(PrimitiveType.Cube, rig, "Rifle", new Vector3(0.1f, 1.32f, 0.25f), new Vector3(0.06f, 0.08f, 0.7f), Quaternion.identity, gear, parts);
             Destroy(rifle.GetComponent<Collider>());
+            soldier.weaponVisual = rifle.transform;
             var mag = Part(PrimitiveType.Cube, rifle.transform, "Magazine", new Vector3(0f, -1.1f, 0.05f), new Vector3(0.8f, 1.6f, 0.12f), Quaternion.identity, gear, parts);
             Destroy(mag.GetComponent<Collider>());
             var tip = new GameObject("Tip");
@@ -172,6 +176,7 @@ namespace SniperRidge
                 mag.GetComponent<Renderer>().enabled = false;
                 var inst = Instantiate(rifleModel, rig);
                 inst.name = "RifleModel";
+                soldier.weaponVisual = inst.transform;
                 inst.transform.localPosition = new Vector3(0.12f, 1.3f, 0.3f);
                 inst.transform.localRotation = Quaternion.identity;
                 inst.transform.localScale = Vector3.one;
@@ -185,11 +190,13 @@ namespace SniperRidge
             var custom = EnemyModels.Prefab;
             if (custom != null)
             {
-                var inst = Instantiate(custom, rig);
+                // Keep the FBX's authored root rotation/scale. Its animation also keys that root;
+                // size/facing corrections belong on a separate, unanimated parent.
+                var modelRoot = new GameObject("AnimatedModelRoot").transform;
+                modelRoot.SetParent(rig, false);
+                modelRoot.localRotation = Quaternion.Euler(0f, EnemyModels.YawOffset, 0f);
+                var inst = Instantiate(custom, modelRoot, false);
                 inst.name = "Model";
-                inst.transform.localPosition = Vector3.zero;
-                inst.transform.localRotation = Quaternion.Euler(0f, EnemyModels.YawOffset, 0f);
-                inst.transform.localScale = Vector3.one;
                 // 키를 약 1.85m 로 맞춘다
                 var rends = inst.GetComponentsInChildren<Renderer>();
                 if (rends.Length > 0)
@@ -197,7 +204,7 @@ namespace SniperRidge
                     Bounds b = rends[0].bounds;
                     foreach (var r in rends) b.Encapsulate(r.bounds);
                     float h = b.size.y;
-                    if (h > 0.01f) inst.transform.localScale = Vector3.one * (1.85f * soldier.scale / h);   // bounds 는 월드 크기이므로 루트 스케일 보정
+                    if (h > 0.01f) modelRoot.localScale = Vector3.one * (1.85f * soldier.scale / h);   // bounds 는 월드 크기이므로 루트 스케일 보정
                 }
                 foreach (var go in parts)
                 {
@@ -210,11 +217,13 @@ namespace SniperRidge
                     soldier.animParams = new HashSet<string>();
                     foreach (var prm in soldier.animator.parameters) soldier.animParams.Add(prm.name);
                 }
-                soldier.renderers = rends;
-            }
-            else
-            {
-                soldier.renderers = rig.GetComponentsInChildren<Renderer>();
+                soldier.motion = inst.GetComponent<EnemyAnimationRig>();
+                if (soldier.motion != null && soldier.motion.Initialize(soldier, rig, soldier.terrain, soldier.weaponVisual))
+                {
+                    soldier.motion.BindHitboxes(parts);
+                    soldier.head = soldier.motion.AnimatedHead;
+                }
+                else soldier.motion = null;
             }
         }
 
@@ -262,12 +271,17 @@ namespace SniperRidge
                     break;
             }
             ApplyCover();
+            previousRigPosition = rig.position;
+            if (motion != null)
+                motion.Drive(0f, Kind == EnemyKind.Tree ? 0f : cover,
+                    Kind == EnemyKind.Tree ? peekSide * (1f - cover) : 0f, false, gm.PlayerEye.position, 1f);
         }
 
         void Update()
         {
             if (IsDead || gm == null || !gm.IsPlaying) return;
             float dt = Time.deltaTime;
+            staggerTimer = Mathf.Max(0f, staggerTimer - dt);
 
             cover = Mathf.MoveTowards(cover, coverTarget, dt * 2.5f);
             ApplyCover();
@@ -354,7 +368,13 @@ namespace SniperRidge
             }
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(faceDir), 360f * dt);
 
-            if (animator != null)
+            float actualSpeed = Vector3.ProjectOnPlane(rig.position - previousRigPosition, Vector3.up).magnitude / Mathf.Max(dt, .0001f);
+            previousRigPosition = rig.position;
+            if (motion != null)
+                motion.Drive(actualSpeed, Kind == EnemyKind.Tree ? 0f : cover,
+                    Kind == EnemyKind.Tree ? peekSide * (1f - cover) : 0f,
+                    IsAware && state != State.Walking && state != State.Rushing, gm.PlayerEye.position, dt);
+            else if (animator != null)
             {
                 SetAnim("Speed", speedForAnim);
                 SetAnim("Crouch", cover > 0.4f);
@@ -414,6 +434,7 @@ namespace SniperRidge
 
         void MoveOnTerrain(Vector3 dir, float speed, float dt)
         {
+            if (staggerTimer > 0f) speed *= .25f;
             Vector3 p = transform.position + dir * speed * dt;
             float half = TerrainGenerator.Size * 0.5f - 5f;
             p.x = Mathf.Clamp(p.x, -half, half);
@@ -424,6 +445,13 @@ namespace SniperRidge
 
         void ApplyCover()
         {
+            if (motion != null)
+            {
+                // Skeletal crouch/lean and bone hitboxes replace whole-model sinking/scaling.
+                rig.localScale = Vector3.one;
+                rig.localPosition = Vector3.zero;
+                return;
+            }
             if (Kind == EnemyKind.Tree)
             {
                 rig.localScale = Vector3.one;
@@ -491,6 +519,8 @@ namespace SniperRidge
         {
             if (IsDead) return false;
             Health -= damage * (headshot ? 3f : 1f);
+            staggerTimer = .18f;
+            if (motion != null) motion.Hit(bulletDir);
             SetAware();
             if (Health <= 0f)
             {
@@ -514,15 +544,13 @@ namespace SniperRidge
             if (IsDead) return;
             IsDead = true;
             Health = 0f;
-            foreach (var r in renderers)
-            {
-                if (r == null) continue;
-                var m = r.material;
-                if (m.HasProperty("_Color")) m.color = m.color * 0.6f;
-            }
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
-            if (animator != null) SetAnim("Dead", true);
-            StartCoroutine(FallDown(bulletDir));
+            if (motion != null) motion.Die(bulletDir);
+            else
+            {
+                if (animator != null) SetAnim("Dead", true);
+                StartCoroutine(FallDown(bulletDir));
+            }
             if (Kind == EnemyKind.Rusher) Destroy(gameObject, 25f);
         }
 
@@ -581,6 +609,7 @@ namespace SniperRidge
 
         void FireAtPlayer(float hitChance)
         {
+            if (motion != null) motion.Fire();
             Vector3 muzzle = rifleTip.position;
             Vector3 eye = gm.PlayerEye.position;
             float dist = Vector3.Distance(muzzle, eye);

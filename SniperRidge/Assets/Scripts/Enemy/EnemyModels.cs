@@ -16,6 +16,9 @@ namespace SniperRidge
         static GameObject prefab;
         static bool searched;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetCache() { prefab = null; searched = false; }
+
         public static GameObject Prefab
         {
             get

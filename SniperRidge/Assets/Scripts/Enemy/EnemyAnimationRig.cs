@@ -1,0 +1,275 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace SniperRidge
+{
+    /// <summary>Authored locomotion plus procedural aiming, planted-foot crouching and reactions.</summary>
+    [DefaultExecutionOrder(150)]
+    public class EnemyAnimationRig : MonoBehaviour
+    {
+        public const int CurrentVersion = 2;
+        public const float WalkReferenceSpeed = 1.4f;
+        public const float RunReferenceSpeed = 4.2f;
+        public int SetupVersion;
+        public Transform AnimatedHead => head;
+
+        EnemySoldier owner;
+        Animator animator;
+        Terrain terrain;
+        Transform bodyRig, hips, chest, neck, head;
+        Transform leftThigh, leftKnee, leftFoot, rightThigh, rightKnee, rightFoot;
+        Transform leftArm, leftElbow, leftHand, rightArm, rightHand, weapon;
+        Transform[] bones, groundProbeBones;
+        Vector3[] deathPositions;
+        Quaternion[] deathRotations;
+        Quaternion rigRestRotation;
+        Vector3 rigRestPosition;
+        float unitScale, crouch, peek, aim, reaction, recoil, reactionSide, phase;
+        float leftSole, rightSole, deathTime, fallSide;
+        bool ready, dead;
+        Vector3 aimTarget;
+
+        class HitShape
+        {
+            public Transform start, end, shape;
+            public CapsuleCollider capsule;
+            public float radius;
+        }
+        readonly List<HitShape> hitShapes = new List<HitShape>();
+
+        Transform FindBone(string name)
+        {
+            foreach (var t in GetComponentsInChildren<Transform>(true))
+                if (t.name.Replace(":", "").Replace("_", "").ToLowerInvariant().EndsWith(name.ToLowerInvariant())) return t;
+            return null;
+        }
+
+        public bool Initialize(EnemySoldier soldier, Transform rig, Terrain ground, Transform rifle)
+        {
+            owner = soldier; bodyRig = rig; terrain = ground; weapon = rifle;
+            animator = GetComponent<Animator>();
+            hips = FindBone("Hips"); chest = FindBone("Spine2"); neck = FindBone("Neck"); head = FindBone("Head");
+            leftThigh = FindBone("LeftUpLeg"); leftKnee = FindBone("LeftLeg"); leftFoot = FindBone("LeftFoot");
+            rightThigh = FindBone("RightUpLeg"); rightKnee = FindBone("RightLeg"); rightFoot = FindBone("RightFoot");
+            leftArm = FindBone("LeftArm"); leftElbow = FindBone("LeftForeArm"); leftHand = FindBone("LeftHand");
+            rightArm = FindBone("RightArm"); rightHand = FindBone("RightHand");
+            if (animator == null || animator.runtimeAnimatorController == null || hips == null || chest == null || head == null ||
+                leftThigh == null || leftKnee == null || leftFoot == null || rightThigh == null || rightKnee == null || rightFoot == null ||
+                leftArm == null || leftElbow == null || leftHand == null || rightHand == null)
+            {
+                Debug.LogError("[Sniper Ridge] 병사 뼈/Animator 연결이 누락되었습니다. 적 애니메이션 다시 생성 메뉴를 실행하세요.");
+                enabled = false;
+                return false;
+            }
+            unitScale = Mathf.Max(.01f, owner.transform.lossyScale.y);
+            phase = Random.value * Mathf.PI * 2f;
+            animator.enabled = true;
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.Rebind();
+            animator.SetFloat("MotionRate", 1f);
+            animator.Play("Locomotion", 0, Random.value);
+            animator.Update(0f);
+            bones = GetComponentsInChildren<Transform>();
+            groundProbeBones = new[] { hips, chest, head, leftKnee, rightKnee, leftFoot, rightFoot, leftHand, rightHand };
+            rigRestRotation = bodyRig.localRotation;
+            rigRestPosition = bodyRig.localPosition;
+            leftSole = Mathf.Clamp((leftFoot.position.y - owner.transform.position.y) / unitScale, .04f, .15f);
+            rightSole = Mathf.Clamp((rightFoot.position.y - owner.transform.position.y) / unitScale, .04f, .15f);
+
+            if (weapon != null)
+            {
+                // Assault pack grip centre, measured from its source mesh (+Z barrel axis).
+                weapon.rotation = owner.transform.rotation;
+                weapon.position = rightHand.position - weapon.TransformVector(new Vector3(0f, -.05f, -.17f));
+                weapon.SetParent(rightHand, true);
+            }
+            ready = true;
+            return true;
+        }
+
+        public void BindHitboxes(IEnumerable<GameObject> oldParts)
+        {
+            foreach (var part in oldParts)
+            {
+                var hit = part.GetComponent<EnemyHitbox>();
+                if (hit == null) continue;
+                var collider = part.GetComponent<Collider>();
+                if (collider != null) collider.enabled = false;
+            }
+            AddHitShape("AnimatedHead", head, null, .16f, true);
+            AddHitShape("AnimatedTorso", hips, chest, .23f, false);
+            AddHitShape("LeftThighHit", leftThigh, leftKnee, .105f, false);
+            AddHitShape("LeftShinHit", leftKnee, leftFoot, .09f, false);
+            AddHitShape("RightThighHit", rightThigh, rightKnee, .105f, false);
+            AddHitShape("RightShinHit", rightKnee, rightFoot, .09f, false);
+            AddHitShape("LeftArmHit", leftArm, leftElbow, .075f, false);
+            AddHitShape("LeftForearmHit", leftElbow, leftHand, .065f, false);
+            var rightElbow = FindBone("RightForeArm");
+            if (rightArm != null && rightElbow != null)
+            {
+                AddHitShape("RightArmHit", rightArm, rightElbow, .075f, false);
+                AddHitShape("RightForearmHit", rightElbow, rightHand, .065f, false);
+            }
+            UpdateHitboxes();
+        }
+
+        void AddHitShape(string name, Transform start, Transform end, float radius, bool isHead)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(owner.transform, false);
+            var capsule = go.AddComponent<CapsuleCollider>();
+            capsule.radius = radius; capsule.height = radius * 2f;
+            var hit = go.AddComponent<EnemyHitbox>(); hit.Owner = owner; hit.IsHead = isHead;
+            hitShapes.Add(new HitShape { start = start, end = end, shape = go.transform, capsule = capsule, radius = radius });
+        }
+
+        void UpdateHitboxes()
+        {
+            foreach (var h in hitShapes)
+            {
+                Vector3 a = h.start.position, b = h.end != null ? h.end.position : a;
+                h.shape.position = (a + b) * .5f;
+                if ((b - a).sqrMagnitude > .00001f) h.shape.rotation = Quaternion.FromToRotation(Vector3.up, b - a);
+                h.capsule.height = Vector3.Distance(a, b) / unitScale + h.radius * 2f;
+            }
+        }
+
+        public void Drive(float worldSpeed, float coverAmount, float peekAmount, bool aiming, Vector3 target, float dt)
+        {
+            if (!ready || dead) return;
+            float speed = worldSpeed / unitScale;
+            animator.SetFloat("Speed", speed, .12f, dt);
+            animator.SetFloat("MotionRate", speed > RunReferenceSpeed ? Mathf.Clamp(speed / RunReferenceSpeed, 1f, 1.5f) : 1f);
+            crouch = Mathf.MoveTowards(crouch, coverAmount, dt * 3f);
+            peek = Mathf.MoveTowards(peek, peekAmount, dt * 3f);
+            aim = Mathf.MoveTowards(aim, aiming ? Mathf.InverseLerp(3f, .3f, speed) : 0f, dt * 5f);
+            aimTarget = target;
+        }
+
+        public void Fire() { if (ready && !dead) recoil = 1f; }
+        public void Hit(Vector3 direction)
+        {
+            if (!ready || dead) return;
+            reaction = 1f;
+            reactionSide = Mathf.Sign(Vector3.Dot(direction, owner.transform.right));
+        }
+        public void Die(Vector3 direction)
+        {
+            if (!ready || dead) return;
+            dead = true;
+            deathPositions = new Vector3[bones.Length]; deathRotations = new Quaternion[bones.Length];
+            for (int i = 0; i < bones.Length; i++) { deathPositions[i] = bones[i].localPosition; deathRotations[i] = bones[i].localRotation; }
+            fallSide = Vector3.Dot(direction, owner.transform.right) >= 0f ? 1f : -1f;
+            animator.enabled = false;
+            foreach (var h in hitShapes) h.capsule.enabled = false;
+        }
+
+        void Update()
+        {
+            if (!ready || dead) return;
+            var game = GameManager.Instance;
+            animator.speed = game != null && game.IsPlaying ? 1f : 0f;
+        }
+
+        void LateUpdate()
+        {
+            if (!ready || Time.deltaTime <= 0f) return;
+            if (dead) { AnimateDeath(); return; }
+            var game = GameManager.Instance;
+            if (game == null || !game.IsPlaying) return;
+            Vector3 leftTarget = FootTarget(leftFoot, leftSole), rightTarget = FootTarget(rightFoot, rightSole);
+            Quaternion leftRotation = leftFoot.rotation, rightRotation = rightFoot.rotation;
+            hips.position += -Vector3.up * (.66f * crouch * unitScale) + owner.transform.right * (.5f * peek * unitScale);
+            Rotate(chest, owner.transform.right, 12f * crouch - 4f * recoil + 9f * reaction);
+            Rotate(chest, owner.transform.forward, -12f * peek + 5f * reaction * reactionSide);
+            Vector3 direction = (aimTarget - chest.position).normalized;
+            float pitch = Mathf.Clamp(Mathf.Asin(Mathf.Clamp(direction.y, -1f, 1f)) * Mathf.Rad2Deg, -25f, 35f) * aim;
+            Vector3 flat = Vector3.ProjectOnPlane(direction, Vector3.up);
+            float yaw = flat.sqrMagnitude > .001f ? Mathf.Clamp(Vector3.SignedAngle(owner.transform.forward, flat, Vector3.up), -40f, 40f) * aim : 0f;
+            Rotate(chest, Vector3.up, yaw * .65f);
+            Rotate(chest, owner.transform.right, -pitch * .65f);
+            Rotate(neck, Vector3.up, yaw * .2f);
+            Rotate(head, owner.transform.right, -pitch * .35f);
+            if (aim < .1f) Rotate(head, Vector3.up, Mathf.Sin(Time.time * .7f + phase) * 3f);
+
+            SolveLimb(leftThigh, leftKnee, leftFoot, leftTarget, leftThigh.position + owner.transform.forward * unitScale);
+            SolveLimb(rightThigh, rightKnee, rightFoot, rightTarget, rightThigh.position + owner.transform.forward * unitScale);
+            leftFoot.rotation = GroundRotation(leftTarget, leftRotation);
+            rightFoot.rotation = GroundRotation(rightTarget, rightRotation);
+            if (weapon != null)
+            {
+                var rotation = leftHand.rotation;
+                SolveLimb(leftArm, leftElbow, leftHand, weapon.TransformPoint(0f, -.05f, .175f),
+                    leftArm.position - owner.transform.right * unitScale - owner.transform.forward * (.2f * unitScale));
+                leftHand.rotation = rotation;
+            }
+            reaction = Mathf.MoveTowards(reaction, 0f, Time.deltaTime * 5f);
+            recoil = Mathf.MoveTowards(recoil, 0f, Time.deltaTime * 12f);
+            UpdateHitboxes();
+        }
+
+        Vector3 FootTarget(Transform foot, float sole)
+        {
+            Vector3 p = foot.position;
+            float lift = Mathf.Max(0f, p.y - owner.transform.position.y - sole * unitScale);
+            p.y = TerrainGenerator.GroundHeight(terrain, p.x, p.z) + sole * unitScale + lift;
+            return p;
+        }
+        Quaternion GroundRotation(Vector3 p, Quaternion authored)
+        {
+            var data = terrain.terrainData;
+            Vector3 n = data.GetInterpolatedNormal((p.x - terrain.transform.position.x) / data.size.x, (p.z - terrain.transform.position.z) / data.size.z);
+            return Quaternion.FromToRotation(Vector3.up, Vector3.Slerp(Vector3.up, n, .7f)) * authored;
+        }
+        static void Rotate(Transform bone, Vector3 axis, float angle)
+        {
+            if (bone != null) bone.rotation = Quaternion.AngleAxis(angle, axis) * bone.rotation;
+        }
+
+        /// <summary>Analytic two-bone IK, with reachable targets clamped to avoid flipped/overstretched knees.</summary>
+        public static void SolveLimb(Transform upper, Transform lower, Transform tip, Vector3 target, Vector3 pole)
+        {
+            if (upper == null || lower == null || tip == null) return;
+            Vector3 origin = upper.position;
+            float a = Vector3.Distance(origin, lower.position), b = Vector3.Distance(lower.position, tip.position);
+            Vector3 delta = target - origin;
+            if (a < .0001f || b < .0001f || delta.sqrMagnitude < .000001f) return;
+            float distance = Mathf.Clamp(delta.magnitude, Mathf.Abs(a - b) + .0001f, (a + b) * .999f);
+            Vector3 direction = delta.normalized;
+            Vector3 bend = Vector3.ProjectOnPlane(pole - origin, direction);
+            if (bend.sqrMagnitude < .000001f) bend = Vector3.ProjectOnPlane(lower.position - origin, direction);
+            if (bend.sqrMagnitude < .000001f) bend = Vector3.Cross(direction, Vector3.right);
+            if (bend.sqrMagnitude < .000001f) bend = Vector3.Cross(direction, Vector3.up);
+            float along = (a * a + distance * distance - b * b) / (2f * distance);
+            float height = Mathf.Sqrt(Mathf.Max(0f, a * a - along * along));
+            Vector3 knee = origin + direction * along + bend.normalized * height;
+            upper.rotation = Quaternion.FromToRotation(lower.position - origin, knee - origin) * upper.rotation;
+            lower.rotation = Quaternion.FromToRotation(tip.position - lower.position, origin + direction * distance - lower.position) * lower.rotation;
+        }
+
+        void AnimateDeath()
+        {
+            deathTime += Time.deltaTime;
+            for (int i = 0; i < bones.Length; i++) { bones[i].localPosition = deathPositions[i]; bones[i].localRotation = deathRotations[i]; }
+            bodyRig.localPosition = rigRestPosition;
+            float collapse = Mathf.SmoothStep(0f, 1f, deathTime / .4f);
+            float fall = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((deathTime - .1f) / .85f));
+            bodyRig.localRotation = rigRestRotation;
+            Rotate(chest, owner.transform.right, 24f * collapse);
+            Rotate(leftThigh, owner.transform.right, -25f * collapse);
+            Rotate(rightThigh, owner.transform.right, -18f * collapse);
+            Rotate(leftKnee, owner.transform.right, 48f * collapse);
+            Rotate(rightKnee, owner.transform.right, 38f * collapse);
+            Rotate(leftArm, owner.transform.forward, -30f * collapse);
+            Rotate(rightArm, owner.transform.forward, 25f * collapse);
+            bodyRig.localRotation = rigRestRotation * Quaternion.Euler(18f * fall, 0f, -84f * fall * fallSide);
+            float lift = 0f;
+            foreach (var bone in groundProbeBones)
+                lift = Mathf.Max(lift, TerrainGenerator.GroundHeight(terrain, bone.position.x, bone.position.z) + .09f * unitScale - bone.position.y);
+            bodyRig.position += Vector3.up * lift;
+            // The final skeletal pose is now stable; no ragdoll or per-frame work is required for corpses.
+            if (deathTime >= 1.1f) enabled = false;
+        }
+    }
+}

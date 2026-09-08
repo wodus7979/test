@@ -80,15 +80,12 @@ Play 를 누르면 무기 선택 화면이 나옵니다. 카드를 클릭하거�
 | `Assets/Resources/Audio/` | 무기별 총성(실제 총성 녹음 가공), 원거리 총성, 탄 크랙, 노리쇠, 재장전, 바람 | 총성 원본: Free Firearm Sound Library(CC0), 나머지: 기존 합성/가공 효과음 |
 
 처음 프로젝트를 열면 편집기 스크립트가 `Assets/EnemyModel` 의 FBX 로 Animator Controller 와
-`Assets/Resources/Enemies/SoldierModel.prefab` 을 자동 생성합니다 (Console 에 "적 모델 자동 설정" 로그).
+`Assets/Resources/Enemies/SoldierModel.prefab` 을 자동 생성합니다 (Console 에 "적 애니메이션 생성 완료" 로그).
 안 되면 메뉴 **Sniper Ridge → 적 모델 자동 설정** 을 직접 누르세요.
 
 ### 다른 병사 모델로 바꾸기
 
-1. https://www.mixamo.com (Adobe 계정, 무료) 에서 캐릭터를 **FBX for Unity** 로 받고, 같은 캐릭터로 애니메이션 `Rifle Idle`, `Rifle Run`, `Rifle Crouch Idle`, `Rifle Death` 를 **Without Skin** 으로 받습니다.
-2. `Assets/EnemyModel/` 의 기존 파일을 지우고 새 FBX 들을 넣습니다. 텍스처는 `*_albedo`, `*_normal` 이름이면 자동으로 재질에 연결됩니다.
-3. `Assets/Resources/Enemies/SoldierModel.prefab` 을 지우고 메뉴 **Sniper Ridge → 적 모델 자동 설정** 을 누릅니다.
-   클립 이름에 idle / run / crouch / death 가 들어 있으면 자동 연결되며, 웅크리기·사망 클립이 없으면 코드가 대신 연출합니다.
+현재 자동 설정은 저장소의 Mixamo 계열 뼈 구조에 맞춰져 있습니다. 다른 모델은 같은 뼈 이름과 계층, `Idle` / `Walk` / `Run` 클립이 필요하며, 다른 골격 간 자동 리타게팅은 지원하지 않습니다. 텍스처는 `Soldier_albedo.png`, `Soldier_normal.png`를 사용합니다. 교체 전 기존 모델을 백업한 뒤 **Sniper Ridge → 적 애니메이션 다시 생성**으로 확인하세요. 웅크리기·조준·피격·사망은 현재 절차적 뼈 동작을 사용합니다.
 
 ### 효과음 바꾸기
 
@@ -176,3 +173,32 @@ LOD 동작 참고: [Unity 2022.3 LODGroup 문서](https://docs.unity3d.com/2022.
 - Unity가 총성을 PCM으로 가져오도록 설정합니다. 반영되지 않으면 **Sniper Ridge → 총성 오디오 다시 가져오기**를 실행하세요.
 - 효과음 재생은 비어 있는 오디오 소스를 우선 사용합니다. 같은 소스에 총성과 잔향을 겹친 상태로 음높이를 바꾸던 방식을 수정했습니다. PC에서 32개, 모바일에서 16개까지 재생하며 전부 사용 중이면 한 소리를 교체합니다.
 - WAV 파일 데이터와 연사 합산 검사를 수행했습니다. Unity 컴파일·실제 재생과 사용자 스피커에서의 청감 확인은 아직 필요합니다.
+
+
+## 적 동작 개선 (2026-09)
+
+`codex/enemy-animation`은 이전 PC 그래픽 개선과 실제 녹음 총성 변경을 포함합니다.
+
+- FBX를 Generic Animator + Avatar로 명시적으로 가져옵니다. Idle / Walk / Run을 따로 연결한 Blend Tree로 이동량에 따라 섞으며, TPose는 선택하지 않습니다. 병사마다 재생 시작 위상을 다르게 합니다.
+- 원본 FBX의 루트 회전·스케일을 보존하고, 게임에서 사용하는 크기·방향 보정은 애니메이션 바깥 부모에 적용합니다.
+- 엄폐 시 전체 모델을 땅속으로 내리거나 찌그러뜨리지 않습니다. 골반을 낮추고 두 뼈 IK로 무릎을 굽혀 발 목표점을 유지합니다. 나무 엄폐는 발을 유지하면서 상체를 옆으로 기울입니다.
+- 조준 시 상체·목·머리를 목표 방향으로 돌리고, 사격 반동과 피격 반응을 더합니다. 피격 시 0.18초 동안 이동 속도를 줄입니다.
+- 소총은 오른손을 따라 움직이고, 왼팔 IK가 앞 손잡이로 손을 보냅니다. 머리·몸통·팔·다리의 명중 판정은 실제 뼈 위치를 따릅니다.
+- 사망 시 관절을 접으면서 넘어지는 절차적 애니메이션을 실행하고 지형 아래로 뼈가 들어가는 것을 보정합니다. 물리 래그돌이나 새 모션캡처 사망 클립은 아닙니다.
+- 기존 생성 프리팹도 버전을 확인해 자동 재생성합니다. 수동 실행은 **Sniper Ridge → 적 애니메이션 다시 생성**입니다.
+
+### 검증 범위와 테스트
+
+`python3 SniperRidge/Tools/validate_enemy_animation.py`로 원본 FBX의 49개 뼈, 1,800개 곡선, 키프레임 시간/값, 연결 관계와 양쪽 다리 동작을 검사했고 통과했습니다. Idle은 42개, Walk/Run은 각각 47개 뼈에 변화가 있습니다.
+
+에디터 생성 과정에 별도 검사를 넣었습니다: Avatar 유효성, 뼈에 연결된 곡선 수, Walk/Run 샘플링 시 발의 움직임, IK 도달점과 뼈 길이 보존. **이 검사는 Unity에서 실행되며 이 작업 환경에서는 아직 실행하지 못했습니다. C# 컴파일과 게임 화면·성능도 미검증입니다.**
+
+다른 PC에서 확인:
+
+1. Unity를 닫고 `codex/enemy-animation` 브랜치를 받습니다.
+2. 프로젝트를 열고 컴파일 후 **Sniper Ridge → 적 애니메이션 다시 생성**을 실행합니다. Console의 `적 애니메이션 생성 완료`를 확인합니다.
+3. 저격 임무에서 순찰병의 발·무릎 움직임과 바위/나무 엄폐 자세를 확대해 확인합니다.
+4. 방어전에서 달리다가 멈춰 조준하는 전환, 손과 소총의 위치, 경사지의 발 위치를 확인합니다.
+5. 몸통 피격 반응·헤드샷 판정·사망 자세를 확인합니다. 손잡이 위치와 극단적 경사에서의 발 미끄러짐은 화면을 보고 미세 조정할 수 있습니다.
+
+참고: [Unity 2022.3 BlendTree](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/Animations.BlendTree.html).
