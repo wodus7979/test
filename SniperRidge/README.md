@@ -77,7 +77,7 @@ Play 를 누르면 무기 선택 화면이 나옵니다. 카드를 클릭하거�
 | `Assets/Resources/Terrain/` | 풀(사진), 바위, 흙, 낙엽 알베도+노멀 텍스처 | 풀 사진: three.js 예제(MIT), 나머지: Blender 절차적 재질 베이크 |
 | `Assets/Resources/Nature/` | 나무껍질, 잎 텍스처 | Blender 절차적 재질 베이크 |
 | `Assets/Resources/Sky/quarry_01_1k.hdr` | 실제 하늘 HDRI (스카이박스 + 환경광) | Poly Haven (CC0), three.js 예제 경유 |
-| `Assets/Resources/Audio/` | 무기별 총성(실제 총성 녹음 가공), 원거리 총성, 탄 크랙, 노리쇠, 재장전, 바람 | 총성 원본: Phaser 예제(MIT), 가공 및 나머지: 합성 |
+| `Assets/Resources/Audio/` | 무기별 총성(실제 총성 녹음 가공), 원거리 총성, 탄 크랙, 노리쇠, 재장전, 바람 | 총성 원본: Free Firearm Sound Library(CC0), 나머지: 기존 합성/가공 효과음 |
 
 처음 프로젝트를 열면 편집기 스크립트가 `Assets/EnemyModel` 의 FBX 로 Animator Controller 와
 `Assets/Resources/Enemies/SoldierModel.prefab` 을 자동 생성합니다 (Console 에 "적 모델 자동 설정" 로그).
@@ -166,3 +166,13 @@ Unity에서 남은 확인:
 - 실제 대상 PC의 1080p/1440p 빌드에서 프레임 시간, 메모리, 최초 로딩 시간을 측정합니다. 현재 특정 FPS를 보장하지 않습니다.
 
 LOD 동작 참고: [Unity 2022.3 LODGroup 문서](https://docs.unity3d.com/2022.3/Documentation/Manual/class-LODGroup.html).
+
+
+## 총성 개선 (2026-09)
+
+무기 7종과 원거리 총성을 CC0 **The Free Firearm Sound Library**의 실제 녹음 기반으로 교체했습니다. 저격소총의 기존 낮은 합성음과 일정 간격의 인공 메아리를 제거하고, 녹음의 발사음과 잔향을 사용합니다. 파일별 출처와 가공 방법은 `Assets/Resources/Audio/SOURCES.md`에 있습니다. 게임 무기와 녹음 총기의 구경/모델은 일부 다릅니다.
+
+- 총성 WAV는 48kHz PCM16이며 플레이어 총성은 좁은 스테레오, 원거리 총성은 모노입니다. 피크에 여유를 두었습니다.
+- Unity가 총성을 PCM으로 가져오도록 설정합니다. 반영되지 않으면 **Sniper Ridge → 총성 오디오 다시 가져오기**를 실행하세요.
+- 효과음 재생은 비어 있는 오디오 소스를 우선 사용합니다. 같은 소스에 총성과 잔향을 겹친 상태로 음높이를 바꾸던 방식을 수정했습니다. PC에서 32개, 모바일에서 16개까지 재생하며 전부 사용 중이면 한 소리를 교체합니다.
+- WAV 파일 데이터와 연사 합산 검사를 수행했습니다. Unity 컴파일·실제 재생과 사용자 스피커에서의 청감 확인은 아직 필요합니다.

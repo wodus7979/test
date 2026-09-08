@@ -57,7 +57,7 @@ namespace SniperRidge
         {
             Instance = this;
             Sounds = SoundBank.Create();
-            audioPool = new AudioSource[8];
+            audioPool = new AudioSource[Application.isMobilePlatform ? 16 : 32];
             for (int i = 0; i < audioPool.Length; i++)
             {
                 var src = gameObject.AddComponent<AudioSource>();
@@ -159,10 +159,22 @@ namespace SniperRidge
         public void PlaySound(AudioClip clip, float volume = 1f, float pitch = 1f)
         {
             if (clip == null) return;
-            var src = audioPool[audioIndex];
-            audioIndex = (audioIndex + 1) % audioPool.Length;
+            // Each voice owns one clip and pitch. Reusing a PlayOneShot source while its
+            // previous tail is playing changes that tail's pitch along with the new shot.
+            int selected = audioIndex;
+            for (int i = 0; i < audioPool.Length; i++)
+            {
+                int candidate = (audioIndex + i) % audioPool.Length;
+                if (!audioPool[candidate].isPlaying) { selected = candidate; break; }
+            }
+            var src = audioPool[selected];
+            audioIndex = (selected + 1) % audioPool.Length;
+            // If the bounded pool is full, replace one voice instead of stacking clips on it.
+            src.Stop();
+            src.clip = clip;
+            src.volume = Mathf.Clamp01(volume);
             src.pitch = pitch;
-            src.PlayOneShot(clip, volume);
+            src.Play();
         }
 
         // ---------- 플레이어 사격 관련 ----------
