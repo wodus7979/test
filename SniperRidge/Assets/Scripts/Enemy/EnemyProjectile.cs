@@ -19,7 +19,7 @@ namespace SniperRidge
             if (distance < .01f) return;
             // Raycasts do not report the collider containing their origin. A weapon
             // embedded in its own cover must not spawn a round on the far side.
-            foreach (var collider in Physics.OverlapSphere(muzzle, .025f, ~0, QueryTriggerInteraction.Ignore))
+            foreach (var collider in Physics.OverlapSphere(muzzle, .025f, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
                 if (shooter == null || !collider.transform.IsChildOf(shooter.transform)) return;
             var go = new GameObject("EnemyBullet");
             var bullet = go.AddComponent<EnemyProjectile>();
@@ -54,11 +54,11 @@ namespace SniperRidge
             bool found = false;
             float best = distance + 1f;
             Vector3 direction = (to - from) / distance;
-            int count = Physics.RaycastNonAlloc(from, direction, hitBuffer, distance, ~0, QueryTriggerInteraction.Ignore);
+            int count = Physics.RaycastNonAlloc(from, direction, hitBuffer, distance, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore);
             // A full buffer is not guaranteed to contain the closest obstruction.
             // Fall back for unusually dense lines of sight rather than letting shots through.
             RaycastHit[] hits = count == hitBuffer.Length
-                ? Physics.RaycastAll(from, direction, distance, ~0, QueryTriggerInteraction.Ignore) : hitBuffer;
+                ? Physics.RaycastAll(from, direction, distance, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore) : hitBuffer;
             if (hits != hitBuffer) count = hits.Length;
             for (int i = 0; i < count; i++)
             {

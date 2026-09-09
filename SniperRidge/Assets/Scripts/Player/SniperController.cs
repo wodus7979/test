@@ -332,7 +332,7 @@ namespace SniperRidge
             }
 
             // 거리 측정
-            RangeMeters = Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, 3000f, ~0, QueryTriggerInteraction.Ignore)
+            RangeMeters = Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, 3000f, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore)
                 ? hit.distance
                 : -1f;
         }

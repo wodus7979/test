@@ -7,7 +7,7 @@ namespace SniperRidge
     [DefaultExecutionOrder(150)]
     public class EnemyAnimationRig : MonoBehaviour
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
         public const float WalkReferenceSpeed = 1.4f;
         public const float RunReferenceSpeed = 4.2f;
         public int SetupVersion;
@@ -158,10 +158,19 @@ namespace SniperRidge
             reaction = 1f;
             reactionSide = Mathf.Sign(Vector3.Dot(direction, owner.transform.right));
         }
-        public void Die(Vector3 direction)
+        public void Die(Vector3 direction, bool headshot, Vector3 movement)
         {
             if (!ready || dead) return;
             dead = true;
+            animator.enabled = false;
+            foreach (var h in hitShapes) h.capsule.enabled = false;
+            // Transfer the exact current pose (including crouching and aiming) to joint physics.
+            if (EnemyRagdoll.Begin(transform, owner.transform, weapon, movement, direction, headshot) != null)
+            {
+                enabled = false;
+                return;
+            }
+            Debug.LogWarning("[Sniper Ridge] 물리 사망 동작에 필요한 뼈가 없어 기본 쓰러짐 동작을 사용합니다.");
             deathPositions = new Vector3[bones.Length]; deathRotations = new Quaternion[bones.Length];
             for (int i = 0; i < bones.Length; i++) { deathPositions[i] = bones[i].localPosition; deathRotations[i] = bones[i].localRotation; }
             fallSide = Vector3.Dot(direction, owner.transform.right) >= 0f ? 1f : -1f;

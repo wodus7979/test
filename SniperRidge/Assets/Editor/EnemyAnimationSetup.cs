@@ -162,6 +162,8 @@ namespace SniperRidge.EditorTools
                         binding.type == typeof(Transform) && (string.IsNullOrEmpty(binding.path) || instance.transform.Find(binding.path) != null));
                     if (bound < 12) throw new InvalidOperationException("병사 뼈에 연결된 곡선이 부족합니다: " + clip.name);
                 }
+                if (!EnemyRagdoll.CanBuild(instance.transform))
+                    throw new InvalidOperationException("사망 물리에 필요한 머리·몸통·팔다리 뼈가 누락됐습니다.");
                 ValidateMotion(instance, walk);
                 ValidateMotion(instance, run);
                 ValidateLimbSolver();

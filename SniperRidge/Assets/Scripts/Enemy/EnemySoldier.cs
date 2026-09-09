@@ -51,7 +51,7 @@ namespace SniperRidge
         Animator animator;
         EnemyAnimationRig motion;
         Transform weaponVisual;
-        Vector3 previousRigPosition;
+        Vector3 previousRigPosition, lastMotionVelocity;
         float staggerTimer;
         HashSet<string> animParams;
 
@@ -374,7 +374,8 @@ namespace SniperRidge
 
             UpdatePreparedShot(dt);
 
-            float actualSpeed = Vector3.ProjectOnPlane(rig.position - previousRigPosition, Vector3.up).magnitude / Mathf.Max(dt, .0001f);
+            lastMotionVelocity = Vector3.ClampMagnitude(Vector3.ProjectOnPlane(rig.position - previousRigPosition, Vector3.up) / Mathf.Max(dt, .0001f), 9f * scale);
+            float actualSpeed = lastMotionVelocity.magnitude;
             previousRigPosition = rig.position;
             if (motion != null)
                 motion.Drive(actualSpeed, Kind == EnemyKind.Tree ? 0f : cover,
@@ -416,7 +417,7 @@ namespace SniperRidge
                 avoidTimer -= dt;
                 dir = Quaternion.Euler(0f, 70f * avoidSide, 0f) * dir;
             }
-            else if (Physics.Raycast(transform.position + Vector3.up * 1f, dir, out RaycastHit hit, 3.5f, ~0, QueryTriggerInteraction.Ignore)
+            else if (Physics.Raycast(transform.position + Vector3.up * 1f, dir, out RaycastHit hit, 3.5f, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore)
                      && hit.collider.GetComponent<TerrainCollider>() == null
                      && hit.collider.GetComponent<EnemyHitbox>() == null)
             {
@@ -554,7 +555,7 @@ namespace SniperRidge
             IsDead = true;
             Health = 0f;
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
-            if (motion != null) motion.Die(bulletDir);
+            if (motion != null) motion.Die(bulletDir, headshot, lastMotionVelocity);
             else
             {
                 if (animator != null) SetAnim("Dead", true);

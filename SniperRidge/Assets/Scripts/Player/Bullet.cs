@@ -75,7 +75,7 @@ namespace SniperRidge
                 float len = seg.magnitude;
                 if (len <= 0.0001f) { Finish(); return; }
 
-                if (Physics.Raycast(pos, seg / len, out RaycastHit hit, len, ~0, QueryTriggerInteraction.Ignore))
+                if (Physics.Raycast(pos, seg / len, out RaycastHit hit, len, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
                 {
                     Impact(hit);
                     return;

@@ -37,12 +37,12 @@ namespace SniperRidge
                 // Check the whole camera-to-muzzle segment so a barrel clipping a wall cannot fire through it.
                 Vector3 reach = muzzle - eye;
                 if (Physics.SphereCast(eye, CollisionRadius, reach.normalized, out RaycastHit blocked,
-                    reach.magnitude, ~0, QueryTriggerInteraction.Ignore))
+                    reach.magnitude, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
                 { Detonate(blocked.point, blocked.normal, blocked.collider); return; }
-                var overlaps = Physics.OverlapSphere(muzzle, CollisionRadius, ~0, QueryTriggerInteraction.Ignore);
+                var overlaps = Physics.OverlapSphere(muzzle, CollisionRadius, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore);
                 if (overlaps.Length > 0)
                 { Detonate(muzzle, -aim, overlaps[0]); return; }
-                Vector3 target = Physics.Raycast(eye, aim, out RaycastHit sight, 1500f, ~0, QueryTriggerInteraction.Ignore)
+                Vector3 target = Physics.Raycast(eye, aim, out RaycastHit sight, 1500f, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore)
                     ? sight.point : eye + aim * 1500f;
                 velocity = (target - muzzle).normalized * speed;
                 transform.rotation = Quaternion.LookRotation(velocity);
@@ -54,7 +54,7 @@ namespace SniperRidge
             Vector3 step = velocity * Time.deltaTime;
             if (step.sqrMagnitude <= .000001f) return;
             if (Physics.SphereCast(transform.position, CollisionRadius, step.normalized, out RaycastHit hit,
-                step.magnitude, ~0, QueryTriggerInteraction.Ignore))
+                step.magnitude, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
             { Detonate(hit.point, hit.normal, hit.collider); return; }
             transform.position += step;
         }
@@ -69,14 +69,14 @@ namespace SniperRidge
         public static Dictionary<EnemySoldier, float> FindBlastTargets(Vector3 centre, float maximum, EnemySoldier direct = null)
         {
             var targets = new Dictionary<EnemySoldier, float>();
-            foreach (Collider collider in Physics.OverlapSphere(centre, BlastRadius, ~0, QueryTriggerInteraction.Ignore))
+            foreach (Collider collider in Physics.OverlapSphere(centre, BlastRadius, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
             {
                 var box = collider.GetComponent<EnemyHitbox>();
                 if (box == null || box.Owner == null || box.Owner.IsDead) continue;
                 Vector3 point = collider.ClosestPoint(centre);
                 Vector3 segment = point - centre;
                 if (segment.magnitude > .02f && Physics.Raycast(centre, segment.normalized, out RaycastHit obstacle,
-                    segment.magnitude + .02f, ~0, QueryTriggerInteraction.Ignore))
+                    segment.magnitude + .02f, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
                 {
                     var visible = obstacle.collider.GetComponent<EnemyHitbox>();
                     if (visible == null || visible.Owner != box.Owner) continue;
@@ -112,7 +112,7 @@ namespace SniperRidge
             Vector3 playerPoint = gm.Player.AimPoint;
             float playerDistance = Vector3.Distance(centre, playerPoint);
             if (gm.IsPlaying && playerDistance < BlastRadius &&
-                !Physics.Linecast(centre, playerPoint, ~0, QueryTriggerInteraction.Ignore))
+                !Physics.Linecast(centre, playerPoint, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
                 gm.Health.TakeDamage(BlastDamage(playerDistance, 80f));
             if (gm.IsPlaying)
                 gm.Hud.ShowShotFeedback(kills > 0 ? "로켓 폭발 · " + kills + "명 처치" :
