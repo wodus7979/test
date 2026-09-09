@@ -23,7 +23,8 @@ namespace SniperRidge
         public WeaponDefinition Weapon => loadout.Active?.Definition;
         public bool UsingLauncher => Weapon != null && Weapon.IsRocket;
         public int RocketsRemaining => loadout.Rocket == null ? 0 : loadout.Rocket.Magazine + loadout.Rocket.Reserve;
-        public bool CanSwitchWeapon => inputEnabled && State != WeaponState.Switching;
+        public GrenadeController Grenades { get; private set; }
+        public bool CanSwitchWeapon => inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
         public bool IsScoped { get; private set; }
         public int AmmoInMag { get => loadout.Active?.Magazine ?? 0; private set => loadout.Active.Magazine = value; }
         public int Reserve { get => loadout.Active?.Reserve ?? 0; private set => loadout.Active.Reserve = value; }
@@ -105,6 +106,8 @@ namespace SniperRidge
         public void Init(Camera camera, Light muzzle)
         {
             cam = camera;
+            Grenades = gameObject.AddComponent<GrenadeController>();
+            Grenades.Initialize(this, camera);
             nestOrigin = transform.position;
             muzzleLight = muzzle;
             yaw = transform.eulerAngles.y;
@@ -126,6 +129,7 @@ namespace SniperRidge
         public void Equip(WeaponDefinition weapon)
         {
             loadout.Reset(weapon);
+            Grenades.ResetMission();
             ActivateSlot();
             inputEnabled = true;
             LockCursor();
@@ -196,6 +200,7 @@ namespace SniperRidge
 
         public void OnMissionEnd()
         {
+            Grenades.CancelAim();
             inputEnabled = false;
             IsScoped = false;
             HoldingBreath = false;
@@ -254,8 +259,11 @@ namespace SniperRidge
                 Breath = Mathf.Min(1f, Breath + dt / 3.5f);
             }
 
+            if (Grenades.BlocksWeapons) { IsScoped = false; scopeToggleQueued = zoomQueued = false; }
+
             // 흔들림
             float amp = Weapon == null ? 0.5f : (IsScoped ? Weapon.SwayScoped : Weapon.SwayHip);
+            if (Grenades.IsAiming) amp *= .1f;
             if (HoldingBreath) amp *= 0.12f;
             else if (Breath < 0.3f) amp *= 2.2f;
             float t = Time.time;
@@ -270,7 +278,7 @@ namespace SniperRidge
             // 조준경 / 배율 / 영점
             if (Weapon != null)
             {
-                if (scopeToggleQueued && CanFireFromCover)
+                if (scopeToggleQueued && CanFireFromCover && !Grenades.BlocksWeapons)
                 {
                     scopeToggleQueued = false;
                     IsScoped = !IsScoped;
@@ -292,7 +300,7 @@ namespace SniperRidge
             }
             float targetFov = (IsScoped && Weapon != null) ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, dt * 14f);
-            bool showModel = !IsHidden && (!IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f));   // 저배율 광학은 총이 보인다
+            bool showModel = !Grenades.BlocksWeapons && !IsHidden && (!IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f));   // 저배율 광학은 총이 보인다
             if (weaponModel != null)
             {
                 if (weaponModel.activeSelf != showModel) weaponModel.SetActive(showModel);
@@ -324,7 +332,7 @@ namespace SniperRidge
 
             bool wantFire = fireQueued || (Weapon != null && Weapon.Fire == FireMode.Auto && fireHeld);
             fireQueued = false;
-            if (wantFire && CanFireFromCover && Weapon != null && State == WeaponState.Ready && fireTimer <= 0f)
+            if (wantFire && !Grenades.BlocksWeapons && CanFireFromCover && Weapon != null && State == WeaponState.Ready && fireTimer <= 0f)
             {
                 if (AmmoInMag > 0) Fire();
                 else if (Reserve > 0) TryReload();
@@ -341,6 +349,7 @@ namespace SniperRidge
         {
             if (Input.GetKeyDown(KeyCode.Escape))
             {
+                Grenades.CancelAim();
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
             }
@@ -357,8 +366,16 @@ namespace SniperRidge
                 return;
             }
 
-            if (Input.GetKeyDown(KeyCode.Q)) { ToggleLauncher(); return; }
             lookInput += new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * MouseSensitivity;
+            if (Input.GetKeyDown(KeyCode.W)) Grenades.BeginAim();
+            if (Grenades.IsAiming)
+            {
+                fireHeld = fireQueued = scopeToggleQueued = reloadQueued = zoomQueued = false;
+                if (Input.GetMouseButtonDown(1)) Grenades.CancelAim();
+                else if (Input.GetKeyUp(KeyCode.W)) Grenades.ReleaseAim();
+                return;
+            }
+            if (Input.GetKeyDown(KeyCode.Q)) { ToggleLauncher(); return; }
             if (Input.GetMouseButtonDown(0)) fireQueued = true;
             fireHeld = Input.GetMouseButton(0);
             if (Input.GetMouseButtonDown(1)) scopeToggleQueued = true;
@@ -441,7 +458,7 @@ namespace SniperRidge
 
         void TryReload()
         {
-            if (Weapon == null || State != WeaponState.Ready || AmmoInMag >= Weapon.MagSize || Reserve <= 0) return;
+            if (Grenades.BlocksWeapons || Weapon == null || State != WeaponState.Ready || AmmoInMag >= Weapon.MagSize || Reserve <= 0) return;
             State = WeaponState.Reloading;
             stateTimer = Weapon.ReloadTime;
             gm.PlaySound(gm.Sounds.Reload, 0.7f, Weapon.ReloadTime > 3f ? 0.8f : 1f);

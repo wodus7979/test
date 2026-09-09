@@ -178,7 +178,8 @@ namespace SniperRidge
                     int resupply = Mathf.RoundToInt(Weapon.Reserve * 0.4f);
                     int bulletsAdded = Player.Resupply(resupply);
                     int rocketsAdded = Player.ResupplyRockets(2);
-                    Hud.Announce(string.Format("웨이브 격퇴!  총알 +{0} / 로켓 +{1}   다음 웨이브까지 8초", bulletsAdded, rocketsAdded));
+                    int grenadesAdded = Player.Grenades.Resupply(2);
+                    Hud.Announce(string.Format("재보급  총알 +{0} / 로켓 +{1} / 수류탄 +{2} · 8초 후 증원", bulletsAdded, rocketsAdded, grenadesAdded));
                     Score += 500 * wave;
                     yield return new WaitForSeconds(8f);
                 }

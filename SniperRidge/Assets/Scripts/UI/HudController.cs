@@ -14,7 +14,7 @@ namespace SniperRidge
         Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, weaponText, killFeed, introText, announceText, hintText, endTitle, endStats;
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
-        Text coverText, threatText, shotFeedback, launcherLabel;
+        Text coverText, threatText, shotFeedback, launcherLabel, grenadeCount, grenadeAim;
         Button launcherButton;
         float shotFeedbackTimer;
         float threatUntil;
@@ -154,12 +154,17 @@ namespace SniperRidge
             UiKit.Label(g, "LauncherHelp", Application.isMobilePlatform ? "로켓은 발사 즉시 위치 발각" : "Q: 즉시 교체 · Esc: 버튼 클릭",
                 18, TextAnchor.UpperRight, dim, topRight, topRight, new Vector2(-30f, -291f), new Vector2(350f, 30f));
 
+            grenadeCount = UiKit.Label(g, "GrenadeCount", "", 24, TextAnchor.UpperRight, white,
+                topRight, topRight, new Vector2(-30f, -337f), new Vector2(410f, 35f), true);
+            grenadeAim = UiKit.Label(g, "GrenadeAim", "", 25, TextAnchor.MiddleCenter, new Color(.55f, 1f, .65f),
+                center, center, new Vector2(0f, -270f), new Vector2(1200f, 80f), true);
+
             // 킬 피드 / 안내
             killFeed = UiKit.Label(g, "KillFeed", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.4f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(1000f, 50f), true);
             announceText = UiKit.Label(g, "Announce", "", 44, TextAnchor.MiddleCenter, new Color(1f, 0.6f, 0.3f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(1200f, 60f), true);
             introText = UiKit.Label(g, "Intro", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, 230f), new Vector2(1300f, 180f));
             hintText = UiKit.Label(g, "Hint",
-                "C/Ctrl 누르기 엄폐  |  A/D 이동  |  우클릭 조준  |  좌클릭 사격  |  Shift 숨 참기  |  R 재장전  |  Q 로켓포  |  휠/Z 배율  |  ↑↓ 영점",
+                "W 누르기: 수류탄 조준 / 놓기: 투척  |  Q 로켓포  |  C/Ctrl 엄폐  |  A/D 이동  |  우클릭 조준  |  R 재장전  |  휠 배율",
                 20, TextAnchor.LowerCenter, new Color(1f, 1f, 1f, 0.6f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(1700f, 30f));
             if (Application.isMobilePlatform) hintText.gameObject.SetActive(false);
             gameplayRoot.SetActive(false);
@@ -282,6 +287,9 @@ namespace SniperRidge
             if (gm == null || gm.Player == null) return;
             if (gm.IsSelecting) return;
             var p = gm.Player;
+            grenadeCount.text = string.Format("[W] 수류탄 {0}개 · 누르고 조준", p.Grenades.Count);
+            grenadeAim.text = p.Grenades.IsAiming ? p.Grenades.AimLabel : "";
+            grenadeAim.color = p.Grenades.ValidTarget ? new Color(.55f, 1f, .65f) : new Color(1f, .55f, .3f);
             launcherButton.interactable = gm.IsPlaying && p.CanSwitchWeapon;
             launcherLabel.text = p.UsingLauncher ? "[Q] 원래 총으로 복귀" : string.Format("[Q] 로켓포 · {0}발", p.RocketsRemaining);
             string posture = p.IsHidden ? "엄폐 중 · 키를 놓으면 일어섭니다" :

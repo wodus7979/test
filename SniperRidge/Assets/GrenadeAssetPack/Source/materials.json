@@ -1,0 +1,75 @@
+{
+  "materials": [
+    {
+      "name": "Olive_Coating",
+      "color": [
+        0.24,
+        0.29,
+        0.13
+      ],
+      "metallic": 0.1,
+      "roughness": 0.61,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "orm": "Textures/PBR/Olive_Coating_orm.png",
+      "metallicSmoothness": "Textures/PBR/Olive_Coating_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Olive_Coating_hdrp_mask.png"
+    },
+    {
+      "name": "Graphite_Metal",
+      "color": [
+        0.1,
+        0.12,
+        0.13
+      ],
+      "metallic": 0.7,
+      "roughness": 0.4,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "orm": "Textures/PBR/Graphite_Metal_orm.png",
+      "metallicSmoothness": "Textures/PBR/Graphite_Metal_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Graphite_Metal_hdrp_mask.png"
+    },
+    {
+      "name": "Machined_Metal",
+      "color": [
+        0.7,
+        0.74,
+        0.77
+      ],
+      "metallic": 0.85,
+      "roughness": 0.31,
+      "surface": "metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "orm": "Textures/PBR/Machined_Metal_orm.png",
+      "metallicSmoothness": "Textures/PBR/Machined_Metal_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Machined_Metal_hdrp_mask.png"
+    },
+    {
+      "name": "Body_Recess",
+      "color": [
+        0.032,
+        0.046,
+        0.021
+      ],
+      "metallic": 0.08,
+      "roughness": 0.82
+    },
+    {
+      "name": "Cream_Marking",
+      "color": [
+        0.66,
+        0.66,
+        0.5
+      ],
+      "metallic": 0,
+      "roughness": 0.8
+    }
+  ]
+}

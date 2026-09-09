@@ -93,30 +93,9 @@ namespace SniperRidge
         {
             if (done) return;
             done = true;
-            var gm = GameManager.Instance;
             Vector3 centre = point + normal * .12f;
-            RocketEffects.Explosion(centre);
             var box = collider != null ? collider.GetComponent<EnemyHitbox>() : null;
-            var targets = FindBlastTargets(centre, damage, box != null ? box.Owner : null);
-            bool counted = false;
-            int kills = 0;
-            foreach (var target in targets)
-            {
-                bool killed = target.Key.TakeHit(target.Value, false, (target.Key.transform.position - centre).normalized);
-                gm.OnEnemyHit(target.Key, false, Vector3.Distance(origin, centre), killed, !counted);
-                counted = true;
-                if (killed) kills++;
-            }
-            gm.PlaySound(gm.Sounds.RocketExplosion, Mathf.Clamp01(1.1f - Vector3.Distance(gm.PlayerEye.position, centre) / 900f));
-            // Close blasts can injure the player; physical trench walls block blast line of sight.
-            Vector3 playerPoint = gm.Player.AimPoint;
-            float playerDistance = Vector3.Distance(centre, playerPoint);
-            if (gm.IsPlaying && playerDistance < BlastRadius &&
-                !Physics.Linecast(centre, playerPoint, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
-                gm.Health.TakeDamage(BlastDamage(playerDistance, 80f));
-            if (gm.IsPlaying)
-                gm.Hud.ShowShotFeedback(kills > 0 ? "로켓 폭발 · " + kills + "명 처치" :
-                    counted ? "폭발 명중 · 적 생존" : "로켓 폭발 · 적 명중 없음");
+            ExplosionDamage.Detonate(centre, damage, origin, box != null ? box.Owner : null, "로켓");
             Destroy(gameObject);
         }
 

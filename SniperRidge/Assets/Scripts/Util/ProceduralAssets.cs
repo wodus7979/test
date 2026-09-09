@@ -247,6 +247,19 @@ namespace SniperRidge
             return clip;
         }
 
+        public static AudioClip GrenadeThrow()
+        {
+            var random = new System.Random(71);
+            float filtered = 0f;
+            return MakeClip("GrenadeThrow", .35f, t =>
+            {
+                float noise = (float)(random.NextDouble() * 2.0 - 1.0);
+                filtered += (noise - filtered) * .25f;
+                float envelope = Mathf.Sin(Mathf.Clamp01(t / .35f) * Mathf.PI);
+                return filtered * envelope * .55f;
+            });
+        }
+
         public static AudioClip Gunshot()
         {
             var rng = new System.Random(11);
@@ -309,7 +322,7 @@ namespace SniperRidge
     public class SoundBank
     {
         public AudioClip ShotSniper, ShotDmr, ShotRifle, ShotLmg, ShotSmg, ShotShotgun, ShotPistol, DistantShot, Crack, Bolt, Pump, Reload, HitTick, Click, Wind;
-        public AudioClip RocketLaunch, RocketExplosion;
+        public AudioClip RocketLaunch, RocketExplosion, GrenadeToss;
         public bool UsingRecorded { get; private set; }
 
         public AudioClip Shot(string weaponId)
@@ -343,6 +356,7 @@ namespace SniperRidge
             b.ShotSmg = Load("shot_smg") ?? b.ShotRifle;
             b.ShotShotgun = Load("shot_shotgun") ?? b.ShotSniper;
             b.ShotPistol = Load("shot_pistol") ?? b.ShotRifle;
+            b.GrenadeToss = Load("grenade_throw") ?? ProceduralAssets.GrenadeThrow();
             b.RocketLaunch = Load("rocket_launch") ?? b.ShotRifle;
             b.RocketExplosion = Load("rocket_explosion") ?? b.ShotSniper;
             b.DistantShot = Load("shot_distant") ?? ProceduralAssets.DistantShot();
