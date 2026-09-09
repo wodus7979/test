@@ -60,7 +60,7 @@ namespace SniperRidge
                 float x = (float)(rng.NextDouble() * 54 - 27);
                 float z = (float)(rng.NextDouble() * 42 - 18);
                 // Keep the firing slot and sandbags free of foliage.
-                if (TrenchTerrain.IsInside(x, z) || x * x + z * z < 7 || (z > 0 && Mathf.Abs(x) < 3.5f)) continue;
+                if (BattlefieldLayout.IsCombatLane(nest.x + x, nest.z + z) || TrenchTerrain.IsInside(x, z) || x * x + z * z < 7 || (z > 0 && Mathf.Abs(x) < 3.5f)) continue;
                 var position = TerrainGenerator.OnGround(terrain, nest.x + x, nest.z + z, -.03f);
                 Vector3 normal = terrain.terrainData.GetInterpolatedNormal(
                     (position.x - terrain.transform.position.x) / terrain.terrainData.size.x,

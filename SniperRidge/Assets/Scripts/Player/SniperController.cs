@@ -28,7 +28,7 @@ namespace SniperRidge
         public bool IsScoped { get; private set; }
         public int AmmoInMag { get => loadout.Active?.Magazine ?? 0; private set => loadout.Active.Magazine = value; }
         public int Reserve { get => loadout.Active?.Reserve ?? 0; private set => loadout.Active.Reserve = value; }
-        public int ZeroRange { get; private set; } = 300;
+        public int ZeroRange { get; private set; } = 100;
         public float RangeMeters { get; private set; } = -1f;
         public float Breath { get; private set; } = 1f;
         public bool HoldingBreath { get; private set; }
@@ -292,7 +292,7 @@ namespace SniperRidge
                 {
                     if (Weapon.HasZeroing)
                     {
-                        ZeroRange = Mathf.Clamp(ZeroRange + zeroDelta * 50, 100, 600);
+                        ZeroRange = Mathf.Clamp(ZeroRange + zeroDelta * 50, 50, 600);
                         zeroAngle = Ballistics.ZeroAngleDegrees(ZeroRange, Weapon.MuzzleVelocity, Weapon.DragK);
                     }
                     zeroDelta = 0;

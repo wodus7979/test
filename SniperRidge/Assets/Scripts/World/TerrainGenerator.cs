@@ -3,55 +3,19 @@ using UnityEngine;
 namespace SniperRidge
 {
     /// <summary>
-    /// 두 능선(플레이어 능선 / 적 능선)과 그 사이 계곡을 가진 지형을 코드로 생성한다.
+    /// 참호를 제외한 전장을 같은 높이의 평지로 생성한다.
     /// </summary>
     public static class TerrainGenerator
     {
         public const float Size = 600f;        // 가로/세로 (m)
         public const float MaxHeight = 200f;   // 최대 높이 (m)
 
-        public const float PlayerRidgeZ = -120f;
-        public const float EnemyRidgeZ = 250f;
+        public const float PlayerSpawnZ = -100f;
+        public const float FieldElevation = 12f;
 
-        public static float HeightMeters(float wx, float wz, float seed)
-        {
-            float u = (wx + Size * 0.5f) / Size;
-            float v = (wz + Size * 0.5f) / Size;
-
-            float baseH = 8f
-                        + 7f * Mathf.PerlinNoise(u * 4f + seed, v * 4f + seed)
-                        + 3f * Mathf.PerlinNoise(u * 13f + seed * 2f, v * 13f);
-
-            float playerCrest = PlayerRidgeZ + 15f * Mathf.Sin(wx / 90f);
-            float playerRidge = Gauss(wz - playerCrest, 45f) * 46f
-                              * (0.85f + 0.3f * Mathf.PerlinNoise(u * 3f + seed, 0.37f));
-
-            float enemyCrest = EnemyRidgeZ + 10f * Mathf.Sin(wx / 70f + 1f);
-            float enemyRidge = Gauss(wz - enemyCrest, 60f) * 60f
-                             * (0.85f + 0.3f * Mathf.PerlinNoise(u * 2.5f + seed, 0.71f));
-
-            // 가장자리 산맥: 지평선을 가려 하늘 HDRI 의 지면이 보이지 않게 한다
-            float rimZ = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(262f, 300f, Mathf.Abs(wz)));
-            float rimX = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(225f, 300f, Mathf.Abs(wx)));
-            float rimNoise = 0.7f + 0.6f * Mathf.PerlinNoise(u * 6f + seed * 3f, v * 6f);
-            float rim = (110f * rimZ + 95f * rimX) * rimNoise;
-
-            // 능선/골짜기 세부 굴곡 (ridged noise): 경사면일수록 강하게
-            float ridged = 1f - Mathf.Abs(2f * Mathf.PerlinNoise(u * 18f + seed, v * 18f) - 1f);
-            float ridged2 = 1f - Mathf.Abs(2f * Mathf.PerlinNoise(u * 40f + seed * 2f, v * 40f) - 1f);
-            float slopeMask = Mathf.Clamp01((playerRidge + enemyRidge + rim) / 60f);
-            float detail = (4.5f * ridged * ridged + 1.5f * ridged2) * (0.3f + 0.7f * slopeMask)
-                         + 1.2f * Mathf.PerlinNoise(u * 60f, v * 60f + seed);
-            // 사수 위치 주변과 적 배치 사면은 굴곡을 줄여 사선이 막히지 않게 한다
-            detail *= (1f - 0.9f * Gauss(wz - PlayerRidgeZ, 45f)) * (1f - 0.75f * Gauss(wz - 212f, 30f));
-
-            return baseH + playerRidge + enemyRidge + rim + detail;
-        }
-
-        static float Gauss(float d, float sigma)
-        {
-            return Mathf.Exp(-(d * d) / (2f * sigma * sigma));
-        }
+        // Keep heights level everywhere, including the approaches and the distant map boundary.
+        // TrenchTerrain excavates only the player's small dugout after terrain creation.
+        public static float HeightMeters(float wx, float wz, float seed) => FieldElevation;
 
         public static Terrain Build(float seed)
         {
@@ -92,7 +56,7 @@ namespace SniperRidge
                     float rockW = Mathf.InverseLerp(20f, 34f, steep) + 0.35f * Mathf.InverseLerp(0.62f, 0.8f, Mathf.PerlinNoise(nx * 9f + seed, ny * 9f))
                                 + Mathf.InverseLerp(120f, 160f, h);   // 높은 산은 바위
                     rockW = Mathf.Clamp01(rockW);
-                    float dirtW = (1f - rockW) * Mathf.InverseLerp(20f, 9f, h) * 0.8f;
+                    float dirtW = (1f - rockW) * Mathf.Lerp(.15f, .6f, Mathf.PerlinNoise(nx * 13f + seed, ny * 13f));
                     float forestW = (1f - rockW - dirtW) * Mathf.InverseLerp(0.5f, 0.72f, Mathf.PerlinNoise(nx * 5f + seed * 2f, ny * 5f + 3f)) * 0.9f;
                     float grassW = Mathf.Max(0f, 1f - rockW - dirtW - forestW);
                     maps[y, x, 0] = grassW;
@@ -147,8 +111,8 @@ namespace SniperRidge
                 usePrototypeMesh = false,
                 minWidth = 0.7f,
                 maxWidth = 1.3f,
-                minHeight = 0.5f,
-                maxHeight = 1.0f,
+                minHeight = 0.15f,
+                maxHeight = 0.35f,
                 healthyColor = new Color(0.42f, 0.52f, 0.28f),
                 dryColor = new Color(0.55f, 0.50f, 0.31f),
                 noiseSpread = 0.25f,
@@ -172,7 +136,8 @@ namespace SniperRidge
                     if (steep > 25f || h > 110f) continue;
                     float n = Mathf.PerlinNoise(nx * 40f, ny * 40f);
                     int density = Mathf.RoundToInt(Mathf.Lerp(1f, 7f, n) * Mathf.InverseLerp(28f, 15f, steep));
-                    layer[y, x] = density;
+                    float wx = nx * Size - Size * .5f, wz = ny * Size - Size * .5f;
+                    layer[y, x] = BattlefieldLayout.IsCombatLane(wx, wz) ? Mathf.Min(density, 2) : density;
                 }
             }
             data.SetDetailLayer(0, 0, 0, layer);

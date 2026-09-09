@@ -16,7 +16,7 @@ namespace SniperRidge
                 Magazine = definition.MagSize;
                 Reserve = definition.Reserve;
                 Zoom = definition.DefaultZoomIndex;
-                Zero = definition.HasZeroing ? 300 : 100;
+                Zero = 100;
             }
             public int Supply(int rounds)
             {

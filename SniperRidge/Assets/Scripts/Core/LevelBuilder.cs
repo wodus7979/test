@@ -63,7 +63,7 @@ namespace SniperRidge
             var terrain = TerrainGenerator.Build(Seed);
             gm.Terrain = terrain;
 
-            Vector3 surface = TerrainGenerator.OnGround(terrain, 0f, TerrainGenerator.PlayerRidgeZ);
+            Vector3 surface = TerrainGenerator.OnGround(terrain, 0f, TerrainGenerator.PlayerSpawnZ);
             Vector3 nest = TrenchTerrain.Excavate(terrain, surface);
             BuildPlayer(gm, nest);
             TrenchBuilder.Build(terrain, nest);
@@ -169,7 +169,7 @@ namespace SniperRidge
         {
             var player = new GameObject("Player");
             player.transform.position = nest;
-            player.transform.rotation = Quaternion.identity; // +Z (적 능선 방향)
+            player.transform.rotation = Quaternion.identity; // +Z (전방 전투 구역)
 
             var eyeGo = new GameObject("Eye");
             eyeGo.transform.SetParent(player.transform, false);
@@ -209,22 +209,7 @@ namespace SniperRidge
 
         // ---------- 적 ----------
 
-        static List<EnemySpawn> EnemySpawns()
-        {
-            return new List<EnemySpawn>
-            {
-                new EnemySpawn(-88f, 214f, EnemyKind.Cover),
-                new EnemySpawn(-62f, 202f, EnemyKind.Tree),
-                new EnemySpawn(-40f, 220f, EnemyKind.Cover),
-                new EnemySpawn(-20f, 206f, EnemyKind.Patrol, -4f, 212f),
-                new EnemySpawn(-2f, 226f, EnemyKind.Tree),
-                new EnemySpawn(24f, 212f, EnemyKind.Cover),
-                new EnemySpawn(44f, 222f, EnemyKind.Tree),
-                new EnemySpawn(58f, 204f, EnemyKind.Patrol, 74f, 212f),
-                new EnemySpawn(80f, 224f, EnemyKind.Cover),
-                new EnemySpawn(96f, 208f, EnemyKind.Tree),
-            };
-        }
+        static List<EnemySpawn> EnemySpawns() => BattlefieldLayout.SniperSpawns();
 
         static Material enemyBody, enemySkin, enemyGear, enemyRock;
 
@@ -243,7 +228,7 @@ namespace SniperRidge
             return (existing != null ? existing : new GameObject("Enemies")).transform;
         }
 
-        /// <summary>저격 임무: 맞은편 능선에 엄폐/순찰 적 배치.</summary>
+        /// <summary>저격 임무: 가까운 평지에 엄폐/순찰 적 배치.</summary>
         public static void SpawnSniperEnemies(GameManager gm)
         {
             EnsureEnemyMaterials();
@@ -297,30 +282,18 @@ namespace SniperRidge
 
             int placed = 0;
 
-            // (1) 적 능선 뒤편: 빽빽한 침엽수림 (배경)
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, 238f, 285f, 260, 0.9f, 0.85f);
-            // (2) 적 능선 사면 좌우: 숲 가장자리
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, -115f, 150f, 240f, 90, 0.7f, 0.8f);
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, 115f, 280f, 150f, 240f, 90, 0.7f, 0.8f);
-            // (3) 적 사면 한가운데: 듬성듬성한 나무 군락 (적이 이 사이에 숨어 있다)
-            float[] groveX = { -75f, -30f, 12f, 52f, 92f };
-            foreach (float gx in groveX)
-                placed += Grove(root.transform, terrain, rng, playerXZ, enemyXZ, gx, 232f, 16f, 9);
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -110f, 110f, 160f, 236f, 45, 0.3f, 0.75f);
-            // (4) 계곡: 흩어진 활엽수 군락과 덤불
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, -60f, 130f, 110, 0.15f, 0.6f);
-            // (5) 플레이어 능선 뒤편과 좌우
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, -300f, TerrainGenerator.PlayerRidgeZ - 20f, 120, 0.8f, 0.7f);
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, -160f, TerrainGenerator.PlayerRidgeZ - 20f, 60f, 50, 0.6f, 0.7f);
-            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, 160f, 280f, TerrainGenerator.PlayerRidgeZ - 20f, 60f, 50, 0.6f, 0.7f);
+            // Woodland frames a clear, flat combat field instead of filling the old valley.
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, 30f, 270f, 300, .75f, .8f);
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, -95f, -120f, 30f, 100, .45f, .7f);
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, 95f, 280f, -120f, 30f, 100, .45f, .7f);
+            placed += Forest(root.transform, terrain, rng, playerXZ, enemyXZ, -280f, 280f, -280f, -135f, 140, .65f, .7f);
 
             // 덤불
             for (int i = 0; i < 160; i++)
             {
                 float x = (float)(rng.NextDouble() * 560.0 - 280.0);
                 float z = (float)(rng.NextDouble() * 560.0 - 280.0);
-                if (Vector2.Distance(new Vector2(x, z), playerXZ) < 4f) continue;
-                if (NearEnemy(new Vector2(x, z), enemyXZ, 4f)) continue;
+                if (!TreeAllowed(x, z, playerXZ, enemyXZ)) continue;
                 float h = TerrainGenerator.GroundHeight(terrain, x, z);
                 if (h > 95f) continue;
                 Vegetation.Bush(root.transform, new Vector3(x, h, z), 0.7f + (float)rng.NextDouble() * 0.8f, rng);
@@ -402,24 +375,15 @@ namespace SniperRidge
         static bool TreeAllowed(float x, float z, Vector2 player, List<Vector2> enemies)
         {
             var p = new Vector2(x, z);
-            float ridge = TerrainGenerator.PlayerRidgeZ;
-            if (Vector2.Distance(p, player) < 30f) return false;
-            // 플레이어 앞쪽 사면: 시야 확보를 위해 비워 둔다
-            if (z > ridge - 5f && z < ridge + 90f && Mathf.Abs(x) < 150f) return false;
+            if (Vector2.Distance(p, player) < 24f || BattlefieldLayout.IsCombatLane(x, z)) return false;
             if (NearEnemy(p, enemies, 7f)) return false;
             // 순찰 경로 위에는 놓지 않는다
             foreach (var r in patrolRoutes)
             {
                 if (DistancePointSegment(p, new Vector2(r.x, r.y), new Vector2(r.z, r.w)) < 5f) return false;
             }
-            // 적 사면/플레이어 사면에서는 사선(射線)을 가리는 위치를 피한다
-            if (z > 100f || z < ridge + 80f)
-            {
-                foreach (var e in enemies)
-                {
-                    if (DistancePointSegment(p, player, e) < 6f) return false;
-                }
-            }
+            foreach (var e in enemies)
+                if (DistancePointSegment(p, player, e) < 6f) return false;
             return true;
         }
 

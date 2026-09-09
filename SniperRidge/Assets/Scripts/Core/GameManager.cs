@@ -131,7 +131,7 @@ namespace SniperRidge
             {
                 Health.Configure(5f, 6f);
                 LevelBuilder.SpawnSniperEnemies(this);
-                Hud.OnMissionStart("능선에 잠복 중.\n맞은편 능선의 바위와 나무 뒤에 숨은 적을 모두 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
+                Hud.OnMissionStart("평지 참호에 잠복 중.\n전방 45~105m의 엄폐·순찰 적을 모두 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
             }
             else
             {
@@ -156,9 +156,8 @@ namespace SniperRidge
                 var waveEnemies = new List<EnemySoldier>();
                 for (int i = 0; i < count && IsPlaying; i++)
                 {
-                    float x = (float)(rng.NextDouble() * 260.0 - 130.0);
-                    float z = (float)(40.0 + rng.NextDouble() * 110.0 + Mathf.Min(wave, 4) * 6.0);
-                    var e = LevelBuilder.SpawnRusher(this, new Vector2(x, z), "Rusher_" + wave + "_" + (i + 1));
+                    Vector2 spawnPoint = BattlefieldLayout.DefenseSpawn(rng, wave);
+                    var e = LevelBuilder.SpawnRusher(this, spawnPoint, "Rusher_" + wave + "_" + (i + 1));
                     waveEnemies.Add(e);
                     yield return new WaitForSeconds(Mathf.Lerp(0.9f, 0.45f, (wave - 1f) / (TotalWaves - 1f)));
                 }

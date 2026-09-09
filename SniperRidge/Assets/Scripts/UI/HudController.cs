@@ -191,7 +191,7 @@ namespace SniperRidge
             selectPanel = panel.gameObject;
 
             UiKit.Label(panel, "Title", "SNIPER RIDGE", 60, TextAnchor.MiddleCenter, Color.white, center, center, new Vector2(0f, 440f), new Vector2(1200f, 80f), true);
-            UiKit.Label(panel, "Sub", "무기를 선택하세요.  무기에 따라 임무가 달라집니다.", 26, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.85f), center, center, new Vector2(0f, 385f), new Vector2(1200f, 36f));
+            UiKit.Label(panel, "Sub", "평지 전투 · 가까운 적 배치   |   무기를 선택하세요.", 26, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.85f), center, center, new Vector2(0f, 385f), new Vector2(1200f, 36f));
 
             var weapons = WeaponDefinition.All;
             const int perRow = 4;

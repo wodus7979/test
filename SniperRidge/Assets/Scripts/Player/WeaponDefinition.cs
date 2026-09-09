@@ -64,11 +64,11 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "sniper", Name = "볼트액션 저격소총",
-                Description = "7.62mm 볼트액션. 5발 탄창(예비 80발), 8~30배 조준경.\n임무: 능선 잠복 저격 (적 10명)",
+                Description = "7.62mm 볼트액션. 5발 탄창(예비 80발), 4~16배 조준경.\n임무: 평지 잠복 저격 (적 10명)",
                 Mission = MissionType.Sniper, Fire = FireMode.Bolt,
                 RoundsPerMinute = 40f, BoltTime = 1.15f, MagSize = 5, Reserve = 80, ReloadTime = 2.6f,
                 MuzzleVelocity = 850f, DragK = 0.00087f, Damage = 100f,
-                ScopeFovs = new[] { 7.5f, 3.75f, 2f }, ScopeLabels = new[] { "8x", "16x", "30x" }, DefaultZoomIndex = 1, HasZeroing = true,
+                ScopeFovs = new[] { 15f, 7.5f, 3.75f }, ScopeLabels = new[] { "4x", "8x", "16x" }, DefaultZoomIndex = 0, HasZeroing = true,
                 RecoilKick = 2.4f, RecoilClimb = 0f, SwayScoped = 0.32f, SwayHip = 0.9f, HipSpread = 0f, AdsSpread = 0f,
                 ShotVolume = 1f, ShotPitch = 0.9f,
                 ModelName = "01_precision_rifle", ViewOffset = new Vector3(0.2f, -0.19f, 0.42f),
@@ -76,11 +76,11 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "dmr", Name = "지정사수 소총",
-                Description = "7.62mm 반자동. 10발 탄창(예비 150발), 4~8배 조준경. 반동이 큼.\n임무: 능선 잠복 저격 (적 10명)",
+                Description = "7.62mm 반자동. 10발 탄창(예비 150발), 4~8배 조준경. 반동이 큼.\n임무: 평지 잠복 저격 (적 10명)",
                 Mission = MissionType.Sniper, Fire = FireMode.Semi,
                 RoundsPerMinute = 180f, BoltTime = 0f, MagSize = 10, Reserve = 150, ReloadTime = 2.4f,
                 MuzzleVelocity = 800f, DragK = 0.00095f, Damage = 90f,
-                ScopeFovs = new[] { 15f, 7.5f }, ScopeLabels = new[] { "4x", "8x" }, DefaultZoomIndex = 1, HasZeroing = true,
+                ScopeFovs = new[] { 15f, 7.5f }, ScopeLabels = new[] { "4x", "8x" }, DefaultZoomIndex = 0, HasZeroing = true,
                 RecoilKick = 1.4f, RecoilClimb = 0.12f, SwayScoped = 0.4f, SwayHip = 1.0f, HipSpread = 0.5f, AdsSpread = 0.06f,
                 ShotVolume = 0.95f, ShotPitch = 1.0f,
                 ModelName = "01_precision_rifle", ViewOffset = new Vector3(0.2f, -0.19f, 0.42f),
