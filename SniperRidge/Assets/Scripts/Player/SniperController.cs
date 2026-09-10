@@ -432,8 +432,8 @@ namespace SniperRidge
                 Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
             }
 
-            float shotPitch = gm.Sounds.UsingRecorded ? Random.Range(0.985f, 1.015f) : w.ShotPitch * Random.Range(0.96f, 1.04f);
-            gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, shotPitch);
+            // Variation comes from separate recorded shots, not detuning the same sample.
+            gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, 1f);
             StartCoroutine(MuzzleFlash());
             gm.OnPlayerShot(cam.transform.position);
         }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -323,20 +324,32 @@ namespace SniperRidge
     {
         public AudioClip ShotSniper, ShotDmr, ShotRifle, ShotLmg, ShotSmg, ShotShotgun, ShotPistol, DistantShot, Crack, Bolt, Pump, Reload, HitTick, Click, Wind;
         public AudioClip RocketLaunch, RocketExplosion, GrenadeToss;
-        public bool UsingRecorded { get; private set; }
+        readonly Dictionary<string, AudioClip[]> shotTakes = new Dictionary<string, AudioClip[]>();
+        readonly Dictionary<string, int> lastTake = new Dictionary<string, int>();
 
         public AudioClip Shot(string weaponId)
         {
-            switch (weaponId)
+            if (!shotTakes.TryGetValue(weaponId, out var clips) || clips.Length == 0) return null;
+            int index = Random.Range(0, clips.Length);
+            if (clips.Length > 1 && lastTake.TryGetValue(weaponId, out int previous) && index == previous)
+                index = (index + Random.Range(1, clips.Length)) % clips.Length;
+            lastTake[weaponId] = index;
+            return clips[index];
+        }
+
+        AudioClip LoadShots(string id)
+        {
+            var clips = new List<AudioClip>();
+            var first = Load("shot_" + id);
+            if (first != null) clips.Add(first);
+            for (int i = 2; i <= 5; i++)
             {
-                case "dmr": return ShotDmr;
-                case "rifle": return ShotRifle;
-                case "lmg": return ShotLmg;
-                case "smg": return ShotSmg;
-                case "shotgun": return ShotShotgun;
-                case "pistol": return ShotPistol;
-                default: return ShotSniper;
+                var clip = Load("shot_" + id + "_" + i.ToString("00"));
+                if (clip != null) clips.Add(clip);
             }
+            shotTakes[id] = clips.ToArray();
+            if (clips.Count < 2) Debug.LogError("[Sniper Ridge] 실제 총성 녹음 누락: " + id + ". Git 파일을 모두 받은 뒤 다시 실행하세요.");
+            return first;
         }
 
         static AudioClip Load(string name) => Resources.Load<AudioClip>("Audio/" + name);
@@ -344,22 +357,17 @@ namespace SniperRidge
         public static SoundBank Create()
         {
             var b = new SoundBank();
-            b.ShotSniper = Load("shot_sniper");
-            b.UsingRecorded = b.ShotSniper != null;
-            AudioClip synthShot = null;
-            if (!b.UsingRecorded) synthShot = ProceduralAssets.Gunshot();
-
-            b.ShotSniper = b.ShotSniper ?? synthShot;
-            b.ShotDmr = Load("shot_dmr") ?? b.ShotSniper;
-            b.ShotRifle = Load("shot_rifle") ?? b.ShotSniper;
-            b.ShotLmg = Load("shot_lmg") ?? b.ShotSniper;
-            b.ShotSmg = Load("shot_smg") ?? b.ShotRifle;
-            b.ShotShotgun = Load("shot_shotgun") ?? b.ShotSniper;
-            b.ShotPistol = Load("shot_pistol") ?? b.ShotRifle;
+            b.ShotSniper = b.LoadShots("sniper");
+            b.ShotDmr = b.LoadShots("dmr");
+            b.ShotRifle = b.LoadShots("rifle");
+            b.ShotLmg = b.LoadShots("lmg");
+            b.ShotSmg = b.LoadShots("smg");
+            b.ShotShotgun = b.LoadShots("shotgun");
+            b.ShotPistol = b.LoadShots("pistol");
             b.GrenadeToss = Load("grenade_throw") ?? ProceduralAssets.GrenadeThrow();
             b.RocketLaunch = Load("rocket_launch") ?? b.ShotRifle;
             b.RocketExplosion = Load("rocket_explosion") ?? b.ShotSniper;
-            b.DistantShot = Load("shot_distant") ?? ProceduralAssets.DistantShot();
+            b.DistantShot = b.LoadShots("distant");
             b.Crack = Load("crack") ?? ProceduralAssets.BulletCrack();
             b.Bolt = Load("bolt") ?? ProceduralAssets.Bolt();
             b.Pump = Load("pump") ?? b.Bolt;
@@ -367,7 +375,7 @@ namespace SniperRidge
             b.HitTick = Load("hit") ?? ProceduralAssets.HitTick();
             b.Click = Load("click") ?? ProceduralAssets.EmptyClick();
             b.Wind = Load("wind");
-            if (b.UsingRecorded) Debug.Log("[Sniper Ridge] 녹음 효과음(Resources/Audio)을 사용합니다.");
+            Debug.Log("[Sniper Ridge] 총기 7종과 적 총성: 실제 발사 테이크를 원래 피치로 재생합니다.");
             return b;
         }
     }

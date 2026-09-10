@@ -282,7 +282,7 @@ namespace SniperRidge
         {
             yield return new WaitForSeconds(distance / 340f);
             if (!IsPlaying) yield break;
-            PlaySound(Sounds.DistantShot, Mathf.Clamp01(1.1f - distance / 900f) * .45f, Random.Range(.985f, 1.015f));
+            PlaySound(Sounds.Shot("distant"), Mathf.Clamp01(1.1f - distance / 900f) * .45f, 1f);
         }
 
         public void PlayerDied() => EndMission(false);

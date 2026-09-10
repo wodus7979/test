@@ -1,7 +1,7 @@
 """Build recorded gunshots from the CC0 Free Firearm Sound Library.
 Requires Python 3 + numpy. Pass the extracted 'Prepared SFX Library' directory.
 Original library: https://opengameart.org/content/the-free-firearm-sound-library
-Near and mid-distance recordings are layered for game playback.
+Separate real shots are cropped from a single microphone channel; the original attack is retained.
 No synthetic oscillators, repeated echoes or pitch shifting are added.
 """
 import argparse
@@ -12,29 +12,17 @@ import wave
 import numpy as np
 
 RATE = 48000
-# filename, duration, high-pass Hz, output peak; LMG is an AK-47 sound-design stand-in.
+# Source files contain several individually fired shots. Each becomes a separate take.
+# LMG uses a real AK-47 recording as a sound-design stand-in, not a recorded belt-fed gun.
 RECIPES = {
-    'sniper': ('Tikka/W_29P.wav', 1.50, 70, .76),
-    'dmr': ('SKS/U_14P.wav', .85, 80, .72),
-    'rifle': ('AR-15/D_32P.wav', .62, 80, .66),
-    'lmg': ('AK-47/C_28P.wav', .65, 75, .66),
-    'smg': ('Carl Gustav M45/G_31P.wav', .50, 95, .62),
-    'shotgun': ('Nova/O_21P.wav', 1.0, 65, .76),
-    'pistol': ('Walther PPQ/X_39P.wav', .55, 100, .66),
-    'distant': ('SKS/U_19P.wav', 1.65, 160, .52),
-}
-
-
-# Same firearm at a second microphone distance: source, body gain, decay seconds.
-# This is a designed first-person effect, not an unaltered field recording.
-BODY_RECIPES = {
-    'sniper': ('Tikka/W_24P.wav', .85, .115),
-    'dmr': ('SKS/U_19P.wav', .70, .085),
-    'rifle': ('AR-15/D_24P.wav', .75, .060),
-    'lmg': ('AK-47/C_31P.wav', .75, .065),
-    'smg': ('Carl Gustav M45/G_20P.wav', .65, .045),
-    'shotgun': ('Nova/O_17P.wav', .90, .100),
-    'pistol': ('Walther PPQ/X_31P.wav', .65, .055),
+    'sniper': ('Tikka/W_29P.wav', 1.45, 35, .82),
+    'dmr': ('SKS/U_14P.wav', .80, 40, .78),
+    'rifle': ('AR-15/D_32P.wav', .58, 40, .74),
+    'lmg': ('AK-47/C_28P.wav', .62, 40, .74),
+    'smg': ('Carl Gustav M45/G_31P.wav', .46, 45, .70),
+    'shotgun': ('Nova/O_21P.wav', 1.0, 35, .82),
+    'pistol': ('Walther PPQ/X_39P.wav', .55, 45, .74),
+    'distant': ('AR-15/D_24P.wav', 1.10, 60, .66),
 }
 
 
@@ -88,55 +76,41 @@ def resample(x, rate):
                             for c in range(x.shape[1])])
 
 
-def load_trimmed(path, duration):
-    x, rate = read_pcm(path)
-    amplitude = abs(x).max(axis=1)
-    onset = int(np.flatnonzero(amplitude > amplitude.max()*.12)[0])
-    start = max(0, onset - int(.002*rate))
-    return resample(x[start:start+int(duration*rate)], rate)
+def find_shots(x, rate):
+    """Find separated shots, not individual peaks/reflections within one shot."""
+    block = rate // 200
+    count = len(x) // block
+    rms = np.sqrt(np.mean(x[:count*block].reshape(count, block, -1)**2, axis=(1, 2)))
+    hot = np.flatnonzero(rms > rms.max() * .24)
+    starts, previous = [], -10000
+    for index in hot:
+        if (index - previous)*block/rate > .45:
+            starts.append(int(index*block))
+        previous = index
+    assert len(starts) >= 2, 'Expected multiple real single-shot takes'
+    return starts
 
 
-def punch_layer(library, name, direct):
-    source, gain, decay = BODY_RECIPES[name]
-    body = load_trimmed(library/source, .35)
-    # Use the stronger microphone for a solid centre. Summing microphones with
-    # different arrival times weakens parts of the attack, especially on mono speakers.
-    channel = np.argmax(np.sum(body[:int(.1*RATE)]**2, axis=0))
-    body = body[:, channel:channel+1]
-    body = filter_biquad(body, RATE, 180)
-    body = filter_biquad(body, RATE, 4200, highpass=False)
-    # Align the strongest 4 ms blast window. Some mid recordings start with a
-    # separate shock crack; do not introduce another delayed shot into the layer.
-    window = int(.004*RATE)
-    energy = np.convolve(body[:int(.12*RATE), 0]**2, np.ones(window)/window, 'valid')
-    anchor = int(np.argmax(energy))
-    body = body[max(0, anchor-int(.002*RATE)):]
-    body /= max(abs(body).max(), 1e-12)
-    # Raise the short recorded blast without lifting the long noise floor.
-    t = np.arange(len(body))/RATE
-    body = np.tanh(body*2.2)/np.tanh(2.2)
-    body *= (np.minimum(t/.001, 1)*np.exp(-t/decay))[:, None]
-    body[-int(.02*RATE):] *= np.linspace(1, 0, int(.02*RATE))[:, None]
-    # Preserve the close crack before the body arrives, with no oscillating bass layer.
-    delay = int(.004*RATE)
-    n = min(len(body), len(direct)-delay)
-    direct[delay:delay+n] += gain*body[:n]
-    return direct
-
-
-def master_player(library, name, x):
-    channel = np.argmax(np.sum(x[:int(.1*RATE)]**2, axis=0))
-    direct = x[:, channel:channel+1]
-    direct = direct / max(abs(direct).max(), 1e-12)
-    direct = punch_layer(library, name, direct)
-    # Mild soft saturation controls isolated peaks, retaining a broadband attack.
-    direct = np.tanh(direct*1.5)/np.tanh(1.5)
-    stereo = np.repeat(direct, 2, axis=1)
-    # Keep a quiet stereo ambience after the blast; the dry shot is mono compatible.
-    t = np.arange(len(x))/RATE
-    side = x-x.mean(axis=1, keepdims=True)
-    stereo += .10*side*np.clip((t-.08)/.10, 0, 1)[:, None]
-    return stereo
+def prepare_take(x, rate, onset, duration, hz, peak, distant=False):
+    # One microphone only: preserve its original crack, blast and decay without
+    # comb filtering from mixed microphones or an added saturated body layer.
+    sample = x[max(0, onset-int(.01*rate)):onset+int(duration*rate)]
+    channel = int(np.argmax(np.sum(sample[:int(.06*rate)]**2, axis=0)))
+    sample = sample[:, channel:channel+1]
+    amplitude = abs(sample[:, 0])
+    attack = int(np.flatnonzero(amplitude > amplitude.max()*.10)[0])
+    sample = sample[max(0, attack-int(.0015*rate)):]
+    sample = resample(sample, rate)[:int(duration*RATE)]
+    sample = filter_biquad(sample, RATE, hz)
+    if distant:
+        sample = filter_biquad(sample, RATE, 7000, highpass=False)
+    # Preserve attack dynamics. Only fade the noise floor/end; no tanh/compression,
+    # pitch shift, artificial bass oscillator, added explosion or repeated echoes.
+    fade_in, fade_out = int(.00025*RATE), int(.12*RATE)
+    sample[:fade_in] *= np.linspace(0, 1, fade_in)[:, None]
+    sample[-fade_out:] *= np.linspace(1, 0, fade_out)[:, None]
+    sample *= peak / max(abs(sample).max(), 1e-12)
+    return sample if distant else np.repeat(sample, 2, axis=1)
 
 
 def write_pcm(path, x):
@@ -165,21 +139,18 @@ def main():
     args = parser.parse_args()
     report = {}
     for name, (source, duration, hz, peak) in RECIPES.items():
-        x = load_trimmed(args.library/source, duration)
-        x = filter_biquad(x, RATE, hz)
-        if name == 'distant':
-            x = filter_biquad(x, RATE, 2300, highpass=False)
-            x = x.mean(axis=1, keepdims=True)
-        else:
-            x = master_player(args.library, name, x)
-        fade_in = min(int(.0005*RATE), len(x))
-        fade_out = min(int(.12*RATE), len(x))
-        x[:fade_in] *= np.linspace(0, 1, fade_in)[:, None]
-        x[-fade_out:] *= np.linspace(1, 0, fade_out)[:, None]
-        x *= peak/max(abs(x).max(), 1e-12)
-        write_pcm(args.output/('shot_'+name+'.wav'), x)
-        report[name] = {'source': source, 'body_source': BODY_RECIPES[name][0] if name in BODY_RECIPES else None, **stats(x)}
-    print(json.dumps(report, indent=2))
+        raw, rate = read_pcm(args.library/source)
+        takes = []
+        for index, onset in enumerate(find_shots(raw, rate)):
+            x = prepare_take(raw, rate, onset, duration, hz, peak, name == 'distant')
+            suffix = '' if index == 0 else f'_{index+1:02d}'
+            filename = f'shot_{name}{suffix}.wav'
+            write_pcm(args.output/filename, x)
+            takes.append({'file': filename, 'source_onset_seconds': round(onset/rate, 3), **stats(x)})
+        report[name] = {'source': source, 'takes': takes}
+    manifest = args.output/'recorded_shots.json'
+    manifest.write_text(json.dumps(report, indent=2)+'\n')
+    print(json.dumps({name: len(info['takes']) for name, info in report.items()}, indent=2))
 
 
 if __name__ == '__main__':

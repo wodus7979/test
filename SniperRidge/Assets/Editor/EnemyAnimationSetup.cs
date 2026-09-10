@@ -167,12 +167,13 @@ namespace SniperRidge.EditorTools
                 ValidateMotion(instance, walk);
                 ValidateMotion(instance, run);
                 ValidateLimbSolver();
+                CoverAndAudioValidation.ValidateFootwork();
                 idle.SampleAnimation(instance, 0f);
                 PrefabUtility.SaveAsPrefabAsset(instance, PrefabPath);
             }
             finally { UnityEngine.Object.DestroyImmediate(instance); }
             AssetDatabase.SaveAssets();
-            Debug.Log("[Sniper Ridge] 적 애니메이션 생성 완료: Idle / Walk / Run Blend Tree, 무릎 IK, 상체 조준, 뼈 추적 히트박스.");
+            Debug.Log("[Sniper Ridge] 적 애니메이션 v4 생성 완료: 엄폐 발 디딤·일어서기·어깨 조준, 양손 총기 지지, 뼈 추적 히트박스.");
         }
         static void ValidateMotion(GameObject instance, AnimationClip clip)
         {

@@ -276,8 +276,7 @@ namespace SniperRidge
             ApplyCover();
             previousRigPosition = rig.position;
             if (motion != null)
-                motion.Drive(0f, Kind == EnemyKind.Tree ? 0f : cover,
-                    Kind == EnemyKind.Tree ? peekSide * (1f - cover) : 0f, false, gm.PlayerEye.position, 1f);
+                motion.Drive(0f, cover, peekSide, false, gm.PlayerEye.position, 1f);
         }
 
         void Update()
@@ -286,7 +285,9 @@ namespace SniperRidge
             float dt = Time.deltaTime;
             staggerTimer = Mathf.Max(0f, staggerTimer - dt);
 
-            cover = Mathf.MoveTowards(cover, coverTarget, dt * 2.5f);
+            // A full cover transition takes about a second so the feet can step and settle.
+            float coverRate = Kind == EnemyKind.Tree ? 1.05f : Kind == EnemyKind.Cover ? 1.15f : 2.5f;
+            cover = Mathf.MoveTowards(cover, coverTarget, dt * coverRate);
             ApplyCover();
 
             float speedForAnim = 0f;
@@ -295,10 +296,11 @@ namespace SniperRidge
                 case State.Hidden:
                     coverTarget = 1f;
                     stateTimer -= dt;
-                    if (stateTimer <= 0f)
+                    if (stateTimer <= 0f && cover >= .999f)
                     {
+                        if (Kind == EnemyKind.Tree && Random.value < .4f) peekSide = -peekSide;
                         state = State.Peeking;
-                        stateTimer = IsAware ? Random.Range(1.5f, 3f) : Random.Range(2.5f, 5f);
+                        stateTimer = IsAware ? Random.Range(2.4f, 4f) : Random.Range(2.5f, 5f);
                         nextShotTime = Time.time + Random.Range(0.6f, 1.2f);
                     }
                     break;
@@ -311,7 +313,6 @@ namespace SniperRidge
                     {
                         state = State.Hidden;
                         stateTimer = IsAware ? Random.Range(4f, 9f) : Random.Range(2f, 5f);
-                        if (Kind == EnemyKind.Tree && Random.value < 0.4f) peekSide = -peekSide;
                     }
                     break;
 
@@ -378,8 +379,7 @@ namespace SniperRidge
             float actualSpeed = lastMotionVelocity.magnitude;
             previousRigPosition = rig.position;
             if (motion != null)
-                motion.Drive(actualSpeed, Kind == EnemyKind.Tree ? 0f : cover,
-                    Kind == EnemyKind.Tree ? peekSide * (1f - cover) : 0f,
+                motion.Drive(actualSpeed, cover, peekSide,
                     IsAware && (preparingShot || state != State.Walking && state != State.Rushing),
                     preparingShot ? plannedTarget : gm.EnemyAimPoint, dt);
             else if (animator != null)
@@ -555,7 +555,7 @@ namespace SniperRidge
             IsDead = true;
             Health = 0f;
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
-            if (motion != null) motion.Die(bulletDir, headshot, lastMotionVelocity);
+            if (motion != null) motion.Die(bulletDir, headshot, motion.AnimatedVelocity);
             else
             {
                 if (animator != null) SetAnim("Dead", true);
@@ -592,7 +592,7 @@ namespace SniperRidge
         void TryShoot(float spreadRadius, float minInterval = 2.2f, float maxInterval = 4.2f)
         {
             if (preparingShot || Time.time < nextShotTime || !gm.PositionRevealed || staggerTimer > 0f) return;
-            if (cover > .7f || !HasLineOfSight()) return;
+            if (cover > .7f || (motion != null && !motion.CanFireFromPose) || !HasLineOfSight()) return;
             if (!gm.TryBeginEnemyAttack()) return;
             nextShotTime = Time.time + Random.Range(minInterval, maxInterval);
             Vector3 target = gm.EnemyAimPoint;
@@ -610,7 +610,9 @@ namespace SniperRidge
         {
             if (!preparingShot) return;
             // Ducking does not retarget a prepared shot. It continues towards the old position.
-            if (!gm.PositionRevealed || cover > .7f || staggerTimer > 0f)
+            if (!gm.PositionRevealed || cover > .7f || staggerTimer > 0f ||
+                ((Kind == EnemyKind.Tree || Kind == EnemyKind.Cover) && state != State.Peeking) ||
+                (motion != null && !motion.CanFireFromPose))
             {
                 preparingShot = false;
                 return;

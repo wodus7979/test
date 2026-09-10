@@ -1,0 +1,226 @@
+{
+  "sniper": {
+    "source": "Tikka/W_29P.wav",
+    "takes": [
+      {
+        "file": "shot_sniper.wav",
+        "source_onset_seconds": 0.575,
+        "duration_seconds": 1.448,
+        "peak": 0.82,
+        "body_energy_below_250Hz_percent": 14.21,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_sniper_02.wav",
+        "source_onset_seconds": 5.665,
+        "duration_seconds": 1.45,
+        "peak": 0.82,
+        "body_energy_below_250Hz_percent": 14.63,
+        "clipped_samples": 0
+      }
+    ]
+  },
+  "dmr": {
+    "source": "SKS/U_14P.wav",
+    "takes": [
+      {
+        "file": "shot_dmr.wav",
+        "source_onset_seconds": 3.575,
+        "duration_seconds": 0.798,
+        "peak": 0.78,
+        "body_energy_below_250Hz_percent": 0.13,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_dmr_02.wav",
+        "source_onset_seconds": 6.755,
+        "duration_seconds": 0.8,
+        "peak": 0.78,
+        "body_energy_below_250Hz_percent": 0.12,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_dmr_03.wav",
+        "source_onset_seconds": 10.21,
+        "duration_seconds": 0.799,
+        "peak": 0.78,
+        "body_energy_below_250Hz_percent": 0.13,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_dmr_04.wav",
+        "source_onset_seconds": 13.29,
+        "duration_seconds": 0.799,
+        "peak": 0.78,
+        "body_energy_below_250Hz_percent": 0.12,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_dmr_05.wav",
+        "source_onset_seconds": 16.775,
+        "duration_seconds": 0.797,
+        "peak": 0.78,
+        "body_energy_below_250Hz_percent": 0.11,
+        "clipped_samples": 0
+      }
+    ]
+  },
+  "rifle": {
+    "source": "AR-15/D_32P.wav",
+    "takes": [
+      {
+        "file": "shot_rifle.wav",
+        "source_onset_seconds": 0.7,
+        "duration_seconds": 0.576,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.21,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_rifle_02.wav",
+        "source_onset_seconds": 5.645,
+        "duration_seconds": 0.577,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.21,
+        "clipped_samples": 0
+      }
+    ]
+  },
+  "lmg": {
+    "source": "AK-47/C_28P.wav",
+    "takes": [
+      {
+        "file": "shot_lmg.wav",
+        "source_onset_seconds": 0.61,
+        "duration_seconds": 0.618,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.13,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_lmg_02.wav",
+        "source_onset_seconds": 3.255,
+        "duration_seconds": 0.617,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.14,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_lmg_03.wav",
+        "source_onset_seconds": 6.02,
+        "duration_seconds": 0.619,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.14,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_lmg_04.wav",
+        "source_onset_seconds": 9.155,
+        "duration_seconds": 0.618,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.15,
+        "clipped_samples": 0
+      }
+    ]
+  },
+  "smg": {
+    "source": "Carl Gustav M45/G_31P.wav",
+    "takes": [
+      {
+        "file": "shot_smg.wav",
+        "source_onset_seconds": 0.31,
+        "duration_seconds": 0.46,
+        "peak": 0.7,
+        "body_energy_below_250Hz_percent": 0.05,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_smg_02.wav",
+        "source_onset_seconds": 3.5,
+        "duration_seconds": 0.459,
+        "peak": 0.7,
+        "body_energy_below_250Hz_percent": 0.05,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_smg_03.wav",
+        "source_onset_seconds": 6.725,
+        "duration_seconds": 0.457,
+        "peak": 0.7,
+        "body_energy_below_250Hz_percent": 0.05,
+        "clipped_samples": 0
+      }
+    ]
+  },
+  "shotgun": {
+    "source": "Nova/O_21P.wav",
+    "takes": [
+      {
+        "file": "shot_shotgun.wav",
+        "source_onset_seconds": 0.43,
+        "duration_seconds": 1.0,
+        "peak": 0.82,
+        "body_energy_below_250Hz_percent": 0.41,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_shotgun_02.wav",
+        "source_onset_seconds": 3.465,
+        "duration_seconds": 1.0,
+        "peak": 0.82,
+        "body_energy_below_250Hz_percent": 0.34,
+        "clipped_samples": 0
+      }
+    ]
+  },
+  "pistol": {
+    "source": "Walther PPQ/X_39P.wav",
+    "takes": [
+      {
+        "file": "shot_pistol.wav",
+        "source_onset_seconds": 1.405,
+        "duration_seconds": 0.549,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.08,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_pistol_02.wav",
+        "source_onset_seconds": 6.44,
+        "duration_seconds": 0.546,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.08,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_pistol_03.wav",
+        "source_onset_seconds": 10.66,
+        "duration_seconds": 0.55,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 0.07,
+        "clipped_samples": 0
+      }
+    ]
+  },
+  "distant": {
+    "source": "AR-15/D_24P.wav",
+    "takes": [
+      {
+        "file": "shot_distant.wav",
+        "source_onset_seconds": 0.545,
+        "duration_seconds": 1.097,
+        "peak": 0.66,
+        "body_energy_below_250Hz_percent": 0.16,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_distant_02.wav",
+        "source_onset_seconds": 3.91,
+        "duration_seconds": 1.1,
+        "peak": 0.66,
+        "body_energy_below_250Hz_percent": 0.17,
+        "clipped_samples": 0
+      }
+    ]
+  }
+}
