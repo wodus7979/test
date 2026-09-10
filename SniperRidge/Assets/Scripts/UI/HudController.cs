@@ -185,46 +185,7 @@ namespace SniperRidge
 
         void BuildSelectPanel(Transform root)
         {
-            var center = new Vector2(0.5f, 0.5f);
-            var panel = UiKit.Fullscreen(root, "SelectPanel", new Color(0f, 0f, 0f, 0.55f));
-            panel.GetComponent<Image>().raycastTarget = true;
-            selectPanel = panel.gameObject;
-
-            UiKit.Label(panel, "Title", "SNIPER RIDGE", 60, TextAnchor.MiddleCenter, Color.white, center, center, new Vector2(0f, 440f), new Vector2(1200f, 80f), true);
-            UiKit.Label(panel, "Sub", "평지 전투 · 가까운 적 배치   |   무기를 선택하세요.", 26, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.85f), center, center, new Vector2(0f, 385f), new Vector2(1200f, 36f));
-
-            var weapons = WeaponDefinition.All;
-            const int perRow = 4;
-            float cardW = 400f, cardH = 250f, gap = 24f;
-            int rows = (weapons.Length + perRow - 1) / perRow;
-            for (int i = 0; i < weapons.Length; i++)
-            {
-                var w = weapons[i];
-                int row = i / perRow, col = i % perRow;
-                int inRow = Mathf.Min(perRow, weapons.Length - row * perRow);
-                float rowW = inRow * cardW + (inRow - 1) * gap;
-                float x = -rowW * 0.5f + cardW * 0.5f + col * (cardW + gap);
-                float y = 120f - row * (cardH + gap) + (rows - 1) * (cardH + gap) * 0.5f - 60f;
-                var card = UiKit.TextButton(panel, "Card_" + w.Id, "", 20,
-                    w.Mission == MissionType.Sniper ? new Color(0.16f, 0.22f, 0.16f, 0.95f) : new Color(0.26f, 0.18f, 0.12f, 0.95f),
-                    Color.white, center, center, new Vector2(x, y), new Vector2(cardW, cardH), null);
-                var def = w;
-                card.onClick.AddListener(() => gm.StartMission(def));
-                var rt = card.GetComponent<RectTransform>();
-                UiKit.Label(rt, "Num", (i + 1).ToString(), 30, TextAnchor.UpperLeft, new Color(1f, 0.85f, 0.4f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -12f), new Vector2(60f, 40f), true);
-                UiKit.Label(rt, "Name", w.Name, 34, TextAnchor.UpperCenter, Color.white, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(cardW - 30f, 44f), true);
-                UiKit.Label(rt, "Mode", w.Mission == MissionType.Sniper ? "저격 임무" : "방어전 임무", 22, TextAnchor.UpperCenter,
-                            w.Mission == MissionType.Sniper ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.7f, 0.4f),
-                            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -68f), new Vector2(cardW - 30f, 30f), true);
-                var desc = UiKit.Label(rt, "Desc", w.Description, 18, TextAnchor.UpperLeft, new Color(0.9f, 0.9f, 0.9f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(cardW - 40f, 110f));
-                desc.horizontalOverflow = HorizontalWrapMode.Wrap;
-                string stats = string.Format("{0}  |  {1}발  |  {2} m/s  |  피해 {3}",
-                    w.Fire == FireMode.Bolt ? "볼트액션" : (w.Fire == FireMode.Semi ? "반자동" : "자동"),
-                    w.MagSize, w.MuzzleVelocity, w.Damage);
-                UiKit.Label(rt, "Stats", stats, 18, TextAnchor.LowerCenter, new Color(0.7f, 0.7f, 0.7f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(cardW - 30f, 26f));
-            }
-            UiKit.Label(panel, "Keys", Application.isMobilePlatform ? "카드를 터치하면 시작합니다" : "카드를 클릭하거나 1~7 키를 누르면 시작합니다", 22,
-                        TextAnchor.MiddleCenter, new Color(0.8f, 0.8f, 0.8f), center, center, new Vector2(0f, -430f), new Vector2(1200f, 34f));
+            selectPanel = TacticalStartMenu.Build(root, gm);
         }
 
         // ---------- 외부 호출 ----------

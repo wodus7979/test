@@ -100,15 +100,8 @@ namespace SniperRidge
 
         void Update()
         {
-            if (IsSelecting)
-            {
-                for (int i = 0; i < WeaponDefinition.All.Length && i < 9; i++)
-                {
-                    if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
-                        StartMission(WeaponDefinition.All[i]);
-                }
-            }
-            else if (!IsPlaying && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            // Selection and deployment are handled by TacticalStartMenu.
+            if (!IsSelecting && !IsPlaying && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
             {
                 Restart();
             }
