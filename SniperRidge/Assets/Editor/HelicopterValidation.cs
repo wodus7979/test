@@ -9,6 +9,13 @@ namespace SniperRidge.EditorTools
         [MenuItem("Sniper Ridge/헬기 선회·중기관총 검사")]
         public static void Validate()
         {
+            OriginalDoorGunAssets.DoorGunPackBuilder.BuildIfMissing();
+            var prefab = Resources.Load<GameObject>(DoorGunView.Resource);
+            Check(prefab != null, "중기관총 프리팹 누락");
+            var assetWeapon = prefab.transform.Find("Base/YawMount/Weapon");
+            Check(assetWeapon != null && assetWeapon.Find("RearGripLeft") != null && assetWeapon.Find("RearGripRight") != null,
+                "중기관총 손잡이 기준점 누락");
+            Check(Resources.Load<Shader>("Shaders/BloodParticles") != null, "혈흔 셰이더 누락");
             var weapon = WeaponDefinition.Find("hmg");
             Check(weapon.Id == "hmg" && weapon.IsMounted && weapon.Mission == MissionType.Helicopter,
                 "헬기 무기 설정 누락");
@@ -39,8 +46,13 @@ namespace SniperRidge.EditorTools
             {
                 Check(game.Flight != null && game.Player.IsMounted, "헬기 사수 연결 누락");
                 Check(game.Player.transform.parent == game.Flight.GunnerStation, "사수가 기체에 고정되지 않았습니다.");
-                var muzzle = game.Flight.GunnerStation.Find("Mounted Heavy Machine Gun/Muzzle");
+                var muzzle = game.Flight.GunnerStation.Find("Mounted Heavy Machine Gun/Base/YawMount/Weapon/Muzzle");
                 Check(muzzle != null, "중기관총 총구 누락");
+                var gun = muzzle.parent;
+                Check(gun.Find("RearGripLeft/Left gripping hand") != null && gun.Find("RearGripRight/Right gripping hand") != null,
+                    "양손 모델 누락");
+                Check((game.Player.Eye.GetComponent<Camera>().cullingMask & (1 << DoorGunView.ViewLayer)) == 0,
+                    "주 카메라와 총기 카메라가 중복 렌더링합니다.");
                 foreach (var collider in game.Flight.GetComponentsInChildren<Collider>())
                     Check(!collider.enabled, "헬기 시각 모델이 탄환을 가로막습니다.");
             }

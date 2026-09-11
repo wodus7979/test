@@ -55,3 +55,7 @@ Assets/Resources/Grenades.meta
 # Generated from textured city pack source by CityPackSetup
 Assets/Resources/CityPack/
 Assets/Resources/CityPack.meta
+
+# Generated from DoorGunAssetPack source
+Assets/Resources/DoorGun/
+Assets/Resources/DoorGun.meta

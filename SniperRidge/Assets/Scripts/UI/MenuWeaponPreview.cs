@@ -62,6 +62,7 @@ namespace SniperRidge
             if (studio == null) return;
             if (model != null) { model.SetActive(false); Destroy(model); }
             model = WeaponModels.Build(studio.transform, weapon);
+            if (model == null) return;
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.Euler(-8f, 65f, -6f);
             foreach (var t in model.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = PreviewLayer;

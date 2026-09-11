@@ -1,0 +1,108 @@
+{
+  "materials": [
+    {
+      "name": "Graphite_Paint",
+      "color": [
+        0.085,
+        0.1,
+        0.108
+      ],
+      "metallic": 0.1,
+      "roughness": 0.61,
+      "surface": "metal",
+      "reuse": "Olive_Coating",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "orm": "Textures/PBR/Olive_Coating_orm.png",
+      "metallicSmoothness": "Textures/PBR/Olive_Coating_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Olive_Coating_hdrp_mask.png"
+    },
+    {
+      "name": "Dark_Metal",
+      "color": [
+        0.14,
+        0.15,
+        0.14
+      ],
+      "metallic": 0.7,
+      "roughness": 0.4,
+      "surface": "metal",
+      "reuse": "Graphite_Metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "orm": "Textures/PBR/Graphite_Metal_orm.png",
+      "metallicSmoothness": "Textures/PBR/Graphite_Metal_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Graphite_Metal_hdrp_mask.png"
+    },
+    {
+      "name": "Machined_Metal",
+      "color": [
+        0.5,
+        0.54,
+        0.56
+      ],
+      "metallic": 0.85,
+      "roughness": 0.31,
+      "surface": "metal",
+      "reuse": "Machined_Metal",
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "normalGltf": "Textures/PBR/metal_normal_gltf.png",
+      "orm": "Textures/PBR/Machined_Metal_orm.png",
+      "metallicSmoothness": "Textures/PBR/Machined_Metal_metallic_smoothness.png",
+      "maskMap": "Textures/PBR/Machined_Metal_hdrp_mask.png"
+    },
+    {
+      "name": "Rubber",
+      "color": [
+        0.017,
+        0.021,
+        0.023
+      ],
+      "metallic": 0,
+      "roughness": 0.92
+    },
+    {
+      "name": "Recess",
+      "color": [
+        0.006,
+        0.01,
+        0.013
+      ],
+      "metallic": 0,
+      "roughness": 0.83
+    },
+    {
+      "name": "Optical_Glass",
+      "color": [
+        0.026,
+        0.048,
+        0.057
+      ],
+      "metallic": 0.6,
+      "roughness": 0.14
+    },
+    {
+      "name": "Lamp",
+      "color": [
+        0.7,
+        0.77,
+        0.73
+      ],
+      "metallic": 0.15,
+      "roughness": 0.3
+    },
+    {
+      "name": "Identification",
+      "color": [
+        0.55,
+        0.5,
+        0.3
+      ],
+      "metallic": 0,
+      "roughness": 0.94
+    }
+  ]
+}

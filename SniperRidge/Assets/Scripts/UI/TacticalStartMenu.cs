@@ -305,6 +305,8 @@ namespace SniperRidge
                     Debug.LogError("[Sniper Ridge] Sniper Ridge → 도시 에셋 생성 후 다시 출전하세요.");
                     return;
                 }
+                if (WeaponDefinition.All[selected].IsMounted && !DoorGunView.IsReady)
+                { mapDescription.text = "헬기 중기관총 에셋 생성 메뉴를 실행하세요."; return; }
                 gm.StartMission(WeaponDefinition.All[selected], selectedMap);
             }
         }

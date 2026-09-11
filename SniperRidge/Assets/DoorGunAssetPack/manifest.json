@@ -1,0 +1,57 @@
+{
+  "components": [
+    {
+      "component": "Base",
+      "lod_triangles": [
+        572,
+        284
+      ]
+    },
+    {
+      "component": "YawMount",
+      "lod_triangles": [
+        1460,
+        692
+      ]
+    },
+    {
+      "component": "Weapon",
+      "lod_triangles": [
+        8336,
+        3500
+      ]
+    },
+    {
+      "component": "ShieldLeft",
+      "lod_triangles": [
+        780,
+        460
+      ]
+    },
+    {
+      "component": "ShieldRight",
+      "lod_triangles": [
+        780,
+        460
+      ]
+    }
+  ],
+  "lod_triangles": [
+    11928,
+    5396
+  ],
+  "bounds_m": [
+    [
+      -0.307,
+      0.0,
+      -1.69
+    ],
+    [
+      0.307,
+      1.001,
+      0.6935
+    ]
+  ],
+  "unity_editor_verified": false,
+  "reference": "User-provided image; unseen surfaces interpreted for a fictional game exterior."
+}

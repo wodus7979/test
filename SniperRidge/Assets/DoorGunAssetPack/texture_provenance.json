@@ -1,0 +1,19 @@
+{
+  "mode": "Built-in image_gen.imagegen",
+  "prompts": [
+    {
+      "surface": "metal",
+      "prompt": "Use case: photorealistic-natural. Asset type: seamless tileable game environment PBR BASE COLOR texture, not a scene or presentation. Generate ONE square 2048 x 2048 full-bleed texture image for metal. Light-medium neutral gray galvanized steel industrial surface, fine zinc spangle grain, very subtle shallow scratches and mild oxidation, nearly matte. Flat sheet without seams, bolts, corrugations or large stains. Suitable as neutral base multiplied by blue factory paint or gray frame colors. Strictly orthographic straight-on surface scan, physically plausible photoreal microdetail, even diffuse cross-polarized lighting, no cast shadows, no ambient occlusion baked into corners, no directional gradients, no specular highlights. Completely fill frame with this single material. Seamless repeat on both X and Y: opposite edges must match; no borders or vignettes. Color texture only, NOT a normal map, NOT a contact sheet. No text, labels, watermark, objects, people or logos."
+    }
+  ],
+  "actual_source_resolution": [
+    1254,
+    1254
+  ],
+  "baked_map_resolution": [
+    1024,
+    1024
+  ],
+  "note": "Requested resolution/pattern are intent; actual outputs are inspected and are not guaranteed seamless.",
+  "reuse_note": "Reused generated metal source from the existing city pack; adjusted material color and technical data maps."
+}

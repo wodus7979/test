@@ -50,7 +50,7 @@ namespace SniperRidge
 
         public void GetDamageCapsule(out Vector3 bottom, out Vector3 top)
         {
-            bottom = transform.position + Vector3.up * .30f;
+            bottom = IsMounted ? Eye.position - Vector3.up * 1.35f : transform.position + Vector3.up * .30f;
             top = Eye.position - Vector3.up * .10f;
         }
 
@@ -104,6 +104,7 @@ namespace SniperRidge
 
         Camera cam;
         GameObject weaponModel;
+        DoorGunView doorGun;
         Transform muzzleAnchor, muzzleBurst;
         Light muzzleLight;
         GameManager gm;
@@ -170,8 +171,10 @@ namespace SniperRidge
             IsScoped = false;
             if (weaponModel != null) { weaponModel.SetActive(false); Destroy(weaponModel); }
             weaponModel = WeaponModels.Build(IsMounted ? flight.GunnerStation : cam.transform, weapon);
-            muzzleBurst = weaponModel.transform.Find("Muzzle/Blast");
-            muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);   // 광원은 카메라 아래에 두고 사격 시 총구 위치로 옮긴다 (모델이 꺼져 있어도 동작)
+            doorGun = weaponModel != null ? weaponModel.GetComponent<DoorGunView>() : null;
+            if (doorGun != null) { doorGun.Attach(cam); doorGun.Pose(yaw, pitch); }
+            muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);
+            muzzleBurst = muzzleAnchor != null ? muzzleAnchor.Find("Blast") : null;   // 광원은 카메라 아래에 두고 사격 시 총구 위치로 옮긴다 (모델이 꺼져 있어도 동작)
         }
 
         void LockCursor()
@@ -333,9 +336,7 @@ namespace SniperRidge
                     State == WeaponState.Reloading ? Mathf.Sin(Mathf.Clamp01(stateTimer / Weapon.ReloadTime) * Mathf.PI) * .65f : 0f;
                 if (IsMounted)
                 {
-                    // Pivot remains fixed to the door; only the receiver and barrel traverse.
-                    weaponModel.transform.position = flight.GunnerStation.TransformPoint(0f, 1.17f, .9f);
-                    weaponModel.transform.rotation = cam.transform.rotation;
+                    if (doorGun != null) doorGun.Pose(yaw + swayX + recoilYaw, pitch + swayY - recoil);
                 }
                 else
                 {

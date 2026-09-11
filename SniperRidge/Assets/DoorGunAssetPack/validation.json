@@ -1,0 +1,49 @@
+{
+  "components": [
+    {
+      "component": "Base",
+      "lod_triangles": [
+        572,
+        284
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "YawMount",
+      "lod_triangles": [
+        1460,
+        692
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "Weapon",
+      "lod_triangles": [
+        8336,
+        3500
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "ShieldLeft",
+      "lod_triangles": [
+        780,
+        460
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "ShieldRight",
+      "lod_triangles": [
+        780,
+        460
+      ],
+      "geometry_uv": "PASS"
+    }
+  ],
+  "glb_hierarchy": "PASS",
+  "texture_references": "PASS",
+  "articulated_transform_conversion": "PASS at sample yaw/pitch",
+  "collider_boxes": 2,
+  "unity_editor": "C# compilation, import, rendering and Play Mode have not been executed."
+}

@@ -102,7 +102,7 @@ namespace SniperRidge
             if (hitbox != null && hitbox.Owner != null && !hitbox.Owner.IsDead)
             {
                 bool killed = hitbox.Owner.TakeHit(damage, hitbox.IsHead, vel.normalized);
-                Effects.Puff(hit.point, -vel.normalized, 0.18f, new Color(0.55f, 0.05f, 0.05f), 0.45f);
+                BloodImpact.Emit(hit.point, hit.normal, vel.normalized, hitbox.IsHead);
                 if (gm != null)
                 {
                     gm.OnEnemyHit(hitbox.Owner, hitbox.IsHead, dist, killed);

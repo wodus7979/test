@@ -53,25 +53,29 @@ def main():
             centre=np.array([0,12,-24 if is_city else -30])
             inward=centre-position; inward[1]=0; inward/=np.linalg.norm(inward)
             assert np.dot(rot[:,0],inward)>.995, 'Door faces away from target area'
-            eye=position+rot@np.array([1.35,1.65,0])
             door=rot@city.rotation(90)
+            pivot=position+rot@np.array([1.35,0,0])+door@np.array([0,.80,.62])
             for i,target in enumerate(targets):
-                local=door.T@(target-eye)
+                local=door.T@(target-pivot)
                 yaw=math.degrees(math.atan2(local[0],local[2]))
-                pitch=math.degrees(math.atan2(-local[1],np.hypot(local[0],local[2])))
+                pitch=math.degrees(math.atan2(-local[1],np.hypot(local[0],local[2]))+math.asin(.34/np.linalg.norm(local)))
+                eye=pivot-door@city.rotation(yaw)@rx(pitch)@np.array([0,-.34,1.28])
                 limit=min(number('MaxDepression'),math.degrees(math.atan2(1.55*math.cos(math.radians(yaw)),1.12)))
                 if abs(yaw)>number('Traverse') or not number('MinElevation')<=pitch<=limit: continue
                 if is_city and any(box.hit(eye,target) for box in world): continue
                 counts[i]+=1
         assert np.all(counts>=20), ('insufficient firing windows',is_city,counts)
         report['city_clear_seconds' if is_city else 'field_aimable_seconds']=(counts*seconds/360).round(1).tolist()
-    # Full door traverse at its maximum depression: no ray hits the floor/sill.
+    # New shoulder-orbit camera stays inside the open cabin across the full aim range.
     for yaw in np.linspace(-number('Traverse'),number('Traverse'),101):
-        pitch=min(number('MaxDepression'),math.degrees(math.atan2(1.55*math.cos(math.radians(yaw)),1.12)))
-        eye=np.array([1.35,1.65,0.])
-        ray=city.rotation(90+yaw)@rx(pitch)@np.array([0,0,1.])
-        sill=eye+ray*((2.35-eye[0])/ray[0])
-        assert sill[1]>.15,('view intersects floor',yaw,pitch,sill)
+        limit=min(number('MaxDepression'),math.degrees(math.atan2(1.55*math.cos(math.radians(yaw)),1.12)))
+        for pitch in np.linspace(number('MinElevation'),limit,15):
+            aiming=city.rotation(90+yaw)@rx(pitch)
+            eye=np.array([1.97,.80,0])-aiming@np.array([0,-.34,1.28])
+            assert .3<eye[0]<2.04 and .3<eye[1]<2.22 and abs(eye[2])<1.08, ('camera outside cabin',eye)
+            ray=aiming@np.array([0,0,1.])
+            sill=eye+ray*((2.35-eye[0])/ray[0])
+            assert sill[1]>.15,('view intersects floor',yaw,pitch,sill)
     # Velocity compensation must converge on the same ray for any aim heading.
     for time in np.linspace(0,seconds,100):
         p,_=pose(True,time); q,_=pose(True,time+.001); inherited=(q-p)/.001

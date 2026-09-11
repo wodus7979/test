@@ -124,6 +124,8 @@ namespace SniperRidge
                 Debug.LogError("[Sniper Ridge] 도시 에셋이 없습니다. Sniper Ridge → 도시 에셋 생성 메뉴를 실행하세요.");
                 return;
             }
+            if (weapon.IsMounted && !DoorGunView.IsReady)
+            { Debug.LogError("[Sniper Ridge] 헬기 중기관총 에셋 생성 메뉴를 먼저 실행하세요."); return; }
             Weapon = weapon;
             Mission = weapon.Mission;
             Map = map;
