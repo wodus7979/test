@@ -27,6 +27,8 @@ namespace SniperRidge
         public WindSystem Wind;
         public Terrain Terrain;
         public SoundBank Sounds;
+        public AudioSource Ambience;
+        GunshotPlayback gunshots;
 
         public int Kills { get; private set; }
         public int Shots { get; private set; }
@@ -90,6 +92,8 @@ namespace SniperRidge
         {
             Instance = this;
             Sounds = SoundBank.Create();
+            gunshots = gameObject.AddComponent<GunshotPlayback>();
+            gunshots.Initialize(this);
             audioPool = new AudioSource[Application.isMobilePlatform ? 16 : 32];
             for (int i = 0; i < audioPool.Length; i++)
             {
@@ -196,7 +200,9 @@ namespace SniperRidge
 
         // ---------- 사운드 ----------
 
-        public void PlaySound(AudioClip clip, float volume = 1f, float pitch = 1f)
+        public void PlayPlayerShot(string id, float volume) => gunshots.Play(id, volume);
+
+        public void PlaySound(AudioClip clip, float volume = 1f, float pitch = 1f, float pan = 0f)
         {
             if (clip == null) return;
             // Each voice owns one clip and pitch. Reusing a PlayOneShot source while its
@@ -214,6 +220,7 @@ namespace SniperRidge
             src.clip = clip;
             src.volume = Mathf.Clamp01(volume);
             src.pitch = pitch;
+            src.panStereo = Mathf.Clamp(pan, -1f, 1f);
             src.Play();
         }
 
@@ -291,11 +298,14 @@ namespace SniperRidge
 
         // ---------- 적 사격 관련 ----------
 
-        public IEnumerator EnemyShotSound(float distance, string shotId = "distant")
+        public IEnumerator EnemyShotSound(Vector3 origin, string shotId = "distant")
         {
+            float distance = Vector3.Distance(origin, PlayerEye.position);
             yield return new WaitForSeconds(distance / 340f);
             if (!IsPlaying) yield break;
-            PlaySound(Sounds.Shot(shotId), Mathf.Clamp01(1.1f - distance / 900f) * .45f, 1f);
+            Vector3 direction = PlayerEye.InverseTransformDirection((origin - PlayerEye.position).normalized);
+            PlaySound(Sounds.Shot(shotId, Map == BattlefieldMap.City),
+                Mathf.Clamp01(1.1f - distance / 900f) * .35f, 1f, direction.x * .8f);
         }
 
         public void PlayerDied() => EndMission(false);

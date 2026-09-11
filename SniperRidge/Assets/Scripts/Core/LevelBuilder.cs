@@ -162,6 +162,7 @@ namespace SniperRidge
             if (gm.Sounds == null || gm.Sounds.Wind == null) return;
             var go = new GameObject("Ambience");
             var src = go.AddComponent<AudioSource>();
+            gm.Ambience = src;
             src.clip = gm.Sounds.Wind;
             src.loop = true;
             src.volume = 0.35f;

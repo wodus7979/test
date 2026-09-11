@@ -689,7 +689,7 @@ namespace SniperRidge
             Effects.Flash(muzzle, new Color(1f, .8f, .5f), 4f, 6f, .06f);
             float damage = Role == EnemyRole.Sniper ? Random.Range(24f, 30f) : Random.Range(6f, 9f);
             EnemyProjectile.Launch(gm, this, muzzle, target, damage);
-            gm.StartCoroutine(gm.EnemyShotSound(Vector3.Distance(muzzle, gm.PlayerEye.position), EnemyCombatRoles.Sound(Role)));
+            gm.StartCoroutine(gm.EnemyShotSound(muzzle, EnemyCombatRoles.Sound(Role)));
         }
     }
 }

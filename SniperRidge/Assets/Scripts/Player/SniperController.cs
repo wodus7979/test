@@ -433,7 +433,7 @@ namespace SniperRidge
             }
 
             // Variation comes from separate recorded shots, not detuning the same sample.
-            gm.PlaySound(gm.Sounds.Shot(w.Id), w.ShotVolume, 1f);
+            gm.PlayPlayerShot(w.Id, w.ShotVolume);
             StartCoroutine(MuzzleFlash());
             gm.OnPlayerShot(cam.transform.position);
         }

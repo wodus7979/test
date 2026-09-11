@@ -18,6 +18,7 @@ namespace SniperRidge.EditorTools
                 var clips = Resources.LoadAll<AudioClip>("Audio")
                     .Where(c => c.name == "shot_" + id || c.name.StartsWith("shot_" + id + "_", StringComparison.Ordinal)).ToArray();
                 Check(clips.Length >= 2, "별도 녹음 테이크 누락: " + id);
+                if (id != "distant") Check(clips.Any(c => c.name == "shot_" + id + "_city"), "도시 총성 누락: " + id);
                 foreach (var clip in clips)
                 {
                     Check(clip.frequency == 48000 && clip.channels == (id == "distant" ? 1 : 2), "PCM 형식: " + clip.name);

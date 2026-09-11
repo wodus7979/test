@@ -327,8 +327,9 @@ namespace SniperRidge
         readonly Dictionary<string, AudioClip[]> shotTakes = new Dictionary<string, AudioClip[]>();
         readonly Dictionary<string, int> lastTake = new Dictionary<string, int>();
 
-        public AudioClip Shot(string weaponId)
+        public AudioClip Shot(string weaponId, bool city = false)
         {
+            if (city && shotTakes.ContainsKey(weaponId + "_city")) weaponId += "_city";
             if (!shotTakes.TryGetValue(weaponId, out var clips) || clips.Length == 0) return null;
             int index = Random.Range(0, clips.Length);
             if (clips.Length > 1 && lastTake.TryGetValue(weaponId, out int previous) && index == previous)
@@ -368,6 +369,8 @@ namespace SniperRidge
             b.RocketLaunch = Load("rocket_launch") ?? b.ShotRifle;
             b.RocketExplosion = Load("rocket_explosion") ?? b.ShotSniper;
             b.DistantShot = b.LoadShots("distant");
+            foreach (string id in new[] { "sniper", "dmr", "rifle", "lmg", "smg", "shotgun", "pistol" })
+                b.LoadShots(id + "_city");
             b.Crack = Load("crack") ?? ProceduralAssets.BulletCrack();
             b.Bolt = Load("bolt") ?? ProceduralAssets.Bolt();
             b.Pump = Load("pump") ?? b.Bolt;
@@ -375,7 +378,7 @@ namespace SniperRidge
             b.HitTick = Load("hit") ?? ProceduralAssets.HitTick();
             b.Click = Load("click") ?? ProceduralAssets.EmptyClick();
             b.Wind = Load("wind");
-            Debug.Log("[Sniper Ridge] 총기 7종과 적 총성: 실제 발사 테이크를 원래 피치로 재생합니다.");
+            Debug.Log("[Sniper Ridge] 총기 7종: 선명한 실제 녹음, 도시 반사음, 원래 피치 재생.");
             return b;
         }
     }
