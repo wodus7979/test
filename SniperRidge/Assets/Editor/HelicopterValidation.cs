@@ -1,0 +1,52 @@
+using System;
+using UnityEditor;
+using UnityEngine;
+
+namespace SniperRidge.EditorTools
+{
+    public static class HelicopterValidation
+    {
+        [MenuItem("Sniper Ridge/헬기 선회·중기관총 검사")]
+        public static void Validate()
+        {
+            var weapon = WeaponDefinition.Find("hmg");
+            Check(weapon.Id == "hmg" && weapon.IsMounted && weapon.Mission == MissionType.Helicopter,
+                "헬기 무기 설정 누락");
+            Check(weapon.Fire == FireMode.Auto && weapon.MagSize == 250 && weapon.Reserve == 2000,
+                "중기관총 탄띠 설정 오류");
+            foreach (var map in new[] { BattlefieldMap.Field, BattlefieldMap.City })
+                for (int frame = 0; frame < 520; frame++)
+                {
+                    float time = frame * .1f;
+                    var position = HelicopterFlight.Position(map, time);
+                    var inward = HelicopterFlight.Centre(map) - position; inward.y = 0f;
+                    var rightDoor = HelicopterFlight.Heading(time) * Vector3.right;
+                    Check(Vector3.Dot(rightDoor, inward.normalized) > .995f, "옆문이 선회 바깥쪽을 향합니다.");
+                    Check(Vector3.Distance(position, HelicopterFlight.Position(map, time + .1f)) < 1.2f,
+                        "선회 중 순간 이동");
+                }
+            foreach (var name in new[] { "helicopter_rotor", "helicopter_engine", "shot_hmg", "shot_hmg_02", "shot_hmg_03", "shot_hmg_04" })
+            {
+                var clip = Resources.Load<AudioClip>("Audio/" + name);
+                Check(clip != null && clip.channels == 2 && clip.frequency == 48000, "오디오 누락/형식: " + name);
+                var importer = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(clip)) as AudioImporter;
+                Check(importer != null && importer.defaultSampleSettings.compressionFormat == AudioCompressionFormat.PCM,
+                    "오디오 다시 가져오기 필요: " + name);
+            }
+            // When invoked during an air mission, also inspect the actual mounted rig.
+            var game = GameManager.Instance;
+            if (Application.isPlaying && game != null && game.Mission == MissionType.Helicopter && game.IsPlaying)
+            {
+                Check(game.Flight != null && game.Player.IsMounted, "헬기 사수 연결 누락");
+                Check(game.Player.transform.parent == game.Flight.GunnerStation, "사수가 기체에 고정되지 않았습니다.");
+                var muzzle = game.Flight.GunnerStation.Find("Mounted Heavy Machine Gun/Muzzle");
+                Check(muzzle != null, "중기관총 총구 누락");
+                foreach (var collider in game.Flight.GetComponentsInChildren<Collider>())
+                    Check(!collider.enabled, "헬기 시각 모델이 탄환을 가로막습니다.");
+            }
+            Debug.Log("[Sniper Ridge] 헬기 선회 방향·속도, 중기관총 설정과 PCM 오디오 검사 통과. Play에서 시야·명중·연사·소리를 확인하세요.");
+        }
+        static void Check(bool valid, string message)
+        { if (!valid) throw new InvalidOperationException("[헬기 검사] " + message); }
+    }
+}

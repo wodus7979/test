@@ -1,0 +1,18 @@
+{
+  "helicopter_rotor.wav": {
+    "seconds": 8,
+    "rate": 48000,
+    "peak": 0.5,
+    "loop_boundary_delta": 0.0030648369227953944,
+    "rms": 0.06134263509685571,
+    "provenance": "synthesized, no field recording"
+  },
+  "helicopter_engine.wav": {
+    "seconds": 8,
+    "rate": 48000,
+    "peak": 0.35,
+    "loop_boundary_delta": 0.008568102098061067,
+    "rms": 0.06802103763481901,
+    "provenance": "synthesized, no field recording"
+  }
+}

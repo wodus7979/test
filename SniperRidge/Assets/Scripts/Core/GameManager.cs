@@ -28,6 +28,7 @@ namespace SniperRidge
         public Terrain Terrain;
         public SoundBank Sounds;
         public AudioSource Ambience;
+        public HelicopterFlight Flight { get; private set; }
         GunshotPlayback gunshots;
 
         public int Kills { get; private set; }
@@ -59,14 +60,14 @@ namespace SniperRidge
         readonly SniperContact contact = new SniperContact();
         Vector3 defenseAimPoint;
         float nextEnemyAttack;
-        public bool PositionRevealed => Mission == MissionType.Defense || contact.Revealed;
+        public bool PositionRevealed => Mission != MissionType.Sniper || contact.Revealed;
         public float HideProgress => contact.HiddenSeconds / CounterfireRules.LoseContactSeconds;
         public Vector3 EnemyAimPoint => Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
 
         void LateUpdate()
         {
             if (!IsPlaying || Player == null) return;
-            if (Mission == MissionType.Defense)
+            if (Mission != MissionType.Sniper)
             {
                 if (Player.CanFireFromCover) defenseAimPoint = Player.AimPoint;
                 return;
@@ -130,11 +131,18 @@ namespace SniperRidge
             LevelBuilder.PrepareMap(this);
             State = GameState.Playing;
             startTime = Time.time;
+            if (Mission == MissionType.Helicopter) Flight = HelicopterFlight.Create(this);
             Player.Equip(weapon);
             defenseAimPoint = Player.AimPoint;
             nextEnemyAttack = Time.time + 2f;
 
-            if (Mission == MissionType.Sniper)
+            if (Mission == MissionType.Helicopter)
+            {
+                Health.Configure(5f, 6f);
+                LevelBuilder.SpawnSniperEnemies(this);
+                Hud.OnMissionStart("헬기 옆문 중기관총 사격.\n조종사가 목표 주변을 자동 선회합니다.\n지상과 옥상의 적 10명을 모두 제거하세요.\n마우스 조준 · 좌클릭 연사 · 우클릭 확대 · R 탄띠 교체");
+            }
+            else if (Mission == MissionType.Sniper)
             {
                 Health.Configure(5f, 6f);
                 LevelBuilder.SpawnSniperEnemies(this);
@@ -293,7 +301,7 @@ namespace SniperRidge
             }
             PlaySound(Sounds.HitTick, 0.8f);
 
-            if (Mission == MissionType.Sniper && Kills >= enemies.Count) EndMission(true);
+            if (Mission != MissionType.Defense && Kills >= enemies.Count) EndMission(true);
         }
 
         // ---------- 적 사격 관련 ----------
@@ -315,6 +323,7 @@ namespace SniperRidge
             if (!IsPlaying) return;
             State = won ? GameState.Won : GameState.Lost;
             endTime = Time.time;
+            if (Flight != null) Flight.StopFlight();
             Player.OnMissionEnd();
             Hud.ShowEnd(won);
         }

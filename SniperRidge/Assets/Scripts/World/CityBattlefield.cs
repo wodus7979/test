@@ -70,7 +70,7 @@ namespace SniperRidge
                 if (gm.Mission == MissionType.Defense && i != 1 && i != 3 && i != 4 && i != 5) continue;
                 AddPostCover(CityLayout.Spawn(i));
             }
-            BuildCheckpoint(gm.Player.transform.position);
+            if (gm.Mission != MissionType.Helicopter) BuildCheckpoint(gm.Player.transform.position);
             // All building walls, roofs, parapets and props retain their original solid colliders.
             Physics.SyncTransforms();
             Debug.Log("[Sniper Ridge] 도시 전장 생성: 도로·상가·오피스, 옥상 사격 진지, 콘크리트 검문소.");

@@ -531,6 +531,103 @@
       }
     ]
   },
+  "hmg": {
+    "source": "AK-47/C_28P.wav",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
+    "takes": [
+      {
+        "file": "shot_hmg.wav",
+        "source_channel": 1,
+        "source_onset_seconds": 0.61,
+        "duration_seconds": 0.85,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 23.73,
+        "attack_presence_1500_8000Hz_percent": 36.26,
+        "blast_20_100ms_rms": 0.1275,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_hmg_02.wav",
+        "source_channel": 1,
+        "source_onset_seconds": 3.255,
+        "duration_seconds": 0.849,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 24.17,
+        "attack_presence_1500_8000Hz_percent": 31.19,
+        "blast_20_100ms_rms": 0.09593,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_hmg_03.wav",
+        "source_channel": 1,
+        "source_onset_seconds": 6.02,
+        "duration_seconds": 0.85,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 28.07,
+        "attack_presence_1500_8000Hz_percent": 32.76,
+        "blast_20_100ms_rms": 0.11425,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_hmg_04.wav",
+        "source_channel": 1,
+        "source_onset_seconds": 9.155,
+        "duration_seconds": 0.85,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 21.67,
+        "attack_presence_1500_8000Hz_percent": 38.99,
+        "blast_20_100ms_rms": 0.11495,
+        "clipped_samples": 0
+      }
+    ],
+    "city_takes": [
+      {
+        "file": "shot_hmg_city.wav",
+        "direct_take": "shot_hmg.wav",
+        "duration_seconds": 1.03,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 24.23,
+        "attack_presence_1500_8000Hz_percent": 36.24,
+        "blast_20_100ms_rms": 0.12752,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_hmg_city_02.wav",
+        "direct_take": "shot_hmg_02.wav",
+        "duration_seconds": 1.029,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 23.71,
+        "attack_presence_1500_8000Hz_percent": 31.38,
+        "blast_20_100ms_rms": 0.09618,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_hmg_city_03.wav",
+        "direct_take": "shot_hmg_03.wav",
+        "duration_seconds": 1.03,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 27.5,
+        "attack_presence_1500_8000Hz_percent": 33.26,
+        "blast_20_100ms_rms": 0.11338,
+        "clipped_samples": 0
+      },
+      {
+        "file": "shot_hmg_city_04.wav",
+        "direct_take": "shot_hmg_04.wav",
+        "duration_seconds": 1.03,
+        "peak": 0.74,
+        "body_energy_below_250Hz_percent": 22.16,
+        "attack_presence_1500_8000Hz_percent": 38.88,
+        "blast_20_100ms_rms": 0.11684,
+        "clipped_samples": 0
+      }
+    ]
+  },
   "distant": {
     "source": "AR-15/D_24P.wav",
     "processing_revision": "powder-blast-1",

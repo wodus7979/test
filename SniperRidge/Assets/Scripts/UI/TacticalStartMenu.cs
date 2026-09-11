@@ -25,7 +25,9 @@ namespace SniperRidge
         Text weaponName, weaponType, magazine, reserve, reload, missionTitle, objective, range, rule, deployLabel;
         GameObject sniperMap, defenseMap, citySniperMap, cityDefenseMap;
         Button fieldButton, cityButton;
-        Text mapDescription;
+        Text mapDescription, controls;
+        RectTransform equipmentLeft, equipmentRight;
+        GameObject orbitMap;
         BattlefieldMap selectedMap;
         MenuWeaponPreview preview;
         int selected, openedFrame;
@@ -73,11 +75,11 @@ namespace SniperRidge
             BuildBriefing();
 
             Box(content, "Footer rule", Line, 0, 856, 1760, 1);
-            Label(content, "Controls", "C / Ctrl  엄폐     A / D  좌우 이동     우클릭  조준     R  재장전", 22, Paper, 0, 879, 1210, 34);
-            Label(content, "Selection help", "클릭 또는 1–7: 무기 선택    ·    Enter: 작전 시작", 20, Muted, 0, 922, 1210, 30);
+            controls = Label(content, "Controls", "C / Ctrl  엄폐     A / D  좌우 이동     우클릭  조준     R  재장전", 22, Paper, 0, 879, 1210, 34);
+            Label(content, "Selection help", "클릭 또는 1–8: 무기 선택    ·    Enter: 작전 시작", 20, Muted, 0, 922, 1210, 30);
             var deploy = Button(content, "Deploy", 1264, 878, 496, 74, Sand, Deploy);
             deployLabel = Label(deploy.transform, "Action", "", 28, Ink, 24, 0, 448, 74, true, TextAnchor.MiddleCenter);
-            Select(0);
+            Select(7);
         }
 
         void BuildRows()
@@ -89,12 +91,12 @@ namespace SniperRidge
             {
                 int index = i;
                 var weapon = WeaponDefinition.All[i];
-                var button = Button(content, "Weapon_" + weapon.Id, 0, 260 + i * 82, 400, 72, Panel, () => Select(index));
+                var button = Button(content, "Weapon_" + weapon.Id, 0, 260 + i * 72, 400, 64, Panel, () => Select(index));
                 rows[i] = button;
-                selectionBars[i] = Box(button.transform, "Selection", Sand, 0, 0, 4, 72).GetComponent<Image>();
-                Label(button.transform, "Key", (i + 1).ToString("00"), 22, Muted, 20, 21, 40, 32, true);
-                rowNames[i] = Label(button.transform, "Name", weapon.Name, 25, Paper, 76, 9, 304, 34, true);
-                rowStates[i] = Label(button.transform, "Mission", "", 17, Muted, 77, 43, 300, 24);
+                selectionBars[i] = Box(button.transform, "Selection", Sand, 0, 0, 4, 64).GetComponent<Image>();
+                Label(button.transform, "Key", (i + 1).ToString("00"), 22, Muted, 20, 16, 40, 32, true);
+                rowNames[i] = Label(button.transform, "Name", weapon.Name, 25, Paper, 76, 4, 304, 32, true);
+                rowStates[i] = Label(button.transform, "Mission", "", 17, Muted, 77, 36, 300, 24);
             }
         }
 
@@ -113,17 +115,18 @@ namespace SniperRidge
             magazine = Label(panel, "Magazine", "", 22, Paper, 28, 375, 230, 34, true);
             reserve = Label(panel, "Reserve", "", 22, Paper, 288, 375, 230, 34, true);
             reload = Label(panel, "Reload", "", 22, Paper, 548, 375, 224, 34, true);
-            EquipmentCard(432, "Q", "로켓포", "주무기와 즉시 교체 · 예비 8발");
-            EquipmentCard(848, "W", "수류탄", "6개 지급 · 누르고 조준, 놓아 투척");
+            equipmentLeft = EquipmentCard(432, "Q", "로켓포", "주무기와 즉시 교체 · 예비 8발");
+            equipmentRight = EquipmentCard(848, "W", "수류탄", "6개 지급 · 누르고 조준, 놓아 투척");
         }
 
-        void EquipmentCard(float x, string key, string title, string text)
+        RectTransform EquipmentCard(float x, string key, string title, string text)
         {
             var panel = Box(content, title, Panel, x, 710, 384, 114);
             Box(panel, "Key background", Line, 20, 20, 42, 38);
             Label(panel, "Key", key, 23, Sand, 20, 20, 42, 38, true, TextAnchor.MiddleCenter);
             Label(panel, "Name", title, 25, Paper, 78, 21, 278, 38, true);
             Label(panel, "Description", text, 18, Muted, 20, 73, 346, 28);
+            return panel;
         }
 
         void BuildBriefing()
@@ -173,6 +176,14 @@ namespace SniperRidge
             }
             citySniperMap = BuildCityMap(true);
             cityDefenseMap = BuildCityMap(false);
+            orbitMap = Box(map, "Helicopter orbit", Color.clear, 0, 0, 440, 238).gameObject;
+            for (int i = 0; i < 48; i++)
+            {
+                float a = i * Mathf.PI * 2f / 48f, b = (i + 1) * Mathf.PI * 2f / 48f;
+                MapLine(orbitMap.transform, new Vector2(220 + Mathf.Sin(a) * 160, 125 + Mathf.Cos(a) * 75),
+                    new Vector2(220 + Mathf.Sin(b) * 160, 125 + Mathf.Cos(b) * 75), Sand);
+            }
+            Label(orbitMap.transform, "Orbit label", "헬기 자동 선회 ↻", 18, Sand, 246, 194, 186, 28);
             range = Label(panel, "Range", "", 24, Sand, 28, 439, 440, 36, true);
             rule = Label(panel, "Rule", "", 20, Paper, 28, 492, 440, 58);
         }
@@ -222,7 +233,8 @@ namespace SniperRidge
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
             selected = index;
             var weapon = WeaponDefinition.All[index];
-            bool sniper = weapon.Mission == MissionType.Sniper;
+            bool air = weapon.IsMounted;
+            bool sniper = weapon.Mission != MissionType.Defense;
             bool city = selectedMap == BattlefieldMap.City;
             SetColors(fieldButton, city ? Panel : new Color(.30f, .34f, .25f));
             SetColors(cityButton, city ? new Color(.30f, .34f, .25f) : Panel);
@@ -233,7 +245,7 @@ namespace SniperRidge
                 SetColors(rows[i], active ? new Color(.22f, .25f, .22f) : Panel);
                 selectionBars[i].enabled = active;
                 rowNames[i].color = active ? Sand : Paper;
-                rowStates[i].text = (WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
+                rowStates[i].text = (WeaponDefinition.All[i].IsMounted ? "공중 선회 공격" : WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
             }
             weaponName.text = weapon.Name;
             weaponType.text = weapon.Id == "shotgun" ? "근접 화력  /  펌프액션" : weapon.Fire == FireMode.Bolt ? "정밀 사격  /  볼트액션" : weapon.Fire == FireMode.Auto ? "지속 화력  /  자동 사격" : "단발 사격  /  반자동";
@@ -252,10 +264,34 @@ namespace SniperRidge
                 range.text = "교전 거리    40–120 m / 옥상 포함";
                 rule.text = "옥상 저격병  /  자주색 군복\nC/Ctrl로 검문소 벽 뒤에 숨으세요.";
             }
+            if (air)
+            {
+                weaponType.text = "공중 화력  /  옆문 거치식 중기관총";
+                missionTitle.text = city ? "도시 공중 공격" : "들판 공중 공격";
+                objective.text = "헬기에서 지상·옥상을 내려다보며\n적 10명을 모두 제거하세요.";
+                range.text = city ? "고도 66 m  /  선회 52초" : "고도 44 m  /  선회 52초";
+                rule.text = "마우스 조준 · 좌클릭 연사\n각도가 막히면 다음 선회를 노리세요.";
+            }
+            controls.text = air ? "마우스  조준     좌클릭  연사     우클릭  확대     R  탄띠 교체     휠 / Z  배율"
+                : "C / Ctrl  엄폐     A / D  좌우 이동     우클릭  조준     R  재장전";
+            SetCard(equipmentLeft, air ? "R" : "Q", air ? "250발 탄띠" : "로켓포",
+                air ? "예비 2,000발 · 탄띠 교체 4초" : "주무기와 즉시 교체 · 예비 8발");
+            SetCard(equipmentRight, air ? "↻" : "W", air ? "자동 선회" : "수류탄",
+                air ? "조종사 비행 · 사수는 조준과 사격" : "6개 지급 · 누르고 조준, 놓아 투척");
+            orbitMap.SetActive(air);
+            map.Find("Trench").gameObject.SetActive(!air);
+            map.Find("Player").gameObject.SetActive(!air);
             sniperMap.SetActive(!city && sniper); defenseMap.SetActive(!city && !sniper);
             citySniperMap.SetActive(city && sniper); cityDefenseMap.SetActive(city && !sniper);
             deployLabel.text = "작전 시작     [ ENTER ]";
             preview.Show(weapon);
+        }
+
+        static void SetCard(RectTransform card, string key, string name, string description)
+        {
+            card.Find("Key").GetComponent<Text>().text = key;
+            card.Find("Name").GetComponent<Text>().text = name;
+            card.Find("Description").GetComponent<Text>().text = description;
         }
 
         void Deploy()

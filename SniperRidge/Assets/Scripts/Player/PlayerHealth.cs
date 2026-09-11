@@ -32,7 +32,7 @@ namespace SniperRidge
         void Update()
         {
             var gm = GameManager.Instance;
-            if (gm != null && gm.IsPlaying && gm.Player.IsHidden && Current > 0f && Current < Max && Time.time - lastHitTime > regenDelay)
+            if (gm != null && gm.IsPlaying && (gm.Player.IsHidden || gm.Player.IsMounted) && Current > 0f && Current < Max && Time.time - lastHitTime > regenDelay)
                 Current = Mathf.Min(Max, Current + regenRate * Time.deltaTime);
         }
     }

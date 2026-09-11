@@ -362,6 +362,7 @@ namespace SniperRidge
             b.ShotDmr = b.LoadShots("dmr");
             b.ShotRifle = b.LoadShots("rifle");
             b.ShotLmg = b.LoadShots("lmg");
+            b.LoadShots("hmg");
             b.ShotSmg = b.LoadShots("smg");
             b.ShotShotgun = b.LoadShots("shotgun");
             b.ShotPistol = b.LoadShots("pistol");
@@ -369,7 +370,7 @@ namespace SniperRidge
             b.RocketLaunch = Load("rocket_launch") ?? b.ShotRifle;
             b.RocketExplosion = Load("rocket_explosion") ?? b.ShotSniper;
             b.DistantShot = b.LoadShots("distant");
-            foreach (string id in new[] { "sniper", "dmr", "rifle", "lmg", "smg", "shotgun", "pistol" })
+            foreach (string id in new[] { "sniper", "dmr", "rifle", "lmg", "smg", "shotgun", "pistol", "hmg" })
                 b.LoadShots(id + "_city");
             b.Crack = Load("crack") ?? ProceduralAssets.BulletCrack();
             b.Bolt = Load("bolt") ?? ProceduralAssets.Bolt();

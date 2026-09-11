@@ -24,7 +24,7 @@ namespace SniperRidge
         }
         public void Play(string id, float volume)
         {
-            var clip = gm.Sounds.Shot(id, gm.Map == BattlefieldMap.City);
+            var clip = gm.Sounds.Shot(id, gm.Map == BattlefieldMap.City && gm.Mission != MissionType.Helicopter);
             if (clip == null) return;
             int voice = nextVoice;
             for (int i = 0; i < sources.Length; i++)

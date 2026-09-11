@@ -7,7 +7,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]/'Assets/Resources/Audio'
 WEAPONS = {
     'sniper': (1.5, 1), 'dmr': (1/3, .95), 'rifle': (60/650, .75),
-    'lmg': (60/700, .85), 'smg': (60/900, .65), 'shotgun': (.85, 1), 'pistol': (.2, .7),
+    'lmg': (60/700, .85), 'smg': (60/900, .65), 'shotgun': (.85, 1), 'pistol': (.2, .7), 'hmg': (.1, .9),
 }
 
 

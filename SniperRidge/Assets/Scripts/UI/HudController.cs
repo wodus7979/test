@@ -14,7 +14,7 @@ namespace SniperRidge
         Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, weaponText, killFeed, introText, announceText, hintText, endTitle, endStats;
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
-        Text coverText, threatText, shotFeedback, launcherLabel, grenadeCount, grenadeAim;
+        Text launcherHelp, coverText, threatText, shotFeedback, launcherLabel, grenadeCount, grenadeAim;
         Button launcherButton;
         float shotFeedbackTimer;
         float threatUntil;
@@ -153,7 +153,7 @@ namespace SniperRidge
                 new Vector2(-30f, -220f), new Vector2(300f, 65f), () => gm.Player.ToggleLauncher());
             launcherLabel = launcherButton.GetComponentInChildren<Text>();
             var nav = launcherButton.navigation; nav.mode = Navigation.Mode.None; launcherButton.navigation = nav;
-            UiKit.Label(g, "LauncherHelp", Application.isMobilePlatform ? "로켓은 발사 즉시 위치 발각" : "Q: 즉시 교체 · Esc: 버튼 클릭",
+            launcherHelp = UiKit.Label(g, "LauncherHelp", Application.isMobilePlatform ? "로켓은 발사 즉시 위치 발각" : "Q: 즉시 교체 · Esc: 버튼 클릭",
                 18, TextAnchor.UpperRight, dim, topRight, topRight, new Vector2(-30f, -291f), new Vector2(350f, 30f));
 
             grenadeCount = UiKit.Label(g, "GrenadeCount", "", 24, TextAnchor.UpperRight, white,
@@ -250,6 +250,10 @@ namespace SniperRidge
             if (gm == null || gm.Player == null) return;
             if (gm.IsSelecting) return;
             var p = gm.Player;
+            launcherButton.gameObject.SetActive(!p.IsMounted);
+            launcherHelp.gameObject.SetActive(!p.IsMounted);
+            grenadeCount.gameObject.SetActive(!p.IsMounted);
+            if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  우클릭 확대  |  R 탄띠 교체  |  휠/Z 배율  |  헬기 자동 선회";
             grenadeCount.text = string.Format("[W] 수류탄 {0}개 · 누르고 조준", p.Grenades.Count);
             grenadeAim.text = p.Grenades.IsAiming ? p.Grenades.AimLabel : "";
             grenadeAim.color = p.Grenades.ValidTarget ? new Color(.55f, 1f, .65f) : new Color(1f, .55f, .3f);
@@ -262,18 +266,20 @@ namespace SniperRidge
                     ? string.Format("추적 해제까지 {0:0.0}초", (1f - gm.HideProgress) * CounterfireRules.LoseContactSeconds)
                     : "위치 발각 · 적 반격 중")
                 : "적이 사격하며 접근합니다 · 엄폐 후 반격";
-            coverText.text = posture + "\n" + contact;
+            coverText.text = p.IsMounted
+                ? string.Format("헬기 선회 중 · 고도 {0:0}m / 속도 {1:0}km/h\n거치식 중기관총 · 지상과 옥상의 적을 공격하세요", gm.Flight.Altitude, gm.Flight.Velocity.magnitude * 3.6f)
+                : posture + "\n" + contact;
             coverText.color = p.IsHidden ? new Color(.55f, 1f, .7f) : new Color(1f, .8f, .45f);
             if (gm.IsPlaying && Time.time < threatUntil)
             {
                 Vector3 direction = p.transform.InverseTransformPoint(threatSource);
                 string side = direction.z < 0f ? "후방" : Mathf.Abs(direction.x) < Mathf.Abs(direction.z) * .25f ? "정면" : direction.x < 0f ? "← 좌측" : "우측 →";
-                threatText.text = threatRole + " 조준 / 탄 접근  " + side + "  ·  C/Ctrl 엄폐";
+                threatText.text = threatRole + " 조준 / 탄 접근  " + side + (p.IsMounted ? "  ·  적 반격" : "  ·  C/Ctrl 엄폐");
             }
             else threatText.text = "";
             float dt = Time.deltaTime;
 
-            if (gm.Mission == MissionType.Sniper)
+            if (gm.Mission != MissionType.Defense)
             {
                 enemyText.text = string.Format("적 잔여  {0} / {1}", gm.TotalEnemies - gm.Kills, gm.TotalEnemies);
             }

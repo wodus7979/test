@@ -79,7 +79,7 @@ namespace SniperRidge
             if (gm.Map == BattlefieldMap.City) CityBattlefield.Build(gm);
             else
             {
-                TrenchBuilder.Build(gm.Terrain, gm.Player.transform.position);
+                if (gm.Mission != MissionType.Helicopter) TrenchBuilder.Build(gm.Terrain, gm.Player.transform.position);
                 BuildDecorations(gm.Terrain, gm.Player.transform.position, EnemySpawns());
             }
             SetupReflection(gm.Player.transform.position);

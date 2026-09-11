@@ -11,7 +11,7 @@ namespace SniperRidge.EditorTools
         public static void Validate()
         {
             ValidateFootwork();
-            string[] ids = { "sniper", "dmr", "rifle", "lmg", "smg", "shotgun", "pistol", "distant" };
+            string[] ids = { "sniper", "dmr", "rifle", "lmg", "smg", "shotgun", "pistol", "hmg", "distant" };
             int total = 0;
             foreach (string id in ids)
             {

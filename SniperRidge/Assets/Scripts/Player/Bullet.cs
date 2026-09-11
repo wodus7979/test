@@ -24,14 +24,14 @@ namespace SniperRidge
         }
 
         public static void Fire(Vector3 origin, Vector3 direction, Vector3 wind,
-                                float muzzleVelocity = Ballistics.MuzzleVelocity, float dragK = Ballistics.DragK, float damage = 100f)
+                                float muzzleVelocity = Ballistics.MuzzleVelocity, float dragK = Ballistics.DragK, float damage = 100f, Vector3 inheritedVelocity = default(Vector3))
         {
             var go = new GameObject("Bullet");
             go.transform.position = origin;
             var b = go.AddComponent<Bullet>();
             b.pos = origin;
             b.origin = origin;
-            b.vel = direction.normalized * muzzleVelocity;
+            b.vel = direction.normalized * muzzleVelocity + inheritedVelocity;
             b.wind = wind;
             b.dragK = dragK;
             b.damage = damage;

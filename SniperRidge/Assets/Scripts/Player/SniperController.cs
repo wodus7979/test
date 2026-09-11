@@ -24,7 +24,9 @@ namespace SniperRidge
         public bool UsingLauncher => Weapon != null && Weapon.IsRocket;
         public int RocketsRemaining => loadout.Rocket == null ? 0 : loadout.Rocket.Magazine + loadout.Rocket.Reserve;
         public GrenadeController Grenades { get; private set; }
-        public bool CanSwitchWeapon => inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
+        public bool IsMounted => flight != null;
+        HelicopterFlight flight;
+        public bool CanSwitchWeapon => !IsMounted && inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
         public bool IsScoped { get; private set; }
         public int AmmoInMag { get => loadout.Active?.Magazine ?? 0; private set => loadout.Active.Magazine = value; }
         public int Reserve { get => loadout.Active?.Reserve ?? 0; private set => loadout.Active.Reserve = value; }
@@ -37,8 +39,8 @@ namespace SniperRidge
         public float CurrentScopeFov => Weapon != null ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
         public Transform Eye => cam.transform;
         public bool IsDesktop => desktop;
-        public bool IsHidden => cam.transform.localPosition.y <= .78f;
-        public bool CanFireFromCover => !coverHeld && cam.transform.localPosition.y >= 1.42f;
+        public bool IsHidden => !IsMounted && cam.transform.localPosition.y <= .78f;
+        public bool CanFireFromCover => IsMounted || (!coverHeld && cam.transform.localPosition.y >= 1.42f);
         public Vector3 AimPoint => Eye.position - Vector3.up * .18f;
         Vector3 nestOrigin;
         bool coverHeld, touchCover;
@@ -52,8 +54,23 @@ namespace SniperRidge
             top = Eye.position - Vector3.up * .10f;
         }
 
+        public void AttachToHelicopter(HelicopterFlight helicopter)
+        {
+            flight = helicopter;
+            transform.SetParent(flight.GunnerStation, false);
+            transform.localPosition = Vector3.zero;
+            transform.localRotation = Quaternion.identity;
+            cam.transform.localPosition = Vector3.up * CounterfireRules.StandingEye;
+            yaw = 0f;
+            pitch = Mathf.Atan2(flight.Altitude, flight.Radius) * Mathf.Rad2Deg;
+            MinPitch = HelicopterFlight.MinElevation;
+            MaxPitch = HelicopterFlight.MaxDepression;
+            coverHeld = touchCover = false;
+        }
+
         void UpdateCover(float dt)
         {
+            if (IsMounted) return;
             bool keysActive = desktop && Cursor.lockState == CursorLockMode.Locked;
             coverHeld = inputEnabled && (touchCover || (keysActive &&
                 (Input.GetKey(KeyCode.C) || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))));
@@ -87,7 +104,7 @@ namespace SniperRidge
 
         Camera cam;
         GameObject weaponModel;
-        Transform muzzleAnchor;
+        Transform muzzleAnchor, muzzleBurst;
         Light muzzleLight;
         GameManager gm;
 
@@ -142,7 +159,7 @@ namespace SniperRidge
             if (muzzleLight != null) muzzleLight.enabled = false;
             zoomIndex = Mathf.Clamp(loadout.Active.Zoom, 0, weapon.ScopeFovs.Length - 1);
             ZeroRange = loadout.Active.Zero;
-            zeroAngle = weapon.IsRocket ? 0f : Ballistics.ZeroAngleDegrees(ZeroRange, weapon.MuzzleVelocity, weapon.DragK);
+            zeroAngle = weapon.IsRocket || weapon.IsMounted ? 0f : Ballistics.ZeroAngleDegrees(ZeroRange, weapon.MuzzleVelocity, weapon.DragK);
             State = WeaponState.Switching;
             stateTimer = .6f;
             fireTimer = Mathf.Max(.6f, loadout.Active.ReadyAt - Time.time);      // 선택 버튼 클릭이 곧바로 사격으로 이어지지 않도록
@@ -152,7 +169,8 @@ namespace SniperRidge
             recoil = recoilYaw = 0f;
             IsScoped = false;
             if (weaponModel != null) { weaponModel.SetActive(false); Destroy(weaponModel); }
-            weaponModel = WeaponModels.Build(cam.transform, weapon);
+            weaponModel = WeaponModels.Build(IsMounted ? flight.GunnerStation : cam.transform, weapon);
+            muzzleBurst = weaponModel.transform.Find("Muzzle/Blast");
             muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);   // 광원은 카메라 아래에 두고 사격 시 총구 위치로 옮긴다 (모델이 꺼져 있어도 동작)
         }
 
@@ -237,6 +255,11 @@ namespace SniperRidge
             yaw += lookInput.x * sens;
             pitch -= lookInput.y * sens;
             pitch = Mathf.Clamp(pitch, MinPitch, MaxPitch);
+            if (IsMounted)
+            {
+                yaw = Mathf.Clamp(yaw, -HelicopterFlight.Traverse, HelicopterFlight.Traverse);
+                pitch = Mathf.Min(pitch, HelicopterFlight.DepressionLimit(yaw));
+            }
             lookInput = Vector2.zero;
 
             // 숨 참기
@@ -272,7 +295,9 @@ namespace SniperRidge
             recoil = Mathf.Lerp(recoil, 0f, dt * 6f);
             recoilYaw = Mathf.Lerp(recoilYaw, 0f, dt * 6f);
 
-            transform.rotation = Quaternion.Euler(0f, yaw + swayX + recoilYaw, 0f);
+            Quaternion aimYaw = Quaternion.Euler(0f, yaw + swayX + recoilYaw, 0f);
+            if (IsMounted) transform.localRotation = aimYaw;
+            else transform.rotation = aimYaw;
             cam.transform.localRotation = Quaternion.Euler(pitch + swayY - recoil, 0f, 0f);
 
             // 조준경 / 배율 / 영점
@@ -306,8 +331,17 @@ namespace SniperRidge
                 if (weaponModel.activeSelf != showModel) weaponModel.SetActive(showModel);
                 float lower = State == WeaponState.Switching ? Mathf.Clamp01(stateTimer / .6f) :
                     State == WeaponState.Reloading ? Mathf.Sin(Mathf.Clamp01(stateTimer / Weapon.ReloadTime) * Mathf.PI) * .65f : 0f;
-                weaponModel.transform.localPosition = Weapon.ViewOffset + Vector3.down * lower * .42f;
-                weaponModel.transform.localRotation = Quaternion.Euler(lower * 30f, 0f, lower * -12f);
+                if (IsMounted)
+                {
+                    // Pivot remains fixed to the door; only the receiver and barrel traverse.
+                    weaponModel.transform.position = flight.GunnerStation.TransformPoint(0f, 1.17f, .9f);
+                    weaponModel.transform.rotation = cam.transform.rotation;
+                }
+                else
+                {
+                    weaponModel.transform.localPosition = Weapon.ViewOffset + Vector3.down * lower * .42f;
+                    weaponModel.transform.localRotation = Quaternion.Euler(lower * 30f, 0f, lower * -12f);
+                }
             }
 
             // 무기 상태
@@ -429,7 +463,23 @@ namespace SniperRidge
             {
                 Vector2 s = Random.insideUnitCircle * spread;
                 Vector3 dir = Quaternion.AngleAxis(s.x, cam.transform.up) * Quaternion.AngleAxis(s.y, cam.transform.right) * baseDir;
-                Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
+                if (IsMounted && muzzleAnchor != null)
+                {
+                    // Converge the door-mounted muzzle on the camera's aiming point.
+                    Physics.SyncTransforms();
+                    Vector3 target = Physics.Raycast(cam.transform.position, dir, out RaycastHit aimHit,
+                        1500f, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore)
+                        ? aimHit.point : cam.transform.position + dir * 1500f;
+                    Vector3 desired = (target - muzzleAnchor.position).normalized;
+                    Vector3 inherited = flight.Velocity;
+                    // Solve |desired * worldSpeed - inherited| = muzzleVelocity exactly.
+                    float along = Vector3.Dot(desired, inherited);
+                    float worldSpeed = along + Mathf.Sqrt(Mathf.Max(0f,
+                        w.MuzzleVelocity * w.MuzzleVelocity - inherited.sqrMagnitude + along * along));
+                    Vector3 relative = desired * worldSpeed - inherited;
+                    Bullet.Fire(muzzleAnchor.position, relative, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage, inherited);
+                }
+                else Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
             }
 
             // Variation comes from separate recorded shots, not detuning the same sample.
@@ -444,9 +494,11 @@ namespace SniperRidge
             muzzleLight.transform.position = muzzleAnchor != null
                 ? muzzleAnchor.TransformPoint(0f, 0f, 0.05f)
                 : cam.transform.TransformPoint(0.28f, -0.18f, 1.2f);
+            if (muzzleBurst != null) muzzleBurst.gameObject.SetActive(true);
             muzzleLight.enabled = true;
             yield return new WaitForSeconds(0.05f);
             muzzleLight.enabled = false;
+            if (muzzleBurst != null) muzzleBurst.gameObject.SetActive(false);
         }
 
         IEnumerator BoltCycle()

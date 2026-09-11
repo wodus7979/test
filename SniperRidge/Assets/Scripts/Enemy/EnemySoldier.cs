@@ -282,7 +282,7 @@ namespace SniperRidge
         void Start()
         {
             gm = GameManager.Instance;
-            if (gm.Mission == MissionType.Defense) IsAware = true;
+            if (gm.Mission != MissionType.Sniper) IsAware = true;
             switch (Kind)
             {
                 case EnemyKind.Patrol:

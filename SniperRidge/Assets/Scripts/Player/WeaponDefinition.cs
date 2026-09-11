@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SniperRidge
 {
     public enum FireMode { Bolt, Semi, Auto }
-    public enum MissionType { Sniper, Defense }
+    public enum MissionType { Sniper, Defense, Helicopter }
 
     /// <summary>무기 하나의 성능 정의. 실제 총기명 대신 종류 이름을 쓴다.</summary>
     public class WeaponDefinition
@@ -41,6 +41,7 @@ namespace SniperRidge
 
         public string ModelName;        // Resources/Weapons/Prefabs/<ModelName> (Firearm Asset Pack)
         public bool IsRocket;
+        public bool IsMounted;
         public int Pellets = 1;         // 샷건: 한 발에 나가는 산탄 수
         public Vector3 ViewOffset = new Vector3(0.22f, -0.2f, 0.38f);   // 1인칭 위치
 
@@ -144,6 +145,18 @@ namespace SniperRidge
                 RecoilKick = 1.6f, RecoilClimb = 0.15f, SwayScoped = 0.45f, SwayHip = 0.8f, HipSpread = 1.2f, AdsSpread = 0.4f,
                 ShotVolume = 0.7f, ShotPitch = 1.35f,
                 ModelName = "06_service_pistol", ViewOffset = new Vector3(0.16f, -0.17f, 0.3f),
+            },
+            new WeaponDefinition
+            {
+                Id = "hmg", Name = "헬기 중기관총", IsMounted = true,
+                Description = "헬기 옆문 거치식 중기관총 · 자동 선회 · 250발 탄띠",
+                Mission = MissionType.Helicopter, Fire = FireMode.Auto,
+                RoundsPerMinute = 600f, MagSize = 250, Reserve = 2000, ReloadTime = 4f,
+                MuzzleVelocity = 890f, DragK = .0006f, Damage = 125f,
+                ScopeFovs = new[] { 30f, 20f }, ScopeLabels = new[] { "2x", "3x" },
+                RecoilKick = .38f, RecoilClimb = .04f, SwayScoped = .06f, SwayHip = .12f,
+                HipSpread = .18f, AdsSpread = .06f, ShotVolume = .9f, ShotPitch = 1f,
+                ViewOffset = new Vector3(.1f, -.35f, .45f),
             },
         };
 
