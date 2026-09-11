@@ -12,13 +12,15 @@ namespace SniperRidge.EditorTools
             var gm = GameManager.Instance;
             if (!EditorApplication.isPlaying || gm == null || gm.Terrain == null)
                 throw new InvalidOperationException("Play를 시작하고 전장이 생성된 뒤 검사하세요.");
+            Check(gm.Map == BattlefieldMap.Field && gm.Mission != MissionType.Tank && gm.Mission != MissionType.Helicopter,
+                "들판 보병 임무에서 검사하세요. 전차 모드는 전차전 검사 메뉴를 사용하세요.");
             Vector2 player = BattlefieldLayout.PlayerXZ;
-            for (float x = -290f; x <= 290f; x += 20f)
-                for (float z = -290f; z <= 290f; z += 20f)
+            for (float x = -220f; x <= 220f; x += 20f)
+                for (float z = -220f; z <= 220f; z += 20f)
                 {
                     if (Vector2.Distance(new Vector2(x, z), player) < 12f) continue;
                     Check(Mathf.Abs(TerrainGenerator.GroundHeight(gm.Terrain, x, z) - TerrainGenerator.FieldElevation) < .015f,
-                        "참호 밖 지형에 높이차가 있습니다.");
+                        "중앙 전투 구역에 높이차가 있습니다.");
                 }
             Check(Mathf.Abs(gm.Player.transform.position.y - (TerrainGenerator.FieldElevation - TrenchTerrain.FiringStepDepth)) < .03f,
                 "플레이어가 평지 참호 바닥에 있지 않습니다.");

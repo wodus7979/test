@@ -6,9 +6,9 @@ namespace SniperRidge.EditorTools
     /// <summary>Keep gunshot transients in PCM instead of lossy compression.</summary>
     public class GunshotAudioImporter : AssetPostprocessor
     {
-        public override uint GetVersion() => 7;
+        public override uint GetVersion() => 8;
 
-        static bool IsWeaponAudio(string path) => path.StartsWith("Assets/Resources/Audio/shot_") || path.StartsWith("Assets/Resources/Audio/rocket_") || path.StartsWith("Assets/Resources/Audio/helicopter_");
+        static bool IsWeaponAudio(string path) => path.StartsWith("Assets/Resources/Audio/shot_") || path.StartsWith("Assets/Resources/Audio/rocket_") || path.StartsWith("Assets/Resources/Audio/helicopter_") || path.StartsWith("Assets/Resources/Audio/tank_");
 
         void OnPreprocessAudio()
         {

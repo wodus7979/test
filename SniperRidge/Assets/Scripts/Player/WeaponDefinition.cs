@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SniperRidge
 {
     public enum FireMode { Bolt, Semi, Auto }
-    public enum MissionType { Sniper, Defense, Helicopter }
+    public enum MissionType { Sniper, Defense, Helicopter, Tank }
 
     /// <summary>무기 하나의 성능 정의. 실제 총기명 대신 종류 이름을 쓴다.</summary>
     public class WeaponDefinition
@@ -42,6 +42,7 @@ namespace SniperRidge
         public string ModelName;        // Resources/Weapons/Prefabs/<ModelName> (Firearm Asset Pack)
         public bool IsRocket;
         public bool IsMounted;
+        public bool IsTank;
         public int Pellets = 1;         // 샷건: 한 발에 나가는 산탄 수
         public Vector3 ViewOffset = new Vector3(0.22f, -0.2f, 0.38f);   // 1인칭 위치
 
@@ -157,6 +158,14 @@ namespace SniperRidge
                 RecoilKick = .38f, RecoilClimb = .04f, SwayScoped = .06f, SwayHip = .12f,
                 HipSpread = .18f, AdsSpread = .06f, ShotVolume = .9f, ShotPitch = 1f,
                 ViewOffset = new Vector3(.1f, -.35f, .45f),
+            },
+            new WeaponDefinition
+            {
+                Id = "tank", Name = "전차 기동전", IsTank = true, Mission = MissionType.Tank,
+                Description = "W/S 전후진 · A/D 차체 회전 · 마우스 포탑 조준 · 좌클릭 포격",
+                Fire = FireMode.Semi, RoundsPerMinute = 20f, MagSize = 1, Reserve = 60, ReloadTime = 3f,
+                MuzzleVelocity = 280f, Damage = 160f, ScopeFovs = new[] { 38f }, ScopeLabels = new[] { "포수 확대" },
+                ModelName = "tank_reference", ShotVolume = .82f, ShotPitch = 1f,
             },
         };
 

@@ -395,7 +395,7 @@ namespace SniperRidge
 
             if (state != State.Walking && state != State.Rushing)
             {
-                Vector3 d = gm.PlayerEye.position - transform.position;
+                Vector3 d = (gm.Armor != null ? gm.EnemyAimPoint : gm.PlayerEye.position) - transform.position;
                 d.y = 0f;
                 if (d.sqrMagnitude > 0.01f) faceDir = d.normalized;
             }
@@ -624,7 +624,7 @@ namespace SniperRidge
             if (preparingShot || Time.time < nextShotTime || !gm.PositionRevealed || staggerTimer > 0f) return;
             if (cover > .7f || (motion != null && !motion.CanFireFromPose) || !HasLineOfSight()) return;
             if (!gm.TryBeginEnemyAttack()) return;
-            bool sniper = Role == EnemyRole.Sniper;
+            bool sniper = Role == EnemyRole.Sniper || Role == EnemyRole.RocketTrooper;
             nextShotTime = Time.time + (sniper ? Random.Range(5f, 8f) : Random.Range(minInterval, maxInterval));
             roundsRemaining = EnemyCombatRoles.Rounds(Role);
             burstSpread = sniper ? .4f : spreadRadius;
@@ -636,7 +636,7 @@ namespace SniperRidge
             plannedTarget = target + right * spread.x + up * spread.y;
             preparingShot = true;
             aimTimer = EnemyCombatRoles.AimTime(Role);
-            gm.Hud.WarnIncoming(transform.position, aimTimer + (roundsRemaining - 1) * EnemyCombatRoles.BurstInterval + CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position, target)), RoleName);
+            gm.Hud.WarnIncoming(transform.position, aimTimer + (roundsRemaining - 1) * EnemyCombatRoles.BurstInterval + (Role == EnemyRole.RocketTrooper ? Vector3.Distance(rifleTip.position,target)/55f : CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position, target))), RoleName);
         }
 
         void UpdatePreparedShot(float dt)
@@ -654,7 +654,7 @@ namespace SniperRidge
             if (aimTimer > 0f) return;
             // Freeze the burst's aim point, so ducking or moving after the warning remains useful.
             // Recheck world cover between rounds instead of firing through a newly obstructed muzzle.
-            if (EnemyProjectile.WorldHit(rifleTip.position, plannedTarget, this, out _))
+            if (ShotBlocked(rifleTip.position, plannedTarget))
             {
                 preparingShot = false;
                 return;
@@ -679,7 +679,14 @@ namespace SniperRidge
         public bool CanSee(Vector3 target)
         {
             Vector3 from = head.position + transform.forward * (.3f * scale);
-            return !EnemyProjectile.WorldHit(from, target, this, out _);
+            return !ShotBlocked(from, target);
+        }
+
+        bool ShotBlocked(Vector3 from, Vector3 target)
+        {
+            if (Role == EnemyRole.RocketTrooper && gm.Armor != null)
+                return ArmorProjectile.Obstructed(from,target,transform,gm.Armor.PlayerTank);
+            return EnemyProjectile.WorldHit(from,target,this,out _);
         }
 
         void FireAtPlayer(Vector3 target)
@@ -687,6 +694,11 @@ namespace SniperRidge
             if (motion != null) motion.Fire();
             Vector3 muzzle = rifleTip.position;
             Effects.Flash(muzzle, new Color(1f, .8f, .5f), 4f, 6f, .06f);
+            if (Role == EnemyRole.RocketTrooper && gm.Armor != null)
+            {
+                ArmorProjectile.Launch(muzzle,(target-muzzle).normalized,transform,false,45f,55f,true);
+                gm.PlaySound(gm.Sounds.RocketLaunch,.28f);return;
+            }
             float damage = Role == EnemyRole.Sniper ? Random.Range(24f, 30f) : Random.Range(6f, 9f);
             EnemyProjectile.Launch(gm, this, muzzle, target, damage);
             gm.StartCoroutine(gm.EnemyShotSound(muzzle, EnemyCombatRoles.Sound(Role)));

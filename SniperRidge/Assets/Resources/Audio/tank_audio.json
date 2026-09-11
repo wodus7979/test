@@ -1,0 +1,27 @@
+{
+  "tank_cannon.wav": {
+    "seconds": 1.65,
+    "peak": 0.76,
+    "rms": 0.04574021133528719
+  },
+  "tank_cannon_02.wav": {
+    "seconds": 1.65,
+    "peak": 0.76,
+    "rms": 0.04603679419218358
+  },
+  "tank_cannon_03.wav": {
+    "seconds": 1.65,
+    "peak": 0.76,
+    "rms": 0.04368679688165686
+  },
+  "tank_impact.wav": {
+    "seconds": 2.0,
+    "peak": 0.74,
+    "rms": 0.06424979503384805
+  },
+  "tank_engine.wav": {
+    "seconds": 8.0,
+    "peak": 0.42,
+    "rms": 0.08229301763192635
+  }
+}

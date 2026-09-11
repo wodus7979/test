@@ -80,6 +80,25 @@ namespace SniperRidge
             return ps;
         }
 
+        public static ParticleSystem TankDust(Transform tank,Vector3 localPosition)
+        {
+            var dust=System("Track dust",tank.TransformPoint(localPosition),1.8f,1.1f,.65f,new Color(.52f,.43f,.31f,.22f));
+            dust.transform.SetParent(tank,true);
+            var main=dust.main;main.loop=true;main.duration=2f;main.maxParticles=96;
+            var emission=dust.emission;emission.enabled=true;emission.rateOverTime=0f;
+            dust.Play();return dust;
+        }
+
+        public static void CannonMuzzle(Vector3 point, Vector3 direction)
+        {
+            var blast = System("Cannon muzzle blast",point,.16f,1.4f,12f,new Color(1f,.67f,.24f,.85f));
+            blast.transform.rotation = Quaternion.LookRotation(direction);
+            var shape = blast.shape;shape.shapeType = ParticleSystemShapeType.Cone;shape.angle=20f;
+            blast.Play();blast.Emit(14);Object.Destroy(blast.gameObject,.4f);
+            var smoke = System("Cannon muzzle smoke",point,1.3f,1.2f,2f,new Color(.55f,.52f,.45f,.4f));
+            smoke.Play();smoke.Emit(16);Object.Destroy(smoke.gameObject,1.6f);
+        }
+
         public static void Explosion(Vector3 point)
         {
             var smoke = System("RocketBlastSmoke", point, 2.8f, 2.2f, 5f, new Color(.30f, .27f, .23f, .75f));

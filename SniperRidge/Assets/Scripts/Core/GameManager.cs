@@ -29,6 +29,7 @@ namespace SniperRidge
         public SoundBank Sounds;
         public AudioSource Ambience;
         public HelicopterFlight Flight { get; private set; }
+        public TankBattle Armor { get; private set; }
         GunshotPlayback gunshots;
 
         public int Kills { get; private set; }
@@ -62,7 +63,7 @@ namespace SniperRidge
         float nextEnemyAttack;
         public bool PositionRevealed => Mission != MissionType.Sniper || contact.Revealed;
         public float HideProgress => contact.HiddenSeconds / CounterfireRules.LoseContactSeconds;
-        public Vector3 EnemyAimPoint => Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
+        public Vector3 EnemyAimPoint => Armor != null && Armor.PlayerTank != null ? Armor.PlayerTank.AimPoint : Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
 
         void LateUpdate()
         {
@@ -119,6 +120,12 @@ namespace SniperRidge
         public void StartMission(WeaponDefinition weapon, BattlefieldMap map = BattlefieldMap.Field)
         {
             if (!IsSelecting) return;
+            if (weapon.IsTank)
+            {
+                map = BattlefieldMap.Field;
+                if (!TankVehicle.IsReady || WeaponModels.LoadPrefab("launcher_reusable") == null)
+                { Debug.LogError("[Sniper Ridge] 전차 에셋 생성과 로켓포 프리팹 생성 메뉴를 실행하세요."); return; }
+            }
             if (map == BattlefieldMap.City && !CityBattlefield.IsReady)
             {
                 Debug.LogError("[Sniper Ridge] 도시 에셋이 없습니다. Sniper Ridge → 도시 에셋 생성 메뉴를 실행하세요.");
@@ -134,6 +141,13 @@ namespace SniperRidge
             State = GameState.Playing;
             startTime = Time.time;
             if (Mission == MissionType.Helicopter) Flight = HelicopterFlight.Create(this);
+            if (Mission == MissionType.Tank)
+            {
+                Armor = TankBattle.Create(this);
+                if (Ambience != null) Ambience.volume = .12f;
+                Hud.OnMissionStart("전차 기동전 · 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\n바위 뒤 로켓병과 증원되는 적 전차를 제거하세요.");
+                return;
+            }
             Player.Equip(weapon);
             defenseAimPoint = Player.AimPoint;
             nextEnemyAttack = Time.time + 2f;
@@ -303,7 +317,7 @@ namespace SniperRidge
             }
             PlaySound(Sounds.HitTick, 0.8f);
 
-            if (Mission != MissionType.Defense && Kills >= enemies.Count) EndMission(true);
+            if ((Mission == MissionType.Sniper || Mission == MissionType.Helicopter) && Kills >= enemies.Count) EndMission(true);
         }
 
         // ---------- 적 사격 관련 ----------
@@ -318,6 +332,15 @@ namespace SniperRidge
                 Mathf.Clamp01(1.1f - distance / 900f) * .35f, 1f, direction.x * .8f);
         }
 
+        public void OnArmorHit(bool killed, bool countHit)
+        {
+            if (!IsPlaying) return;
+            if (countHit) Hits++;
+            Hud.ShowHitMarker(false, killed);
+            if (killed) { Kills++; Score+=600; Hud.KillFeed("적 전차 격파 +600"); }
+            else Hud.ShowShotFeedback("적 전차 명중");
+        }
+        public void CompleteArmoredMission() { if (Mission == MissionType.Tank) EndMission(true); }
         public void PlayerDied() => EndMission(false);
 
         void EndMission(bool won)
@@ -326,6 +349,7 @@ namespace SniperRidge
             State = won ? GameState.Won : GameState.Lost;
             endTime = Time.time;
             if (Flight != null) Flight.StopFlight();
+            if (Armor != null) Armor.StopBattle();
             Player.OnMissionEnd();
             Hud.ShowEnd(won);
         }

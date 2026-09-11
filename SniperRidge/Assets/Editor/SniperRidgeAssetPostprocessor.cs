@@ -6,7 +6,7 @@ namespace SniperRidge.EditorTools
     public class SniperRidgeAssetPostprocessor : AssetPostprocessor
     {
         // 값을 올리면 관련 텍스처가 자동으로 다시 임포트된다.
-        public override uint GetVersion() => 1;
+        public override uint GetVersion() => 2;
 
         void OnPreprocessTexture()
         {
@@ -23,7 +23,10 @@ namespace SniperRidge.EditorTools
             if (path.StartsWith("Assets/Resources/Terrain/") || path.StartsWith("Assets/Resources/Nature/"))
             {
                 importer.wrapMode = UnityEngine.TextureWrapMode.Repeat;
-                importer.maxTextureSize = 1024;
+                importer.maxTextureSize = 2048;
+                importer.anisoLevel = 16; importer.mipmapEnabled = true;
+                importer.filterMode = UnityEngine.FilterMode.Trilinear;
+                importer.textureCompression = TextureImporterCompression.CompressedHQ;
             }
             if (path.StartsWith("Assets/Resources/Sky/"))
             {

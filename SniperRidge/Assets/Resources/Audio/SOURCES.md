@@ -1,3 +1,9 @@
+# Tank battle sound design (2026-09-11)
+
+`tank_cannon.wav`, `_02`, `_03` combine a short excerpt of the existing `shot_hmg.wav` (the CC0 AK-47 recording described below, already processed with a designed blast) with newly synthesized broadband pressure and blast layers. These are **designed game cannon effects, not recordings of a tank cannon**. `tank_impact.wav` and the 8-second `tank_engine.wav` diesel/track-like loop are synthesized from noise and periodic components. No additional recordings were downloaded for this change.
+
+Reproduce with Python 3 + NumPy: `python3 Tools/build_tank_audio.py`. Validate using `python3 Tools/validate_tank.py`. Outputs are 48 kHz stereo PCM16; cannon peaks .76, impact .74, engine .42. The player cannon uses a dedicated priority-24 voice, and enemy cannon preparations are staggered by at least 1.6 seconds. Representative mixing checks do not guarantee headroom in every possible battle or replace listening in Unity.
+
 # Designed powder-blast gunshots (2026-09-11)
 
 The eight player firearm effects and role-based enemy shots combine recordings from **The Free Firearm Sound Library** with newly synthesized short blast layers. These are designed game sounds, not untouched recordings of real gunfire. The legacy `distant` files remain processed recordings without the new blast layers.

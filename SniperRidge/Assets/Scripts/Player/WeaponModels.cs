@@ -35,6 +35,7 @@ namespace SniperRidge
 
         public static GameObject Build(Transform parent, WeaponDefinition def)
         {
+            if (def.IsTank) { var tank = Resources.Load<GameObject>(TankVehicle.Resource); return tank != null ? Object.Instantiate(tank, parent, false) : null; }
             if (def.IsMounted) return HelicopterVisual.BuildHeavyGun(parent);
             var prefab = LoadPrefab(def.ModelName);
             if (prefab != null)

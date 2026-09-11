@@ -1,0 +1,49 @@
+{
+  "components": [
+    {
+      "component": "Hull",
+      "lod_triangles": [
+        3484,
+        2532
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "Turret",
+      "lod_triangles": [
+        2016,
+        1504
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "Barrel",
+      "lod_triangles": [
+        1788,
+        780
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "TrackLeft",
+      "lod_triangles": [
+        5472,
+        1584
+      ],
+      "geometry_uv": "PASS"
+    },
+    {
+      "component": "TrackRight",
+      "lod_triangles": [
+        5472,
+        1584
+      ],
+      "geometry_uv": "PASS"
+    }
+  ],
+  "glb_hierarchy": "PASS",
+  "texture_references": "PASS",
+  "articulated_transform_conversion": "PASS at sample yaw/pitch",
+  "collider_boxes": 4,
+  "unity_editor": "C# compilation, import, rendering and Play Mode have not been executed."
+}

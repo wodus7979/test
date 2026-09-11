@@ -76,6 +76,8 @@ namespace SniperRidge
             Bounds bounds = renderers[0].bounds;
             foreach (var r in renderers) bounds.Encapsulate(r.bounds);
             model.transform.position += studio.transform.position - bounds.center;
+            previewCamera.transform.localPosition = new Vector3(0,0,-Mathf.Max(4f,bounds.extents.z+1f));
+            previewCamera.farClipPlane = Mathf.Max(12f,bounds.size.z+4f);
             previewCamera.orthographicSize = Mathf.Max(bounds.extents.y, bounds.extents.x / previewCamera.aspect) * 1.28f + .025f;
             previewCamera.Render();
         }

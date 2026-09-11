@@ -1,0 +1,57 @@
+{
+  "components": [
+    {
+      "component": "Hull",
+      "lod_triangles": [
+        3484,
+        2532
+      ]
+    },
+    {
+      "component": "Turret",
+      "lod_triangles": [
+        2016,
+        1504
+      ]
+    },
+    {
+      "component": "Barrel",
+      "lod_triangles": [
+        1788,
+        780
+      ]
+    },
+    {
+      "component": "TrackLeft",
+      "lod_triangles": [
+        5472,
+        1584
+      ]
+    },
+    {
+      "component": "TrackRight",
+      "lod_triangles": [
+        5472,
+        1584
+      ]
+    }
+  ],
+  "lod_triangles": [
+    18232,
+    7984
+  ],
+  "bounds_m": [
+    [
+      -1.912,
+      -0.008,
+      -5.57
+    ],
+    [
+      1.912,
+      3.5201551,
+      3.19
+    ]
+  ],
+  "unity_editor_verified": false,
+  "reference": "User-provided image; unseen surfaces interpreted for a fictional game exterior."
+}

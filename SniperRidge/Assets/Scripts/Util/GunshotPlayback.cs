@@ -42,7 +42,7 @@ namespace SniperRidge
         void Update()
         {
             if (gm == null || gm.Ambience == null) return;
-            float target = Time.unscaledTime < duckUntil ? .12f : .35f;
+            float target = Time.unscaledTime < duckUntil || gm.Mission == MissionType.Tank ? .12f : .35f;
             gm.Ambience.volume = Mathf.MoveTowards(gm.Ambience.volume, target, Time.unscaledDeltaTime * .9f);
         }
     }

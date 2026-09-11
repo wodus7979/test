@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SniperRidge
 {
     /// <summary>
-    /// 참호를 제외한 전장을 같은 높이의 평지로 생성한다.
+    /// 중앙 전투 구역은 평지로 유지하고 외곽에 완만한 능선을 생성한다.
     /// </summary>
     public static class TerrainGenerator
     {
@@ -13,9 +13,13 @@ namespace SniperRidge
         public const float PlayerSpawnZ = -100f;
         public const float FieldElevation = 12f;
 
-        // Keep heights level everywhere, including the approaches and the distant map boundary.
+        // Keep all combat and driving routes level; raise only the distant boundary.
         // TrenchTerrain excavates only the player's small dugout after terrain creation.
-        public static float HeightMeters(float wx, float wz, float seed) => FieldElevation;
+        public static float HeightMeters(float wx, float wz, float seed)
+        {
+            float edge = Mathf.SmoothStep(0f,1f,Mathf.InverseLerp(240f,295f,Mathf.Max(Mathf.Abs(wx),Mathf.Abs(wz))));
+            return FieldElevation + edge * (8f + Mathf.PerlinNoise(wx*.025f+seed,wz*.025f)*20f);
+        }
 
         public static Terrain Build(float seed)
         {
@@ -56,7 +60,8 @@ namespace SniperRidge
                     float rockW = Mathf.InverseLerp(20f, 34f, steep) + 0.35f * Mathf.InverseLerp(0.62f, 0.8f, Mathf.PerlinNoise(nx * 9f + seed, ny * 9f))
                                 + Mathf.InverseLerp(120f, 160f, h);   // 높은 산은 바위
                     rockW = Mathf.Clamp01(rockW);
-                    float dirtW = (1f - rockW) * Mathf.Lerp(.15f, .6f, Mathf.PerlinNoise(nx * 13f + seed, ny * 13f));
+                    float track = BattlefieldScenery.TrackWeight(nx * Size - Size*.5f,ny * Size - Size*.5f);
+                    float dirtW = (1f - rockW) * Mathf.Max(track,Mathf.Lerp(.08f,.48f,Mathf.PerlinNoise(nx*19f+seed,ny*19f)));
                     float forestW = (1f - rockW - dirtW) * Mathf.InverseLerp(0.5f, 0.72f, Mathf.PerlinNoise(nx * 5f + seed * 2f, ny * 5f + 3f)) * 0.9f;
                     float grassW = Mathf.Max(0f, 1f - rockW - dirtW - forestW);
                     maps[y, x, 0] = grassW;
@@ -90,12 +95,12 @@ namespace SniperRidge
             {
                 diffuseTexture = albedo != null ? albedo : ProceduralAssets.NoiseTexture(256, fallbackA, fallbackB, noiseScale, seed),
                 tileSize = new Vector2(tile, tile),
-                smoothness = 0.05f,
+                smoothness = 0f, metallic = 0f, specular = Color.black,
             };
             if (normal != null)
             {
                 layer.normalMapTexture = normal;
-                layer.normalScale = 1f;
+                layer.normalScale = .45f;
             }
             return layer;
         }
@@ -137,6 +142,8 @@ namespace SniperRidge
                     float n = Mathf.PerlinNoise(nx * 40f, ny * 40f);
                     int density = Mathf.RoundToInt(Mathf.Lerp(1f, 7f, n) * Mathf.InverseLerp(28f, 15f, steep));
                     float wx = nx * Size - Size * .5f, wz = ny * Size - Size * .5f;
+                    float track = BattlefieldScenery.TrackWeight(wx,wz);
+                    density = Mathf.RoundToInt(density * (1f-track));
                     layer[y, x] = BattlefieldLayout.IsCombatLane(wx, wz) ? Mathf.Min(density, 2) : density;
                 }
             }

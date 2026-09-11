@@ -76,11 +76,13 @@ namespace SniperRidge
 
         public static void PrepareMap(GameManager gm)
         {
-            if (gm.Map == BattlefieldMap.City) CityBattlefield.Build(gm);
+            if (gm.Mission == MissionType.Tank) BattlefieldScenery.BuildTankField(gm);
+            else if (gm.Map == BattlefieldMap.City) { CityBattlefield.Build(gm); BattlefieldScenery.CityDetails(gm); }
             else
             {
                 if (gm.Mission != MissionType.Helicopter) TrenchBuilder.Build(gm.Terrain, gm.Player.transform.position);
                 BuildDecorations(gm.Terrain, gm.Player.transform.position, EnemySpawns());
+                BattlefieldScenery.FieldDetails(gm);
             }
             SetupReflection(gm.Player.transform.position);
         }
@@ -93,12 +95,12 @@ namespace SniperRidge
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.color = new Color(1f, 0.94f, 0.85f);
-            sun.intensity = 1.2f;
+            sun.intensity = 1.05f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.85f;
             sun.shadowBias = 0.03f;
             sun.shadowNormalBias = 0.25f;
-            sunGo.transform.rotation = Quaternion.Euler(32f, -35f, 0f);
+            sunGo.transform.rotation = Quaternion.Euler(42f, -35f, 0f);
             RenderSettings.sun = sun;
 
             RenderSettings.fog = true;
@@ -133,7 +135,7 @@ namespace SniperRidge
             QualitySettings.lodBias = mobile ? 1f : 1.25f;
             QualitySettings.shadowCascade4Split = new Vector3(.08f, .23f, .5f);
             QualitySettings.pixelLightCount = mobile ? 2 : 8;
-            RenderSettings.reflectionIntensity = .8f;
+            RenderSettings.reflectionIntensity = .42f;
         }
 
         static void SetupReflection(Vector3 nest)
@@ -191,7 +193,7 @@ namespace SniperRidge
             cam.allowMSAA = true;
             eyeGo.AddComponent<AudioListener>();
             var post = eyeGo.AddComponent<PostEffect>();
-            post.Exposure = 1.0f;
+            post.Exposure = .98f; post.Saturation = .92f;
             post.BloomIntensity = Application.isMobilePlatform ? 0.2f : 0.16f;
 
             var muzzleGo = new GameObject("MuzzleFlash");
@@ -278,6 +280,15 @@ namespace SniperRidge
             enemy.transform.SetParent(EnemyRoot(), true);
             gm.RegisterEnemy(enemy);
             return enemy;
+        }
+
+        public static EnemySoldier SpawnRocketTrooper(GameManager gm, Vector3 position, string name)
+        {
+            EnsureEnemyMaterials();
+            var spawn = new EnemySpawn(position.x,position.z,EnemyKind.Cover,role:EnemyRole.RocketTrooper);
+            var enemy = EnemySoldier.Create(name,gm.Terrain,spawn,gm.PlayerEye.position,1.5f,
+                enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(name.GetHashCode()),false);
+            enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);return enemy;
         }
 
         // ---------- 장식 (숲, 덤불, 바위) ----------

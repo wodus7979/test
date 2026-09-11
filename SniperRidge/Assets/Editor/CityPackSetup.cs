@@ -14,7 +14,7 @@ namespace SniperRidge.EditorTools
     public static class CityPackSetup
     {
         const string Output = "Assets/Resources/CityPack";
-        const string Revision = "city-combat-1";
+        const string Revision = "city-dry-surfaces-2";
         static bool building;
         static string Source => Path.GetFullPath(Path.Combine(Application.dataPath,
             "../../city_fps_textured_v2/Unity/Assets/KoreanCityPackTextured"));
@@ -163,6 +163,8 @@ namespace SniperRidge.EditorTools
                         SetFloat(material, "_SmoothnessTextureChannel", 0);
                     }
                 }
+                if (info.name == "Asphalt" || info.name == "Sidewalk" || info.name == "Paver_Accent" ||
+                    info.name == "White_Paint" || info.name == "Yellow_Paint") BattlefieldScenery.Dry(material);
                 result[i] = SaveAsset(material, output + "/Materials/" + info.name + ".mat");
             }
             return result;

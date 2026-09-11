@@ -47,13 +47,26 @@ namespace SniperRidge
             pavement = new TerrainLayer {
                 diffuseTexture = Resources.Load<Texture2D>("CityPack/Textures/asphalt_albedo"),
                 normalMapTexture = Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity"),
-                tileSize = new Vector2(2f, 2f), smoothness = .12f
+                tileSize = new Vector2(3.5f, 3.5f), smoothness = 0f, metallic = 0f, specular = Color.black, normalScale = .18f
             };
             var terrain = gm.Terrain;
-            terrain.terrainData.terrainLayers = new[] { pavement };
             int res = terrain.terrainData.alphamapResolution;
-            var weights = new float[res, res, 1];
-            for (int y = 0; y < res; y++) for (int x = 0; x < res; x++) weights[y, x, 0] = 1f;
+            var oldLayers = terrain.terrainData.terrainLayers;
+            var original = terrain.terrainData.GetAlphamaps(0,0,res,res);
+            var layers = new TerrainLayer[oldLayers.Length+1]; layers[0]=pavement;
+            Array.Copy(oldLayers,0,layers,1,oldLayers.Length);
+            terrain.terrainData.terrainLayers=layers;
+            var weights = new float[res, res, layers.Length];
+            // Keep the urban block paved, with soil and grass around the distant city edge.
+            for (int y = 0; y < res; y++) for (int x = 0; x < res; x++)
+            {
+                float wx=(x+.5f)/res*TerrainGenerator.Size-TerrainGenerator.Size*.5f;
+                float wz=(y+.5f)/res*TerrainGenerator.Size-TerrainGenerator.Size*.5f;
+                float edge=Mathf.Max(Mathf.Abs(wx),Mathf.Abs(wz)*.82f);
+                float paved=1f-Mathf.SmoothStep(0,1,Mathf.InverseLerp(120f,180f,edge));
+                weights[y,x,0]=paved;
+                for(int i=0;i<oldLayers.Length;i++)weights[y,x,i+1]=original[y,x,i]*(1f-paved);
+            }
             terrain.terrainData.SetAlphamaps(0, 0, weights);
             terrain.detailObjectDensity = 0f;
             terrain.detailObjectDistance = 0f;

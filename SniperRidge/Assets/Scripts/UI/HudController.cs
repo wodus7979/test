@@ -231,12 +231,12 @@ namespace SniperRidge
         public void ShowEnd(bool won)
         {
             endPanel.SetActive(true);
-            endTitle.text = won ? "임무 완료" : "전사";
+            endTitle.text = won ? "임무 완료" : gm.Mission == MissionType.Tank ? "전차 파괴" : "전사";
             endTitle.color = won ? new Color(0.6f, 1f, 0.6f) : new Color(1f, 0.45f, 0.4f);
             int m = Mathf.FloorToInt(gm.Elapsed / 60f);
             int s = Mathf.FloorToInt(gm.Elapsed % 60f);
             float acc = gm.Shots > 0 ? Mathf.Min(100f, 100f * gm.Hits / gm.Shots) : 0f;
-            string waveLine = gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
+            string waveLine = gm.Mission == MissionType.Tank ? string.Format("전차전 단계 {0} / 5\n",gm.Armor.Stage) : gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
             endStats.text = string.Format(
                 "{0}\n{1}소요 시간  {2:00}:{3:00}\n사격 {4}발  /  명중 {5}발  (명중률 {6:0}%)\n사살 {7}  (헤드샷 {8})\n점수  {9}\n\n{10}",
                 gm.Weapon != null ? gm.Weapon.Name : "", waveLine, m, s, gm.Shots, gm.Hits, acc, gm.Kills, gm.Headshots, gm.Score,
@@ -250,9 +250,9 @@ namespace SniperRidge
             if (gm == null || gm.Player == null) return;
             if (gm.IsSelecting) return;
             var p = gm.Player;
-            launcherButton.gameObject.SetActive(!p.IsMounted);
-            launcherHelp.gameObject.SetActive(!p.IsMounted);
-            grenadeCount.gameObject.SetActive(!p.IsMounted);
+            launcherButton.gameObject.SetActive(!p.IsMounted && !p.InTank);
+            launcherHelp.gameObject.SetActive(!p.IsMounted && !p.InTank);
+            grenadeCount.gameObject.SetActive(!p.IsMounted && !p.InTank);
             if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  우클릭 확대  |  R 탄띠 교체  |  휠/Z 배율  |  헬기 자동 선회";
             grenadeCount.text = string.Format("[W] 수류탄 {0}개 · 누르고 조준", p.Grenades.Count);
             grenadeAim.text = p.Grenades.IsAiming ? p.Grenades.AimLabel : "";
@@ -319,6 +319,19 @@ namespace SniperRidge
             {
                 hitTimer -= dt;
                 if (hitTimer <= 0f) hitMarker.gameObject.SetActive(false);
+            }
+            if (p.InTank && gm.Armor != null)
+            {
+                var tank = gm.Armor.PlayerTank;
+                enemyText.text = string.Format("전차전 {0}/5 · 적 전차 {1} · 로켓병 {2}",gm.Armor.Stage,gm.Armor.AliveTanks,gm.Armor.AliveRockets);
+                coverText.text = string.Format("속도 {0:0} km/h · 장갑 {1:0}%\n바위로 로켓 사선을 막고 포격하세요.",tank.Speed*3.6f,tank.Fraction*100f);
+                hpFill.localScale = new Vector3(tank.Fraction,1,1);
+                ammoText.text = "포탄 " + tank.Shells;
+                stateText.text = tank.ReloadRemaining>0 ? string.Format("재장전 {0:0.0}초",tank.ReloadRemaining) : tank.HasAim ? "포격 준비" : "포탑 정렬 중";
+                weaponText.text = "전차 주포";zeroText.text = "마우스 포탑 조준";
+                rangeText.text = "";grenadeAim.text = "";windText.text = gm.Armor.Resupplying ? "정비 · 재보급" : "W/S 전후진 · A/D 차체 회전";
+                hintText.text = "W 전진  |  S 후진  |  A/D 차체 회전  |  마우스 포탑 조준  |  좌클릭 포격  |  우클릭 확대  |  Esc 커서 해제";
+                if (Time.time < threatUntil) threatText.text = threatRole + " 공격 준비 · 이동하거나 바위 뒤로 피하세요";
             }
             Fade(shotFeedback, ref shotFeedbackTimer, dt, .6f);
             Fade(killFeed, ref killFeedTimer, dt, 0.6f);

@@ -26,7 +26,8 @@ namespace SniperRidge
         public GrenadeController Grenades { get; private set; }
         public bool IsMounted => flight != null;
         HelicopterFlight flight;
-        public bool CanSwitchWeapon => !IsMounted && inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
+        public bool InTank { get; private set; }
+        public bool CanSwitchWeapon => !InTank && !IsMounted && inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
         public bool IsScoped { get; private set; }
         public int AmmoInMag { get => loadout.Active?.Magazine ?? 0; private set => loadout.Active.Magazine = value; }
         public int Reserve { get => loadout.Active?.Reserve ?? 0; private set => loadout.Active.Reserve = value; }
@@ -52,6 +53,12 @@ namespace SniperRidge
         {
             bottom = IsMounted ? Eye.position - Vector3.up * 1.35f : transform.position + Vector3.up * .30f;
             top = Eye.position - Vector3.up * .10f;
+        }
+
+        public void AttachToTank(WeaponDefinition weapon)
+        {
+            loadout.Reset(weapon); Grenades.CancelAim(); Grenades.enabled = false;
+            InTank = true; inputEnabled = false; enabled = false;
         }
 
         public void AttachToHelicopter(HelicopterFlight helicopter)
