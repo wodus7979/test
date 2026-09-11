@@ -330,7 +330,9 @@ namespace SniperRidge
                 stateText.text = tank.ReloadRemaining>0 ? string.Format("재장전 {0:0.0}초",tank.ReloadRemaining) : tank.HasAim ? "포격 준비" : "포탑 정렬 중";
                 weaponText.text = "전차 주포";zeroText.text = "마우스 포탑 조준";
                 rangeText.text = "";grenadeAim.text = "";windText.text = gm.Armor.Resupplying ? "정비 · 재보급" : "W/S 전후진 · A/D 차체 회전";
-                hintText.text = "W 전진  |  S 후진  |  A/D 차체 회전  |  마우스 포탑 조준  |  좌클릭 포격  |  우클릭 확대  |  Esc 커서 해제";
+                hintText.text = Cursor.lockState != CursorLockMode.Locked
+                    ? "게임 화면을 클릭하거나 W/A/S/D를 눌러 전차 조작을 시작하세요"
+                    : "W 전진  |  S 후진  |  A/D 차체 회전  |  마우스 포탑 조준  |  좌클릭 포격  |  우클릭 확대  |  Esc 커서 해제";
                 if (Time.time < threatUntil) threatText.text = threatRole + " 공격 준비 · 이동하거나 바위 뒤로 피하세요";
             }
             Fade(shotFeedback, ref shotFeedbackTimer, dt, .6f);

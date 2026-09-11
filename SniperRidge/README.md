@@ -1,5 +1,16 @@
 # Sniper Ridge (Unity 3D 저격 게임 테스트)
 
+## 전차 출발 불가 수정 (2026-09-12)
+
+전차의 낮은 초기 가속을 접촉 마찰이 매번 상쇄할 수 있던 설정을 수정했습니다. 아군과 적 전차 모두 지면 접촉 마찰 대신 이동 코드에서 가속·제동·횡방향 접지를 처리합니다. 강체 충돌과 중력은 유지합니다. 키를 놓거나 반대 방향으로 조작하면 더 빠르게 제동합니다. 커서 잠금이 풀렸을 때는 게임 화면 클릭 또는 WASD로 조작을 다시 시작할 수 있고 화면에 안내가 나옵니다.
+
+기존 `codex/tank-battlefield` 브랜치에서 `git pull --ff-only origin codex/tank-battlefield`로 받은 뒤 Unity Play를 다시 시작하세요. 전차 프리팹을 다시 생성할 필요는 없습니다.
+
+**검증:** C# 구문 검사와 가속/마찰 수치 점검을 수행했습니다. Unity 메뉴 **Sniper Ridge → 전차 주행·제동·충돌 검사**를 추가했습니다. 실제 전차 프리팹과 TerrainCollider를 별도 물리 씬에 넣고 접지 후 전후진·최고 속도·제동·좌우 회전·벽 충돌·후진 탈출·전장 경계를 검사합니다. 현재 Mac에는 Unity가 없으므로 이 물리 검사와 Play 실행은 여기서 수행하지 못했습니다.
+
+물리 설정 참고: [Unity Physic Material](https://docs.unity3d.com/2022.3/Documentation/Manual/class-PhysicMaterial.html), [별도 물리 씬 시뮬레이션](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/PhysicsScene.Simulate.html).
+
+
 
 ## 전차 기동전 · 들판/도시 표면 개선 (2026-09-11)
 
