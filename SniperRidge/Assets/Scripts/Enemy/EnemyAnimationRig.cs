@@ -7,7 +7,7 @@ namespace SniperRidge
     [DefaultExecutionOrder(150)]
     public class EnemyAnimationRig : MonoBehaviour
     {
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
         public const float WalkReferenceSpeed = 1.4f;
         public const float RunReferenceSpeed = 4.2f;
         public int SetupVersion;
@@ -94,9 +94,9 @@ namespace SniperRidge
 
             if (weapon != null)
             {
-                // Assault pack grip centre, measured from its source mesh (+Z barrel axis).
+                // Role-specific grip centres measured from the pack meshes (+Z barrel axis).
                 weapon.rotation = owner.transform.rotation;
-                weapon.position = rightHand.position - weapon.TransformVector(new Vector3(0f, -.05f, -.17f));
+                weapon.position = rightHand.position - weapon.TransformVector(owner.RightGrip);
                 rightGripRotation = Quaternion.Inverse(weapon.rotation) * rightHand.rotation;
                 leftGripRotation = Quaternion.Inverse(weapon.rotation) * leftHand.rotation;
                 weapon.SetParent(rightHand, true);
@@ -277,8 +277,8 @@ namespace SniperRidge
             Quaternion gunRotation = Quaternion.Slerp(weapon.rotation, pointing, weight);
             rightHand.rotation = gunRotation * rightGripRotation;
             weapon.rotation = gunRotation;
-            weapon.position = rightHand.position - weapon.TransformVector(new Vector3(0f, -.05f, -.17f));
-            SolveLimb(leftArm, leftElbow, leftHand, weapon.TransformPoint(0f, -.05f, .10f),
+            weapon.position = rightHand.position - weapon.TransformVector(owner.RightGrip);
+            SolveLimb(leftArm, leftElbow, leftHand, weapon.TransformPoint(owner.LeftGrip),
                 leftArm.position - owner.transform.right * unitScale - owner.transform.forward * (.2f * unitScale));
             leftHand.rotation = gunRotation * leftGripRotation;
         }

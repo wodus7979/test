@@ -124,12 +124,12 @@ namespace SniperRidge
             {
                 Health.Configure(5f, 6f);
                 LevelBuilder.SpawnSniperEnemies(this);
-                Hud.OnMissionStart("평지 참호에 잠복 중.\n전방 45~105m의 엄폐·순찰 적을 모두 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
+                Hud.OnMissionStart("평지 참호에 잠복 중.\n전방 45~105m의 저격병 4명과 기관총병 6명을 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
             }
             else
             {
                 Health.Configure(3f, 12f);
-                Hud.OnMissionStart("진지 방어.\n적들이 사격하며 접근한다.\nC/Ctrl로 숨고 A/D로 피한 뒤 반격하라.\n" + TotalWaves + "개 웨이브를 모두 막아내라.");
+                Hud.OnMissionStart("진지 방어.\n기관총병이 연사하며 접근하고 양옆 저격병이 엄폐 사격한다.\nC/Ctrl로 숨고 A/D로 피한 뒤 반격하라.\n" + TotalWaves + "개 웨이브를 모두 막아내라.");
                 StartCoroutine(RunWaves());
             }
         }
@@ -149,8 +149,7 @@ namespace SniperRidge
                 var waveEnemies = new List<EnemySoldier>();
                 for (int i = 0; i < count && IsPlaying; i++)
                 {
-                    Vector2 spawnPoint = BattlefieldLayout.DefenseSpawn(rng, wave);
-                    var e = LevelBuilder.SpawnRusher(this, spawnPoint, "Rusher_" + wave + "_" + (i + 1));
+                    var e = LevelBuilder.SpawnDefenseSoldier(this, rng, wave, i);
                     waveEnemies.Add(e);
                     yield return new WaitForSeconds(Mathf.Lerp(0.9f, 0.45f, (wave - 1f) / (TotalWaves - 1f)));
                 }
@@ -278,11 +277,11 @@ namespace SniperRidge
 
         // ---------- 적 사격 관련 ----------
 
-        public IEnumerator EnemyShotSound(float distance)
+        public IEnumerator EnemyShotSound(float distance, string shotId = "distant")
         {
             yield return new WaitForSeconds(distance / 340f);
             if (!IsPlaying) yield break;
-            PlaySound(Sounds.Shot("distant"), Mathf.Clamp01(1.1f - distance / 900f) * .45f, 1f);
+            PlaySound(Sounds.Shot(shotId), Mathf.Clamp01(1.1f - distance / 900f) * .45f, 1f);
         }
 
         public void PlayerDied() => EndMission(false);

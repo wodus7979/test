@@ -11,12 +11,16 @@ namespace SniperRidge
         public Vector2 Pos;      // (x, z)
         public Vector2 PosB;     // 순찰 종점 (Patrol 전용)
         public EnemyKind Kind;
+        public EnemyRole Role;
+        public int UniformVariant;
 
-        public EnemySpawn(float x, float z, EnemyKind kind, float bx = 0f, float bz = 0f)
+        public EnemySpawn(float x, float z, EnemyKind kind, float bx = 0f, float bz = 0f, EnemyRole role = EnemyRole.Automatic, int uniformVariant = 0)
         {
             Pos = new Vector2(x, z);
             PosB = new Vector2(bx, bz);
             Kind = kind;
+            Role = role;
+            UniformVariant = uniformVariant;
         }
     }
 
@@ -37,6 +41,11 @@ namespace SniperRidge
 
         public EnemyKind Kind;
         public Vector3 PointA, PointB;
+        public EnemyRole Role { get; private set; }
+        public int UniformVariant { get; private set; }
+        public string RoleName => EnemyCombatRoles.Name(Role);
+        public Vector3 RightGrip => EnemyCombatRoles.RightGrip(Role);
+        public Vector3 LeftGrip => EnemyCombatRoles.LeftGrip(Role);
 
         public bool IsDead { get; private set; }
         public bool IsAware { get; private set; }
@@ -64,6 +73,8 @@ namespace SniperRidge
         float nextShotTime;
         bool preparingShot;
         float aimTimer;
+        int roundsRemaining;
+        float burstSpread;
         Vector3 plannedTarget;
         float scale = 1f;
 
@@ -75,7 +86,7 @@ namespace SniperRidge
         // ---------- 생성 ----------
 
         public static EnemySoldier Create(string name, Terrain terrain, EnemySpawn spawn, Vector3 playerPos, float scale,
-                                          Material body, Material skin, Material gear, Material rock, System.Random rng)
+                                          Material body, Material skin, Material gear, Material rock, System.Random rng, bool createCover = true)
         {
             Vector3 ground = TerrainGenerator.OnGround(terrain, spawn.Pos.x, spawn.Pos.y);
             Vector3 toPlayer = playerPos - ground;
@@ -92,6 +103,8 @@ namespace SniperRidge
 
             var soldier = root.AddComponent<EnemySoldier>();
             soldier.Kind = spawn.Kind;
+            soldier.Role = EnemyCombatRoles.Resolve(spawn);
+            soldier.UniformVariant = Mathf.Clamp(spawn.UniformVariant, 0, EnemyCombatRoles.GunnerColors - 1);
             soldier.terrain = terrain;
             soldier.rig = rigGo.transform;
             soldier.scale = scale;
@@ -107,7 +120,7 @@ namespace SniperRidge
 
             BuildModel(soldier, rigGo.transform, body, skin, gear);
 
-            if (spawn.Kind == EnemyKind.Cover)
+            if (createCover && spawn.Kind == EnemyKind.Cover)
             {
                 var rockGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 rockGo.name = name + "_Cover";
@@ -128,7 +141,7 @@ namespace SniperRidge
                     pebble.GetComponent<Renderer>().material = rock;
                 }
             }
-            else if (spawn.Kind == EnemyKind.Tree)
+            else if (createCover && spawn.Kind == EnemyKind.Tree)
             {
                 float trunkDiameter = 0.95f * scale;
                 Vector3 treePos = ground + toPlayer * (1.05f * scale);
@@ -171,14 +184,14 @@ namespace SniperRidge
             tip.transform.localPosition = new Vector3(0f, 0f, 0.5f);
             soldier.rifleTip = tip.transform;
 
-            // Firearm Asset Pack 돌격소총 모델이 있으면 프리미티브 소총 대신 사용 (모바일은 성능상 제외)
-            var rifleModel = Application.isMobilePlatform ? null : WeaponModels.LoadPrefab("03_assault_rifle");
+            // Role equipment: the sniper carries a scoped rifle; gunners carry a belt-fed LMG.
+            var rifleModel = Application.isMobilePlatform ? null : WeaponModels.LoadPrefab(EnemyCombatRoles.Model(soldier.Role));
             if (rifleModel != null)
             {
                 rifle.GetComponent<Renderer>().enabled = false;
                 mag.GetComponent<Renderer>().enabled = false;
                 var inst = Instantiate(rifleModel, rig);
-                inst.name = "RifleModel";
+                inst.name = soldier.RoleName + "_Weapon";
                 soldier.weaponVisual = inst.transform;
                 inst.transform.localPosition = new Vector3(0.12f, 1.3f, 0.3f);
                 inst.transform.localRotation = Quaternion.identity;
@@ -188,6 +201,12 @@ namespace SniperRidge
                 if (muzzle != null) soldier.rifleTip = muzzle;
                 // (parts 에 넣지 않는다: 실사 병사 모델이 있어도 소총은 계속 보여야 한다)
             }
+
+            var uniformBlock = new MaterialPropertyBlock();
+            uniformBlock.SetColor("_Color", EnemyCombatRoles.Uniform(soldier.Role, soldier.UniformVariant));
+            foreach (var part in parts)
+                if (part.name == "Torso" || part.name == "Helmet" || part.name == "Leg" || part.name.StartsWith("Arm"))
+                    part.GetComponent<Renderer>().SetPropertyBlock(uniformBlock);
 
             // ----- 사용자 모델 (있으면 프리미티브 렌더러를 끄고 그 위에 덮는다) -----
             var custom = EnemyModels.Prefab;
@@ -200,6 +219,7 @@ namespace SniperRidge
                 modelRoot.localRotation = Quaternion.Euler(0f, EnemyModels.YawOffset, 0f);
                 var inst = Instantiate(custom, modelRoot, false);
                 inst.name = "Model";
+                EnemyCombatRoles.ApplyUniform(inst, soldier.Role, soldier.UniformVariant);
                 // 키를 약 1.85m 로 맞춘다
                 var rends = inst.GetComponentsInChildren<Renderer>();
                 if (rends.Length > 0)
@@ -255,6 +275,7 @@ namespace SniperRidge
         void Start()
         {
             gm = GameManager.Instance;
+            if (gm.Mission == MissionType.Defense) IsAware = true;
             switch (Kind)
             {
                 case EnemyKind.Patrol:
@@ -300,7 +321,7 @@ namespace SniperRidge
                     {
                         if (Kind == EnemyKind.Tree && Random.value < .4f) peekSide = -peekSide;
                         state = State.Peeking;
-                        stateTimer = IsAware ? Random.Range(2.4f, 4f) : Random.Range(2.5f, 5f);
+                        stateTimer = IsAware ? Random.Range(3.2f, 4.5f) : Random.Range(2.5f, 5f);
                         nextShotTime = Time.time + Random.Range(0.6f, 1.2f);
                     }
                     break;
@@ -561,7 +582,7 @@ namespace SniperRidge
                 if (animator != null) SetAnim("Dead", true);
                 StartCoroutine(FallDown(bulletDir));
             }
-            if (Kind == EnemyKind.Rusher) Destroy(gameObject, 25f);
+            if (gm != null && gm.Mission == MissionType.Defense) Destroy(gameObject, 25f);
         }
 
         IEnumerator FallDown(Vector3 bulletDir)
@@ -594,16 +615,19 @@ namespace SniperRidge
             if (preparingShot || Time.time < nextShotTime || !gm.PositionRevealed || staggerTimer > 0f) return;
             if (cover > .7f || (motion != null && !motion.CanFireFromPose) || !HasLineOfSight()) return;
             if (!gm.TryBeginEnemyAttack()) return;
-            nextShotTime = Time.time + Random.Range(minInterval, maxInterval);
+            bool sniper = Role == EnemyRole.Sniper;
+            nextShotTime = Time.time + (sniper ? Random.Range(5f, 8f) : Random.Range(minInterval, maxInterval));
+            roundsRemaining = EnemyCombatRoles.Rounds(Role);
+            burstSpread = sniper ? .4f : spreadRadius;
             Vector3 target = gm.EnemyAimPoint;
             Vector3 forward = (target - rifleTip.position).normalized;
             Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
             Vector3 up = Vector3.Cross(forward, right).normalized;
-            Vector2 spread = Random.insideUnitCircle * spreadRadius;
+            Vector2 spread = Random.insideUnitCircle * burstSpread;
             plannedTarget = target + right * spread.x + up * spread.y;
             preparingShot = true;
-            aimTimer = Kind == EnemyKind.Rusher ? .5f : .8f;
-            gm.Hud.WarnIncoming(transform.position, aimTimer + CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position, target)));
+            aimTimer = EnemyCombatRoles.AimTime(Role);
+            gm.Hud.WarnIncoming(transform.position, aimTimer + (roundsRemaining - 1) * EnemyCombatRoles.BurstInterval + CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position, target)), RoleName);
         }
 
         void UpdatePreparedShot(float dt)
@@ -619,8 +643,26 @@ namespace SniperRidge
             }
             aimTimer -= dt;
             if (aimTimer > 0f) return;
-            preparingShot = false;
-            FireAtPlayer(plannedTarget);
+            // Freeze the burst's aim point, so ducking or moving after the warning remains useful.
+            // Recheck world cover between rounds instead of firing through a newly obstructed muzzle.
+            if (EnemyProjectile.WorldHit(rifleTip.position, plannedTarget, this, out _))
+            {
+                preparingShot = false;
+                return;
+            }
+            Vector3 target = plannedTarget;
+            if (Role == EnemyRole.MachineGunner)
+            {
+                Vector3 forward = (target - rifleTip.position).normalized;
+                Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
+                Vector3 up = Vector3.Cross(forward, right);
+                Vector2 spread = Random.insideUnitCircle * (burstSpread * .35f);
+                target += right * spread.x + up * spread.y;
+            }
+            FireAtPlayer(target);
+            roundsRemaining--;
+            preparingShot = roundsRemaining > 0;
+            aimTimer = EnemyCombatRoles.BurstInterval;
         }
 
         bool HasLineOfSight() => CanSee(gm.EnemyAimPoint);
@@ -636,9 +678,9 @@ namespace SniperRidge
             if (motion != null) motion.Fire();
             Vector3 muzzle = rifleTip.position;
             Effects.Flash(muzzle, new Color(1f, .8f, .5f), 4f, 6f, .06f);
-            float damage = Kind == EnemyKind.Rusher ? Random.Range(7f, 11f) : Random.Range(18f, 24f);
+            float damage = Role == EnemyRole.Sniper ? Random.Range(24f, 30f) : Random.Range(6f, 9f);
             EnemyProjectile.Launch(gm, this, muzzle, target, damage);
-            gm.StartCoroutine(gm.EnemyShotSound(Vector3.Distance(muzzle, gm.PlayerEye.position)));
+            gm.StartCoroutine(gm.EnemyShotSound(Vector3.Distance(muzzle, gm.PlayerEye.position), EnemyCombatRoles.Sound(Role)));
         }
     }
 }

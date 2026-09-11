@@ -127,7 +127,11 @@ namespace SniperRidge
             map = Box(panel, "Tactical map", Ink, 28, 183, 440, 238);
             for (int x = 20; x < 440; x += 40) Box(map, "Grid column", new Color(.13f, .19f, .19f), x, 0, 1, 238);
             for (int y = 18; y < 238; y += 40) Box(map, "Grid row", new Color(.13f, .19f, .19f), 0, y, 440, 1);
-            Label(map, "Map legend", "전술 개요", 16, Muted, 14, 8, 220, 28);
+            Label(map, "Gunner legend", "기관총", 16, Muted, 14, 8, 62, 28);
+            for (int i = 0; i < EnemyCombatRoles.GunnerColors; i++)
+                Box(map, "Gunner color", EnemyCombatRoles.Uniform(EnemyRole.MachineGunner, i), 80 + i * 18, 17, 11, 11);
+            Label(map, "Sniper legend", "저격", 16, Muted, 152, 8, 44, 28);
+            Box(map, "Sniper color", EnemyCombatRoles.Uniform(EnemyRole.Sniper, 0), 204, 17, 11, 11);
             Label(map, "North", "N", 18, Sand, 404, 8, 24, 28, true);
             MapLine(map, new Vector2(220, 198), new Vector2(96, 46), Line);
             MapLine(map, new Vector2(220, 198), new Vector2(344, 46), Line);
@@ -137,16 +141,24 @@ namespace SniperRidge
             foreach (var spawn in BattlefieldLayout.SniperSpawns())
             {
                 Vector2 relative = spawn.Pos - BattlefieldLayout.PlayerXZ;
-                var marker = Box(sniperMap.transform, "Enemy", Hostile, 216 + relative.x * 1.8f, 194 - relative.y * 1.45f, 8, 8);
+                var marker = Box(sniperMap.transform, "Enemy", EnemyCombatRoles.Uniform(EnemyCombatRoles.Resolve(spawn), spawn.UniformVariant),
+                    216 + relative.x * 1.8f, 194 - relative.y * 1.45f, 8, 8);
                 marker.localRotation = Quaternion.Euler(0, 0, 45);
             }
             defenseMap = Box(map, "Defense routes", Color.clear, 0, 0, 440, 238).gameObject;
+            foreach (int slot in new[] { 3, 7 })
+            {
+                Vector2 relative = BattlefieldLayout.DefenseSniperSpawn(slot) - BattlefieldLayout.PlayerXZ;
+                var marker = Box(defenseMap.transform, "Concealed sniper", EnemyCombatRoles.Uniform(EnemyRole.Sniper, 0),
+                    216 + relative.x * 1.8f, 194 - relative.y * 1.45f, 10, 10);
+                marker.localRotation = Quaternion.Euler(0, 0, 45);
+            }
             for (int i = 0; i < 5; i++)
             {
                 Vector2 start = new Vector2(100 + i * 60, 66 + (i % 2) * 16);
                 Vector2 end = Vector2.Lerp(start, new Vector2(220, 198), .52f);
                 MapLine(defenseMap.transform, start, end, Hostile);
-                Box(defenseMap.transform, "Attacker", Hostile, start.x - 4, start.y - 4, 8, 8);
+                Box(defenseMap.transform, "Attacker", EnemyCombatRoles.Uniform(EnemyRole.MachineGunner, i % 3), start.x - 4, start.y - 4, 8, 8);
                 Vector2 direction = (end - start).normalized;
                 Vector2 side = new Vector2(-direction.y, direction.x);
                 MapLine(defenseMap.transform, end, end - direction * 10 + side * 6, Hostile);
@@ -178,7 +190,7 @@ namespace SniperRidge
             reserve.text = "예비  " + weapon.Reserve + "발";
             reload.text = "재장전  " + weapon.ReloadTime.ToString("0.0") + "초";
             missionTitle.text = sniper ? "잠복 저격" : "진지 방어";
-            objective.text = sniper ? "엄폐물 뒤의 적 10명을 제거하십시오.\n노출되는 순간을 기다려 사격하세요." : "몰려오는 적의 공세를 막으십시오.\n5개 웨이브를 버티면 승리합니다.";
+            objective.text = sniper ? "저격병 4명 · 기관총병 6명\n엄폐물 밖으로 나오는 순간을 노리세요." : "기관총병의 접근과 저격병을 막으세요.\n5개 웨이브를 버티면 승리합니다.";
             range.text = sniper ? "교전 거리    45–105 m" : "적 출현 거리    55–95 m";
             rule.text = sniper ? "실수하면 위치가 발각됩니다.\n엄폐 후 시야를 끊어 추적을 피하세요." : "숨었다가 반격하세요.\n웨이브 사이 탄약과 수류탄이 보급됩니다.";
             sniperMap.SetActive(sniper); defenseMap.SetActive(!sniper);

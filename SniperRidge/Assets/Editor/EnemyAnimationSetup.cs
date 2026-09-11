@@ -127,6 +127,9 @@ namespace SniperRidge.EditorTools
                 material = new Material(Shader.Find("Standard"));
                 AssetDatabase.CreateAsset(material, Folder + "/Soldier.mat");
             }
+            var uniformShader = Resources.Load<Shader>("Shaders/EnemyUniform");
+            if (uniformShader == null) throw new InvalidOperationException("EnemyUniform 셰이더가 누락됐습니다.");
+            material.shader = uniformShader;
             material.mainTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(Folder + "/Soldier_albedo.png");
             material.SetFloat("_Glossiness", .25f);
             var normal = AssetDatabase.LoadAssetAtPath<Texture2D>(Folder + "/Soldier_normal.png");
@@ -173,7 +176,7 @@ namespace SniperRidge.EditorTools
             }
             finally { UnityEngine.Object.DestroyImmediate(instance); }
             AssetDatabase.SaveAssets();
-            Debug.Log("[Sniper Ridge] 적 애니메이션 v4 생성 완료: 엄폐 발 디딤·일어서기·어깨 조준, 양손 총기 지지, 뼈 추적 히트박스.");
+            Debug.Log("[Sniper Ridge] 적 애니메이션 v5 생성 완료: 병과별 군복, 엄폐 발 디딤·일어서기·어깨 조준, 양손 총기 지지, 뼈 추적 히트박스.");
         }
         static void ValidateMotion(GameObject instance, AnimationClip clip)
         {

@@ -19,6 +19,7 @@ namespace SniperRidge
         float shotFeedbackTimer;
         float threatUntil;
         Vector3 threatSource;
+        string threatRole = "적";
 
         public void ShowShotFeedback(string message)
         {
@@ -27,9 +28,10 @@ namespace SniperRidge
             var color = shotFeedback.color; color.a = 1f; shotFeedback.color = color;
         }
 
-        public void WarnIncoming(Vector3 source, float duration)
+        public void WarnIncoming(Vector3 source, float duration, string role = "적")
         {
             threatSource = source;
+            threatRole = role;
             threatUntil = Mathf.Max(threatUntil, Time.time + duration);
         }
         Image[] hitLines;
@@ -266,7 +268,7 @@ namespace SniperRidge
             {
                 Vector3 direction = p.transform.InverseTransformPoint(threatSource);
                 string side = direction.z < 0f ? "후방" : Mathf.Abs(direction.x) < Mathf.Abs(direction.z) * .25f ? "정면" : direction.x < 0f ? "← 좌측" : "우측 →";
-                threatText.text = "적 조준 / 탄 접근  " + side + "  ·  C/Ctrl 엄폐";
+                threatText.text = threatRole + " 조준 / 탄 접근  " + side + "  ·  C/Ctrl 엄폐";
             }
             else threatText.text = "";
             float dt = Time.deltaTime;

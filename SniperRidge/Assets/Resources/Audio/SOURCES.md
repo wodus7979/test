@@ -1,6 +1,6 @@
 # Recorded firearm shots (2026-09-10)
 
-All seven player firearm types and enemy rifle shots use separate real recorded shots from **The Free Firearm Sound Library**.
+All seven player firearm types and enemy firearm shots use real recorded shots from **The Free Firearm Sound Library**.
 
 - Creators: Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney.
 - Source and CC0 license listing: https://opengameart.org/content/the-free-firearm-sound-library
@@ -17,15 +17,17 @@ All seven player firearm types and enemy rifle shots use separate real recorded 
 | SMG | Carl Gustav M45/G_31P.wav — 9mm SMG, near | 3 |
 | Shotgun | Nova/O_21P.wav — Benelli Nova 12 gauge, near | 2 |
 | Pistol | Walther PPQ/X_39P.wav — 9mm, near | 3 |
-| Enemy rifle | AR-15/D_24P.wav — AR-15, mid distance | 2 |
+| Legacy distant rifle | AR-15/D_24P.wav — AR-15, mid distance | 2 |
+
+As of 2026-09-11, enemy machine gunners use the existing `lmg` takes and enemy snipers use the existing `sniper` takes, with distance-based playback delay and volume. The two `distant` AR-15 takes remain available for compatibility. No audio files were changed for the role update.
 
 The LMG sound is a real assault-rifle recording used as a game sound-design stand-in. These recordings do not necessarily match the fictional models/calibres. Enemy audio is not a calibrated recording at the game's exact range.
 
 Each source contains multiple individually fired shots. `recorded_shots.json` records the source filename, onset time and output measurements for every exported take. The first take keeps `shot_<id>.wav`; subsequent takes use `_02`, `_03`, etc. The game chooses a different take from the previous shot and plays it at its original pitch (1.0).
 
-Processing: select one microphone channel per take, trim leading silence while keeping a short pre-attack margin, anti-aliased 96→48 kHz conversion, gentle 35–60 Hz high-pass to remove rumble, endpoint fades, peak normalization and PCM16 export. Enemy shots also have a 7 kHz low-pass. Player files contain identical left/right channels to avoid mono cancellation. No near/mid layering, nonlinear saturation/compression, artificial bass, pitch shifting or added echoes are applied. Natural reverberation and any distortion already present in the prepared source remain. These are trimmed/levelled recordings, not wholly unprocessed files.
+Processing: select one microphone channel per take, trim leading silence while keeping a short pre-attack margin, anti-aliased 96→48 kHz conversion, gentle 35–60 Hz high-pass to remove rumble, endpoint fades, peak normalization and PCM16 export. The legacy `distant` shots also have a 7 kHz low-pass. Player files contain identical left/right channels to avoid mono cancellation. No near/mid layering, nonlinear saturation/compression, artificial bass, pitch shifting or added echoes are applied. Natural reverberation and any distortion already present in the prepared source remain. These are trimmed/levelled recordings, not wholly unprocessed files.
 
-The old layered punch revision has been replaced. Peak levels are 0.70–0.82 for player shots and 0.66 for enemy shots; numerical loudness is not proof of perceived realism.
+The old layered punch revision has been replaced. Peak levels are 0.70–0.82 for player shots and 0.66 for the legacy `distant` shots; numerical loudness is not proof of perceived realism.
 
 Rebuild and validate (Python 3 + NumPy):
 

@@ -258,6 +258,19 @@ namespace SniperRidge
             return e;
         }
 
+        public static EnemySoldier SpawnDefenseSoldier(GameManager gm, System.Random random, int wave, int index)
+        {
+            EnsureEnemyMaterials();
+            var spawn = BattlefieldLayout.DefenseSoldier(random, wave, index);
+            string name = "Wave_" + wave + "_Soldier_" + (index + 1);
+            var enemy = EnemySoldier.Create(name, gm.Terrain, spawn, gm.PlayerEye.position, EnemySoldier.DefenseModeScale,
+                enemyBody, enemySkin, enemyGear, enemyRock, random, createCover: wave == 1);
+            // The same two rock positions are reused each wave, without stacking new cover colliders.
+            enemy.transform.SetParent(EnemyRoot(), true);
+            gm.RegisterEnemy(enemy);
+            return enemy;
+        }
+
         // ---------- 장식 (숲, 덤불, 바위) ----------
 
         static void BuildDecorations(Terrain terrain, Vector3 playerPos, List<EnemySpawn> spawns)
