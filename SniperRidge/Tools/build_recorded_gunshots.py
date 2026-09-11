@@ -1,9 +1,10 @@
-"""Build recorded gunshots from the CC0 Free Firearm Sound Library.
+"""Build designed powder-blast gunshots around CC0 firearm recordings.
 Requires Python 3 + numpy. Pass the extracted 'Prepared SFX Library' directory.
 Original library: https://opengameart.org/content/the-free-firearm-sound-library
-Separate real shots are cropped from a single microphone channel; the original attack is retained.
+Individual firearm recordings supply the initial crack underneath the designed blast.
 Uses the brighter microphone channel, presence EQ and short city reflections.
-No synthetic blast/oscillator or pitch shifting is added.
+Adds deterministic broadband powder-blast and low-pressure noise layers.
+These are designed game effects, not untouched field recordings. No pitch shifting.
 """
 import argparse
 import json
@@ -111,7 +112,45 @@ def presence_eq(x, rate, hz, gain_db, q=.8):
     return result
 
 
-def prepare_take(x, rate, onset, duration, hz, peak, distant=False):
+# Burst decay, low-body decay, layer gain, high-frequency cutoff. Faster weapons
+# use shorter bursts so individual rounds remain distinct during sustained fire.
+BLAST_PROFILES = {
+    'sniper': (.065,.14,.52,3600), 'dmr': (.045,.095,.45,4000),
+    'rifle': (.032,.070,.37,4300), 'lmg': (.038,.080,.42,3800),
+    'smg': (.022,.055,.31,4600), 'shotgun': (.060,.12,.54,3200),
+    'pistol': (.027,.065,.36,4800),
+}
+
+
+def powder_blast(recording, weapon, take):
+    """A short, non-tonal blast: wideband combustion texture plus low pressure.
+    The recording supplies the crack; shaped noise fills the formerly thin decay.
+    No repeating sine note, long sub-bass boom or extra discrete shot is used.
+    """
+    decay,body_decay,gain,cutoff = BLAST_PROFILES[weapon]
+    seed = 9700 + list(BLAST_PROFILES).index(weapon)*100 + take
+    rng = np.random.default_rng(seed)
+    n = len(recording)
+    t = np.maximum(0,np.arange(n)/RATE-.0015)
+    active = np.arange(n)/RATE >= .0015
+    def band(low,high):
+        noise = rng.normal(0,1,(n,1))
+        noise = filter_biquad(noise,RATE,high,highpass=False)
+        noise = filter_biquad(noise,RATE,low)
+        # RMS, not peak normalization: consistent body density across random takes.
+        return noise[:,0]/max(float(np.sqrt(np.mean(noise[:4800]**2))),1e-8)
+    snap = band(180,cutoff)
+    body = band(65,650)
+    pressure = band(40,190)
+    snap_env = (1-np.exp(-t/.0008))*np.exp(-t/decay)
+    body_env = (1-np.exp(-t/.003))*np.exp(-t/body_decay)
+    pressure_env = (1-np.exp(-t/.005))*np.exp(-t/(body_decay*.8))
+    blast = (snap*.55*snap_env + body*.35*body_env + pressure*.10*pressure_env)*active
+    # The original attack remains present; the new noisy body carries the explosive 'bang'.
+    return recording*.85 + (blast*gain)[:,None]
+
+
+def prepare_take(x, rate, onset, duration, hz, peak, distant=False, weapon='sniper', take=0):
     sample = x[max(0,onset-int(.01*rate)):onset+int(duration*rate)]
     # The library's near pair has a brighter right microphone than the previously
     # selected louder/boxier left channel. Never sum the two microphone attacks.
@@ -132,6 +171,8 @@ def prepare_take(x, rate, onset, duration, hz, peak, distant=False):
         t = np.arange(len(sample))/RATE
         envelope = 1+.8*(1-np.exp(-np.maximum(0,t-.025)/.025))*np.exp(-np.maximum(0,t-.07)/.18)
         sample *= envelope[:,None]
+    if not distant:
+        sample = powder_blast(sample,weapon,take)
     fade_in,fade_out = int(.00025*RATE),int(.12*RATE)
     sample[:fade_in] *= np.linspace(0,1,fade_in)[:,None]
     sample[-fade_out:] *= np.linspace(1,0,fade_out)[:,None]
@@ -141,7 +182,7 @@ def prepare_take(x, rate, onset, duration, hz, peak, distant=False):
 
 def city_version(direct):
     """Short, quiet, stereo building reflections of the same recording.
-    The first 28 ms are identical; no additional gunshot or synthetic explosion.
+    The first 28 ms match the composite blast; only reflections are added here.
     """
     wet = filter_biquad(direct[:,:1],RATE,5200,highpass=False)[:,0]
     wet = filter_biquad(wet[:,None],RATE,180)[:,0]
@@ -180,6 +221,7 @@ def stats(x):
             'peak': round(float(abs(x).max()), 4),
             'body_energy_below_250Hz_percent': round(float(100*spectrum[f<250].sum()/max(spectrum.sum(), 1e-20)), 2),
             'attack_presence_1500_8000Hz_percent': attack_presence(mono),
+            'blast_20_100ms_rms': round(float(np.sqrt(np.mean(mono[int(.02*RATE):int(.10*RATE)]**2))),5),
             'clipped_samples': int((abs(x) >= 1).sum())}
 
 
@@ -193,7 +235,7 @@ def main():
         raw, rate = read_pcm(args.library/source)
         takes, city_takes = [], []
         for index, onset in enumerate(find_shots(raw, rate)):
-            x = prepare_take(raw, rate, onset, duration, hz, peak, name == 'distant')
+            x = prepare_take(raw, rate, onset, duration, hz, peak, name == 'distant', weapon=name, take=index)
             suffix = '' if index == 0 else f'_{index+1:02d}'
             filename = f'shot_{name}{suffix}.wav'
             write_pcm(args.output/filename, x)
@@ -203,7 +245,7 @@ def main():
                 city_file = f'shot_{name}_city{suffix}.wav'
                 write_pcm(args.output/city_file,city)
                 city_takes.append({'file': city_file, 'direct_take': filename, **stats(city)})
-        report[name] = {'source': source, 'processing_revision': 'presence-city-1', 'takes': takes, 'city_takes': city_takes}
+        report[name] = {'source': source, 'processing_revision': 'powder-blast-1', 'design_layers': [] if name == 'distant' else ['recorded_attack', 'broadband_blast', 'low_pressure_noise'], 'takes': takes, 'city_takes': city_takes}
     manifest = args.output/'recorded_shots.json'
     manifest.write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps({name: len(info['takes']) for name, info in report.items()}, indent=2))

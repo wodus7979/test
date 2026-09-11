@@ -1,7 +1,12 @@
 {
   "sniper": {
     "source": "Tikka/W_29P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
     "takes": [
       {
         "file": "shot_sniper.wav",
@@ -9,8 +14,9 @@
         "source_onset_seconds": 0.575,
         "duration_seconds": 1.449,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.39,
-        "attack_presence_1500_8000Hz_percent": 31.59,
+        "body_energy_below_250Hz_percent": 27.22,
+        "attack_presence_1500_8000Hz_percent": 35.85,
+        "blast_20_100ms_rms": 0.09637,
         "clipped_samples": 0
       },
       {
@@ -19,8 +25,9 @@
         "source_onset_seconds": 5.665,
         "duration_seconds": 1.45,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.44,
-        "attack_presence_1500_8000Hz_percent": 30.06,
+        "body_energy_below_250Hz_percent": 21.29,
+        "attack_presence_1500_8000Hz_percent": 37.32,
+        "blast_20_100ms_rms": 0.09445,
         "clipped_samples": 0
       }
     ],
@@ -30,8 +37,9 @@
         "direct_take": "shot_sniper.wav",
         "duration_seconds": 1.629,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 1.09,
-        "attack_presence_1500_8000Hz_percent": 31.59,
+        "body_energy_below_250Hz_percent": 28.14,
+        "attack_presence_1500_8000Hz_percent": 35.75,
+        "blast_20_100ms_rms": 0.09811,
         "clipped_samples": 0
       },
       {
@@ -39,15 +47,21 @@
         "direct_take": "shot_sniper_02.wav",
         "duration_seconds": 1.63,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 1.48,
-        "attack_presence_1500_8000Hz_percent": 30.05,
+        "body_energy_below_250Hz_percent": 20.76,
+        "attack_presence_1500_8000Hz_percent": 36.91,
+        "blast_20_100ms_rms": 0.09533,
         "clipped_samples": 0
       }
     ]
   },
   "dmr": {
     "source": "SKS/U_14P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
     "takes": [
       {
         "file": "shot_dmr.wav",
@@ -55,8 +69,9 @@
         "source_onset_seconds": 3.575,
         "duration_seconds": 0.799,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.12,
-        "attack_presence_1500_8000Hz_percent": 29.01,
+        "body_energy_below_250Hz_percent": 21.32,
+        "attack_presence_1500_8000Hz_percent": 32.64,
+        "blast_20_100ms_rms": 0.09059,
         "clipped_samples": 0
       },
       {
@@ -65,8 +80,9 @@
         "source_onset_seconds": 6.755,
         "duration_seconds": 0.8,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.11,
-        "attack_presence_1500_8000Hz_percent": 31.04,
+        "body_energy_below_250Hz_percent": 22.4,
+        "attack_presence_1500_8000Hz_percent": 34.24,
+        "blast_20_100ms_rms": 0.0761,
         "clipped_samples": 0
       },
       {
@@ -75,8 +91,9 @@
         "source_onset_seconds": 10.21,
         "duration_seconds": 0.8,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.11,
-        "attack_presence_1500_8000Hz_percent": 33.0,
+        "body_energy_below_250Hz_percent": 21.53,
+        "attack_presence_1500_8000Hz_percent": 38.17,
+        "blast_20_100ms_rms": 0.08048,
         "clipped_samples": 0
       },
       {
@@ -85,8 +102,9 @@
         "source_onset_seconds": 13.29,
         "duration_seconds": 0.8,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.11,
-        "attack_presence_1500_8000Hz_percent": 32.73,
+        "body_energy_below_250Hz_percent": 26.53,
+        "attack_presence_1500_8000Hz_percent": 40.4,
+        "blast_20_100ms_rms": 0.09464,
         "clipped_samples": 0
       },
       {
@@ -95,8 +113,9 @@
         "source_onset_seconds": 16.775,
         "duration_seconds": 0.799,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.11,
-        "attack_presence_1500_8000Hz_percent": 32.71,
+        "body_energy_below_250Hz_percent": 24.34,
+        "attack_presence_1500_8000Hz_percent": 38.41,
+        "blast_20_100ms_rms": 0.09049,
         "clipped_samples": 0
       }
     ],
@@ -106,8 +125,9 @@
         "direct_take": "shot_dmr.wav",
         "duration_seconds": 0.98,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.22,
-        "attack_presence_1500_8000Hz_percent": 29.03,
+        "body_energy_below_250Hz_percent": 20.64,
+        "attack_presence_1500_8000Hz_percent": 32.77,
+        "blast_20_100ms_rms": 0.09138,
         "clipped_samples": 0
       },
       {
@@ -115,8 +135,9 @@
         "direct_take": "shot_dmr_02.wav",
         "duration_seconds": 0.98,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.2,
-        "attack_presence_1500_8000Hz_percent": 30.97,
+        "body_energy_below_250Hz_percent": 22.66,
+        "attack_presence_1500_8000Hz_percent": 34.29,
+        "blast_20_100ms_rms": 0.07695,
         "clipped_samples": 0
       },
       {
@@ -124,8 +145,9 @@
         "direct_take": "shot_dmr_03.wav",
         "duration_seconds": 0.98,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.18,
-        "attack_presence_1500_8000Hz_percent": 33.02,
+        "body_energy_below_250Hz_percent": 22.93,
+        "attack_presence_1500_8000Hz_percent": 38.17,
+        "blast_20_100ms_rms": 0.0817,
         "clipped_samples": 0
       },
       {
@@ -133,8 +155,9 @@
         "direct_take": "shot_dmr_04.wav",
         "duration_seconds": 0.98,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.22,
-        "attack_presence_1500_8000Hz_percent": 32.71,
+        "body_energy_below_250Hz_percent": 26.07,
+        "attack_presence_1500_8000Hz_percent": 40.41,
+        "blast_20_100ms_rms": 0.0954,
         "clipped_samples": 0
       },
       {
@@ -142,15 +165,21 @@
         "direct_take": "shot_dmr_05.wav",
         "duration_seconds": 0.979,
         "peak": 0.78,
-        "body_energy_below_250Hz_percent": 0.2,
-        "attack_presence_1500_8000Hz_percent": 32.63,
+        "body_energy_below_250Hz_percent": 23.61,
+        "attack_presence_1500_8000Hz_percent": 38.25,
+        "blast_20_100ms_rms": 0.09221,
         "clipped_samples": 0
       }
     ]
   },
   "rifle": {
     "source": "AR-15/D_32P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
     "takes": [
       {
         "file": "shot_rifle.wav",
@@ -158,8 +187,9 @@
         "source_onset_seconds": 0.7,
         "duration_seconds": 0.578,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.16,
-        "attack_presence_1500_8000Hz_percent": 33.18,
+        "body_energy_below_250Hz_percent": 17.99,
+        "attack_presence_1500_8000Hz_percent": 37.94,
+        "blast_20_100ms_rms": 0.05142,
         "clipped_samples": 0
       },
       {
@@ -168,8 +198,9 @@
         "source_onset_seconds": 5.645,
         "duration_seconds": 0.579,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.19,
-        "attack_presence_1500_8000Hz_percent": 34.43,
+        "body_energy_below_250Hz_percent": 18.18,
+        "attack_presence_1500_8000Hz_percent": 34.54,
+        "blast_20_100ms_rms": 0.04637,
         "clipped_samples": 0
       }
     ],
@@ -179,8 +210,9 @@
         "direct_take": "shot_rifle.wav",
         "duration_seconds": 0.758,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.49,
-        "attack_presence_1500_8000Hz_percent": 33.15,
+        "body_energy_below_250Hz_percent": 17.92,
+        "attack_presence_1500_8000Hz_percent": 37.82,
+        "blast_20_100ms_rms": 0.05276,
         "clipped_samples": 0
       },
       {
@@ -188,15 +220,21 @@
         "direct_take": "shot_rifle_02.wav",
         "duration_seconds": 0.759,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.51,
-        "attack_presence_1500_8000Hz_percent": 34.37,
+        "body_energy_below_250Hz_percent": 19.33,
+        "attack_presence_1500_8000Hz_percent": 34.51,
+        "blast_20_100ms_rms": 0.04686,
         "clipped_samples": 0
       }
     ]
   },
   "lmg": {
     "source": "AK-47/C_28P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
     "takes": [
       {
         "file": "shot_lmg.wav",
@@ -204,8 +242,9 @@
         "source_onset_seconds": 0.61,
         "duration_seconds": 0.62,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.1,
-        "attack_presence_1500_8000Hz_percent": 37.6,
+        "body_energy_below_250Hz_percent": 14.87,
+        "attack_presence_1500_8000Hz_percent": 43.14,
+        "blast_20_100ms_rms": 0.05682,
         "clipped_samples": 0
       },
       {
@@ -214,8 +253,9 @@
         "source_onset_seconds": 3.255,
         "duration_seconds": 0.619,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.1,
-        "attack_presence_1500_8000Hz_percent": 32.49,
+        "body_energy_below_250Hz_percent": 16.04,
+        "attack_presence_1500_8000Hz_percent": 33.92,
+        "blast_20_100ms_rms": 0.06065,
         "clipped_samples": 0
       },
       {
@@ -224,8 +264,9 @@
         "source_onset_seconds": 6.02,
         "duration_seconds": 0.62,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.1,
-        "attack_presence_1500_8000Hz_percent": 35.77,
+        "body_energy_below_250Hz_percent": 18.19,
+        "attack_presence_1500_8000Hz_percent": 35.61,
+        "blast_20_100ms_rms": 0.06301,
         "clipped_samples": 0
       },
       {
@@ -234,8 +275,9 @@
         "source_onset_seconds": 9.155,
         "duration_seconds": 0.62,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.11,
-        "attack_presence_1500_8000Hz_percent": 32.08,
+        "body_energy_below_250Hz_percent": 19.47,
+        "attack_presence_1500_8000Hz_percent": 39.56,
+        "blast_20_100ms_rms": 0.06835,
         "clipped_samples": 0
       }
     ],
@@ -245,8 +287,9 @@
         "direct_take": "shot_lmg.wav",
         "duration_seconds": 0.8,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.18,
-        "attack_presence_1500_8000Hz_percent": 37.61,
+        "body_energy_below_250Hz_percent": 14.13,
+        "attack_presence_1500_8000Hz_percent": 43.27,
+        "blast_20_100ms_rms": 0.05756,
         "clipped_samples": 0
       },
       {
@@ -254,8 +297,9 @@
         "direct_take": "shot_lmg_02.wav",
         "duration_seconds": 0.799,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.2,
-        "attack_presence_1500_8000Hz_percent": 32.44,
+        "body_energy_below_250Hz_percent": 15.61,
+        "attack_presence_1500_8000Hz_percent": 33.8,
+        "blast_20_100ms_rms": 0.06148,
         "clipped_samples": 0
       },
       {
@@ -263,8 +307,9 @@
         "direct_take": "shot_lmg_03.wav",
         "duration_seconds": 0.8,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.18,
-        "attack_presence_1500_8000Hz_percent": 35.78,
+        "body_energy_below_250Hz_percent": 17.31,
+        "attack_presence_1500_8000Hz_percent": 35.55,
+        "blast_20_100ms_rms": 0.06329,
         "clipped_samples": 0
       },
       {
@@ -272,15 +317,21 @@
         "direct_take": "shot_lmg_04.wav",
         "duration_seconds": 0.8,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.2,
-        "attack_presence_1500_8000Hz_percent": 32.1,
+        "body_energy_below_250Hz_percent": 18.79,
+        "attack_presence_1500_8000Hz_percent": 39.8,
+        "blast_20_100ms_rms": 0.06837,
         "clipped_samples": 0
       }
     ]
   },
   "smg": {
     "source": "Carl Gustav M45/G_31P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
     "takes": [
       {
         "file": "shot_smg.wav",
@@ -288,8 +339,9 @@
         "source_onset_seconds": 0.31,
         "duration_seconds": 0.46,
         "peak": 0.7,
-        "body_energy_below_250Hz_percent": 0.15,
-        "attack_presence_1500_8000Hz_percent": 31.3,
+        "body_energy_below_250Hz_percent": 16.81,
+        "attack_presence_1500_8000Hz_percent": 41.02,
+        "blast_20_100ms_rms": 0.03262,
         "clipped_samples": 0
       },
       {
@@ -298,8 +350,9 @@
         "source_onset_seconds": 3.5,
         "duration_seconds": 0.46,
         "peak": 0.7,
-        "body_energy_below_250Hz_percent": 0.18,
-        "attack_presence_1500_8000Hz_percent": 38.75,
+        "body_energy_below_250Hz_percent": 10.91,
+        "attack_presence_1500_8000Hz_percent": 42.63,
+        "blast_20_100ms_rms": 0.03351,
         "clipped_samples": 0
       },
       {
@@ -308,8 +361,9 @@
         "source_onset_seconds": 6.725,
         "duration_seconds": 0.459,
         "peak": 0.7,
-        "body_energy_below_250Hz_percent": 0.16,
-        "attack_presence_1500_8000Hz_percent": 35.23,
+        "body_energy_below_250Hz_percent": 13.06,
+        "attack_presence_1500_8000Hz_percent": 38.8,
+        "blast_20_100ms_rms": 0.03957,
         "clipped_samples": 0
       }
     ],
@@ -319,8 +373,9 @@
         "direct_take": "shot_smg.wav",
         "duration_seconds": 0.64,
         "peak": 0.7,
-        "body_energy_below_250Hz_percent": 0.35,
-        "attack_presence_1500_8000Hz_percent": 31.31,
+        "body_energy_below_250Hz_percent": 17.11,
+        "attack_presence_1500_8000Hz_percent": 40.83,
+        "blast_20_100ms_rms": 0.03372,
         "clipped_samples": 0
       },
       {
@@ -328,8 +383,9 @@
         "direct_take": "shot_smg_02.wav",
         "duration_seconds": 0.64,
         "peak": 0.7,
-        "body_energy_below_250Hz_percent": 0.36,
-        "attack_presence_1500_8000Hz_percent": 38.77,
+        "body_energy_below_250Hz_percent": 10.58,
+        "attack_presence_1500_8000Hz_percent": 43.01,
+        "blast_20_100ms_rms": 0.03384,
         "clipped_samples": 0
       },
       {
@@ -337,15 +393,21 @@
         "direct_take": "shot_smg_03.wav",
         "duration_seconds": 0.639,
         "peak": 0.7,
-        "body_energy_below_250Hz_percent": 0.37,
-        "attack_presence_1500_8000Hz_percent": 35.27,
+        "body_energy_below_250Hz_percent": 12.86,
+        "attack_presence_1500_8000Hz_percent": 38.83,
+        "blast_20_100ms_rms": 0.04068,
         "clipped_samples": 0
       }
     ]
   },
   "shotgun": {
     "source": "Nova/O_21P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
     "takes": [
       {
         "file": "shot_shotgun.wav",
@@ -353,8 +415,9 @@
         "source_onset_seconds": 0.43,
         "duration_seconds": 1.0,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.14,
-        "attack_presence_1500_8000Hz_percent": 33.06,
+        "body_energy_below_250Hz_percent": 29.32,
+        "attack_presence_1500_8000Hz_percent": 39.79,
+        "blast_20_100ms_rms": 0.08794,
         "clipped_samples": 0
       },
       {
@@ -363,8 +426,9 @@
         "source_onset_seconds": 3.465,
         "duration_seconds": 1.0,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.09,
-        "attack_presence_1500_8000Hz_percent": 38.01,
+        "body_energy_below_250Hz_percent": 28.29,
+        "attack_presence_1500_8000Hz_percent": 41.31,
+        "blast_20_100ms_rms": 0.09681,
         "clipped_samples": 0
       }
     ],
@@ -374,8 +438,9 @@
         "direct_take": "shot_shotgun.wav",
         "duration_seconds": 1.18,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.68,
-        "attack_presence_1500_8000Hz_percent": 33.09,
+        "body_energy_below_250Hz_percent": 29.34,
+        "attack_presence_1500_8000Hz_percent": 39.93,
+        "blast_20_100ms_rms": 0.0894,
         "clipped_samples": 0
       },
       {
@@ -383,15 +448,21 @@
         "direct_take": "shot_shotgun_02.wav",
         "duration_seconds": 1.18,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.56,
-        "attack_presence_1500_8000Hz_percent": 38.03,
+        "body_energy_below_250Hz_percent": 26.37,
+        "attack_presence_1500_8000Hz_percent": 41.39,
+        "blast_20_100ms_rms": 0.09815,
         "clipped_samples": 0
       }
     ]
   },
   "pistol": {
     "source": "Walther PPQ/X_39P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [
+      "recorded_attack",
+      "broadband_blast",
+      "low_pressure_noise"
+    ],
     "takes": [
       {
         "file": "shot_pistol.wav",
@@ -399,8 +470,9 @@
         "source_onset_seconds": 1.405,
         "duration_seconds": 0.55,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.04,
-        "attack_presence_1500_8000Hz_percent": 52.18,
+        "body_energy_below_250Hz_percent": 25.09,
+        "attack_presence_1500_8000Hz_percent": 42.83,
+        "blast_20_100ms_rms": 0.05317,
         "clipped_samples": 0
       },
       {
@@ -409,8 +481,9 @@
         "source_onset_seconds": 6.44,
         "duration_seconds": 0.547,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.04,
-        "attack_presence_1500_8000Hz_percent": 53.45,
+        "body_energy_below_250Hz_percent": 21.93,
+        "attack_presence_1500_8000Hz_percent": 49.79,
+        "blast_20_100ms_rms": 0.04679,
         "clipped_samples": 0
       },
       {
@@ -419,8 +492,9 @@
         "source_onset_seconds": 10.66,
         "duration_seconds": 0.55,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.05,
-        "attack_presence_1500_8000Hz_percent": 56.1,
+        "body_energy_below_250Hz_percent": 16.29,
+        "attack_presence_1500_8000Hz_percent": 47.05,
+        "blast_20_100ms_rms": 0.0426,
         "clipped_samples": 0
       }
     ],
@@ -430,8 +504,9 @@
         "direct_take": "shot_pistol.wav",
         "duration_seconds": 0.73,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.29,
-        "attack_presence_1500_8000Hz_percent": 52.13,
+        "body_energy_below_250Hz_percent": 24.92,
+        "attack_presence_1500_8000Hz_percent": 42.76,
+        "blast_20_100ms_rms": 0.05444,
         "clipped_samples": 0
       },
       {
@@ -439,8 +514,9 @@
         "direct_take": "shot_pistol_02.wav",
         "duration_seconds": 0.727,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.3,
-        "attack_presence_1500_8000Hz_percent": 53.39,
+        "body_energy_below_250Hz_percent": 21.45,
+        "attack_presence_1500_8000Hz_percent": 49.91,
+        "blast_20_100ms_rms": 0.04752,
         "clipped_samples": 0
       },
       {
@@ -448,15 +524,17 @@
         "direct_take": "shot_pistol_03.wav",
         "duration_seconds": 0.73,
         "peak": 0.74,
-        "body_energy_below_250Hz_percent": 0.28,
-        "attack_presence_1500_8000Hz_percent": 56.1,
+        "body_energy_below_250Hz_percent": 15.6,
+        "attack_presence_1500_8000Hz_percent": 46.92,
+        "blast_20_100ms_rms": 0.04373,
         "clipped_samples": 0
       }
     ]
   },
   "distant": {
     "source": "AR-15/D_24P.wav",
-    "processing_revision": "presence-city-1",
+    "processing_revision": "powder-blast-1",
+    "design_layers": [],
     "takes": [
       {
         "file": "shot_distant.wav",
@@ -466,6 +544,7 @@
         "peak": 0.66,
         "body_energy_below_250Hz_percent": 0.16,
         "attack_presence_1500_8000Hz_percent": 11.06,
+        "blast_20_100ms_rms": 0.07726,
         "clipped_samples": 0
       },
       {
@@ -476,6 +555,7 @@
         "peak": 0.66,
         "body_energy_below_250Hz_percent": 0.17,
         "attack_presence_1500_8000Hz_percent": 10.77,
+        "blast_20_100ms_rms": 0.07326,
         "clipped_samples": 0
       }
     ],

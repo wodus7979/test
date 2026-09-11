@@ -1,4 +1,4 @@
-"""Check all shipped real takes and sustained-fire overlap. Does not replace Unity listening."""
+"""Check all shipped composite gunshots and sustained-fire overlap. Does not replace Unity listening."""
 import json
 from pathlib import Path
 import wave
@@ -34,7 +34,11 @@ def main():
             onset = np.flatnonzero(abs(x).max(axis=1) > .1)[0]
             assert onset < 48000*.02, take['file']
             assert np.sqrt(np.mean(x[:1440]**2)) > .025, take['file']
-            if name != 'distant' and not name.endswith('_city'): assert np.array_equal(x[:, 0], x[:, 1]), take['file']
+            if name != 'distant' and not name.endswith('_city'):
+                assert np.array_equal(x[:,0],x[:,1]), take['file']
+                # Audible body after the initial click is an explicit requirement of this revision.
+                body_rms=float(np.sqrt(np.mean(x[960:4800]**2)))
+                assert body_rms>.025, ('Thin blast body',take['file'],body_rms)
             if name.endswith('_city'):
                 assert not np.array_equal(x[:,0],x[:,1]), 'City reflection stereo missing'
                 correlation=np.corrcoef(x.T)[0,1]
@@ -45,7 +49,7 @@ def main():
             assert all(not np.array_equal(x, other) for other in clips), 'Duplicate takes'
             clips.append(x)
         all_clips[name] = clips
-        entry = {'real_takes': len(clips), 'peak': round(max(float(abs(x).max()) for x in clips), 3)}
+        entry = {'take_variants': len(clips), 'peak': round(max(float(abs(x).max()) for x in clips), 3)}
         base_name = name.removesuffix('_city')
         if base_name in WEAPONS:
             interval, volume = WEAPONS[base_name]

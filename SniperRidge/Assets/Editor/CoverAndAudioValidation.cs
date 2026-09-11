@@ -34,7 +34,7 @@ namespace SniperRidge.EditorTools
                 "적 애니메이션 다시 생성 메뉴를 실행하세요.");
             var animator = prefab.GetComponent<Animator>();
             Check(animator != null && animator.runtimeAnimatorController != null, "병사 Animator 누락");
-            Debug.Log("[Sniper Ridge] 엄폐 발 디딤/복귀/사격 자세와 실제 녹음 " + total + "개 검사 통과. 실제 동작과 소리는 Play에서도 확인하세요.");
+            Debug.Log("[Sniper Ridge] 엄폐 발 디딤/복귀/사격 자세와 총성 파일 " + total + "개 검사 통과. 실제 동작과 소리는 Play에서도 확인하세요.");
         }
 
         public static void ValidateFootwork()

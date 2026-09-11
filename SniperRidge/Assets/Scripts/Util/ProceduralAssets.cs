@@ -349,7 +349,7 @@ namespace SniperRidge
                 if (clip != null) clips.Add(clip);
             }
             shotTakes[id] = clips.ToArray();
-            if (clips.Count < 2) Debug.LogError("[Sniper Ridge] 실제 총성 녹음 누락: " + id + ". Git 파일을 모두 받은 뒤 다시 실행하세요.");
+            if (clips.Count < 2) Debug.LogError("[Sniper Ridge] 총성 파일 누락: " + id + ". Git 파일을 모두 받은 뒤 다시 실행하세요.");
             return first;
         }
 
@@ -378,7 +378,7 @@ namespace SniperRidge
             b.HitTick = Load("hit") ?? ProceduralAssets.HitTick();
             b.Click = Load("click") ?? ProceduralAssets.EmptyClick();
             b.Wind = Load("wind");
-            Debug.Log("[Sniper Ridge] 총기 7종: 선명한 실제 녹음, 도시 반사음, 원래 피치 재생.");
+            Debug.Log("[Sniper Ridge] 총기 7종: 화약 폭발감을 더한 게임용 총성, 도시 반사음, 원래 피치 재생.");
             return b;
         }
     }
