@@ -66,16 +66,23 @@ namespace SniperRidge
             Vector3 surface = TerrainGenerator.OnGround(terrain, 0f, TerrainGenerator.PlayerSpawnZ);
             Vector3 nest = TrenchTerrain.Excavate(terrain, surface);
             BuildPlayer(gm, nest);
-            TrenchBuilder.Build(terrain, nest);
-
-            var spawns = EnemySpawns();
-            BuildDecorations(terrain, nest, spawns);
-            SetupReflection(nest);
+            // The selected map is built on deployment, before spawning any enemies.
 
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
             gm.Hud = HudController.Build(gm);
             if (Application.isMobilePlatform) TouchControls.Build(gm);
             // 적은 무기 선택 후 GameManager.StartMission 에서 생성된다.
+        }
+
+        public static void PrepareMap(GameManager gm)
+        {
+            if (gm.Map == BattlefieldMap.City) CityBattlefield.Build(gm);
+            else
+            {
+                TrenchBuilder.Build(gm.Terrain, gm.Player.transform.position);
+                BuildDecorations(gm.Terrain, gm.Player.transform.position, EnemySpawns());
+            }
+            SetupReflection(gm.Player.transform.position);
         }
 
         // ---------- 조명 / 환경 ----------
@@ -234,12 +241,12 @@ namespace SniperRidge
             EnsureEnemyMaterials();
             var rng = new System.Random(77);
             var root = EnemyRoot();
-            var spawns = EnemySpawns();
+            var spawns = gm.Map == BattlefieldMap.City ? CityLayout.SniperSpawns() : EnemySpawns();
             Vector3 playerPos = gm.PlayerEye.position;
             for (int i = 0; i < spawns.Count; i++)
             {
-                var e = EnemySoldier.Create("Enemy_" + (i + 1), gm.Terrain, spawns[i], playerPos, EnemySoldier.SniperModeScale,
-                                            enemyBody, enemySkin, enemyGear, enemyRock, rng);
+                var e = EnemySoldier.Create("Enemy_" + (i + 1), gm.Terrain, spawns[i], playerPos, gm.Map == BattlefieldMap.City ? CityLayout.EnemyScale : EnemySoldier.SniperModeScale,
+                                            enemyBody, enemySkin, enemyGear, enemyRock, rng, createCover: gm.Map != BattlefieldMap.City);
                 e.transform.SetParent(root, true);
                 gm.RegisterEnemy(e);
             }
@@ -261,10 +268,11 @@ namespace SniperRidge
         public static EnemySoldier SpawnDefenseSoldier(GameManager gm, System.Random random, int wave, int index)
         {
             EnsureEnemyMaterials();
-            var spawn = BattlefieldLayout.DefenseSoldier(random, wave, index);
+            var spawn = gm.Map == BattlefieldMap.City ? CityLayout.DefenseSpawn(random, wave, index)
+                : BattlefieldLayout.DefenseSoldier(random, wave, index);
             string name = "Wave_" + wave + "_Soldier_" + (index + 1);
             var enemy = EnemySoldier.Create(name, gm.Terrain, spawn, gm.PlayerEye.position, EnemySoldier.DefenseModeScale,
-                enemyBody, enemySkin, enemyGear, enemyRock, random, createCover: wave == 1);
+                enemyBody, enemySkin, enemyGear, enemyRock, random, createCover: gm.Map != BattlefieldMap.City && wave == 1);
             // The same two rock positions are reused each wave, without stacking new cover colliders.
             enemy.transform.SetParent(EnemyRoot(), true);
             gm.RegisterEnemy(enemy);

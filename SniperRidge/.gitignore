@@ -51,3 +51,7 @@ Assets/Resources/Launchers.meta
 # Generated from GrenadeAssetPack source
 Assets/Resources/Grenades/
 Assets/Resources/Grenades.meta
+
+# Generated from textured city pack source by CityPackSetup
+Assets/Resources/CityPack/
+Assets/Resources/CityPack.meta

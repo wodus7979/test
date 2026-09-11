@@ -16,6 +16,8 @@ namespace SniperRidge
         public bool IsSelecting => State == GameState.Select;
 
         public MissionType Mission { get; private set; }
+        public BattlefieldMap Map { get; private set; }
+        public static BattlefieldMap LastSelectedMap { get; private set; }
         public WeaponDefinition Weapon { get; private set; }
 
         public Transform PlayerEye;
@@ -109,11 +111,19 @@ namespace SniperRidge
 
         // ---------- 임무 시작 ----------
 
-        public void StartMission(WeaponDefinition weapon)
+        public void StartMission(WeaponDefinition weapon, BattlefieldMap map = BattlefieldMap.Field)
         {
             if (!IsSelecting) return;
+            if (map == BattlefieldMap.City && !CityBattlefield.IsReady)
+            {
+                Debug.LogError("[Sniper Ridge] 도시 에셋이 없습니다. Sniper Ridge → 도시 에셋 생성 메뉴를 실행하세요.");
+                return;
+            }
             Weapon = weapon;
             Mission = weapon.Mission;
+            Map = map;
+            LastSelectedMap = map;
+            LevelBuilder.PrepareMap(this);
             State = GameState.Playing;
             startTime = Time.time;
             Player.Equip(weapon);
@@ -124,12 +134,16 @@ namespace SniperRidge
             {
                 Health.Configure(5f, 6f);
                 LevelBuilder.SpawnSniperEnemies(this);
-                Hud.OnMissionStart("평지 참호에 잠복 중.\n전방 45~105m의 저격병 4명과 기관총병 6명을 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
+                Hud.OnMissionStart(Map == BattlefieldMap.City
+                    ? "도시 검문소에 잠복 중.\n옥상 6명과 도로 엄폐물의 적 4명을 제거하라.\n빗나가면 옥상 저격병과 기관총병이 반격한다.\nC/Ctrl 엄폐 · A/D 이동 · 5초 숨으면 추적 해제"
+                    : "평지 참호에 잠복 중.\n전방 45~105m의 저격병 4명과 기관총병 6명을 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
             }
             else
             {
                 Health.Configure(3f, 12f);
-                Hud.OnMissionStart("진지 방어.\n기관총병이 연사하며 접근하고 양옆 저격병이 엄폐 사격한다.\nC/Ctrl로 숨고 A/D로 피한 뒤 반격하라.\n" + TotalWaves + "개 웨이브를 모두 막아내라.");
+                Hud.OnMissionStart(Map == BattlefieldMap.City
+                    ? "도시 진지 방어.\n옥상 저격병·기관총병과 도로의 돌격병을 막아라.\nC/Ctrl로 숨고 A/D로 피한 뒤 반격하라.\n5개 웨이브를 모두 막아내라."
+                    : "진지 방어.\n기관총병이 연사하며 접근하고 양옆 저격병이 엄폐 사격한다.\nC/Ctrl로 숨고 A/D로 피한 뒤 반격하라.\n" + TotalWaves + "개 웨이브를 모두 막아내라.");
                 StartCoroutine(RunWaves());
             }
         }

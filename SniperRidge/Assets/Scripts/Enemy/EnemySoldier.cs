@@ -13,14 +13,16 @@ namespace SniperRidge
         public EnemyKind Kind;
         public EnemyRole Role;
         public int UniformVariant;
+        public float SurfaceY; // NaN uses terrain; a fixed height anchors stationary rooftop posts.
 
-        public EnemySpawn(float x, float z, EnemyKind kind, float bx = 0f, float bz = 0f, EnemyRole role = EnemyRole.Automatic, int uniformVariant = 0)
+        public EnemySpawn(float x, float z, EnemyKind kind, float bx = 0f, float bz = 0f, EnemyRole role = EnemyRole.Automatic, int uniformVariant = 0, float surfaceY = float.NaN)
         {
             Pos = new Vector2(x, z);
             PosB = new Vector2(bx, bz);
             Kind = kind;
             Role = role;
             UniformVariant = uniformVariant;
+            SurfaceY = surfaceY;
         }
     }
 
@@ -44,6 +46,9 @@ namespace SniperRidge
         public EnemyRole Role { get; private set; }
         public int UniformVariant { get; private set; }
         public string RoleName => EnemyCombatRoles.Name(Role);
+        public bool OnRoof => !float.IsNaN(surfaceY);
+        float surfaceY = float.NaN;
+        public float GroundHeight(float x, float z) => OnRoof ? surfaceY : TerrainGenerator.GroundHeight(terrain, x, z);
         public Vector3 RightGrip => EnemyCombatRoles.RightGrip(Role);
         public Vector3 LeftGrip => EnemyCombatRoles.LeftGrip(Role);
 
@@ -89,6 +94,7 @@ namespace SniperRidge
                                           Material body, Material skin, Material gear, Material rock, System.Random rng, bool createCover = true)
         {
             Vector3 ground = TerrainGenerator.OnGround(terrain, spawn.Pos.x, spawn.Pos.y);
+            if (!float.IsNaN(spawn.SurfaceY)) ground.y = spawn.SurfaceY;
             Vector3 toPlayer = playerPos - ground;
             toPlayer.y = 0f;
             toPlayer.Normalize();
@@ -106,6 +112,7 @@ namespace SniperRidge
             soldier.Role = EnemyCombatRoles.Resolve(spawn);
             soldier.UniformVariant = Mathf.Clamp(spawn.UniformVariant, 0, EnemyCombatRoles.GunnerColors - 1);
             soldier.terrain = terrain;
+            soldier.surfaceY = spawn.SurfaceY;
             soldier.rig = rigGo.transform;
             soldier.scale = scale;
             soldier.PointA = ground;
@@ -468,8 +475,10 @@ namespace SniperRidge
             Vector3 p = transform.position + dir * speed * dt;
             float half = TerrainGenerator.Size * 0.5f - 5f;
             p.x = Mathf.Clamp(p.x, -half, half);
+            if (gm != null && gm.Map == BattlefieldMap.City && Kind == EnemyKind.Rusher)
+                p.x = Mathf.Clamp(p.x, -8f, 8f);
             p.z = Mathf.Clamp(p.z, -half, half);
-            p.y = TerrainGenerator.GroundHeight(terrain, p.x, p.z);
+            p.y = GroundHeight(p.x, p.z);
             transform.position = p;
         }
 

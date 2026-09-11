@@ -256,7 +256,7 @@ namespace SniperRidge
         Vector3 PlantedTarget(Vector3 rest, Vector3 step, float sole)
         {
             Vector3 p = owner.transform.TransformPoint(new Vector3(rest.x + step.x, 0f, rest.z + step.z));
-            p.y = TerrainGenerator.GroundHeight(terrain, p.x, p.z) + (sole + step.y) * unitScale;
+            p.y = owner.GroundHeight(p.x, p.z) + (sole + step.y) * unitScale;
             return p;
         }
 
@@ -287,11 +287,12 @@ namespace SniperRidge
         {
             Vector3 p = foot.position;
             float lift = Mathf.Max(0f, p.y - owner.transform.position.y - sole * unitScale);
-            p.y = TerrainGenerator.GroundHeight(terrain, p.x, p.z) + sole * unitScale + lift;
+            p.y = owner.GroundHeight(p.x, p.z) + sole * unitScale + lift;
             return p;
         }
         Quaternion GroundRotation(Vector3 p, Quaternion authored)
         {
+            if (owner.OnRoof) return authored;
             var data = terrain.terrainData;
             Vector3 n = data.GetInterpolatedNormal((p.x - terrain.transform.position.x) / data.size.x, (p.z - terrain.transform.position.z) / data.size.z);
             return Quaternion.FromToRotation(Vector3.up, Vector3.Slerp(Vector3.up, n, .7f)) * authored;
@@ -340,7 +341,7 @@ namespace SniperRidge
             bodyRig.localRotation = rigRestRotation * Quaternion.Euler(18f * fall, 0f, -84f * fall * fallSide);
             float lift = 0f;
             foreach (var bone in groundProbeBones)
-                lift = Mathf.Max(lift, TerrainGenerator.GroundHeight(terrain, bone.position.x, bone.position.z) + .09f * unitScale - bone.position.y);
+                lift = Mathf.Max(lift, owner.GroundHeight(bone.position.x, bone.position.z) + .09f * unitScale - bone.position.y);
             bodyRig.position += Vector3.up * lift;
             // The final skeletal pose is now stable; no ragdoll or per-frame work is required for corpses.
             if (deathTime >= 1.1f) enabled = false;
