@@ -208,6 +208,12 @@ Shader "Hidden/SniperRidge/Post"
                 // 톤매핑
                 c = aces(c);
 
+                // 이후 색보정은 지각(감마) 공간에서 한다. 선형 공간에서 0.5 중심 대비를 걸면
+                // 그림자(선형 0.03 이하)가 전부 검정으로 눌린다. 선형 프로젝트에서만 변환한다.
+                #ifndef UNITY_COLORSPACE_GAMMA
+                c = LinearToGammaSpace(c);
+                #endif
+
                 // 리프트 / 감마 / 게인 (LDR)
                 c = saturate(c * _Gain.rgb + _Lift.rgb);
                 c = pow(c, _Gamma.rgb);
@@ -229,8 +235,12 @@ Shader "Hidden/SniperRidge/Post"
                 // 필름 그레인: 어두운 영역에 조금 더
                 float g = Noise(i.uv * _ScreenParams.xy + frac(_Time.y * 7.31) * 1000.0) - 0.5;
                 c += g * _Grain * (1.0 - saturate(lum));
+                c = saturate(c);
 
-                return half4(saturate(c), 1.0);
+                #ifndef UNITY_COLORSPACE_GAMMA
+                c = GammaToLinearSpace(c);
+                #endif
+                return half4(c, 1.0);
             }
             ENDCG
         }

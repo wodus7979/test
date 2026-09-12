@@ -121,29 +121,29 @@ namespace SniperRidge
             {
                 case PostPreset.DaylightField:
                     Exposure = 1.0f; BloomThreshold = 1.1f; BloomIntensity = mobile ? .2f : .12f;
-                    Saturation = .86f; Contrast = 1.08f; Vignette = .18f;
+                    Saturation = .9f; Contrast = 1.08f; Vignette = .16f;
                     Temperature = .08f; Tint = 0f;
-                    Lift = new Color(0f, 0f, .012f, 0f);
+                    Lift = new Color(.01f, .01f, .02f, 0f);
                     Gamma = new Color(1f, 1f, 1f, 1f);
-                    Gain = new Color(1.03f, 1.0f, .96f, 1f);
-                    SplitShadows = new Color(.46f, .49f, .55f, 1f);
-                    SplitHighlights = new Color(.55f, .52f, .46f, 1f);
-                    SplitStrength = .32f; SplitBalance = -.05f;
-                    AoIntensity = .8f; AoRadius = .8f; AoBias = .06f; AoPower = 1.6f; AoMaxDistance = 70f;
-                    Sharpen = .35f; Grain = .03f;
+                    Gain = new Color(1.02f, 1.0f, .97f, 1f);
+                    SplitShadows = new Color(.47f, .49f, .54f, 1f);
+                    SplitHighlights = new Color(.54f, .52f, .47f, 1f);
+                    SplitStrength = .3f; SplitBalance = -.05f;
+                    AoIntensity = .7f; AoRadius = .8f; AoBias = .06f; AoPower = 1.5f; AoMaxDistance = 70f;
+                    Sharpen = .25f; Grain = .015f;
                     break;
                 case PostPreset.EveningTown:
-                    Exposure = 1.08f; BloomThreshold = 1.0f; BloomIntensity = .15f;
-                    Saturation = .74f; Contrast = 1.06f; Vignette = .14f;
-                    Temperature = -.06f; Tint = 0f;
-                    Lift = new Color(0f, .004f, .02f, 0f);
+                    Exposure = 1.15f; BloomThreshold = 1.0f; BloomIntensity = .15f;
+                    Saturation = .82f; Contrast = 1.05f; Vignette = .12f;
+                    Temperature = -.05f; Tint = 0f;
+                    Lift = new Color(.02f, .025f, .035f, 0f);
                     Gamma = new Color(1f, 1f, .98f, 1f);
                     Gain = new Color(1.0f, 1.0f, 1.02f, 1f);
-                    SplitShadows = new Color(.44f, .48f, .58f, 1f);
-                    SplitHighlights = new Color(.57f, .52f, .44f, 1f);
-                    SplitStrength = .4f; SplitBalance = -.08f;
-                    AoIntensity = .85f; AoRadius = .7f; AoBias = .06f; AoPower = 1.7f; AoMaxDistance = 60f;
-                    Sharpen = .3f; Grain = .045f;
+                    SplitShadows = new Color(.45f, .48f, .57f, 1f);
+                    SplitHighlights = new Color(.56f, .52f, .45f, 1f);
+                    SplitStrength = .35f; SplitBalance = -.08f;
+                    AoIntensity = .75f; AoRadius = .7f; AoBias = .06f; AoPower = 1.5f; AoMaxDistance = 60f;
+                    Sharpen = .2f; Grain = .02f;
                     break;
             }
             if (mobile) { Sharpen = 0f; Grain = 0f; AoIntensity = 0f; }
