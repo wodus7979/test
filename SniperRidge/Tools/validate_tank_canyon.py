@@ -38,6 +38,20 @@ def slope(x,z):
     return np.degrees(np.arctan(np.hypot(dx,dz)))
 
 def validate():
+    entry=int(re.search(r'EntryNode=(\d+)',SOURCE)[1])
+    exit_node=int(re.search(r'EntryExitNode=(\d+)',SOURCE)[1])
+    assert tuple(sorted((entry,exit_node))) in edges,'player starts facing a closed canyon road'
+    direction=nodes[exit_node]-nodes[entry];direction/=np.linalg.norm(direction)
+    side=np.array([-direction[1],direction[0]])
+    line=nodes[entry]+np.linspace(0,30,121)[:,None]*direction
+    # Include the enlarged tank's full footprint, not only a centre-line sample.
+    entry_slope=0
+    for along in [-5,0,5]:
+        for across in [-2.4,0,2.4]:
+            p=line+direction*along+side*across
+            assert np.max(road_distance(p[:,0],p[:,1]))<7,'entry footprint touches rock shelf'
+            entry_slope=max(entry_slope,float(slope(p[:,0],p[:,1]).max()))
+    assert entry_slope<18,('entry road too steep',entry_slope)
     for start in range(16):
         visited={start};pending=[start]
         while pending:
@@ -69,6 +83,7 @@ def validate():
     grid=np.linspace(-200,200,201);x,z=np.meshgrid(grid,grid);h=height(x,z)
     assert np.isfinite(h).all() and h.min()>0 and h.max()<200
     print(json.dumps(dict(connected_junctions=16,road_links=len(edges),combat_area_m=[200,200],enemy_scale=1.3,
+        entry_drivable_distance_m=30,entry_footprint_max_slope_degrees=round(entry_slope,2),
         road_elevation_range_m=[round(float(elevations.min()),2),round(float(elevations.max()),2)],
         maximum_road_slope_degrees=round(maximum_slope,2),minimum_available_spawn_junctions=int(minimum_spawns),
         cliff_clearance_from_road_centre_m=round(minimum_rock_clearance,2)),indent=2))

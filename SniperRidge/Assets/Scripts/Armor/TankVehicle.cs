@@ -21,7 +21,7 @@ namespace SniperRidge
         public int RemainingShellHits => Mathf.Max(0,HitsToDestroy-ShellHits);
         public Vector3 AimPoint => transform.TransformPoint(Vector3.up * 1.45f);
         public float Fraction => health / maximumHealth;
-        public float Speed => Vector3.Dot(body.velocity, body.rotation * Vector3.forward);
+        public float Speed => TankDrive.SpeedAlongTracks(body);
         public float ReloadRemaining => Mathf.Max(0f, nextShot-Time.time);
         public Vector3 Velocity => body.velocity;
         public Transform Muzzle { get; private set; }
@@ -46,7 +46,13 @@ namespace SniperRidge
             string resource=appearance==TankAppearance.K2BlackPanther?Resource:OppositionResource;
             var go = Instantiate(Resources.Load<GameObject>(resource), position, Quaternion.identity);
             go.transform.localScale=Vector3.one*(player?1f:TankCanyon.EnemyScale);
-            go.transform.rotation=Quaternion.FromToRotation(Vector3.up,TankCanyon.Normal(GameManager.Instance.Terrain,position));
+            var terrain=GameManager.Instance.Terrain;
+            Vector3 normal=TankCanyon.Normal(terrain,position);
+            Vector3 heading=player?TankCanyon.EntryDirection:Vector3.forward;
+            go.transform.rotation=Quaternion.LookRotation(Vector3.ProjectOnPlane(heading,normal).normalized,normal);
+            // The centre height alone can bury a track when spawning across a slope.
+            position.y=TankDrive.SupportHeight(position,go.transform.rotation,go.transform.localScale.x,terrain)+.08f;
+            go.transform.position=position;
             go.name = player ? "Player K2 Black Panther" : appearance==TankAppearance.K2BlackPanther?"Enemy K2 Black Panther":"Enemy Main Battle Tank";
             var tank = go.AddComponent<TankVehicle>(); tank.battle = owner; tank.IsPlayer = player;tank.Appearance=appearance;
             tank.turret = go.transform.Find("Turret"); tank.barrel = tank.turret.Find("Barrel");
@@ -65,6 +71,7 @@ namespace SniperRidge
             tank.ApplyColor(false);
             if (player)
             {
+                tank.cameraYaw=Mathf.Atan2(heading.x,heading.z)*Mathf.Rad2Deg;
                 tank.cameraEye = GameManager.Instance.Player.Eye.GetComponent<Camera>();
                 tank.cameraEye.transform.SetParent(null, true);
                 tank.cameraEye.fieldOfView = 54f;

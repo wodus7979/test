@@ -29,7 +29,7 @@ namespace SniperRidge
             battle.playerCannon.playOnAwake=false;battle.playerCannon.spatialBlend=0;battle.playerCannon.priority=24;
             battle.explosion=Resources.Load<AudioClip>("Audio/tank_impact");
             game.Player.AttachToTank(game.Weapon);
-            battle.PlayerTank=TankVehicle.Create(battle,TankCanyon.Ground(game.Terrain,TankCanyon.Node(1),.2f),true,1);
+            battle.PlayerTank=TankVehicle.Create(battle,TankCanyon.Ground(game.Terrain,TankCanyon.Node(TankCanyon.EntryNode),.2f),true,1);
             battle.StartCoroutine(battle.RunStages());
             return battle;
         }

@@ -29,12 +29,21 @@ namespace SniperRidge
             return contact;
         }
 
+        public static float SpeedAlongTracks(Rigidbody body)
+        {
+            Vector3 forward=body.rotation*Vector3.forward;
+            // Vertical suspension/gravity velocity is not throttle velocity. Feeding it
+            // back into acceleration can brake or propel a tilted tank at rest.
+            float horizontal=forward.x*forward.x+forward.z*forward.z;
+            return horizontal>.01f?(body.velocity.x*forward.x+body.velocity.z*forward.z)/horizontal:0f;
+        }
+
         public static void Step(Rigidbody body, float drive, float steering, float dt,Terrain terrain=null)
         {
             if (body == null || body.isKinematic || dt <= 0f) return;
             drive = Mathf.Clamp(drive, -1f, 1f);
             steering = Mathf.Clamp(steering, -1f, 1f);
-            float current = Vector3.Dot(body.velocity, body.rotation * Vector3.forward);
+            float current = SpeedAlongTracks(body);
             float target = drive * (drive >= 0f ? TankVehicle.ForwardSpeed : TankVehicle.ReverseSpeed);
             float rate = Mathf.Abs(drive) < .001f || current * target < 0f ? Braking : Acceleration;
             float speed = Mathf.MoveTowards(current, target, dt * rate);
@@ -48,6 +57,8 @@ namespace SniperRidge
             }
             body.MoveRotation(turn);
             Vector3 planar = turn * Vector3.forward * speed;
+            if(terrain!=null)
+                planar=Vector3.ProjectOnPlane(turn*Vector3.forward,TankCanyon.Normal(terrain,body.position)).normalized*speed;
             Vector3 next = body.position + planar * dt;
             if (Mathf.Abs(next.x) > TankBattle.Bounds || Mathf.Abs(next.z) > TankBattle.Bounds)
                 planar = Vector3.zero;

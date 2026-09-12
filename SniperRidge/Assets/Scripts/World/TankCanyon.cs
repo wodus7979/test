@@ -8,13 +8,17 @@ namespace SniperRidge
     public static class TankCanyon
     {
         public const float CombatBounds=100f, EnemyScale=1.3f;
-        public const int NodeCount=16;
+        public const int NodeCount=16, EntryNode=1, EntryExitNode=5;
         static readonly float[] RowOffsets={-4f,5f,-5f,3f};
         static readonly float[] ColumnOffsets={-5f,4f,-3f,6f};
-        static readonly int[] ClosedLinks={21,86,154}; // (1,5), (5,6), (9,10): larger, irregular rock shelves.
+        static readonly int[] ClosedLinks={86,154}; // Keep the player's entry (1,5) open.
         struct RoadSegment { public Vector2 Start,Delta; public float InverseLengthSquared; }
         static readonly RoadSegment[] RoadSegments=MakeSegments();
         public static Vector2 Node(int i)=>new Vector2(-60f+(i%4)*40f+RowOffsets[i/4],-60f+(i/4)*40f+ColumnOffsets[i%4]);
+        public static Vector3 EntryDirection
+        {
+            get { Vector2 d=Node(EntryExitNode)-Node(EntryNode);return new Vector3(d.x,0,d.y).normalized; }
+        }
         public static bool Linked(int a,int b)
         {
             int key=Mathf.Min(a,b)*NodeCount+Mathf.Max(a,b);
