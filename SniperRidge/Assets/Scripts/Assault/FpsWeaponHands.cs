@@ -4,8 +4,6 @@ namespace SniperRidge
     public sealed class FpsWeaponHands:MonoBehaviour
     {
         Transform left,right,magazine,bolt,feed;
-        Transform leftArm,rightArm;
-        static Material sleeve;
         Vector3 leftRest,rightRest,magRest,boltRest;
         Quaternion feedRest;
         Quaternion supportRotation=Quaternion.Euler(-90,0,0);
@@ -17,7 +15,6 @@ namespace SniperRidge
             pose.right=Grip(weapon,"Trigger hand",pose.rocket?new Vector3(0,-.07f,-.02f):new Vector3(0,-.047f,gripZ),1);
             pose.left=Grip(weapon,"Support and loading hand",new Vector3(0,.013f,pose.rocket?.28f:.175f),-1);
             pose.leftRest=pose.left.localPosition;pose.rightRest=pose.right.localPosition;
-            pose.leftArm=Arm(weapon);pose.rightArm=Arm(weapon);
             pose.magazine=weapon.Find("Magazine");if(pose.magazine==null)pose.magazine=weapon.Find("AmmoBox");
             if(pose.rocket)
             {
@@ -37,21 +34,6 @@ namespace SniperRidge
         {
             var grip=new GameObject(name).transform;grip.SetParent(parent,false);grip.localPosition=position;
             GunnerHands.Build(grip,side,false);return grip;
-        }
-        static Transform Arm(Transform parent)
-        {
-            if(sleeve==null)sleeve=ProceduralAssets.LitMaterial(new Color(.22f,.25f,.15f),.1f);
-            var arm=GameObject.CreatePrimitive(PrimitiveType.Capsule);arm.name="Sleeved forearm";arm.transform.SetParent(parent,false);
-            arm.GetComponent<Collider>().enabled=false;
-            if(Application.isPlaying)Destroy(arm.GetComponent<Collider>());else DestroyImmediate(arm.GetComponent<Collider>());
-            arm.GetComponent<Renderer>().sharedMaterial=sleeve;return arm.transform;
-        }
-        void ArmPose(Transform arm,Transform hand,float side)
-        {
-            Vector3 wrist=hand.TransformPoint(new Vector3(side*.067f,-.11f,-.12f));
-            Vector3 elbow=transform.TransformPoint(new Vector3(side<0?-.30f:.20f,-.22f,-.30f));
-            arm.position=(wrist+elbow)*.5f;arm.rotation=Quaternion.FromToRotation(Vector3.up,wrist-elbow);
-            arm.localScale=new Vector3(.105f,Vector3.Distance(wrist,elbow)*.5f,.105f);
         }
         static float Ease(float t)=>Mathf.SmoothStep(0,1,Mathf.Clamp01(t));
         public void Pose(float reload,float cycling)
@@ -95,7 +77,6 @@ namespace SniperRidge
                 bolt.localPosition=boltRest+Vector3.back*action*.07f;
                 right.localPosition=Vector3.Lerp(rightRest,bolt.localPosition+Vector3.right*.025f,action);
             }
-            ArmPose(leftArm,left,-1);ArmPose(rightArm,right,1);
         }
     }
 }

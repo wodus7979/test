@@ -37,7 +37,8 @@ namespace SniperRidge
                 new Vector3(-side * .014f, .046f, -.010f), new Vector3(-side * .026f, .022f, .008f)
             }, .014f, .010f, glove);
             var wrist = new Vector3(side * .043f, -.065f, -.06f);
-            Tube(hand, "Glove wrist", new[] { wrist, wrist + new Vector3(side * .024f, -.045f, -.06f) }, .035f, .039f, glove);
+            Vector3 wristLength=includeSleeve?new Vector3(side * .024f, -.045f, -.06f):new Vector3(side * .006f, -.012f, -.015f);
+            Tube(hand, "Glove wrist", new[] { wrist, wrist + wristLength }, .035f, .039f, glove);
             if(!includeSleeve)return;
             Tube(hand, "Sleeve cuff", new[] { wrist + new Vector3(side * .02f, -.035f, -.047f), wrist + new Vector3(side * .038f, -.067f, -.095f) }, .043f, .046f, seam);
             Tube(hand, "Forearm sleeve", new[] {
