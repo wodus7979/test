@@ -194,8 +194,9 @@ namespace SniperRidge
         }
 
         /// <summary>지형 디테일용 풀잎 빌보드 텍스처 (여러 가닥, 알파 있음).</summary>
-        public static Texture2D GrassBladeTexture(int w = 64, int h = 128)
+        public static Texture2D GrassBladeTexture(int w = 64, int h = 128, Color? bladeColor = null)
         {
+            Color blade = bladeColor ?? new Color(.35f, .62f, .22f);
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, true);
             var px = new Color[w * h];
             var clear = new Color(0.3f, 0.5f, 0.2f, 0f);
@@ -218,7 +219,7 @@ namespace SniperRidge
                     {
                         float fx = (x + 0.5f) / w;
                         if (Mathf.Abs(fx - cx) < halfW)
-                            px[y * w + x] = new Color(0.35f * shade, 0.62f * shade, 0.22f * shade, 1f);
+                            px[y * w + x] = new Color(blade.r * shade, blade.g * shade, blade.b * shade, 1f);
                     }
                 }
             }

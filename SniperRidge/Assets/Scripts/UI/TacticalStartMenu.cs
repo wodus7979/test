@@ -313,7 +313,7 @@ namespace SniperRidge
                 air ? "경고 후 눌러 급격한 측면 기동" : "6개 지급 · 누르고 조준, 놓아 투척");
             if (tank)
             {
-                mapDescription.text = "전차 전장 / 햇빛 협곡 · 언덕 · 층진 암반";
+                mapDescription.text = "전차 전장 / 가을 협곡 · 단풍 · 층진 암반";
                 weaponType.text = "K2 흑표  /  차체 주행 · 독립 포탑";
                 missionTitle.text = "K2 흑표 협곡전";
                 magazine.text = "포탄 60발"; reserve.text = "단계마다 +25발";

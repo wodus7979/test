@@ -103,8 +103,9 @@ namespace SniperRidge
             for(int z=0;z<resolution;z++)for(int x=0;x<resolution;x++)
                 heights[z,x]=Height(x/(float)(resolution-1)*600-300,z/(float)(resolution-1)*600-300)/TerrainGenerator.MaxHeight;
             data.SetHeights(0,0,heights);
-            data.terrainLayers=new[]{Layer("grass",new Color(.83f,.82f,.65f),3.2f),Layer("rock",new Color(.88f,.85f,.76f),5f),
-                Layer("dirt",new Color(1f,.93f,.79f),4f),Layer("forest",new Color(.88f,.83f,.67f),3.5f)};
+            // Brown forest litter replaces the green meadow albedo, not just its tint.
+            data.terrainLayers=new[]{Layer("forest",new Color(1f,.86f,.67f),3.2f),Layer("rock",new Color(.91f,.87f,.79f),5f),
+                Layer("dirt",new Color(1f,.91f,.77f),4f),Layer("forest",new Color(.88f,.72f,.55f),5.5f)};
             data.alphamapResolution=alpha;var weights=new float[alpha,alpha,4];
             for(int z=0;z<alpha;z++)for(int x=0;x<alpha;x++)
             {
@@ -120,7 +121,9 @@ namespace SniperRidge
             if(prototypes.Length>0)
             {
                 prototypes[0].minHeight=.25f;prototypes[0].maxHeight=.65f;
-                prototypes[0].healthyColor=new Color(.48f,.53f,.29f);prototypes[0].dryColor=new Color(.66f,.57f,.32f);
+                prototypes[0].prototypeTexture=ProceduralAssets.GrassBladeTexture(bladeColor:new Color(.78f,.66f,.43f));
+                prototypes[0].healthyColor=new Color(.78f,.65f,.42f);prototypes[0].dryColor=new Color(.64f,.45f,.27f);
+                data.wavingGrassTint=new Color(.88f,.74f,.53f);
                 data.detailPrototypes=prototypes;data.SetDetailResolution(detail,32);
                 var grass=new int[detail,detail];
                 for(int z=0;z<detail;z++)for(int x=0;x<detail;x++)
@@ -144,23 +147,23 @@ namespace SniperRidge
         static void Lighting(GameManager gm)
         {
             var sun=RenderSettings.sun;
-            if(sun!=null){sun.transform.rotation=Quaternion.Euler(32,-48,0);sun.color=new Color(1,.92f,.79f);sun.intensity=1.22f;sun.shadowStrength=.83f;}
-            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.0032f;
-            RenderSettings.fogColor=new Color(.72f,.76f,.80f);
-            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.53f,.61f,.73f);
-            RenderSettings.ambientEquatorColor=new Color(.49f,.47f,.40f);RenderSettings.ambientGroundColor=new Color(.25f,.24f,.20f);
+            if(sun!=null){sun.transform.rotation=Quaternion.Euler(27,-48,0);sun.color=new Color(1,.90f,.76f);sun.intensity=1.10f;sun.shadowStrength=.80f;}
+            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.0028f;
+            RenderSettings.fogColor=new Color(.76f,.75f,.73f);
+            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.55f,.60f,.68f);
+            RenderSettings.ambientEquatorColor=new Color(.51f,.45f,.38f);RenderSettings.ambientGroundColor=new Color(.28f,.22f,.17f);
             RenderSettings.reflectionIntensity=.25f;
             if(RenderSettings.skybox!=null){RenderSettings.skybox.SetFloat("_Exposure",1.12f);RenderSettings.skybox.SetFloat("_Rotation",48);}
             QualitySettings.shadowDistance=240;QualitySettings.lodBias=1.8f;
             var post=gm.PlayerEye.GetComponent<PostEffect>();
-            if(post!=null){post.Exposure=1.04f;post.Saturation=.96f;post.BloomIntensity=.12f;}
+            if(post!=null){post.Exposure=1.04f;post.Saturation=.90f;post.BloomIntensity=.10f;}
             DynamicGI.UpdateEnvironment();
         }
         static void Dress(Terrain terrain)
         {
-            var root=new GameObject("Sunlit terraced canyon").transform;var rng=new System.Random(9014);
+            var root=new GameObject("Autumn terraced canyon").transform;var rng=new System.Random(9014);
             var stone=ProceduralAssets.TexturedMaterial(new Color(.90f,.86f,.76f),ProceduralAssets.LoadTex("Terrain/rock_albedo"),ProceduralAssets.LoadTex("Terrain/rock_normal"),.85f,.035f);
-            var moss=ProceduralAssets.TexturedMaterial(new Color(.64f,.67f,.42f),ProceduralAssets.LoadTex("Terrain/grass_albedo"),ProceduralAssets.LoadTex("Terrain/grass_normal"),.5f,.015f);
+            var moss=ProceduralAssets.TexturedMaterial(new Color(.91f,.73f,.50f),ProceduralAssets.LoadTex("Terrain/forest_albedo"),ProceduralAssets.LoadTex("Terrain/forest_normal"),.5f,.015f);
             var bark=ProceduralAssets.TexturedMaterial(new Color(.62f,.57f,.48f),ProceduralAssets.LoadTex("Nature/bark_albedo"),ProceduralAssets.LoadTex("Nature/bark_normal"),.6f,.02f);
             for(int row=0;row<3;row++)for(int col=0;col<3;col++)
             {
@@ -189,17 +192,47 @@ namespace SniperRidge
                     dead.GetComponent<MeshFilter>().sharedMesh=MeshBuilder.DeadPine(rng,7+i%5);
                     dead.GetComponent<MeshRenderer>().sharedMaterials=new[]{bark,bark};dead.AddComponent<OwnedHandMesh>();
                 }
-                else if(i%3==0)Vegetation.Tree(root,p,.6f+(float)rng.NextDouble()*.6f,i%5==0?Vegetation.TreeType.Broadleaf:Vegetation.TreeType.Pine,rng);
+                else if(i%3==0)
+                {
+                    bool evergreen=i%4==0;
+                    var tree=Vegetation.Tree(root,p,.6f+(float)rng.NextDouble()*.6f,evergreen?Vegetation.TreeType.Pine:Vegetation.TreeType.Broadleaf,rng);
+                    AutumnLeaves(tree,evergreen?new Color(.30f,.32f,.23f):AutumnColor(i));
+                }
                 else
                 {
                     var bush=Vegetation.Bush(root,p,.3f+(float)rng.NextDouble()*.6f,rng);
-                    if(i%4==0)
-                    {
-                        var tint=new MaterialPropertyBlock();var color=i%8==0?new Color(.8f,.24f,.08f):new Color(.8f,.65f,.23f);
-                        tint.SetColor("_Color",color);tint.SetColor("_BaseColor",color);
-                        foreach(var renderer in bush.GetComponentsInChildren<MeshRenderer>())
-                            if(renderer.sharedMaterials.Length>1)renderer.SetPropertyBlock(tint,1);
-                    }
+                    AutumnLeaves(bush,AutumnColor(i));
+                }
+            }
+        }
+        static Color AutumnColor(int index)
+        {
+            switch(index%4)
+            {
+                case 0:return new Color(.72f,.46f,.17f); // Ochre
+                case 1:return new Color(.66f,.28f,.12f); // Burnt orange
+                case 2:return new Color(.49f,.20f,.12f); // Russet
+                default:return new Color(.68f,.56f,.29f); // Dry gold
+            }
+        }
+        static void AutumnLeaves(GameObject plant,Color color)
+        {
+            // Pack LOD material order varies; identify foliage by shader, not slot 1.
+            // The original distant proxy has bark in slot 0 and textured leaves in slot 1.
+            var block=new MaterialPropertyBlock();
+            foreach(var renderer in plant.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                var materials=renderer.sharedMaterials;
+                for(int slot=0;slot<materials.Length;slot++)
+                {
+                    var material=materials[slot];if(material==null)continue;
+                    bool packLeaf=material.shader!=null&&material.shader.name=="SniperRidge/Foliage";
+                    if(!packLeaf&&(renderer.gameObject!=plant||slot!=1))continue;
+                    renderer.GetPropertyBlock(block,slot);
+                    // Counter the green albedo in the distant textured leaf proxy.
+                    Color tint=packLeaf?color:new Color(color.r*2.5f,color.g*.85f,color.b,1);
+                    block.SetColor("_Color",tint);block.SetColor("_BaseColor",tint);
+                    renderer.SetPropertyBlock(block,slot);block.Clear();
                 }
             }
         }
