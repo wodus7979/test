@@ -9,7 +9,7 @@ namespace SniperRidge.EditorTools
         [MenuItem("Sniper Ridge/헬기 선회·중기관총 검사")]
         public static void Validate()
         {
-            OriginalDoorGunAssets.DoorGunPackBuilder.BuildIfMissing();
+            FPSWeaponsV2Setup.BuildIfMissing();
             var prefab = Resources.Load<GameObject>(DoorGunView.Resource);
             Check(prefab != null, "중기관총 프리팹 누락");
             var assetWeapon = prefab.transform.Find("Base/YawMount/Weapon");

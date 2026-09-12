@@ -1,0 +1,15 @@
+{
+  "type": "New deterministic procedural PBR maps",
+  "resolution": [
+    2048,
+    2048
+  ],
+  "seed": 7541,
+  "surfaces": [
+    "metal",
+    "paint",
+    "polymer",
+    "rubber"
+  ],
+  "note": "Synthetic finish grain and fine scratches. No photo scans, unique baked wear, or ambient-occlusion bake. No reference image pixels copied."
+}

@@ -13,7 +13,7 @@ namespace SniperRidge
 
         public static GameObject CreateVisual(Transform parent)
         {
-            var prefab = Resources.Load<GameObject>("Grenades/Prefabs/grenade_olive");
+            var prefab = WeaponModels.LoadPrefab("grenade_olive");
             if (prefab == null) return null;
             var model = Instantiate(prefab, parent, false);
             foreach (var collider in model.GetComponentsInChildren<Collider>(true))

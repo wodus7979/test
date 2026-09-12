@@ -124,6 +124,8 @@ namespace SniperRidge
         public void StartMission(WeaponDefinition weapon, BattlefieldMap map = BattlefieldMap.Field)
         {
             if (!IsSelecting) return;
+            if(!weapon.IsTank&&!WeaponModels.IsReady)
+            {Debug.LogError("[Sniper Ridge] V2 무기 생성이 필요합니다. Sniper Ridge → V2 무기 11종 생성 메뉴를 실행하세요.");return;}
             if (weapon.IsAssault) map = BattlefieldMap.City;
             if (weapon.IsTank)
             {

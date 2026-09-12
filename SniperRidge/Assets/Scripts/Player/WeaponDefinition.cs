@@ -39,7 +39,7 @@ namespace SniperRidge
         public float ShotVolume;
         public float ShotPitch;
 
-        public string ModelName;        // Resources/Weapons/Prefabs/<ModelName> (Firearm Asset Pack)
+        public string ModelName;        // Resources/WeaponsV2/Prefabs/<ModelName>
         public bool IsRocket;
         public bool IsMounted;
         public bool IsTank;

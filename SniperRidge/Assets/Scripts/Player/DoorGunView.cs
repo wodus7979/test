@@ -6,7 +6,7 @@ namespace SniperRidge
     /// <summary>Asset-authored yaw/pitch mount, grips and a stable lower-centre first-person view.</summary>
     public sealed class DoorGunView : MonoBehaviour
     {
-        public const string Resource = "DoorGun/Prefabs/door_gun_reference";
+        public const string Resource = WeaponModels.ResourceRoot+"mounted_machine_gun";
         public const int ViewLayer = 30;
         public static readonly Vector3 EyeToPivot = new Vector3(0f, -.34f, 1.28f);
         public static bool IsReady => Resources.Load<GameObject>(Resource) != null;

@@ -10,6 +10,7 @@ namespace SniperRidge.EditorTools
         [MenuItem("Sniper Ridge/병과·군복 색상 검사")]
         public static void Validate()
         {
+            FPSWeaponsV2Setup.BuildIfMissing();
             CheckSquad(BattlefieldLayout.SniperSpawns(), 4);
             var random = new System.Random(911);
             for (int wave = 1; wave <= 5; wave++)

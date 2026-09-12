@@ -3,9 +3,17 @@ using UnityEngine.Rendering;
 
 namespace SniperRidge
 {
-    /// <summary>1인칭 시점 무기 모델 (프리미티브 조합).</summary>
+    /// <summary>Shared V2 weapon prefabs for player, infantry and mounted equipment.</summary>
     public static class WeaponModels
     {
+        public const string ResourceRoot="WeaponsV2/Prefabs/";
+        public static readonly string[] V2Names={"01_precision_rifle","02_light_machine_gun","03_assault_rifle",
+            "04_submachine_gun","05_pump_shotgun","06_service_pistol","launcher_reusable","launcher_compact",
+            "launcher_heavy","mounted_machine_gun","grenade_olive"};
+        public static bool IsReady
+        {
+            get {foreach(string name in V2Names)if(LoadPrefab(name)==null)return false;return true;}
+        }
         static Material black, wood, tan, steel;
 
         static void EnsureMaterials()
@@ -17,20 +25,24 @@ namespace SniperRidge
             steel = ProceduralAssets.LitMaterial(new Color(0.35f, 0.36f, 0.38f), 0.6f);
         }
 
-        /// <summary>Firearm Asset Pack 프리팹 (Resources/Weapons/Prefabs) 을 찾는다. 없으면 null.</summary>
+        /// <summary>The same V2 resource path is used for every gameplay weapon.</summary>
         public static GameObject LoadPrefab(string modelName)
         {
             if (string.IsNullOrEmpty(modelName)) return null;
-            return Resources.Load<GameObject>((modelName.StartsWith("launcher_") ? "Launchers/Prefabs/" : "Weapons/Prefabs/") + modelName);
+            return Resources.Load<GameObject>(ResourceRoot+modelName);
+        }
+
+        public static Transform FindPart(Transform root,string name)
+        {
+            if(root==null)return null;
+            foreach(var t in root.GetComponentsInChildren<Transform>(true))if(t.name==name)return t;
+            return null;
         }
 
         /// <summary>루트 아래의 "Muzzle" 지점. 없으면 null.</summary>
         public static Transform FindMuzzle(GameObject root)
         {
-            if (root == null) return null;
-            foreach (var t in root.GetComponentsInChildren<Transform>(true))
-                if (t.name == "Muzzle") return t;
-            return null;
+            return root==null?null:FindPart(root.transform,"Muzzle");
         }
 
         public static GameObject Build(Transform parent, WeaponDefinition def)

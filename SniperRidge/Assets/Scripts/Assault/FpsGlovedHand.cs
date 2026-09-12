@@ -74,6 +74,6 @@ namespace SniperRidge
                 var bone=bones[1+f*3+s];bone.localPosition=toA;bone.localRotation=Quaternion.FromToRotation(b-a,toB-toA);
             }
         }
-        void OnDestroy(){if(mesh!=null)Destroy(mesh);}
+        void OnDestroy(){if(mesh!=null){if(Application.isPlaying)Destroy(mesh);else DestroyImmediate(mesh);}}
     }
 }
