@@ -79,6 +79,7 @@ namespace SniperRidge
                     Part(root, PrimitiveType.Cube, new Vector3(0f, -0.04f, -0.42f), new Vector3(0.05f, 0.11f, 0.28f), Quaternion.identity, tan);
                     break;
 
+                case "urban_rifle":
                 case "rifle":
                     Part(root, PrimitiveType.Cube, new Vector3(0f, 0f, 0f), new Vector3(0.06f, 0.08f, 0.55f), Quaternion.identity, black);
                     Part(root, PrimitiveType.Cube, new Vector3(0f, 0.01f, 0.4f), new Vector3(0.055f, 0.055f, 0.3f), Quaternion.identity, tan);   // 총열덮개

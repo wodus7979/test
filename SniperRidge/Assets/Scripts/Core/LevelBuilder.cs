@@ -76,7 +76,8 @@ namespace SniperRidge
 
         public static void PrepareMap(GameManager gm)
         {
-            if (gm.Mission == MissionType.Tank) BattlefieldScenery.BuildTankField(gm);
+            if (gm.Mission == MissionType.Assault) AssaultWorld.Build(gm);
+            else if (gm.Mission == MissionType.Tank) BattlefieldScenery.BuildTankField(gm);
             else if (gm.Map == BattlefieldMap.City) { CityBattlefield.Build(gm); BattlefieldScenery.CityDetails(gm); }
             else
             {
@@ -279,6 +280,18 @@ namespace SniperRidge
             // The same two rock positions are reused each wave, without stacking new cover colliders.
             enemy.transform.SetParent(EnemyRoot(), true);
             gm.RegisterEnemy(enemy);
+            return enemy;
+        }
+
+        public static EnemySoldier SpawnAssaultSoldier(GameManager gm,Vector3 p,bool cover,int ordinal)
+        {
+            EnsureEnemyMaterials();
+            var spawn=new EnemySpawn(p.x,p.z,cover?EnemyKind.Cover:EnemyKind.Rusher,
+                role:EnemyRole.MachineGunner,uniformVariant:ordinal%3);
+            var enemy=EnemySoldier.Create("Urban enemy "+ordinal,gm.Terrain,spawn,gm.PlayerEye.position,1.1f,
+                enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(ordinal+9201),false);
+            enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);
+            if(!cover)enemy.gameObject.AddComponent<AssaultNavigation>();
             return enemy;
         }
 

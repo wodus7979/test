@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SniperRidge
 {
     public enum FireMode { Bolt, Semi, Auto }
-    public enum MissionType { Sniper, Defense, Helicopter, Tank }
+    public enum MissionType { Sniper, Defense, Helicopter, Tank, Assault }
 
     /// <summary>무기 하나의 성능 정의. 실제 총기명 대신 종류 이름을 쓴다.</summary>
     public class WeaponDefinition
@@ -43,6 +43,7 @@ namespace SniperRidge
         public bool IsRocket;
         public bool IsMounted;
         public bool IsTank;
+        public bool IsAssault;
         public int Pellets = 1;         // 샷건: 한 발에 나가는 산탄 수
         public Vector3 ViewOffset = new Vector3(0.22f, -0.2f, 0.38f);   // 1인칭 위치
 
@@ -166,6 +167,17 @@ namespace SniperRidge
                 Fire = FireMode.Semi, RoundsPerMinute = 20f, MagSize = 1, Reserve = 60, ReloadTime = 3f,
                 MuzzleVelocity = 280f, Damage = 160f, ScopeFovs = new[] { 38f }, ScopeLabels = new[] { "포수 확대" },
                 ModelName = "tank_reference", ShotVolume = .82f, ShotPitch = 1f,
+            },
+            new WeaponDefinition
+            {
+                Id = "urban_rifle", Name = "도시 FPS 작전", IsAssault = true, Mission = MissionType.Assault,
+                Description = "자유 이동 · 건물/차량 엄폐 · 6개 구역 확보 · 10분 이상",
+                Fire = FireMode.Auto, RoundsPerMinute = 650, MagSize = 30, Reserve = 600, ReloadTime = 2.2f,
+                MuzzleVelocity = 900, DragK = .0012f, Damage = 42,
+                ScopeFovs = new[] { 50f }, ScopeLabels = new[] { "조준" },
+                RecoilKick = .48f, RecoilClimb = .20f, SwayScoped = .06f, SwayHip = .16f,
+                HipSpread = 1.2f, AdsSpread = .12f, ShotVolume = .75f, ShotPitch = 1,
+                ModelName = "03_assault_rifle", ViewOffset = new Vector3(.20f,-.20f,.36f),
             },
         };
 

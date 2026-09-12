@@ -30,6 +30,7 @@ namespace SniperRidge
         public AudioSource Ambience;
         public HelicopterFlight Flight { get; private set; }
         public TankBattle Armor { get; private set; }
+        public CityAssault Assault { get; private set; }
         GunshotPlayback gunshots;
 
         public int Kills { get; private set; }
@@ -63,7 +64,7 @@ namespace SniperRidge
         float nextEnemyAttack;
         public bool PositionRevealed => Mission != MissionType.Sniper || contact.Revealed;
         public float HideProgress => contact.HiddenSeconds / CounterfireRules.LoseContactSeconds;
-        public Vector3 EnemyAimPoint => Armor != null && Armor.PlayerTank != null ? Armor.PlayerTank.AimPoint : Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
+        public Vector3 EnemyAimPoint => Mission == MissionType.Assault ? Player.AimPoint : Armor != null && Armor.PlayerTank != null ? Armor.PlayerTank.AimPoint : Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
 
         void LateUpdate()
         {
@@ -120,6 +121,7 @@ namespace SniperRidge
         public void StartMission(WeaponDefinition weapon, BattlefieldMap map = BattlefieldMap.Field)
         {
             if (!IsSelecting) return;
+            if (weapon.IsAssault) map = BattlefieldMap.City;
             if (weapon.IsTank)
             {
                 map = BattlefieldMap.Field;
@@ -146,6 +148,14 @@ namespace SniperRidge
                 Armor = TankBattle.Create(this);
                 if (Ambience != null) Ambience.volume = .12f;
                 Hud.OnMissionStart("전차 기동전 · 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\n바위 뒤 로켓병과 증원되는 적 전차를 제거하세요.");
+                return;
+            }
+            if (Mission == MissionType.Assault)
+            {
+                Player.AttachToCityAssault(AssaultLayout.Start);
+                Player.Equip(weapon);Health.Configure(5f,10f);
+                Assault=CityAssault.Create(this);
+                Hud.OnMissionStart("도시 FPS · 6개 구역 확보\nWASD 이동 · Shift 달리기 · C/Ctrl 앉기 · Space 점프\n좌클릭 사격 · 우클릭 조준 · R 장전 · G 수류탄\n목표 구역 안에서 적을 막고 통신 거점을 확보하세요.");
                 return;
             }
             Player.Equip(weapon);
@@ -340,6 +350,7 @@ namespace SniperRidge
             if (killed) { Kills++; Score+=600; Hud.KillFeed("적 전차 격파 +600"); }
             else Hud.ShowShotFeedback("적 전차 명중");
         }
+        public void CompleteAssault() { if (Mission == MissionType.Assault) EndMission(true); }
         public void CompleteArmoredMission() { if (Mission == MissionType.Tank) EndMission(true); }
         public void PlayerDied() => EndMission(false);
 

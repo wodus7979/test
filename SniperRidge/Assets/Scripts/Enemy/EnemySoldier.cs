@@ -48,7 +48,13 @@ namespace SniperRidge
         public string RoleName => EnemyCombatRoles.Name(Role);
         public bool OnRoof => !float.IsNaN(surfaceY);
         float surfaceY = float.NaN;
-        public float GroundHeight(float x, float z) => OnRoof ? surfaceY : TerrainGenerator.GroundHeight(terrain, x, z);
+        public float GroundHeight(float x, float z)
+        {
+            if(OnRoof)return surfaceY;
+            if(gm!=null && gm.Mission==MissionType.Assault && UnityEngine.AI.NavMesh.SamplePosition(
+                new Vector3(x,transform.position.y,z),out var ground,1f,UnityEngine.AI.NavMesh.AllAreas))return ground.position.y;
+            return TerrainGenerator.GroundHeight(terrain,x,z);
+        }
         public Vector3 RightGrip => EnemyCombatRoles.RightGrip(Role);
         public Vector3 LeftGrip => EnemyCombatRoles.LeftGrip(Role);
 
@@ -427,7 +433,7 @@ namespace SniperRidge
             Vector3 dir = toPlayer.normalized;
 
             // 10m 안으로는 접근하지 않고 멈춰서 사격
-            if (dist < 10f)
+            if (dist < 10f && (gm.Mission != MissionType.Assault || HasLineOfSight()))
             {
                 state = State.Halt;
                 stateTimer = Random.Range(1.5f, 3f);
@@ -435,6 +441,13 @@ namespace SniperRidge
                 return 0f;
             }
 
+            if (gm.Mission == MissionType.Assault)
+            {
+                var navigation=GetComponent<AssaultNavigation>();
+                Vector3 route=navigation!=null?navigation.Direction(gm.Player.transform.position):Vector3.zero;
+                MoveOnTerrain(route,preparingShot?2.1f:3.1f,dt);faceDir=preparingShot?toPlayer.normalized:route.sqrMagnitude>.001f?route:faceDir;
+                return route.sqrMagnitude>.001f?3.1f:0f;
+            }
             // 지그재그
             float zig = Mathf.Sin(Time.time * 1.3f + zigzagPhase) * 28f;
             dir = Quaternion.Euler(0f, zig, 0f) * dir;
@@ -472,6 +485,10 @@ namespace SniperRidge
         void MoveOnTerrain(Vector3 dir, float speed, float dt)
         {
             if (staggerTimer > 0f) speed *= .25f;
+            if (gm != null && gm.Mission == MissionType.Assault)
+            {
+                var navigation=GetComponent<AssaultNavigation>();if(navigation!=null)navigation.Move(dir,speed,dt);return;
+            }
             Vector3 p = transform.position + dir * speed * dt;
             float half = TerrainGenerator.Size * 0.5f - 5f;
             p.x = Mathf.Clamp(p.x, -half, half);
@@ -700,6 +717,7 @@ namespace SniperRidge
                 gm.PlaySound(gm.Sounds.RocketLaunch,.28f);return;
             }
             float damage = Role == EnemyRole.Sniper ? Random.Range(24f, 30f) : Random.Range(6f, 9f);
+            if(gm.Mission==MissionType.Assault)damage*=.65f;
             EnemyProjectile.Launch(gm, this, muzzle, target, damage);
             gm.StartCoroutine(gm.EnemyShotSound(muzzle, EnemyCombatRoles.Sound(Role)));
         }

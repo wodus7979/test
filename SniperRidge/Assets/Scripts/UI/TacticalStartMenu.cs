@@ -27,7 +27,7 @@ namespace SniperRidge
         Button fieldButton, cityButton;
         Text mapDescription, controls;
         RectTransform equipmentLeft, equipmentRight;
-        GameObject orbitMap, tankMap;
+        GameObject orbitMap, tankMap, assaultMap;
         BattlefieldMap selectedMap;
         MenuWeaponPreview preview;
         int selected, openedFrame;
@@ -76,10 +76,10 @@ namespace SniperRidge
 
             Box(content, "Footer rule", Line, 0, 856, 1760, 1);
             controls = Label(content, "Controls", "C / Ctrl  엄폐     A / D  좌우 이동     우클릭  조준     R  재장전", 22, Paper, 0, 879, 1210, 34);
-            Label(content, "Selection help", "클릭 또는 1–9: 무기 선택    ·    Enter: 작전 시작", 20, Muted, 0, 922, 1210, 30);
+            Label(content, "Selection help", "클릭 또는 1–9 / 0: 모드 선택    ·    Enter: 작전 시작", 20, Muted, 0, 922, 1210, 30);
             var deploy = Button(content, "Deploy", 1264, 878, 496, 74, Sand, Deploy);
             deployLabel = Label(deploy.transform, "Action", "", 28, Ink, 24, 0, 448, 74, true, TextAnchor.MiddleCenter);
-            Select(8);
+            Select(9);
         }
 
         void BuildRows()
@@ -91,12 +91,12 @@ namespace SniperRidge
             {
                 int index = i;
                 var weapon = WeaponDefinition.All[i];
-                var button = Button(content, "Weapon_" + weapon.Id, 0, 260 + i * 64, 400, 58, Panel, () => Select(index));
+                var button = Button(content, "Weapon_" + weapon.Id, 0, 260 + i * 58, 400, 52, Panel, () => Select(index));
                 rows[i] = button;
-                selectionBars[i] = Box(button.transform, "Selection", Sand, 0, 0, 4, 58).GetComponent<Image>();
-                Label(button.transform, "Key", (i + 1).ToString("00"), 22, Muted, 20, 16, 40, 32, true);
-                rowNames[i] = Label(button.transform, "Name", weapon.Name, 25, Paper, 76, 4, 304, 32, true);
-                rowStates[i] = Label(button.transform, "Mission", "", 17, Muted, 77, 33, 300, 22);
+                selectionBars[i] = Box(button.transform, "Selection", Sand, 0, 0, 4, 52).GetComponent<Image>();
+                Label(button.transform, "Key", i == 9 ? "0" : (i + 1).ToString("00"), 22, Muted, 20, 16, 40, 32, true);
+                rowNames[i] = Label(button.transform, "Name", weapon.Name, 23, Paper, 76, 1, 304, 29, true);
+                rowStates[i] = Label(button.transform, "Mission", "", 16, Muted, 77, 29, 300, 21);
             }
         }
 
@@ -195,6 +195,17 @@ namespace SniperRidge
             Label(tankMap.transform,"Player tank","▲ 아군 전차",17,Sand,180,202,150,26);
             foreach(int side in new[]{-1,1})
                 MapLine(tankMap.transform,new Vector2(220+side*160,60),new Vector2(220+side*105,110),Hostile);
+            assaultMap=Box(map,"Urban FPS route",Ink,0,0,440,238).gameObject;
+            for(int x=40;x<440;x+=40)MapLine(assaultMap.transform,new Vector2(x,28),new Vector2(x,217),Line);
+            for(int z=38;z<218;z+=25)MapLine(assaultMap.transform,new Vector2(20,z),new Vector2(420,z),Line);
+            for(int i=0;i<AssaultLayout.Objectives.Length;i++)
+            {
+                var p=AssaultLayout.Objectives[i];var q=new Vector2(220+p.x*.55f,122-p.z*.20f);
+                Box(assaultMap.transform,"Objective "+i,Sand,q.x-4,q.y-4,8,8);
+                Label(assaultMap.transform,"Sector "+i,(i+1).ToString(),16,Paper,q.x+6,q.y-10,26,24);
+                if(i>0){var previous=AssaultLayout.Objectives[i-1];MapLine(assaultMap.transform,new Vector2(220+previous.x*.55f,122-previous.z*.20f),q,Sand);}
+            }
+            Label(assaultMap.transform,"Urban legend","6개 구역 · 도보 이동 / 엄폐 교전",17,Sand,12,4,412,25);
             range = Label(panel, "Range", "", 24, Sand, 28, 439, 440, 36, true);
             rule = Label(panel, "Rule", "", 20, Paper, 28, 492, 440, 58);
         }
@@ -245,6 +256,9 @@ namespace SniperRidge
             selected = index;
             var weapon = WeaponDefinition.All[index];
             bool tank = weapon.IsTank;
+            bool fps = weapon.IsAssault;
+            if(fps)selectedMap=BattlefieldMap.City;
+            fieldButton.interactable=!fps;
             if (tank) selectedMap = BattlefieldMap.Field;
             cityButton.interactable = !tank;
             bool air = weapon.IsMounted;
@@ -259,7 +273,7 @@ namespace SniperRidge
                 SetColors(rows[i], active ? new Color(.22f, .25f, .22f) : Panel);
                 selectionBars[i].enabled = active;
                 rowNames[i].color = active ? Sand : Paper;
-                rowStates[i].text = (WeaponDefinition.All[i].IsTank ? "전차 기동전 · 5단계" : WeaponDefinition.All[i].IsMounted ? "공중 선회 공격" : WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
+                rowStates[i].text = (WeaponDefinition.All[i].IsAssault ? "도시 FPS · 10분 이상" : WeaponDefinition.All[i].IsTank ? "전차 기동전 · 5단계" : WeaponDefinition.All[i].IsMounted ? "공중 선회 공격" : WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
             }
             weaponName.text = weapon.Name;
             weaponType.text = weapon.Id == "shotgun" ? "근접 화력  /  펌프액션" : weapon.Fire == FireMode.Bolt ? "정밀 사격  /  볼트액션" : weapon.Fire == FireMode.Auto ? "지속 화력  /  자동 사격" : "단발 사격  /  반자동";
@@ -305,11 +319,22 @@ namespace SniperRidge
                 SetCard(equipmentLeft,"W","전차 직접 조종","최대 43 km/h · 차체와 포탑 분리");
                 SetCard(equipmentRight,"5","단계별 증원","적 전차 0 → 1 → 2 → 3 → 4대");
             }
-            orbitMap.SetActive(air); tankMap.SetActive(tank);
-            map.Find("Trench").gameObject.SetActive(!air && !tank);
-            map.Find("Player").gameObject.SetActive(!air && !tank);
+            if(fps)
+            {
+                mapDescription.text="도시 FPS / 확장 도심 · 자유 이동";
+                weaponType.text="돌격소총 / 보병 자유 이동";missionTitle.text="도심 확보 작전";
+                objective.text="6개 구역을 순서대로 확보하세요.\n차량·건물·모래주머니 뒤에서 교전합니다.";
+                range.text="1.2 × 1.2 km 전장 / 10분 이상";
+                rule.text="구역별 통신 확보 100초 · 적 증원\n구역 완료 시 탄약·체력 보급";
+                controls.text="WASD 이동   Shift 달리기   C/Ctrl 앉기   좌클릭 사격   우클릭 조준   R 장전   G 수류탄";
+                SetCard(equipmentLeft,"W","자유 이동","골목·상점·차량을 활용해 접근");
+                SetCard(equipmentRight,"G","수류탄 조준","누르고 위치 지정 · 놓아 투척");
+            }
+            orbitMap.SetActive(air); tankMap.SetActive(tank);assaultMap.SetActive(fps);
+            map.Find("Trench").gameObject.SetActive(!air && !tank && !fps);
+            map.Find("Player").gameObject.SetActive(!air && !tank && !fps);
             sniperMap.SetActive(!tank && !city && sniper); defenseMap.SetActive(!tank && !city && !sniper);
-            citySniperMap.SetActive(city && sniper); cityDefenseMap.SetActive(city && !sniper);
+            citySniperMap.SetActive(!fps && city && sniper); cityDefenseMap.SetActive(!fps && city && !sniper);
             deployLabel.text = "작전 시작     [ ENTER ]";
             preview.Show(weapon);
         }
@@ -347,6 +372,7 @@ namespace SniperRidge
             if (!gm.IsSelecting || Time.frameCount == openedFrame) return;
             for (int i = 0; i < rows.Length && i < 9; i++)
                 if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i)) Select(i);
+            if(Input.GetKeyDown(KeyCode.Alpha0)||Input.GetKeyDown(KeyCode.Keypad0))Select(9);
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) Deploy();
         }
 

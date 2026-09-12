@@ -26,6 +26,8 @@ namespace SniperRidge
         public GrenadeController Grenades { get; private set; }
         public bool IsMounted => flight != null;
         HelicopterFlight flight;
+        public FpsMovement FreeMovement { get; private set; }
+        public bool IsFreeRoam => FreeMovement != null;
         public bool InTank { get; private set; }
         public bool CanSwitchWeapon => !InTank && !IsMounted && inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
         public bool IsScoped { get; private set; }
@@ -40,8 +42,8 @@ namespace SniperRidge
         public float CurrentScopeFov => Weapon != null ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
         public Transform Eye => cam.transform;
         public bool IsDesktop => desktop;
-        public bool IsHidden => !IsMounted && cam.transform.localPosition.y <= .78f;
-        public bool CanFireFromCover => IsMounted || (!coverHeld && cam.transform.localPosition.y >= 1.42f);
+        public bool IsHidden => IsFreeRoam ? FreeMovement.Crouching : !IsMounted && cam.transform.localPosition.y <= .78f;
+        public bool CanFireFromCover => IsFreeRoam ? !FreeMovement.Sprinting : IsMounted || (!coverHeld && cam.transform.localPosition.y >= 1.42f);
         public Vector3 AimPoint => Eye.position - Vector3.up * .18f;
         Vector3 nestOrigin;
         bool coverHeld, touchCover;
@@ -53,6 +55,14 @@ namespace SniperRidge
         {
             bottom = IsMounted ? Eye.position - Vector3.up * 1.35f : transform.position + Vector3.up * .30f;
             top = Eye.position - Vector3.up * .10f;
+        }
+
+        public void AttachToCityAssault(Vector3 position)
+        {
+            transform.position=position+Vector3.up*.1f;
+            cam.transform.localPosition=Vector3.up*1.68f;
+            MinPitch=-80f;MaxPitch=80f;yaw=pitch=0;
+            FreeMovement=FpsMovement.Attach(this);
         }
 
         public void AttachToTank(WeaponDefinition weapon)
@@ -78,6 +88,7 @@ namespace SniperRidge
         void UpdateCover(float dt)
         {
             if (IsMounted) return;
+            if (IsFreeRoam) { FreeMovement.Step(dt,inputEnabled,IsScoped); return; }
             bool keysActive = desktop && Cursor.lockState == CursorLockMode.Locked;
             coverHeld = inputEnabled && (touchCover || (keysActive &&
                 (Input.GetKey(KeyCode.C) || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))));
@@ -178,6 +189,7 @@ namespace SniperRidge
             IsScoped = false;
             if (weaponModel != null) { weaponModel.SetActive(false); Destroy(weaponModel); }
             weaponModel = WeaponModels.Build(IsMounted ? flight.GunnerStation : cam.transform, weapon);
+            if (IsFreeRoam && weaponModel != null && !weapon.IsRocket) FpsWeaponHands.Attach(weaponModel.transform);
             doorGun = weaponModel != null ? weaponModel.GetComponent<DoorGunView>() : null;
             if (doorGun != null) { doorGun.Attach(cam); doorGun.Pose(yaw, pitch); }
             muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);
@@ -273,7 +285,7 @@ namespace SniperRidge
             lookInput = Vector2.zero;
 
             // 숨 참기
-            bool wantHold = inputEnabled && !coverHeld &&
+            bool wantHold = !IsFreeRoam && inputEnabled && !coverHeld &&
                             (touchBreath || (desktop && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.Space))));
             if (breathLocked && Breath > 0.35f) breathLocked = false;
             HoldingBreath = wantHold && !breathLocked && Breath > 0f;
@@ -333,9 +345,9 @@ namespace SniperRidge
                     zeroDelta = 0;
                 }
             }
-            float targetFov = (IsScoped && Weapon != null) ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
+            float targetFov = (IsScoped && Weapon != null) ? Weapon.ScopeFovs[zoomIndex] : IsFreeRoam ? 72f : BaseFov;
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, dt * 14f);
-            bool showModel = !Grenades.BlocksWeapons && !IsHidden && (!IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f));   // 저배율 광학은 총이 보인다
+            bool showModel = !Grenades.BlocksWeapons && (IsFreeRoam || !IsHidden) && (!IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f));   // 저배율 광학은 총이 보인다
             if (weaponModel != null)
             {
                 if (weaponModel.activeSelf != showModel) weaponModel.SetActive(showModel);
@@ -347,7 +359,9 @@ namespace SniperRidge
                 }
                 else
                 {
-                    weaponModel.transform.localPosition = Weapon.ViewOffset + Vector3.down * lower * .42f;
+                    Vector3 offset=IsFreeRoam && IsScoped && !Weapon.IsRocket ? new Vector3(0,-.17f,.39f) : Weapon.ViewOffset;
+                    Vector3 resting=offset + Vector3.down * lower * .42f;
+                    weaponModel.transform.localPosition = IsFreeRoam ? Vector3.Lerp(weaponModel.transform.localPosition,resting,dt*16f) : resting;
                     weaponModel.transform.localRotation = Quaternion.Euler(lower * 30f, 0f, lower * -12f);
                 }
             }
@@ -409,18 +423,20 @@ namespace SniperRidge
             }
 
             lookInput += new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * MouseSensitivity;
-            if (Input.GetKeyDown(KeyCode.W)) Grenades.BeginAim();
+            KeyCode grenadeKey=IsFreeRoam?KeyCode.G:KeyCode.W;
+            if (Input.GetKeyDown(grenadeKey)) Grenades.BeginAim();
             if (Grenades.IsAiming)
             {
                 fireHeld = fireQueued = scopeToggleQueued = reloadQueued = zoomQueued = false;
                 if (Input.GetMouseButtonDown(1)) Grenades.CancelAim();
-                else if (Input.GetKeyUp(KeyCode.W)) Grenades.ReleaseAim();
+                else if (Input.GetKeyUp(grenadeKey)) Grenades.ReleaseAim();
                 return;
             }
             if (Input.GetKeyDown(KeyCode.Q)) { ToggleLauncher(); return; }
             if (Input.GetMouseButtonDown(0)) fireQueued = true;
             fireHeld = Input.GetMouseButton(0);
-            if (Input.GetMouseButtonDown(1)) scopeToggleQueued = true;
+            if (IsFreeRoam) IsScoped=Input.GetMouseButton(1) && CanFireFromCover;
+            else if (Input.GetMouseButtonDown(1)) scopeToggleQueued = true;
             if (Input.GetKeyDown(KeyCode.R)) reloadQueued = true;
             if (Input.GetKeyDown(KeyCode.Z) || Mathf.Abs(Input.mouseScrollDelta.y) > 0.01f) zoomQueued = true;
             if (Input.GetKeyDown(KeyCode.UpArrow)) zeroDelta++;
@@ -487,11 +503,21 @@ namespace SniperRidge
                     Vector3 relative = desired * worldSpeed - inherited;
                     Bullet.Fire(muzzleAnchor.position, relative, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage, inherited);
                 }
+                else if (IsFreeRoam)
+                {
+                    Physics.SyncTransforms();
+                    Vector3 muzzle=muzzleAnchor!=null?muzzleAnchor.position:cam.transform.position;
+                    Vector3 target=Physics.Raycast(cam.transform.position,dir,out var sight,1500f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore)
+                        ? sight.point : cam.transform.position+dir*1500f;
+                    if(Physics.Linecast(cam.transform.position,muzzle,out var blocked,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))
+                        Bullet.Fire(cam.transform.position,(blocked.point-cam.transform.position).normalized,gm.Wind.Wind,w.MuzzleVelocity,w.DragK,w.Damage);
+                    else Bullet.Fire(muzzle,(target-muzzle).normalized,gm.Wind.Wind,w.MuzzleVelocity,w.DragK,w.Damage);
+                }
                 else Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
             }
 
             // Variation comes from separate recorded shots, not detuning the same sample.
-            gm.PlayPlayerShot(w.Id, w.ShotVolume);
+            gm.PlayPlayerShot(w.IsAssault ? "rifle" : w.Id, w.ShotVolume);
             StartCoroutine(MuzzleFlash());
             gm.OnPlayerShot(cam.transform.position);
         }

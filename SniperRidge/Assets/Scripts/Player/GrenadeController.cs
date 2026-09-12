@@ -35,9 +35,9 @@ namespace SniperRidge
             if (gm == null || !gm.IsPlaying || IsAiming || player.IsMounted || player.InTank) return;
             if (Count <= 0) { gm.Hud.ShowShotFeedback("수류탄이 없습니다"); return; }
             if (Time.time < readyAt) return;
-            if (!player.CanFireFromCover) { gm.Hud.ShowShotFeedback("일어선 뒤 W로 투척 위치를 지정하세요"); return; }
+            if (!player.CanFireFromCover) { gm.Hud.ShowShotFeedback(player.IsFreeRoam?"달리기를 멈춘 뒤 G로 투척하세요":"일어선 뒤 W로 투척 위치를 지정하세요"); return; }
             if (player.State != SniperController.WeaponState.Ready)
-            { gm.Hud.ShowShotFeedback("장전·무기 교체가 끝난 뒤 W를 다시 누르세요"); return; }
+            { gm.Hud.ShowShotFeedback(player.IsFreeRoam?"장전·무기 교체가 끝난 뒤 G를 누르세요":"장전·무기 교체가 끝난 뒤 W를 다시 누르세요"); return; }
             if (held == null)
             {
                 held = new GameObject("HeldGrenade"); held.transform.SetParent(eye.transform, false);
