@@ -40,10 +40,10 @@ assert np.allclose(markers['Muzzle'],[0,2.035,5.57])
 assert markers['Muzzle'][2]>max(hi[2] for lo,hi in boxes)
 assert min(lo[1] for lo,hi in boxes)==0
 # All authored posts and the 170 m spawn ring fit the flat 440 m square arena.
-posts=[np.array([math.sin(math.radians(i*60+25))*95,math.cos(math.radians(i*60+25))*95-10]) for i in range(6)]
-assert max(np.max(abs(p)) for p in posts)<110
+posts=[np.array([math.sin(math.radians(i*60+25))*75,math.cos(math.radians(i*60+25))*75-40]) for i in range(6)]
+assert max(np.max(abs(p)) for p in posts)<116
 for i,p in enumerate(posts):
-    assert min(np.linalg.norm(p-q) for j,q in enumerate(posts) if i!=j)>90
+    assert min(np.linalg.norm(p-q) for j,q in enumerate(posts) if i!=j)>74
 # Conservatively clear enough reserved-ring arc remains even if the player and four tanks occupy it.
 # Each tank reserves 15m, player reserves 65m, on a ring circumference > 1000m.
 assert 2*65+4*30 < 2*math.pi*170

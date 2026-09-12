@@ -288,7 +288,7 @@ namespace SniperRidge
             EnsureEnemyMaterials();
             var spawn=new EnemySpawn(p.x,p.z,cover?EnemyKind.Cover:EnemyKind.Rusher,
                 role:EnemyRole.MachineGunner,uniformVariant:ordinal%3);
-            var enemy=EnemySoldier.Create("Urban enemy "+ordinal,gm.Terrain,spawn,gm.PlayerEye.position,1.1f,
+            var enemy=EnemySoldier.Create("Urban enemy "+ordinal,gm.Terrain,spawn,gm.PlayerEye.position,AssaultLayout.EnemyScale,
                 enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(ordinal+9201),false);
             enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);
             if(!cover)enemy.gameObject.AddComponent<AssaultNavigation>();
@@ -299,7 +299,7 @@ namespace SniperRidge
         {
             EnsureEnemyMaterials();
             var spawn = new EnemySpawn(position.x,position.z,EnemyKind.Cover,role:EnemyRole.RocketTrooper);
-            var enemy = EnemySoldier.Create(name,gm.Terrain,spawn,gm.PlayerEye.position,1.5f,
+            var enemy = EnemySoldier.Create(name,gm.Terrain,spawn,gm.PlayerEye.position,EnemySoldier.DefenseModeScale,
                 enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(name.GetHashCode()),false);
             enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);return enemy;
         }

@@ -32,7 +32,7 @@ namespace SniperRidge.EditorTools
                 foreach (var point in spawn.Kind == EnemyKind.Patrol ? new[] { spawn.Pos, spawn.PosB } : new[] { spawn.Pos })
                 {
                     float range = Vector2.Distance(player, point);
-                    Check(range >= 45f && range <= 106f, "저격 적 거리가 설정 범위를 벗어났습니다: " + range);
+                    Check(range >= 36f && range <= 85f, "저격 적 거리가 설정 범위를 벗어났습니다: " + range);
                     Check(BattlefieldLayout.IsCombatLane(point.x, point.y), "적 배치가 전방 시야 확보 구역 밖입니다.");
                     Vector3 target = TerrainGenerator.OnGround(gm.Terrain, point.x, point.y, 1.55f * EnemySoldier.SniperModeScale);
                     Vector3 direction = target - eye;
@@ -46,7 +46,7 @@ namespace SniperRidge.EditorTools
             {
                 Vector2 point = BattlefieldLayout.DefenseSpawn(random, wave);
                 float range = Vector2.Distance(player, point);
-                Check(range >= 55f && range <= 95f && BattlefieldLayout.IsCombatLane(point.x, point.y), "방어전 생성 위치 오류");
+                Check(range >= 35f && range <= 69f && BattlefieldLayout.IsCombatLane(point.x, point.y), "방어전 생성 위치 오류");
             }
             foreach (var definition in WeaponDefinition.All)
                 if (definition.HasZeroing)

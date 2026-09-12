@@ -32,6 +32,7 @@ namespace SniperRidge
         public TankBattle Armor { get; private set; }
         public CityAssault Assault { get; private set; }
         GunshotPlayback gunshots;
+        public BattleMusic Music { get; private set; }
 
         public int Kills { get; private set; }
         public int Shots { get; private set; }
@@ -95,6 +96,7 @@ namespace SniperRidge
         {
             Instance = this;
             Sounds = SoundBank.Create();
+            Music=gameObject.AddComponent<BattleMusic>();Music.Initialize(this);
             gunshots = gameObject.AddComponent<GunshotPlayback>();
             gunshots.Initialize(this);
             audioPool = new AudioSource[Application.isMobilePlatform ? 16 : 32];
@@ -174,7 +176,7 @@ namespace SniperRidge
                 LevelBuilder.SpawnSniperEnemies(this);
                 Hud.OnMissionStart(Map == BattlefieldMap.City
                     ? "도시 검문소에 잠복 중.\n옥상 6명과 도로 엄폐물의 적 4명을 제거하라.\n빗나가면 옥상 저격병과 기관총병이 반격한다.\nC/Ctrl 엄폐 · A/D 이동 · 5초 숨으면 추적 해제"
-                    : "평지 참호에 잠복 중.\n전방 45~105m의 저격병 4명과 기관총병 6명을 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
+                    : "평지 참호에 잠복 중.\n전방 37~83m의 저격병 4명과 기관총병 6명을 제거하라.\n빗나가거나 적을 살려 두면 위치가 발각된다.\nC/Ctrl로 엄폐 · A/D로 이동 · 5초 숨으면 추적 해제");
             }
             else
             {
@@ -234,7 +236,7 @@ namespace SniperRidge
 
         // ---------- 사운드 ----------
 
-        public void PlayPlayerShot(string id, float volume) => gunshots.Play(id, volume);
+        public void PlayPlayerShot(string id, float volume) { Music.Duck();gunshots.Play(id, volume); }
 
         public void PlaySound(AudioClip clip, float volume = 1f, float pitch = 1f, float pan = 0f)
         {
@@ -262,7 +264,7 @@ namespace SniperRidge
 
         public void OnPlayerShot(Vector3 shotPosition)
         {
-            Shots++;
+            Music.Duck();Shots++;
             if (Mission == MissionType.Sniper && contact.Revealed)
                 contact.Reveal(shotPosition - Vector3.up * .18f);
         }

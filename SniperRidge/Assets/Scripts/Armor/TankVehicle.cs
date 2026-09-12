@@ -139,7 +139,7 @@ namespace SniperRidge
             {
                 float angle=Vector3.SignedAngle(transform.forward,flat,Vector3.up);
                 steering=Mathf.Clamp(angle/35f,-1,1);
-                drive=distance>65f ? .65f : distance<32f ? -.4f : 0f;
+                drive=distance>50f ? .65f : distance<25f ? -.4f : 0f;
                 if (Mathf.Abs(drive)>.2f && body.velocity.magnitude<.35f) stuckTime+=Time.deltaTime; else stuckTime=0;
                 if (stuckTime>1.5f) { avoidanceTime=2.2f; stuckTime=0; }
             }

@@ -76,7 +76,7 @@ namespace SniperRidge
 
             Box(content, "Footer rule", Line, 0, 856, 1760, 1);
             controls = Label(content, "Controls", "C / Ctrl  엄폐     A / D  좌우 이동     우클릭  조준     R  재장전", 22, Paper, 0, 879, 1210, 34);
-            Label(content, "Selection help", "클릭 또는 1–9 / 0: 모드 선택    ·    Enter: 작전 시작", 20, Muted, 0, 922, 1210, 30);
+            Label(content, "Selection help", "클릭 또는 1–9 / 0: 모드 선택    ·    Enter: 작전 시작   ·   M: BGM", 20, Muted, 0, 922, 1210, 30);
             var deploy = Button(content, "Deploy", 1264, 878, 496, 74, Sand, Deploy);
             deployLabel = Label(deploy.transform, "Action", "", 28, Ink, 24, 0, 448, 74, true, TextAnchor.MiddleCenter);
             Select(9);
@@ -282,7 +282,7 @@ namespace SniperRidge
             reload.text = "재장전  " + weapon.ReloadTime.ToString("0.0") + "초";
             missionTitle.text = sniper ? "잠복 저격" : "진지 방어";
             objective.text = sniper ? "저격병 4명 · 기관총병 6명\n엄폐물 밖으로 나오는 순간을 노리세요." : "기관총병의 접근과 저격병을 막으세요.\n5개 웨이브를 버티면 승리합니다.";
-            range.text = sniper ? "교전 거리    45–105 m" : "적 출현 거리    55–95 m";
+            range.text = sniper ? "교전 거리    37–83 m" : "적 출현 거리    37–68 m";
             rule.text = sniper ? "실수하면 위치가 발각됩니다.\n엄폐 후 시야를 끊어 추적을 피하세요." : "숨었다가 반격하세요.\n웨이브 사이 탄약과 수류탄이 보급됩니다.";
             if (city)
             {

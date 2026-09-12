@@ -36,25 +36,25 @@ def main():
     posts=[];entries=[]
     for centre in OBJECTIVES:
         for slot in range(4):
-            p=centre+[(-6 if slot%2==0 else 6),0,(26 if slot<2 else -26)]
+            p=centre+[(-6 if slot%2==0 else 6),0,(20 if slot<2 else -20)]
             front=centre-p;front/=np.linalg.norm(front)
             yaw=math.degrees(math.atan2(front[0],front[2]));rot=rotation(yaw)
-            box('Sandbags',p+front*1.5+rot@np.array([.06,.57,0]),[2.8,1.14,.6],yaw);posts.append(p)
+            box('Sandbags',p+front*1.5+rot@np.array([.06,.75,0]),[2.8,1.5,.6],yaw);posts.append(p)
         asset('concrete_barrier',centre+[-4,0,-7],90);asset('concrete_barrier',centre+[4,0,7],90)
         box('Objective cabinet',centre+[10,.85,0],[1.2,1.7,.8],90)
         for wave_id in range(5):
-            for slot in range(3):entries.append(centre+[(slot-1)*5,0,(1 if wave_id%2==0 else -1)*(64+slot*4)])
+            for slot in range(3):entries.append(centre+[(slot-1)*5,0,(1 if wave_id%2==0 else -1)*(44+slot*3)])
         for side in [-1,1]:
-            for slot in range(4):entries.append(centre+[(slot-1.5)*3,0,side*(70+slot*2)])
+            for slot in range(4):entries.append(centre+[(slot-1.5)*3,0,side*(48+slot*3)])
         for side in [-1,1]:box('Tree trunk conservative',centre+[side*20,1,48],[1.2,2,1.2])
     # 1 m cells, rotated conservative world AABBs expanded for an infantry capsule.
     # Ignore low curbs/floor slabs below step height. Real nav bake validates every route too.
     blocked=np.zeros((1087,887),dtype=bool)
     for b in boxes:
         half=np.abs(b.rot)@b.half
-        if b.centre[1]+half[1]<12.3 or b.centre[1]-half[1]>13.85:continue
-        lo=np.ceil(b.centre[[0,2]]-half[[0,2]]-.55).astype(int)+[443,543]
-        hi=np.floor(b.centre[[0,2]]+half[[0,2]]+.55).astype(int)+[443,543]
+        if b.centre[1]+half[1]<12.3 or b.centre[1]-half[1]>14.5:continue
+        lo=np.ceil(b.centre[[0,2]]-half[[0,2]]-.65).astype(int)+[443,543]
+        hi=np.floor(b.centre[[0,2]]+half[[0,2]]+.65).astype(int)+[443,543]
         lo=np.maximum(lo,[0,0]);hi=np.minimum(hi,[886,1086])
         if np.all(lo<=hi):blocked[lo[1]:hi[1]+1,lo[0]:hi[0]+1]=True
     def cell(p):return int(round(p[2]))+543,int(round(p[0]))+443

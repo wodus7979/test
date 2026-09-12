@@ -10,9 +10,9 @@ namespace SniperRidge
     public static class CityLayout
     {
         public const float BaseY = TerrainGenerator.FieldElevation + .04f;
-        public const float EnemyScale = 1.5f;
-        public const float CoverHeight = 1.65f;
-        public const float CoverDistance = 1.725f;
+        public const float EnemyScale = 1.8f;
+        public const float CoverHeight = 1.98f;
+        public const float CoverDistance = 2.07f;
         [Serializable] public class Building
         {
             public string asset;
@@ -83,7 +83,7 @@ namespace SniperRidge
             if (post >= 0) return Spawn(post);
             // An open central avenue; no building or fixed post intersects these approach lanes.
             float x = Mathf.Lerp(-6f, 6f, (float)random.NextDouble());
-            float forward = Mathf.Lerp(55f, 85f, (float)random.NextDouble()) + Mathf.Min(wave, 4) * 2f;
+            float forward = Mathf.Lerp(35f, 60f, (float)random.NextDouble()) + Mathf.Min(wave, 4) * 2f;
             int ordinal = index;
             foreach (int slot in new[] { 3, 5, 7, 9 }) if (index > slot) ordinal--;
             return new EnemySpawn(x, TerrainGenerator.PlayerSpawnZ + forward, EnemyKind.Rusher,

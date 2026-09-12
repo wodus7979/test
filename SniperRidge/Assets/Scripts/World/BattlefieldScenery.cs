@@ -85,7 +85,7 @@ namespace SniperRidge
             {
                 Vector3 post=TankBattle.Post(i);
                 Vector3 front=(new Vector3(0,12,-150)-post).normalized;
-                Rock(root,post+front*2.4f+Vector3.up*.32f,new Vector3(4.5f,2.5f,2.7f),i);
+                Rock(root,post+front*2.4f+Vector3.up*.32f,new Vector3(4.5f,3.5f,2.7f),i);
                 Vegetation.Tree(root,post+Vector3.Cross(Vector3.up,front)*6f,.85f,Vegetation.TreeType.Broadleaf,rng);
             }
             FieldDetails(gm);Physics.SyncTransforms();

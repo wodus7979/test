@@ -35,8 +35,8 @@ namespace SniperRidge
     /// </summary>
     public class EnemySoldier : MonoBehaviour
     {
-        public const float SniperModeScale = 2.0f;   // 저격 임무의 적 크기 배율
-        public const float DefenseModeScale = 1.5f;  // 방어전 적 크기 배율
+        public const float SniperModeScale = 2.3f;   // 저격 임무의 적 크기 배율
+        public const float DefenseModeScale = 1.8f;  // 방어전 적 크기 배율
         const float CrouchFactor = 0.5f;
         const float PeekSlide = 0.85f;
         const float MaxHealth = 100f;
@@ -432,8 +432,8 @@ namespace SniperRidge
             float dist = toPlayer.magnitude;
             Vector3 dir = toPlayer.normalized;
 
-            // 10m 안으로는 접근하지 않고 멈춰서 사격
-            if (dist < 10f && (gm.Mission != MissionType.Assault || HasLineOfSight()))
+            // Close to 7 m before holding position and firing.
+            if (dist < 7f && (gm.Mission != MissionType.Assault || HasLineOfSight()))
             {
                 state = State.Halt;
                 stateTimer = Random.Range(1.5f, 3f);

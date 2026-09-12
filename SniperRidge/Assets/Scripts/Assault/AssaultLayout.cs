@@ -7,6 +7,7 @@ namespace SniperRidge
     {
         public const float Size=1200f, Ground=12f, CaptureRadius=42f, SecureSeconds=100f;
         public const int Waves=5;
+        public const float EnemyScale=1.35f;
         public static readonly Vector3 Start=new Vector3(0,Ground,-515);
         public static readonly Vector3[] Objectives={
             new Vector3(0,Ground,-420),new Vector3(240,Ground,-300),new Vector3(0,Ground,-60),
@@ -16,10 +17,10 @@ namespace SniperRidge
         public static Vector3 CoverPost(int sector,int slot)
         {
             float side=slot%2==0?-1:1;
-            return Objectives[sector]+new Vector3(side*6f,0,slot<2?26f:-26f);
+            return Objectives[sector]+new Vector3(side*6f,0,slot<2?20f:-20f);
         }
         public static Vector3 Entry(int sector,int wave,int slot)
-            => Objectives[sector]+new Vector3((slot-1)*5f,0,(wave%2==0?1:-1)*(64+slot*4));
+            => Objectives[sector]+new Vector3((slot-1)*5f,0,(wave%2==0?1:-1)*(44+slot*3));
         public static float BoundaryX=445f, BoundaryZ=545f;
     }
 

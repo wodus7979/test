@@ -66,7 +66,7 @@ namespace SniperRidge
                 if(Vector3.Distance(candidate,gm.Player.transform.position)<20f)
                 {
                     cover=false;float side=gm.Player.transform.position.z>Objective.z?-1f:1f;
-                    candidate=Objective+new Vector3((i-1.5f)*3f,0,side*(70+i*2));
+                    candidate=Objective+new Vector3((i-1.5f)*3f,0,side*(48+i*3));
                 }
                 if(!NavMesh.SamplePosition(candidate,out var nav,3f,NavMesh.AllAreas))return false;
                 if(Vector3.Distance(nav.position,gm.Player.transform.position)<15f)return false;

@@ -30,6 +30,7 @@ namespace SniperRidge
 
         public void WarnIncoming(Vector3 source, float duration, string role = "적")
         {
+            if(gm!=null && gm.Music!=null)gm.Music.Duck(Mathf.Clamp(duration,.65f,2f));
             threatSource = source;
             threatRole = role;
             threatUntil = Mathf.Max(threatUntil, Time.time + duration);
@@ -334,7 +335,7 @@ namespace SniperRidge
                 coverText.color=new Color(.85f,.85f,.75f);
                 zeroText.text=p.FreeMovement.Crouching?"앉은 자세":p.FreeMovement.Sprinting?"달리는 중":"이동/교전";
                 windText.text="지구력";breathFill.localScale=new Vector3(p.FreeMovement.Stamina,1,1);
-                hintText.text="WASD 이동 | Shift 달리기 | C/Ctrl 앉기 | Space 점프 | 우클릭 조준 | R 장전 | G 수류탄 | Q 로켓포";
+                hintText.text="WASD 이동 | Shift 달리기 | C/Ctrl 앉기 | Space 점프 | 우클릭 조준 | R 장전 | G 수류탄 | Q 로켓포 | M BGM";
                 if(Cursor.lockState!=CursorLockMode.Locked)hintText.text="게임 화면을 클릭해 조작을 시작하세요";
             }
             if (p.InTank && gm.Armor != null)

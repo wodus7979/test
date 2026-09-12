@@ -36,7 +36,7 @@ namespace SniperRidge
         public static Vector3 Post(int index)
         {
             float angle=(index*60f+25f)*Mathf.Deg2Rad;
-            return new Vector3(Mathf.Sin(angle)*95f,TerrainGenerator.FieldElevation,Mathf.Cos(angle)*95f-10f);
+            return new Vector3(Mathf.Sin(angle)*75f,TerrainGenerator.FieldElevation,Mathf.Cos(angle)*75f-40f);
         }
         IEnumerator RunStages()
         {
@@ -102,7 +102,7 @@ namespace SniperRidge
             float range=Vector3.Distance(gm.PlayerEye.position,position);
             if(player)
             {
-                playerShotAt=Time.time;playerCannon.clip=clip;playerCannon.volume=.82f;playerCannon.Play();
+                gm.Music.Duck(.9f);playerShotAt=Time.time;playerCannon.clip=clip;playerCannon.volume=.82f;playerCannon.Play();
             }
             else gm.PlaySound(clip,Mathf.Clamp01(1-range/350f)*.28f*(Time.time-playerShotAt<.18f?.4f:1f));
         }

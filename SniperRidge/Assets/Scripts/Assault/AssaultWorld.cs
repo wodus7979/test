@@ -74,7 +74,8 @@ namespace SniperRidge
                 for(int slot=0;slot<4;slot++)
                 {
                     var p=AssaultLayout.CoverPost(sector,slot);var front=(centre-p).normalized;
-                    UrbanProps.Place("Sandbag corner",transform,p+front*1.5f,Quaternion.LookRotation(front).eulerAngles.y);
+                    var cover=UrbanProps.Place("Sandbag corner",transform,p+front*1.5f,Quaternion.LookRotation(front).eulerAngles.y);
+                    cover.transform.localScale=new Vector3(1,1.5f/1.14f,1);
                 }
                 Place("concrete_barrier",transform,centre+new Vector3(-4,0,-7),90);
                 Place("concrete_barrier",transform,centre+new Vector3(4,0,7),90);
@@ -96,7 +97,7 @@ namespace SniperRidge
         void BuildNavigation()
         {
             if(NavMesh.GetSettingsCount()==0)throw new InvalidOperationException("NavMesh agent settings missing");
-            var settings=NavMesh.GetSettingsByIndex(0);settings.agentRadius=.42f;settings.agentHeight=1.9f;settings.agentClimb=.3f;
+            var settings=NavMesh.GetSettingsByIndex(0);settings.agentRadius=.5f;settings.agentHeight=2.5f;settings.agentClimb=.3f;
             settings.overrideVoxelSize=true;settings.voxelSize=.2f;
             var sources=new List<NavMeshBuildSource>();
             NavMeshBuilder.CollectSources(transform,EnemyRagdoll.CombatMask,NavMeshCollectGeometry.PhysicsColliders,0,new List<NavMeshBuildMarkup>(),sources);

@@ -11,7 +11,7 @@ namespace SniperRidge
         public static List<EnemySpawn> SniperSpawns()
         {
             float[] angles = { -32f, -25f, -18f, -11f, -4f, 4f, 11f, 18f, 25f, 32f };
-            float[] ranges = { 95f, 64f, 86f, 48f, 104f, 74f, 46f, 95f, 62f, 88f };
+            float[] ranges = { 76f, 51f, 69f, 38f, 83f, 59f, 37f, 76f, 50f, 70f };
             EnemyKind[] kinds = { EnemyKind.Cover, EnemyKind.Tree, EnemyKind.Cover, EnemyKind.Patrol,
                 EnemyKind.Tree, EnemyKind.Cover, EnemyKind.Tree, EnemyKind.Patrol, EnemyKind.Cover, EnemyKind.Tree };
             var result = new List<EnemySpawn>();
@@ -32,12 +32,12 @@ namespace SniperRidge
         {
             // Leave the two outer firing lanes clear for the concealed snipers.
             float angle = Mathf.Lerp(-24f, 24f, (float)random.NextDouble());
-            float distance = Mathf.Lerp(55f, 85f, (float)random.NextDouble()) + Mathf.Min(wave, 4) * 2f;
+            float distance = Mathf.Lerp(35f, 60f, (float)random.NextDouble()) + Mathf.Min(wave, 4) * 2f;
             return AtRange(angle, distance);
         }
 
         public static bool IsDefenseSniper(int index) => index == 3 || index == 7;
-        public static Vector2 DefenseSniperSpawn(int index) => AtRange(index == 3 ? -32f : 32f, 92f);
+        public static Vector2 DefenseSniperSpawn(int index) => AtRange(index == 3 ? -32f : 32f, 72f);
 
         public static EnemySpawn DefenseSoldier(System.Random random, int wave, int index)
         {
