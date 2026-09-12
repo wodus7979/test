@@ -157,7 +157,7 @@ namespace SniperRidge
                 Player.AttachToCityAssault(AssaultLayout.Start);
                 Player.Equip(weapon);Health.Configure(5f,10f);
                 Assault=CityAssault.Create(this);
-                Hud.OnMissionStart("도시 FPS · 6개 구역 확보\nWASD 이동 · Shift 달리기 · C/Ctrl 앉기 · Space 점프\n좌클릭 사격 · 우클릭 조준 · R 장전 · G 수류탄\n목표 구역 안에서 적을 막고 통신 거점을 확보하세요.");
+                Hud.OnMissionStart("도시 FPS · 깃발 탈취 작전\nWASD 이동 · Shift 달리기 · C/Ctrl 앉기 · Space 점프\n좌클릭 사격 · 우클릭 조준 · R 장전 · G 수류탄\n동료 4명과 전진 · 깃발 앞에서 E 유지\n1 소총 · 2 기관총 · 3 저격총 · 4 로켓포");
                 return;
             }
             Player.Equip(weapon);

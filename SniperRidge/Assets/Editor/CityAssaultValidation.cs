@@ -18,48 +18,32 @@ namespace SniperRidge.EditorTools
                     "도시 FPS 작전에 진입한 뒤 실행하세요.");
                 AssaultWorld.ValidateNavigation();
                 Check(GameManager.Instance.Player.GetComponent<CharacterController>()!=null,"플레이어 이동 충돌체 누락");
-                Debug.Log("[Sniper Ridge] FPS 600초 진행 조건과 실제 도시 목표/증원 경로 검사 통과");
+                Debug.Log("[Sniper Ridge] 깃발 탈취/4종 무기 조건과 실제 도시 목표/증원 경로 검사 통과");
             }
             else
             {
                 ValidateMovement();
-                Debug.Log("[Sniper Ridge] FPS 600초 진행 조건·벽 충돌·후진·보도 턱·앉아서 통과 검사 통과. 도시 FPS Play 중 같은 메뉴로 실제 도보/증원 경로를 검사하세요.");
+                Debug.Log("[Sniper Ridge] 깃발 탈취/4종 무기 조건·벽 충돌·후진·보도 턱·앉아서 통과 검사 통과. 도시 FPS Play 중 같은 메뉴로 실제 도보/증원 경로를 검사하세요.");
             }
         }
         static void ValidateProgress()
         {
-            Check(AssaultLayout.Data.buildings.Length==64 && AssaultLayout.BoundaryX==152f,"밀집 도시 배치/경계 오류");
-            int enemies=0;
-            for(int wave=0;wave<AssaultLayout.Waves;wave++)
+            var progress=new AssaultProgress();progress.Tick(600,false);
+            Check(progress.Secured==0 && !progress.TryAdvance(0),"이동/대기만으로 깃발 탈취");
+            progress.Tick(1,true);progress.Tick(.1f,false);
+            Check(progress.Secured==0,"깃발 조작을 놓아도 진행이 남음");
+            for(int i=0;i<6;i++)
             {
-                int count=AssaultLayout.WaveSize(wave);
-                Check(count>=5 && count<=6 && count<=AssaultLayout.MaxAlive,"분대 크기/동시 출현 제한 오류");
-                enemies+=count;
+                progress.Tick(1.5f,true);Check(!progress.TryAdvance(24),"깃발 조작 조기 완료");
+                progress.Tick(.5f,true);Check(progress.TryAdvance(24),"적이 살아 있다는 이유로 깃발 탈취를 막음");
+                Check(progress.Sector==i+1,"다음 깃발 진행 실패");
             }
-            Check(enemies*AssaultLayout.Objectives.Length==156,"전체 증원 인원 오류");
-            var progress=new AssaultProgress();
-            progress.Tick(600,false);
-            Check(progress.Secured==0 && !progress.TryAdvance(0),"구역 밖에서 목표 진행");
-            progress.Tick(-10,true);Check(progress.Secured==0,"음수 시간 누적");
-            float elapsed=0;
-            for(int sector=0;sector<6;sector++)
-            {
-                for(int second=0;second<100;second++)
-                {
-                    if(second%20==0){Check(progress.WaveDue,"증원 시점 누락");progress.SentWave();}
-                    Check(!progress.TryAdvance(0),"100초 전 조기 완료");
-                    progress.Tick(1,true);elapsed++;
-                }
-                Check(progress.WavesSent==5 && !progress.WaveDue,"증원 수 오류");
-                Check(!progress.TryAdvance(1),"살아 있는 적을 남긴 채 완료");
-                Check(progress.TryAdvance(0) && progress.Sector==sector+1,"전투 완료 후 진행 실패");
-            }
-            Check(progress.Complete && elapsed==600,"전체 확보 시간/완료 조건 오류");
-            Check(!progress.TryAdvance(0),"완료 후 추가 진행");
-            var delayed=new AssaultProgress();delayed.Tick(100,true);
-            Check(!delayed.TryAdvance(0),"증원 없이 거점 완료");
-            for(int i=0;i<5;i++)delayed.SentWave();
-            Check(delayed.TryAdvance(0),"지연된 증원 격퇴 후 완료 실패");
+            Check(progress.Complete && !progress.TryAdvance(0),"깃발 6개 완료 조건 오류");
+            var inventory=new WeaponLoadout();inventory.Reset(WeaponDefinition.Find("urban_rifle"));
+            inventory.Active.Magazine=7;inventory.Select(1);inventory.Active.Magazine=13;
+            inventory.Select(0);Check(inventory.Active.Magazine==7,"무기 교체로 소총 탄약 충전");
+            inventory.Select(1);Check(inventory.Active.Magazine==13,"기관총 탄약 상태 손실");
+            inventory.Select(3);inventory.Toggle();Check(inventory.Active.Definition.Id=="lmg","로켓에서 이전 주무기로 복귀 실패");
         }
         static void ValidateMovement()
         {

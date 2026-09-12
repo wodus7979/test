@@ -22,6 +22,7 @@ namespace SniperRidge
             foreach (var collider in Physics.OverlapSphere(muzzle, .025f, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
                 if (shooter == null || !collider.transform.IsChildOf(shooter.transform)) return;
             var go = new GameObject("EnemyBullet");
+            if(shooter!=null && shooter.Combat!=null)shooter.Combat.RecordShot();
             var bullet = go.AddComponent<EnemyProjectile>();
             bullet.gm = game;
             bullet.owner = shooter;
@@ -79,10 +80,11 @@ namespace SniperRidge
             float distance = Mathf.Min(speed * Time.deltaTime, remaining);
             Vector3 next = position + direction * distance;
             bool blocked = WorldHit(position, next, owner, out RaycastHit obstacle);
+            if(gm.Assault!=null && owner!=null)gm.Assault.NotifyIncoming(owner,position,blocked?obstacle.point:next);
             float wallDistance = blocked ? obstacle.distance : float.PositiveInfinity;
             gm.Player.GetDamageCapsule(out Vector3 bottom, out Vector3 top);
             float playerDistance = CounterfireRules.CapsuleHit(position, next, bottom, top, CounterfireRules.PlayerRadius);
-            if (!float.IsPositiveInfinity(playerDistance) && playerDistance < wallDistance)
+            if ((owner==null||!owner.IsAlly) && !float.IsPositiveInfinity(playerDistance) && playerDistance < wallDistance)
             {
                 gm.Health.TakeDamage(damage);
                 Destroy(gameObject);
@@ -90,6 +92,12 @@ namespace SniperRidge
             }
             if (blocked)
             {
+                var hitbox=obstacle.collider.GetComponent<EnemyHitbox>();
+                if(hitbox!=null && hitbox.Owner!=null && owner!=null && hitbox.Owner.IsAlly!=owner.IsAlly)
+                {
+                    hitbox.Owner.TakeHit(damage,false,direction);
+                    BloodImpact.Emit(obstacle.point,obstacle.normal,direction,false);
+                }
                 Effects.Dust(obstacle.point, obstacle.normal, .14f);
                 Destroy(gameObject);
                 return;

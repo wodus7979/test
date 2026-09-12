@@ -171,7 +171,7 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "urban_rifle", Name = "도시 FPS 작전", IsAssault = true, Mission = MissionType.Assault,
-                Description = "자유 이동 · 건물/차량 엄폐 · 6개 구역 확보 · 10분 이상",
+                Description = "깃발 탈취 · 동료 4명과 총격전 · 1~4 무기 교체 · E 탈취",
                 Fire = FireMode.Auto, RoundsPerMinute = 650, MagSize = 30, Reserve = 600, ReloadTime = 2.2f,
                 MuzzleVelocity = 900, DragK = .0012f, Damage = 42,
                 ScopeFovs = new[] { 50f }, ScopeLabels = new[] { "조준" },

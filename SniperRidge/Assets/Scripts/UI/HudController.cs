@@ -237,7 +237,7 @@ namespace SniperRidge
             int m = Mathf.FloorToInt(gm.Elapsed / 60f);
             int s = Mathf.FloorToInt(gm.Elapsed % 60f);
             float acc = gm.Shots > 0 ? Mathf.Min(100f, 100f * gm.Hits / gm.Shots) : 0f;
-            string waveLine = gm.Mission == MissionType.Assault ? string.Format("도시 확보 {0} / 6\n",gm.Assault.Progress.Sector) : gm.Mission == MissionType.Tank ? string.Format("전차전 단계 {0} / 5\n",gm.Armor.Stage) : gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
+            string waveLine = gm.Mission == MissionType.Assault ? string.Format("깃발 탈취 {0} / 6\n",gm.Assault.Progress.Sector) : gm.Mission == MissionType.Tank ? string.Format("전차전 단계 {0} / 5\n",gm.Armor.Stage) : gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
             endStats.text = string.Format(
                 "{0}\n{1}소요 시간  {2:00}:{3:00}\n사격 {4}발  /  명중 {5}발  (명중률 {6:0}%)\n사살 {7}  (헤드샷 {8})\n점수  {9}\n\n{10}",
                 gm.Weapon != null ? gm.Weapon.Name : "", waveLine, m, s, gm.Shots, gm.Hits, acc, gm.Kills, gm.Headshots, gm.Score,
@@ -326,16 +326,15 @@ namespace SniperRidge
                 var battle=gm.Assault;
                 enemyText.fontSize=24;rangeText.fontSize=24;rangeText.rectTransform.sizeDelta=new Vector2(420,40);
                 if(p.Weapon.IsAssault)weaponText.text="돌격소총";
-                enemyText.text=string.Format("도시 확보 {0}/6 · {1} · 남은 적 {2}",Mathf.Min(6,battle.Progress.Sector+1),battle.ObjectiveName,battle.Alive);
+                enemyText.text=string.Format("깃발 {0}/6 · {1} · 적 {2}",Mathf.Min(6,battle.Progress.Sector+1),battle.ObjectiveName,battle.Alive);
                 var direction=p.transform.InverseTransformDirection(battle.Objective-p.transform.position);
                 string bearing=direction.z<0?"뒤쪽":Mathf.Abs(direction.x)<Mathf.Abs(direction.z)*.3f?"전방":direction.x<0?"← 왼쪽":"오른쪽 →";
                 rangeText.text=string.Format("목표 {0:0} m · {1}",battle.Distance,bearing);
-                coverText.text=battle.InArea?string.Format("통신 확보 {0:0} / 100초 · 증원 {1}/5\n진행 완료 후 남은 적을 제거하세요.",battle.Progress.Secured,battle.Progress.WavesSent)
-                    : "목표 구역으로 이동하세요 · 구역 밖에서는 확보가 멈춥니다";
+                coverText.text=(battle.InArea?string.Format("E 유지: 깃발 탈취 {0:0}%",battle.Progress.Secured/AssaultLayout.SecureSeconds*100):"깃발로 전진하세요 · 가까이에서 E를 누르세요")+"\n"+battle.SquadStatus;
                 coverText.color=new Color(.85f,.85f,.75f);
                 zeroText.text=p.FreeMovement.Crouching?"앉은 자세":p.FreeMovement.Sprinting?"달리는 중":"이동/교전";
                 windText.text="지구력";breathFill.localScale=new Vector3(p.FreeMovement.Stamina,1,1);
-                hintText.text="WASD 이동 | Shift 달리기 | C/Ctrl 앉기 | Space 점프 | 우클릭 조준 | R 장전 | G 수류탄 | Q 로켓포 | M BGM";
+                hintText.text="1 소총 · 2 기관총 · 3 저격총 · 4 로켓 | E 깃발 · R 장전 · G 수류탄 · C 엄폐 · M BGM";
                 if(Cursor.lockState!=CursorLockMode.Locked)hintText.text="게임 화면을 클릭해 조작을 시작하세요";
             }
             if (p.InTank && gm.Armor != null)

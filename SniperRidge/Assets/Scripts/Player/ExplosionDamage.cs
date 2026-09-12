@@ -14,6 +14,7 @@ namespace SniperRidge
             int kills = 0;
             foreach (var target in targets)
             {
+                if(target.Key.IsAlly)continue;
                 bool killed = target.Key.TakeHit(target.Value, false, (target.Key.transform.position - centre).normalized);
                 gm.OnEnemyHit(target.Key, false, Vector3.Distance(origin, centre), killed, !counted);
                 counted = true;

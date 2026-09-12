@@ -205,7 +205,7 @@ namespace SniperRidge
                 Label(assaultMap.transform,"Sector "+i,(i+1).ToString(),16,Paper,q.x+6,q.y-10,26,24);
                 if(i>0){var previous=AssaultLayout.Objectives[i-1];MapLine(assaultMap.transform,new Vector2(220+previous.x*1.25f,122-previous.z*.72f),q,Sand);}
             }
-            Label(assaultMap.transform,"Urban legend","6개 구역 · 도보 이동 / 엄폐 교전",17,Sand,12,4,412,25);
+            Label(assaultMap.transform,"Urban legend","6개 깃발 · 5인 분대 돌파",17,Sand,12,4,412,25);
             range = Label(panel, "Range", "", 24, Sand, 28, 439, 440, 36, true);
             rule = Label(panel, "Rule", "", 20, Paper, 28, 492, 440, 58);
         }
@@ -273,7 +273,7 @@ namespace SniperRidge
                 SetColors(rows[i], active ? new Color(.22f, .25f, .22f) : Panel);
                 selectionBars[i].enabled = active;
                 rowNames[i].color = active ? Sand : Paper;
-                rowStates[i].text = (WeaponDefinition.All[i].IsAssault ? "도시 FPS · 10분 이상" : WeaponDefinition.All[i].IsTank ? "전차 기동전 · 5단계" : WeaponDefinition.All[i].IsMounted ? "공중 선회 공격" : WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
+                rowStates[i].text = (WeaponDefinition.All[i].IsAssault ? "깃발 탈취 · 동료 4명" : WeaponDefinition.All[i].IsTank ? "전차 기동전 · 5단계" : WeaponDefinition.All[i].IsMounted ? "공중 선회 공격" : WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
             }
             weaponName.text = weapon.Name;
             weaponType.text = weapon.Id == "shotgun" ? "근접 화력  /  펌프액션" : weapon.Fire == FireMode.Bolt ? "정밀 사격  /  볼트액션" : weapon.Fire == FireMode.Auto ? "지속 화력  /  자동 사격" : "단발 사격  /  반자동";
@@ -321,12 +321,12 @@ namespace SniperRidge
             }
             if(fps)
             {
-                mapDescription.text="도시 FPS / 밀집 골목 · 분대 돌격";
-                weaponType.text="돌격소총 / 보병 자유 이동";missionTitle.text="도심 확보 작전";
-                objective.text="6개 구역을 순서대로 확보하세요.\n좁은 골목에서 적 5~6명이 몰려옵니다.";
-                range.text="304 × 304 m 밀집 도심 / 10분 이상";
-                rule.text="구역별 통신 확보 100초 · 적 증원\n구역 완료 시 탄약·체력 보급";
-                controls.text="WASD 이동   Shift 달리기   C/Ctrl 앉기   좌클릭 사격   우클릭 조준   R 장전   G 수류탄";
+                mapDescription.text="도시 FPS / 분대 총격전 · 깃발 탈취";
+                weaponType.text="돌격소총 / 보병 자유 이동";missionTitle.text="깃발 탈취 작전";
+                objective.text="동료 4명과 적의 깃발을 탈취하세요.\n건물·진지 방어병과 사방의 증원을 돌파하세요.";
+                range.text="304 × 304 m 도심 / 6개 깃발";
+                rule.text="깃발 근처에서 E 유지 · 전진하여 탈취\n동료도 피격·전사 · 깃발 탈취 시 탄약 보급";
+                controls.text="WASD 이동   E 깃발   1~4 무기   좌클릭 사격   우클릭 조준   R 장전   G 수류탄";
                 SetCard(equipmentLeft,"W","자유 이동","골목·상점·차량을 활용해 접근");
                 SetCard(equipmentRight,"G","수류탄 조준","누르고 위치 지정 · 놓아 투척");
             }

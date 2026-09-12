@@ -26,7 +26,8 @@ namespace SniperRidge.EditorTools
 
         static void AutoSetup()
         {
-            if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+            if(EditorApplication.isPlayingOrWillChangePlaymode)return;
+            if(EditorApplication.isCompiling || EditorApplication.isUpdating){EditorApplication.delayCall+=AutoSetup;return;}
             EnsureScene(false);
             EnsurePlayerSettings();
             EnsureAlwaysIncludedShaders();

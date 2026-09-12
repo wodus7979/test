@@ -70,7 +70,11 @@ namespace SniperRidge
         GameManager gm;
         Animator animator;
         EnemyAnimationRig motion;
-        AssaultTactics tactics;
+        public InfantryCombat Combat { get; private set; }
+        public void AttachCombat(InfantryCombat combat){Combat=combat;}
+        public bool IsAlly => Combat!=null && Combat.Ally;
+        public Vector3 AimPoint => head!=null?head.position-Vector3.up*.35f:transform.position+Vector3.up*1.5f;
+        Vector3 CombatAim => Combat!=null?Combat.TargetPoint:gm.EnemyAimPoint;
         Transform weaponVisual;
         Vector3 previousRigPosition, lastMotionVelocity;
         float staggerTimer;
@@ -289,7 +293,7 @@ namespace SniperRidge
         void Start()
         {
             gm = GameManager.Instance;
-            tactics=GetComponent<AssaultTactics>();
+            Combat=GetComponent<InfantryCombat>();
             if (gm.Mission != MissionType.Sniper) IsAware = true;
             switch (Kind)
             {
@@ -327,17 +331,17 @@ namespace SniperRidge
             ApplyCover();
 
             float speedForAnim = 0f;
-            if(tactics!=null)
+            if(Combat!=null)
             {
-                tactics.Tick(gm,dt);
-                coverTarget=tactics.Crouch;
-                MoveOnTerrain(tactics.Direction,tactics.Speed,dt);
-                speedForAnim=tactics.Speed;
-                state=speedForAnim>0?State.Rushing:State.Halt;
-                var facing=tactics.LookTarget-transform.position;facing.y=0;
-                if(facing.sqrMagnitude>.001f)faceDir=facing.normalized;
-                if(!tactics.CanShoot)preparingShot=false;
-                else TryShoot(speedForAnim>0?1.6f:.85f,1.6f,2.8f);
+                Combat.Tick(dt);coverTarget=Combat.Crouch;
+                Combat.RecordOpportunity(dt);
+                if(!Combat.Post)MoveOnTerrain(Combat.Direction,Combat.Speed,dt);
+                speedForAnim=Combat.Speed;
+                state=Combat.CanShoot?State.Peeking:Combat.Crouch>.7f?State.Hidden:State.Rushing;
+                Vector3 direction=Combat.LookPoint-transform.position;direction.y=0;
+                if(direction.sqrMagnitude>.001f)faceDir=direction.normalized;
+                if(!Combat.CanShoot)preparingShot=false;
+                else TryShoot(Combat.Speed>.1f?1.5f:.75f,IsAlly?1.1f:1.8f,IsAlly?2.0f:3.1f);
             }
             else switch (state)
             {
@@ -413,7 +417,7 @@ namespace SniperRidge
                     break;
             }
 
-            if (tactics==null && state != State.Walking && state != State.Rushing)
+            if (Combat==null && state != State.Walking && state != State.Rushing)
             {
                 Vector3 d = (gm.Armor != null ? gm.EnemyAimPoint : gm.PlayerEye.position) - transform.position;
                 d.y = 0f;
@@ -428,8 +432,8 @@ namespace SniperRidge
             previousRigPosition = rig.position;
             if (motion != null)
                 motion.Drive(actualSpeed, cover, peekSide,
-                    IsAware && (tactics!=null ? tactics.CanShoot : preparingShot || state != State.Walking && state != State.Rushing),
-                    preparingShot ? plannedTarget : tactics!=null ? tactics.LookTarget : gm.EnemyAimPoint, dt);
+                    IsAware && (Combat!=null?Combat.CanShoot: preparingShot || state != State.Walking && state != State.Rushing),
+                    preparingShot ? plannedTarget : Combat!=null?Combat.LookPoint: gm.EnemyAimPoint, dt);
             else if (animator != null)
             {
                 SetAnim("Speed", speedForAnim);
@@ -574,7 +578,7 @@ namespace SniperRidge
         {
             if (IsDead) return;
             SetAware();
-            if(tactics!=null){tactics.Suppress(gm.PlayerEye.position);return;}
+            if(Combat!=null){Combat.Suppress();return;}
             if (Kind == EnemyKind.Cover || Kind == EnemyKind.Tree)
             {
                 state = State.Hidden;
@@ -599,7 +603,7 @@ namespace SniperRidge
                 Kill(headshot, bulletDir);
                 return true;
             }
-            if(tactics!=null)tactics.Suppress(gm.PlayerEye.position);
+            if(Combat!=null)Combat.Suppress();
             // 부상: 돌격 중이면 잠깐 멈칫, 엄폐형이면 숨는다
             if (Kind == EnemyKind.Rusher)
             {
@@ -617,6 +621,9 @@ namespace SniperRidge
             if (IsDead) return;
             IsDead = true;
             Health = 0f;
+            var navigation=GetComponent<AssaultNavigation>();if(navigation!=null)navigation.enabled=false;
+            var marker=transform.Find("Friendly blue marker");if(marker!=null)marker.gameObject.SetActive(false);
+            if(IsAlly && gm!=null)gm.Hud.Announce(name+" 전사 · 남은 동료 "+gm.Assault.AlliesAlive+"명");
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
             if (motion != null) motion.Die(bulletDir, headshot, motion.AnimatedVelocity);
             else
@@ -625,6 +632,7 @@ namespace SniperRidge
                 StartCoroutine(FallDown(bulletDir));
             }
             if (gm != null && gm.Mission == MissionType.Defense) Destroy(gameObject, 25f);
+            if (gm != null && gm.Mission == MissionType.Assault) Destroy(gameObject, 35f);
         }
 
         IEnumerator FallDown(Vector3 bulletDir)
@@ -656,12 +664,12 @@ namespace SniperRidge
         {
             if (preparingShot || Time.time < nextShotTime || !gm.PositionRevealed || staggerTimer > 0f) return;
             if (cover > .7f || (motion != null && !motion.CanFireFromPose) || !HasLineOfSight()) return;
-            if (!gm.TryBeginEnemyAttack()) return;
+            if (!IsAlly && !gm.TryBeginEnemyAttack()) return;
             bool sniper = Role == EnemyRole.Sniper || Role == EnemyRole.RocketTrooper;
             nextShotTime = Time.time + (sniper ? Random.Range(5f, 8f) : Random.Range(minInterval, maxInterval));
             roundsRemaining = EnemyCombatRoles.Rounds(Role);
             burstSpread = sniper ? .4f : spreadRadius;
-            Vector3 target = gm.EnemyAimPoint;
+            Vector3 target = CombatAim;
             Vector3 forward = (target - rifleTip.position).normalized;
             Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
             Vector3 up = Vector3.Cross(forward, right).normalized;
@@ -669,7 +677,7 @@ namespace SniperRidge
             plannedTarget = target + right * spread.x + up * spread.y;
             preparingShot = true;
             aimTimer = EnemyCombatRoles.AimTime(Role);
-            gm.Hud.WarnIncoming(transform.position, aimTimer + (roundsRemaining - 1) * EnemyCombatRoles.BurstInterval + (Role == EnemyRole.RocketTrooper ? Vector3.Distance(rifleTip.position,target)/55f : CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position, target))), RoleName);
+            if(!IsAlly && (Combat==null || Combat.TargetsPlayer))gm.Hud.WarnIncoming(transform.position, aimTimer + (roundsRemaining - 1) * EnemyCombatRoles.BurstInterval + (Role == EnemyRole.RocketTrooper ? Vector3.Distance(rifleTip.position,target)/55f : CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position, target))), RoleName);
         }
 
         void UpdatePreparedShot(float dt)
@@ -707,7 +715,7 @@ namespace SniperRidge
             aimTimer = EnemyCombatRoles.BurstInterval;
         }
 
-        bool HasLineOfSight() => CanSee(gm.EnemyAimPoint);
+        bool HasLineOfSight() => CanSee(CombatAim);
 
         public bool CanSee(Vector3 target)
         {
@@ -719,7 +727,9 @@ namespace SniperRidge
         {
             if (Role == EnemyRole.RocketTrooper && gm.Armor != null)
                 return ArmorProjectile.Obstructed(from,target,transform,gm.Armor.PlayerTank);
-            return EnemyProjectile.WorldHit(from,target,this,out _);
+            if(!EnemyProjectile.WorldHit(from,target,this,out var hit))return false;
+            var hitbox=hit.collider.GetComponent<EnemyHitbox>();
+            return Combat==null || hitbox==null || hitbox.Owner!=Combat.Target;
         }
 
         void FireAtPlayer(Vector3 target)
@@ -727,6 +737,10 @@ namespace SniperRidge
             if (motion != null) motion.Fire();
             Vector3 muzzle = rifleTip.position;
             Effects.Flash(muzzle, new Color(1f, .8f, .5f), 4f, 6f, .06f);
+            if(Combat!=null && Role==EnemyRole.RocketTrooper)
+            {
+                InfantryRocket.Launch(this,muzzle,target);gm.PlaySound(gm.Sounds.RocketLaunch,.45f);return;
+            }
             if (Role == EnemyRole.RocketTrooper && gm.Armor != null)
             {
                 ArmorProjectile.Launch(muzzle,(target-muzzle).normalized,transform,false,45f,55f,true);
@@ -734,6 +748,7 @@ namespace SniperRidge
             }
             float damage = Role == EnemyRole.Sniper ? Random.Range(24f, 30f) : Random.Range(6f, 9f);
             if(gm.Mission==MissionType.Assault)damage*=.65f;
+            if(IsAlly)damage=Role==EnemyRole.Sniper?55f:18f;
             EnemyProjectile.Launch(gm, this, muzzle, target, damage);
             gm.StartCoroutine(gm.EnemyShotSound(muzzle, EnemyCombatRoles.Sound(Role)));
         }

@@ -47,7 +47,8 @@ namespace SniperRidge
                 inst.transform.localScale = Vector3.one;
                 var lod = inst.GetComponent<LODGroup>();
                 if (lod != null) lod.ForceLOD(0); // First-person equipment always uses the detailed mesh.
-                foreach (var c in inst.GetComponentsInChildren<Collider>()) { c.enabled = false; Object.Destroy(c); }
+                foreach (var c in inst.GetComponentsInChildren<Collider>())
+                {c.enabled=false;if(Application.isPlaying)Object.Destroy(c);else Object.DestroyImmediate(c);}
                 foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.shadowCastingMode = ShadowCastingMode.Off;
                 return inst;
             }
@@ -123,7 +124,7 @@ namespace SniperRidge
             r.material = mat;
             r.shadowCastingMode = ShadowCastingMode.Off;
             go.GetComponent<Collider>().enabled = false;
-            Object.Destroy(go.GetComponent<Collider>());
+            if(Application.isPlaying)Object.Destroy(go.GetComponent<Collider>());else Object.DestroyImmediate(go.GetComponent<Collider>());
         }
     }
 }

@@ -8,7 +8,7 @@ namespace SniperRidge
     public static class GunnerHands
     {
         static Material glove, seam, sleeve;
-        public static void Build(Transform grip, float side)
+        public static void Build(Transform grip, float side,bool includeSleeve=true)
         {
             if (glove == null)
             {
@@ -38,6 +38,7 @@ namespace SniperRidge
             }, .014f, .010f, glove);
             var wrist = new Vector3(side * .043f, -.065f, -.06f);
             Tube(hand, "Glove wrist", new[] { wrist, wrist + new Vector3(side * .024f, -.045f, -.06f) }, .035f, .039f, glove);
+            if(!includeSleeve)return;
             Tube(hand, "Sleeve cuff", new[] { wrist + new Vector3(side * .02f, -.035f, -.047f), wrist + new Vector3(side * .038f, -.067f, -.095f) }, .043f, .046f, seam);
             Tube(hand, "Forearm sleeve", new[] {
                 wrist + new Vector3(side * .035f, -.06f, -.085f),
@@ -95,6 +96,10 @@ namespace SniperRidge
     }
     public sealed class OwnedHandMesh : MonoBehaviour
     {
-        void OnDestroy() { var filter = GetComponent<MeshFilter>(); if (filter != null && filter.sharedMesh != null) Destroy(filter.sharedMesh); }
+        void OnDestroy()
+        {
+            var filter=GetComponent<MeshFilter>();if(filter==null||filter.sharedMesh==null)return;
+            if(Application.isPlaying)Destroy(filter.sharedMesh);else DestroyImmediate(filter.sharedMesh);
+        }
     }
 }

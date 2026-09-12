@@ -38,6 +38,7 @@ namespace SniperRidge
         public float Breath { get; private set; } = 1f;
         public bool HoldingBreath { get; private set; }
         public WeaponState State { get; private set; } = WeaponState.Ready;
+        FpsWeaponHands hands;
         public string ZoomLabel => Weapon != null ? Weapon.ScopeLabels[zoomIndex] : "";
         public float CurrentScopeFov => Weapon != null ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
         public Transform Eye => cam.transform;
@@ -189,7 +190,7 @@ namespace SniperRidge
             IsScoped = false;
             if (weaponModel != null) { weaponModel.SetActive(false); Destroy(weaponModel); }
             weaponModel = WeaponModels.Build(IsMounted ? flight.GunnerStation : cam.transform, weapon);
-            if (IsFreeRoam && weaponModel != null && !weapon.IsRocket) FpsWeaponHands.Attach(weaponModel.transform);
+            hands=IsFreeRoam && weaponModel!=null?FpsWeaponHands.Attach(weaponModel.transform,weapon):null;
             doorGun = weaponModel != null ? weaponModel.GetComponent<DoorGunView>() : null;
             if (doorGun != null) { doorGun.Attach(cam); doorGun.Pose(yaw, pitch); }
             muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);
@@ -217,6 +218,13 @@ namespace SniperRidge
             ActivateSlot();
             LockCursor();
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+        }
+        void SelectFpsWeapon(int index)
+        {
+            if(!CanSwitchWeapon||!IsFreeRoam)return;
+            loadout.Active.Zoom=zoomIndex;loadout.Active.Zero=ZeroRange;
+            loadout.Active.ReadyAt=Time.time+Mathf.Max(fireTimer,State==WeaponState.Bolting?stateTimer:0f);
+            if(loadout.Select(index))ActivateSlot();
         }
 
         // ---------- 외부(터치 UI) 입력 ----------
@@ -359,10 +367,12 @@ namespace SniperRidge
                 }
                 else
                 {
-                    Vector3 offset=IsFreeRoam && IsScoped && !Weapon.IsRocket ? new Vector3(0,-.17f,.39f) : Weapon.ViewOffset;
-                    Vector3 resting=offset + Vector3.down * lower * .42f;
+                    Vector3 offset=IsFreeRoam ? (IsScoped && !Weapon.IsRocket?new Vector3(0,-.13f,.60f):new Vector3(.13f,-.085f,.60f)) : Weapon.ViewOffset;
+                    Vector3 resting=offset + Vector3.down * lower * (IsFreeRoam?.055f:.42f);
                     weaponModel.transform.localPosition = IsFreeRoam ? Vector3.Lerp(weaponModel.transform.localPosition,resting,dt*16f) : resting;
                     weaponModel.transform.localRotation = Quaternion.Euler(lower * 30f, 0f, lower * -12f);
+                    if(hands!=null)hands.Pose(State==WeaponState.Reloading?1f-stateTimer/Weapon.ReloadTime:-1f,
+                        State==WeaponState.Bolting?1f-stateTimer/Mathf.Max(.01f,Weapon.BoltTime):-1f);
                 }
             }
 
@@ -435,7 +445,11 @@ namespace SniperRidge
             if (Input.GetKeyDown(KeyCode.Q)) { ToggleLauncher(); return; }
             if (Input.GetMouseButtonDown(0)) fireQueued = true;
             fireHeld = Input.GetMouseButton(0);
-            if (IsFreeRoam) IsScoped=Input.GetMouseButton(1) && CanFireFromCover;
+            if (IsFreeRoam)
+            {
+                IsScoped=Input.GetMouseButton(1) && CanFireFromCover && State!=WeaponState.Reloading;
+                for(int i=0;i<4;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))SelectFpsWeapon(i);
+            }
             else if (Input.GetMouseButtonDown(1)) scopeToggleQueued = true;
             if (Input.GetKeyDown(KeyCode.R)) reloadQueued = true;
             if (Input.GetKeyDown(KeyCode.Z) || Mathf.Abs(Input.mouseScrollDelta.y) > 0.01f) zoomQueued = true;

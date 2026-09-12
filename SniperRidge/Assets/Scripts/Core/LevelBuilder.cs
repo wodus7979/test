@@ -283,18 +283,19 @@ namespace SniperRidge
             return enemy;
         }
 
-        public static EnemySoldier SpawnAssaultSoldier(GameManager gm,Vector3 p,bool cover,int ordinal)
+        public static EnemySoldier SpawnAssaultSoldier(GameManager gm,Vector3 p,bool cover,int ordinal,EnemyRole role=EnemyRole.MachineGunner,bool ally=false,bool roof=false)
         {
             EnsureEnemyMaterials();
             var spawn=new EnemySpawn(p.x,p.z,cover?EnemyKind.Cover:EnemyKind.Rusher,
-                role:EnemyRole.MachineGunner,uniformVariant:ordinal%3);
+                role:role,uniformVariant:ordinal%3,surfaceY:roof?p.y:float.NaN);
             var enemy=EnemySoldier.Create("Urban enemy "+ordinal,gm.Terrain,spawn,gm.PlayerEye.position,AssaultLayout.EnemyScale,
                 enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(ordinal+9201),false);
-            enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);
+            enemy.transform.SetParent(EnemyRoot(),true);if(!ally)gm.RegisterEnemy(enemy);
+            var combat=enemy.gameObject.AddComponent<InfantryCombat>();combat.Ally=ally;combat.Post=cover;combat.SquadIndex=ordinal%4;
+            enemy.AttachCombat(combat);
             if(!cover)
             {
                 enemy.gameObject.AddComponent<AssaultNavigation>();
-                enemy.gameObject.AddComponent<AssaultTactics>();
             }
             return enemy;
         }

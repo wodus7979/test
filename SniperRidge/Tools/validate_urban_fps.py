@@ -67,16 +67,28 @@ def main():
         routes.append(length);previous=objective
     assert len(OBJECTIVES)==6 and len(DATA['buildings'])==64
     layout=(ROOT/'Assets/Scripts/Assault/AssaultLayout.cs').read_text()
-    assert 'SecureSeconds=100f' in layout and 'wave==0?6:5' in layout and 'MaxAlive=12' in layout
+    assert 'SecureSeconds=2f' in layout and 'CaptureRadius=3.2f' in layout and 'MaxAlive=24' in layout
     # Buildings conceal multiple entrances from the capture centre at full enemy head height.
     hidden=[]
     for sector,centre in enumerate(OBJECTIVES):
         count=sum(any(b.hit(centre+[0,1.68,0],p+[0,2.45,0]) for b in boxes) for p in entries[sector*12:sector*12+12])
         assert count>=6,('Not enough concealed entrances',sector,count);hidden.append(count)
+    # Random reinforcement candidates must work around each flag, not only at authored entry slots.
+    rng=np.random.default_rng(913)
+    for sector,centre in enumerate(OBJECTIVES):
+        legal=[];quadrants=set()
+        for attempt in range(600):
+            angle=rng.uniform(0,2*math.pi);radius=rng.uniform(26,52)
+            point=centre+[math.sin(angle)*radius,0,math.cos(angle)*radius]
+            if abs(point[0])>limit or abs(point[2])>limit or distance[cell(point)]<0:continue
+            if not any(b.hit(centre+[0,1.68,0],point+[0,2.45,0]) for b in boxes):continue
+            legal.append(point);quadrants.add((point[0]>centre[0],point[2]>centre[2]))
+        assert len(legal)>=20 and len(quadrants)>=3,('Sparse random reinforcement area',sector,len(legal),quadrants)
+    print('PASS: randomized, connected and concealed reinforcement candidates around all 6 flags')
     with wave.open(str(ROOT/'Assets/Resources/Audio/fps_footstep.wav'),'rb') as w:
         assert (w.getframerate(),w.getnchannels(),w.getsampwidth())==(48000,2,2)
-    print(f'PASS: {len(DATA["buildings"])} buildings, {len(DATA["props"])} props / {len(boxes)} collider boxes; 6 objectives, 24 cover posts, 72 entrance slots reachable')
+    print(f'PASS: {len(DATA["buildings"])} buildings, {len(DATA["props"])} props / {len(boxes)} collider boxes; 6 objectives, 24 cover posts, 72 sampled approach slots reachable')
     print('PASS: route lengths (m):',routes,'; concealed entrance slots per sector:',hidden)
-    print('PASS: 600 s capture, 156 enemies, max 12 simultaneous; 304 m square play area')
+    print('PASS: 6 flags, 2 s interaction, max 24 enemies; 304 m square play area; runtime reinforcements use random validated positions')
     print('Limits: source geometry and conservative grid only; Unity compile, NavMesh, actual spawn visibility and Play still require editor.')
 if __name__=='__main__':main()

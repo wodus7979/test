@@ -8,8 +8,27 @@ namespace SniperRidge
     {
         static readonly List<AssaultNavigation> active=new List<AssaultNavigation>();
         EnemySoldier owner;
-        void OnEnable(){owner=GetComponent<EnemySoldier>();active.Add(this);}
-        void OnDisable(){active.Remove(this);}
+        NavMeshAgent agent;
+        void OnEnable()
+        {
+            owner=GetComponent<EnemySoldier>();active.Add(this);
+            if(Application.isPlaying && NavMesh.SamplePosition(transform.position,out var start,3f,NavMesh.AllAreas))
+            {
+                transform.position=start.position;
+                agent=GetComponent<NavMeshAgent>();if(agent==null)agent=gameObject.AddComponent<NavMeshAgent>();
+                agent.agentTypeID=NavMesh.GetSettingsByIndex(0).agentTypeID;
+                agent.updateRotation=false;agent.radius=.42f;agent.height=2.5f;agent.baseOffset=0;
+                agent.acceleration=18f;agent.angularSpeed=540f;agent.stoppingDistance=.25f;agent.autoRepath=true;
+                agent.avoidancePriority=Random.Range(25,75);agent.Warp(start.position);
+            }
+        }
+        void OnDisable(){active.Remove(this);if(agent!=null)agent.enabled=false;}
+        void Update()
+        {
+            if(agent==null||!agent.enabled||!agent.isOnNavMesh)return;
+            if(owner==null||owner.IsDead){agent.enabled=false;return;}
+            if(GameManager.Instance==null||!GameManager.Instance.IsPlaying)agent.isStopped=true;
+        }
         readonly NavMeshPath path=new NavMeshPath();
         Vector3[] corners;
         int corner;
@@ -19,6 +38,17 @@ namespace SniperRidge
         public void Repath(){refresh=0;corners=null;}
         public Vector3 Direction(Vector3 target)
         {
+            if(agent!=null && agent.enabled && agent.isOnNavMesh)
+            {
+                if(Time.time>=refresh || (target-lastTarget).sqrMagnitude>1f)
+                {
+                    refresh=Time.time+.45f;lastTarget=target;
+                    if(NavMesh.SamplePosition(target,out var destination,3f,NavMesh.AllAreas))agent.SetDestination(destination.position);
+                }
+                var direction=agent.desiredVelocity;
+                if(direction.sqrMagnitude<.001f && (agent.pathPending || !agent.hasPath))direction=target-transform.position;
+                direction.y=0;return direction.normalized;
+            }
             if(Time.time>=refresh || (target-lastTarget).sqrMagnitude>1f)
             {
                 lastTarget=target;
@@ -43,6 +73,10 @@ namespace SniperRidge
         }
         public void Move(Vector3 direction,float speed,float dt)
         {
+            if(agent!=null && agent.enabled && agent.isOnNavMesh)
+            {
+                agent.speed=Mathf.Max(0,speed);agent.isStopped=speed<.01f;return;
+            }
             if(direction.sqrMagnitude<.001f)return;
             Vector3 separation=Vector3.zero;
             foreach(var other in active)

@@ -23,6 +23,7 @@ namespace OriginalFirearmAssets
 
         // Sniper Ridge: 런타임에서 Resources.Load 로 불러 쓰도록 고정 경로에 생성한다.
         public const string Target = "Assets/Resources/Weapons";
+        const string Revision="reload-parts-1";
 
         [MenuItem("Sniper Ridge/총기 프리팹 생성 (Firearm Asset Pack)")]
         public static void Build() { Build(true); }
@@ -32,6 +33,7 @@ namespace OriginalFirearmAssets
         {
             if (!AssetDatabase.IsValidFolder(Root + "/Source")) return;
             string[] sources = Directory.GetFiles(Root + "/Source", "*.json");
+            if(!File.Exists(Target+"/revision.txt") || File.ReadAllText(Target+"/revision.txt")!=Revision){Build(true);return;}
             bool missing = false;
             foreach (string path in sources)
                 if (!File.Exists(Target + "/Prefabs/" + Path.GetFileNameWithoutExtension(path) + ".prefab")) { missing = true; break; }
@@ -61,6 +63,7 @@ namespace OriginalFirearmAssets
                     completed++;
                 }
                 AssetDatabase.SaveAssets();
+                File.WriteAllText(Target+"/revision.txt",Revision);
                 AssetDatabase.Refresh();
                 Debug.Log("[Sniper Ridge] 총기 프리팹 " + completed + "개 생성: " + target + "/Prefabs (단위 m, 총구 방향 +Z)");
             }
@@ -103,6 +106,8 @@ namespace OriginalFirearmAssets
 
         static string Group(string name)
         {
+            if(name.StartsWith("bolt_")||name.StartsWith("charging_handle"))return "Bolt";
+            if(name=="feed_cover")return "FeedCover";
             if (name.StartsWith("magazine")) return "Magazine";
             if (name.StartsWith("ammunition_box") || name.StartsWith("box_")) return "AmmoBox";
             if (name.StartsWith("scope") || name.StartsWith("ocular") || name.StartsWith("objective") ||

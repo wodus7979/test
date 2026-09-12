@@ -102,6 +102,7 @@ namespace SniperRidge
 
             if (hitbox != null && hitbox.Owner != null && !hitbox.Owner.IsDead)
             {
+                if(hitbox.Owner.IsAlly){Destroy(gameObject);return;}
                 bool killed = hitbox.Owner.TakeHit(damage, hitbox.IsHead, vel.normalized);
                 BloodImpact.Emit(hit.point, hit.normal, vel.normalized, hitbox.IsHead);
                 if (gm != null)

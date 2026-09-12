@@ -101,8 +101,7 @@ namespace SniperRidge
                 var objective=AssaultLayout.Objectives[sector];
                 RequireRoute(previous,objective);previous=objective;
                 for(int slot=0;slot<4;slot++)RequireRoute(AssaultLayout.CoverPost(sector,slot),objective);
-                for(int wave=0;wave<AssaultLayout.Waves;wave++)
-                    for(int slot=0;slot<12;slot++)RequireRoute(AssaultLayout.Entry(sector,wave,slot),objective);
+                for(int slot=0;slot<12;slot++)RequireRoute(AssaultLayout.ApproachSample(sector,slot),objective);
             }
         }
         static void RequireRoute(Vector3 from,Vector3 to)
