@@ -14,7 +14,7 @@ namespace SniperRidge.EditorTools
     public static class CityPackSetup
     {
         const string Output = "Assets/Resources/CityPack";
-        const string Revision = "city-stone-streets-4";
+        const string Revision = "military-town-1";
         static bool building;
         static string Source => Path.GetFullPath(Path.Combine(Application.dataPath,
             "../../city_fps_textured_v2/Unity/Assets/KoreanCityPackTextured"));
@@ -64,7 +64,8 @@ namespace SniperRidge.EditorTools
                 {
                     string name = CityBattlefield.RequiredModels[i];
                     EditorUtility.DisplayProgressBar("Sniper Ridge 도시 에셋", name, (float)i / CityBattlefield.RequiredModels.Length);
-                    var model = JsonUtility.FromJson<Model>(File.ReadAllText(Source + "/Source/" + name + ".json"));
+                    string modelPath=name.StartsWith("town_")?"Assets/TownAssetPack/Source/"+name+".json":Source+"/Source/"+name+".json";
+                    var model = JsonUtility.FromJson<Model>(File.ReadAllText(modelPath));
                     Validate(model, materials.Length);
                     BuildPrefab(model, materials, Output);
                 }
@@ -125,7 +126,7 @@ namespace SniperRidge.EditorTools
             if (shader == null) throw new InvalidOperationException("Cannot find shader " + shaderName);
             Texture2D atlas = LoadTexture("Source/sign_atlas.png", false, true);
             var windows=UrbanSurfaceAssets.Windows();
-            var result = new Material[file.materials.Length+1];
+            var result = new Material[file.materials.Length+3];
             for (int i = 0; i < file.materials.Length; i++)
             {
                 var info = file.materials[i]; var material = new Material(shader) { name = info.name, enableInstancing = true };
@@ -185,6 +186,15 @@ namespace SniperRidge.EditorTools
             SetFloat(stone,"_Metallic",0);SetFloat(stone,"_Glossiness",.08f);SetFloat(stone,"_Smoothness",.08f);
             stone.mainTextureScale=Vector2.one;
             result[UrbanSurfaceAssets.StoneSlot]=SaveAsset(stone,output+"/Materials/AgedStone.mat");
+            var canvas=new Material(shader){name="TownCanvas",color=new Color(.38f,.38f,.23f),enableInstancing=true};
+            SetTexture(canvas,LoadTexture("Textures/PBR/concrete_albedo.jpg",false,true),"_MainTex","_BaseMap","_BaseColorMap");
+            SetFloat(canvas,"_Metallic",0);SetFloat(canvas,"_Glossiness",.03f);SetFloat(canvas,"_Smoothness",.03f);
+            result[25]=SaveAsset(canvas,output+"/Materials/TownCanvas.mat");
+            var wall=new Material(shader){name="TownWall",color=new Color(.77f,.80f,.78f),enableInstancing=true};
+            SetTexture(wall,UrbanSurfaceAssets.Plaster(),"_MainTex","_BaseMap","_BaseColorMap");
+            SetTexture(wall,LoadTexture("Textures/PBR/concrete_normal_unity.png",true,false),"_BumpMap","_NormalMap");
+            wall.EnableKeyword("_NORMALMAP");SetFloat(wall,"_BumpScale",.15f);SetFloat(wall,"_Glossiness",.04f);SetFloat(wall,"_Smoothness",.04f);SetFloat(wall,"_Metallic",0);
+            result[26]=SaveAsset(wall,output+"/Materials/TownWall.mat");
             var road=UrbanSurfaceAssets.Asphalt();
             var asphalt=result[9];SetTexture(asphalt,road,"_MainTex","_BaseMap","_BaseColorMap");EditorUtility.SetDirty(asphalt);
             return result;
@@ -214,7 +224,7 @@ namespace SniperRidge.EditorTools
                     // Reflecting Z reverses the geometric normal. Reverse indices too so the
                     // Unity triangle normal agrees with the transformed outward source normal.
                     for(int i=0;i<count;i+=3){int swap=indices[i+1];indices[i+1]=indices[i+2];indices[i+2]=swap;}
-                    triangles.Add(indices); slots.Add(materials[p.mat]);
+                    triangles.Add(indices);slots.Add(materials[model.name.StartsWith("town_")&&model.category=="building"&&p.mat<=2?26:p.mat]);
                 }
                 var mesh = new Mesh { name = model.name, indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
                 mesh.SetVertices(vertices); mesh.SetNormals(normals); mesh.SetUVs(0, uv); mesh.subMeshCount = triangles.Count;

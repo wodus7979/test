@@ -12,7 +12,7 @@ DATA = json.loads((PROJECT / 'Assets/Resources/Maps/city_combat.json').read_text
 CODE = (PROJECT / 'Assets/Scripts/World/CityLayout.cs').read_text()
 RUNTIME = (PROJECT / 'Assets/Scripts/World/CityBattlefield.cs').read_text()
 NAMES = re.findall(r'"([a-z_0-9]+)"', RUNTIME.split('RequiredModels = {')[1].split('};')[0])
-MODELS = {n: json.loads((SOURCE / f'Source/{n}.json').read_text()) for n in NAMES}
+MODELS = {n: json.loads(((PROJECT/'Assets/TownAssetPack/Source'/f'{n}.json') if n.startswith('town_') else (SOURCE / f'Source/{n}.json')).read_text()) for n in NAMES}
 def const(name): return float(re.search(r'const float '+name+r' = ([.0-9]+)f', CODE)[1])
 BASE = 12.04
 FLOOR = np.array([0., 11.1, -100.])

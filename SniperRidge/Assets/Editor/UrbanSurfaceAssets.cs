@@ -13,6 +13,12 @@ namespace SniperRidge.EditorTools
             AssetDatabase.ImportAsset(path,ImportAssetOptions.ForceSynchronousImport);Configure(path);
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
+        public static Texture2D Plaster()
+        {
+            const string path="Assets/Resources/UrbanDetail/aged_plaster.png";
+            AssetDatabase.ImportAsset(path,ImportAssetOptions.ForceSynchronousImport);Configure(path);
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
         public static Texture2D Windows()
         {
             const int size=512;var pixels=new Color[size*size];

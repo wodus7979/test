@@ -7,480 +7,480 @@
   },
   "objectives": [
     {
-      "name": "남부 검문소",
+      "name": "남부 상점 골목",
       "x": 0,
       "z": -108
     },
     {
-      "name": "주거단지 동문",
+      "name": "정비소 교차로",
       "x": 72,
       "z": -72
     },
     {
-      "name": "보급 야적장",
+      "name": "동부 시장길",
       "x": 72,
       "z": 0
     },
     {
-      "name": "중앙 광장",
+      "name": "중앙 안뜰",
       "x": 0,
       "z": 36
     },
     {
-      "name": "공장 검문소",
+      "name": "서부 물류 골목",
       "x": -72,
       "z": 72
     },
     {
-      "name": "북부 통신 지휘소",
+      "name": "북부 통신소",
       "x": 0,
       "z": 108
     }
   ],
   "buildings": [
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": -126,
       "y": 12.04,
       "z": -126,
       "yaw": 90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": -90,
       "y": 12.04,
       "z": -126,
       "yaw": -90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": -126,
       "y": 12.04,
       "z": -90,
       "yaw": 90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": -90,
       "y": 12.04,
       "z": -90,
       "yaw": -90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": -54,
       "y": 12.04,
       "z": -126,
       "yaw": 90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": -18,
       "y": 12.04,
       "z": -126,
       "yaw": -90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": -54,
       "y": 12.04,
       "z": -90,
       "yaw": 90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": -18,
       "y": 12.04,
       "z": -90,
       "yaw": -90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": 18,
       "y": 12.04,
       "z": -126,
       "yaw": 90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": 54,
       "y": 12.04,
       "z": -126,
       "yaw": -90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": 18,
       "y": 12.04,
       "z": -90,
       "yaw": 90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": 54,
       "y": 12.04,
       "z": -90,
       "yaw": -90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": 90,
       "y": 12.04,
       "z": -126,
       "yaw": 90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": 126,
       "y": 12.04,
       "z": -126,
       "yaw": -90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": 90,
       "y": 12.04,
       "z": -90,
       "yaw": 90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": 126,
       "y": 12.04,
       "z": -90,
       "yaw": -90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": -126,
       "y": 12.04,
       "z": -54,
       "yaw": 90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": -90,
       "y": 12.04,
       "z": -54,
       "yaw": -90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": -126,
       "y": 12.04,
       "z": -18,
       "yaw": 90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": -90,
       "y": 12.04,
       "z": -18,
       "yaw": -90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": -54,
       "y": 12.04,
       "z": -54,
       "yaw": 90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": -18,
       "y": 12.04,
       "z": -54,
       "yaw": -90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": -54,
       "y": 12.04,
       "z": -18,
       "yaw": 90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": -18,
       "y": 12.04,
       "z": -18,
       "yaw": -90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": 18,
       "y": 12.04,
       "z": -54,
       "yaw": 90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": 54,
       "y": 12.04,
       "z": -54,
       "yaw": -90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": 18,
       "y": 12.04,
       "z": -18,
       "yaw": 90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": 54,
       "y": 12.04,
       "z": -18,
       "yaw": -90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": 90,
       "y": 12.04,
       "z": -54,
       "yaw": 90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": 126,
       "y": 12.04,
       "z": -54,
       "yaw": -90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": 90,
       "y": 12.04,
       "z": -18,
       "yaw": 90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": 126,
       "y": 12.04,
       "z": -18,
       "yaw": -90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": -126,
       "y": 12.04,
       "z": 18,
       "yaw": 90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": -90,
       "y": 12.04,
       "z": 18,
       "yaw": -90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": -126,
       "y": 12.04,
       "z": 54,
       "yaw": 90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": -90,
       "y": 12.04,
       "z": 54,
       "yaw": -90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": -54,
       "y": 12.04,
       "z": 18,
       "yaw": 90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": -18,
       "y": 12.04,
       "z": 18,
       "yaw": -90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": -54,
       "y": 12.04,
       "z": 54,
       "yaw": 90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": -18,
       "y": 12.04,
       "z": 54,
       "yaw": -90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": 18,
       "y": 12.04,
       "z": 18,
       "yaw": 90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": 54,
       "y": 12.04,
       "z": 18,
       "yaw": -90
     },
     {
-      "asset": "town_command",
+      "asset": "office_midrise",
       "x": 18,
       "y": 12.04,
       "z": 54,
       "yaw": 90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": 54,
       "y": 12.04,
       "z": 54,
       "yaw": -90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": 90,
       "y": 12.04,
       "z": 18,
       "yaw": 90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": 126,
       "y": 12.04,
       "z": 18,
       "yaw": -90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": 90,
       "y": 12.04,
       "z": 54,
       "yaw": 90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": 126,
       "y": 12.04,
       "z": 54,
       "yaw": -90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": -126,
       "y": 12.04,
       "z": 90,
       "yaw": 90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": -90,
       "y": 12.04,
       "z": 90,
       "yaw": -90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": -126,
       "y": 12.04,
       "z": 126,
       "yaw": 90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": -90,
       "y": 12.04,
       "z": 126,
       "yaw": -90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": -54,
       "y": 12.04,
       "z": 90,
       "yaw": 90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": -18,
       "y": 12.04,
       "z": 90,
       "yaw": -90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": -54,
       "y": 12.04,
       "z": 126,
       "yaw": 90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": -18,
       "y": 12.04,
       "z": 126,
       "yaw": -90
     },
     {
-      "asset": "town_command",
+      "asset": "office_midrise",
       "x": 18,
       "y": 12.04,
       "z": 90,
       "yaw": 90
     },
     {
-      "asset": "town_residential",
+      "asset": "apartment_slab",
       "x": 54,
       "y": 12.04,
       "z": 90,
       "yaw": -90
     },
     {
-      "asset": "town_shops",
+      "asset": "retail_row",
       "x": 18,
       "y": 12.04,
       "z": 126,
       "yaw": 90
     },
     {
-      "asset": "town_tenement",
+      "asset": "office_midrise",
       "x": 54,
       "y": 12.04,
       "z": 126,
       "yaw": -90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": 90,
       "y": 12.04,
       "z": 90,
       "yaw": 90
     },
     {
-      "asset": "town_apartment",
+      "asset": "office_tower",
       "x": 126,
       "y": 12.04,
       "z": 90,
       "yaw": -90
     },
     {
-      "asset": "town_hangar",
+      "asset": "warehouse",
       "x": 90,
       "y": 12.04,
       "z": 126,
       "yaw": 90
     },
     {
-      "asset": "town_factory",
+      "asset": "auto_workshop",
       "x": 126,
       "y": 12.04,
       "z": 126,
@@ -1695,581 +1695,6 @@
       "z": 108,
       "yaw": 0,
       "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": 7,
-      "y": 12,
-      "z": -108,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": 65,
-      "y": 12,
-      "z": -72,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": 79,
-      "y": 12,
-      "z": -72,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": 65,
-      "y": 12,
-      "z": 0,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": 79,
-      "y": 12,
-      "z": 0,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": -7,
-      "y": 12,
-      "z": 32,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": 7,
-      "y": 12,
-      "z": 36,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": -79,
-      "y": 12,
-      "z": 72,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": -65,
-      "y": 12,
-      "z": 72,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_watchpost",
-      "x": 7,
-      "y": 12,
-      "z": 108,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_tent",
-      "x": -108,
-      "y": 12,
-      "z": -36,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "shipping_container",
-      "x": -28,
-      "y": 12,
-      "z": 108,
-      "yaw": 90,
-      "original": false
-    },
-    {
-      "asset": "town_tent",
-      "x": 108,
-      "y": 12,
-      "z": 108,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "shipping_container",
-      "x": 116,
-      "y": 12,
-      "z": 108,
-      "yaw": 90,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": -102,
-      "y": 12,
-      "z": -115,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": -102,
-      "y": 12,
-      "z": -43,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": -102,
-      "y": 12,
-      "z": 29,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": -102,
-      "y": 12,
-      "z": 101,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": 42,
-      "y": 12,
-      "z": -115,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": 42,
-      "y": 12,
-      "z": -43,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": 42,
-      "y": 12,
-      "z": 29,
-      "yaw": 0,
-      "original": false
-    },
-    {
-      "asset": "town_rubble",
-      "x": 42,
-      "y": 12,
-      "z": 101,
-      "yaw": 0,
-      "original": false
-    }
-  ],
-  "theme": "military_town",
-  "greenery": [
-    {
-      "x": -113.94,
-      "z": -99.91,
-      "scale": 0.91,
-      "pine": false
-    },
-    {
-      "x": -102.98,
-      "z": -103.91,
-      "scale": 0.93,
-      "pine": true
-    },
-    {
-      "x": -109.9,
-      "z": -101.92,
-      "scale": 0.92,
-      "pine": true
-    },
-    {
-      "x": -116.51,
-      "z": -110.54,
-      "scale": 0.92,
-      "pine": false
-    },
-    {
-      "x": -116.08,
-      "z": -114.48,
-      "scale": 0.89,
-      "pine": true
-    },
-    {
-      "x": -102.55,
-      "z": -32.76,
-      "scale": 0.76,
-      "pine": true
-    },
-    {
-      "x": -116.05,
-      "z": -30.53,
-      "scale": 0.72,
-      "pine": false
-    },
-    {
-      "x": -116.42,
-      "z": -35.59,
-      "scale": 0.84,
-      "pine": true
-    },
-    {
-      "x": -106.79,
-      "z": -29.86,
-      "scale": 0.73,
-      "pine": true
-    },
-    {
-      "x": -112.52,
-      "z": 43.81,
-      "scale": 0.83,
-      "pine": false
-    },
-    {
-      "x": -102.87,
-      "z": 35.75,
-      "scale": 0.7,
-      "pine": true
-    },
-    {
-      "x": -111.49,
-      "z": 29.97,
-      "scale": 0.78,
-      "pine": true
-    },
-    {
-      "x": -107.18,
-      "z": 41.7,
-      "scale": 0.7,
-      "pine": false
-    },
-    {
-      "x": -111.73,
-      "z": 99.13,
-      "scale": 0.95,
-      "pine": true
-    },
-    {
-      "x": -102.44,
-      "z": 104.84,
-      "scale": 0.8,
-      "pine": true
-    },
-    {
-      "x": -116.55,
-      "z": 103.42,
-      "scale": 0.75,
-      "pine": false
-    },
-    {
-      "x": -105.6,
-      "z": 116.41,
-      "scale": 0.72,
-      "pine": true
-    },
-    {
-      "x": -37.69,
-      "z": -100.75,
-      "scale": 0.91,
-      "pine": true
-    },
-    {
-      "x": -40.16,
-      "z": -104.45,
-      "scale": 0.65,
-      "pine": false
-    },
-    {
-      "x": -32.99,
-      "z": -103.81,
-      "scale": 0.85,
-      "pine": true
-    },
-    {
-      "x": -42.5,
-      "z": -109.87,
-      "scale": 0.9,
-      "pine": true
-    },
-    {
-      "x": -27.64,
-      "z": -37.22,
-      "scale": 0.77,
-      "pine": false
-    },
-    {
-      "x": -34.12,
-      "z": -40.78,
-      "scale": 0.82,
-      "pine": true
-    },
-    {
-      "x": -39.79,
-      "z": -29.56,
-      "scale": 0.73,
-      "pine": true
-    },
-    {
-      "x": -33.34,
-      "z": -30.51,
-      "scale": 0.8,
-      "pine": false
-    },
-    {
-      "x": -31.88,
-      "z": 30.62,
-      "scale": 0.68,
-      "pine": true
-    },
-    {
-      "x": -27.25,
-      "z": 39.01,
-      "scale": 0.76,
-      "pine": true
-    },
-    {
-      "x": -41.38,
-      "z": 35.97,
-      "scale": 0.67,
-      "pine": false
-    },
-    {
-      "x": -40.56,
-      "z": 27.97,
-      "scale": 0.92,
-      "pine": true
-    },
-    {
-      "x": -38.02,
-      "z": 112.74,
-      "scale": 0.67,
-      "pine": true
-    },
-    {
-      "x": -43.74,
-      "z": 103.75,
-      "scale": 0.69,
-      "pine": false
-    },
-    {
-      "x": -41.76,
-      "z": 113.94,
-      "scale": 0.86,
-      "pine": true
-    },
-    {
-      "x": -29.78,
-      "z": 113.17,
-      "scale": 0.87,
-      "pine": true
-    },
-    {
-      "x": 32.6,
-      "z": -114.79,
-      "scale": 0.91,
-      "pine": false
-    },
-    {
-      "x": 40.89,
-      "z": -106.83,
-      "scale": 0.76,
-      "pine": true
-    },
-    {
-      "x": 28.33,
-      "z": -108.34,
-      "scale": 0.87,
-      "pine": true
-    },
-    {
-      "x": 40.82,
-      "z": -102.18,
-      "scale": 0.86,
-      "pine": false
-    },
-    {
-      "x": 38.08,
-      "z": -30.42,
-      "scale": 0.77,
-      "pine": true
-    },
-    {
-      "x": 32.88,
-      "z": -31.52,
-      "scale": 0.68,
-      "pine": true
-    },
-    {
-      "x": 44.54,
-      "z": -30.25,
-      "scale": 0.82,
-      "pine": false
-    },
-    {
-      "x": 33.47,
-      "z": -27.7,
-      "scale": 0.81,
-      "pine": true
-    },
-    {
-      "x": 30.69,
-      "z": 43.97,
-      "scale": 0.83,
-      "pine": true
-    },
-    {
-      "x": 40.59,
-      "z": 41.25,
-      "scale": 0.73,
-      "pine": false
-    },
-    {
-      "x": 31.46,
-      "z": 27.15,
-      "scale": 0.77,
-      "pine": true
-    },
-    {
-      "x": 44.25,
-      "z": 33.5,
-      "scale": 0.8,
-      "pine": true
-    },
-    {
-      "x": 28.5,
-      "z": 102.95,
-      "scale": 0.93,
-      "pine": false
-    },
-    {
-      "x": 40.14,
-      "z": 111.29,
-      "scale": 0.79,
-      "pine": true
-    },
-    {
-      "x": 36.18,
-      "z": 105.35,
-      "scale": 0.84,
-      "pine": true
-    },
-    {
-      "x": 33.65,
-      "z": 101.21,
-      "scale": 0.7,
-      "pine": false
-    },
-    {
-      "x": 28.8,
-      "z": 116.02,
-      "scale": 0.85,
-      "pine": true
-    },
-    {
-      "x": 111.53,
-      "z": -115.53,
-      "scale": 0.92,
-      "pine": true
-    },
-    {
-      "x": 110.0,
-      "z": -104.54,
-      "scale": 0.92,
-      "pine": false
-    },
-    {
-      "x": 111.35,
-      "z": -99.25,
-      "scale": 0.7,
-      "pine": true
-    },
-    {
-      "x": 105.49,
-      "z": -100.02,
-      "scale": 0.71,
-      "pine": true
-    },
-    {
-      "x": 110.77,
-      "z": -40.97,
-      "scale": 0.75,
-      "pine": false
-    },
-    {
-      "x": 105.73,
-      "z": -42.78,
-      "scale": 0.78,
-      "pine": true
-    },
-    {
-      "x": 116.79,
-      "z": -32.6,
-      "scale": 0.84,
-      "pine": true
-    },
-    {
-      "x": 100.92,
-      "z": 38.27,
-      "scale": 0.86,
-      "pine": false
-    },
-    {
-      "x": 102.0,
-      "z": 33.39,
-      "scale": 0.82,
-      "pine": true
-    },
-    {
-      "x": 109.76,
-      "z": 32.56,
-      "scale": 0.72,
-      "pine": true
-    },
-    {
-      "x": 114.56,
-      "z": 37.84,
-      "scale": 0.82,
-      "pine": false
-    },
-    {
-      "x": 103.55,
-      "z": 42.05,
-      "scale": 0.91,
-      "pine": true
-    },
-    {
-      "x": 104.08,
-      "z": 114.88,
-      "scale": 0.8,
-      "pine": true
-    },
-    {
-      "x": 99.47,
-      "z": 113.72,
-      "scale": 0.68,
-      "pine": false
-    },
-    {
-      "x": 107.87,
-      "z": 114.32,
-      "scale": 0.72,
-      "pine": true
-    },
-    {
-      "x": 109.12,
-      "z": 100.92,
-      "scale": 0.79,
-      "pine": true
     }
   ]
 }

@@ -1,4 +1,14 @@
-# Aged limestone facade
+# Generated building surfaces
+
+## Aged plaster (military town)
+
+Created with the built-in `image_gen` tool on 2026-09-12, generation mode with no image references. Saved project asset: `SniperRidge/Assets/Resources/UrbanDetail/aged_plaster.png`. Actual output: 1254 × 1254 PNG. Applied to the original town building walls by `CityPackSetup`, with repeat addressing, mipmaps and anisotropic filtering. This is an original generated base-color image, not a scanned material. The existing concrete normal map supplies subtle relief.
+
+Prompt:
+
+Asset type: seamless square base-color texture for a 3D building in a realistic military town game. Original aged pale grey painted cement plaster wall, subtle water stains, small chipped areas exposing grey-brown concrete, dark grime in tiny cracks, fine porous surface, worn but not destroyed. Realistic natural photographic surface detail, restrained cool-grey and dusty ivory, subtle moss near some chips. Orthographic frontal flat diffuse lighting; no baked directional shadows, vignette, specular shine, perspective, doors, windows, signs or text. Entire image is a continuous repeating wall material with evenly distributed weathering, tileable at all four edges, no large distinctive stain. Square 2048x2048, covers 4 metres of actual wall. Intended as albedo texture, not a scene or concept illustration.
+
+## Aged limestone facade
 
 Original game material generated with the built-in `image_gen` tool on 2026-09-12. No existing game's texture was copied. Used on the retail and workshop exterior geometry by CityPackSetup. Actual output: 1254 × 1254 PNG; imported with mipmaps, repeat addressing and anisotropic filtering. Seamlessness was requested, but the image is not a measured photogrammetry/PBR scan.
 

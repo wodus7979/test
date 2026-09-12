@@ -13,9 +13,10 @@ namespace SniperRidge
                 for(int i=0;i<materials.Length;i++)
                 {
                     var material=materials[i];string name=material.name;
-                    if(name!="Concrete"&&name!="Warm_Plaster"&&name!="Apartment_White"&&name!="AgedStone"&&name!="Industrial_Blue")continue;
+                    if(name!="Concrete"&&name!="Warm_Plaster"&&name!="Apartment_White"&&name!="AgedStone"&&name!="Industrial_Blue"&&name!="TownWall"&&name!="Roof_Metal")continue;
                     block.Clear();Color tint=material.color*tints[index%tints.Length];
                     if(name=="Industrial_Blue")tint=new Color(.38f,.43f,.43f);
+                    if(name=="Roof_Metal"){tint=new Color(.32f,.35f,.35f);block.SetFloat("_GlossMapScale",.2f);}
                     block.SetColor("_Color",tint);block.SetColor("_BaseColor",tint);renderer.SetPropertyBlock(block,i);
                 }
             }

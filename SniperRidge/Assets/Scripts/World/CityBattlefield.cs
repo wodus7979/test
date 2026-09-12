@@ -9,7 +9,9 @@ namespace SniperRidge
         public static readonly string[] RequiredModels = {
             "retail_row", "office_midrise", "office_tower", "apartment_slab", "auto_workshop", "warehouse",
             "street_20m", "sidewalk_10m", "street_lamp", "traffic_signal", "shipping_container",
-            "concrete_barrier", "pallet_crates", "rooftop_hvac", "bus_shelter"
+            "concrete_barrier", "pallet_crates", "rooftop_hvac", "bus_shelter",
+            "town_apartment", "town_tenement", "town_residential", "town_shops", "town_factory", "town_hangar", "town_command",
+            "town_watchpost", "town_tent", "town_rubble"
         };
         readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
         TerrainLayer pavement;

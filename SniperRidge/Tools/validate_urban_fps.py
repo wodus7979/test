@@ -9,7 +9,7 @@ from validate_city_combat import Box,rotation
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT.parent/'city_fps_textured_v2/Unity/Assets/KoreanCityPackTextured/Source'
 DATA=json.loads((ROOT/'Assets/Resources/Maps/urban_assault.json').read_text())
-MODELS={n:json.loads((SOURCE/(n+'.json')).read_text()) for n in
+MODELS={n:json.loads(((ROOT/'Assets/TownAssetPack/Source'/(n+'.json')) if n.startswith('town_') else (SOURCE/(n+'.json'))).read_text()) for n in
         {b['asset'] for b in DATA['buildings']+DATA['props'] if not b.get('original')}|{'concrete_barrier'}}
 OBJECTIVES=[np.array([o['x'],12.,o['z']]) for o in DATA['objectives']]
 boxes=[]
@@ -28,6 +28,7 @@ def main():
         elif name=='Street dumpster':box(name,p+[0,.59,0],[1.6,1.18,1.02],yaw)
         else:raise AssertionError(name)
     posts=[];entries=[]
+    for tree in DATA.get('greenery',[]):box('Tree trunk',[tree['x'],14,tree['z']],[.8,4,.8])
     for centre in OBJECTIVES:
         for slot in range(4):
             p=centre+[(-2.8 if slot%2==0 else 2.8),0,(13 if slot<2 else -13)]

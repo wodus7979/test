@@ -11,7 +11,8 @@ namespace SniperRidge
         [Serializable] public class Point { public float x,z; public Vector3 Position=>new Vector3(x,Ground,z); }
         [Serializable] public class Objective:Point { public string name; }
         [Serializable] public class Placement:Point { public string asset;public float y,yaw;public bool original;public Vector3 WorldPosition=>new Vector3(x,y,z); }
-        [Serializable] public class Layout { public float size,boundary;public Point start;public Objective[] objectives;public Placement[] buildings,props; }
+        [Serializable] public class Greenery:Point { public float scale;public bool pine; }
+        [Serializable] public class Layout { public string theme;public float size,boundary;public Point start;public Objective[] objectives;public Placement[] buildings,props;public Greenery[] greenery; }
         static Layout data;
         static Vector3[] objectives;
         static string[] names;

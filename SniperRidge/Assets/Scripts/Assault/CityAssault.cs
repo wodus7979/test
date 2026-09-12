@@ -72,6 +72,7 @@ namespace SniperRidge
             // Choose a real building roof edge with an open line toward this flag.
             foreach(var building in AssaultLayout.Data.buildings)
             {
+                if(building.asset.StartsWith("town_") && building.asset!="town_command")continue; // Pitched roofs have no standing platform.
                 if(Alive>=AssaultLayout.MaxAlive)return;
                 if(Vector3.Distance(building.WorldPosition,Objective)>42f)continue;
                 Vector3 toward=(Objective-building.WorldPosition).normalized;toward.y=0;

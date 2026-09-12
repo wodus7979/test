@@ -321,10 +321,10 @@ namespace SniperRidge
             }
             if(fps)
             {
-                mapDescription.text="도시 FPS / 분대 총격전 · 깃발 탈취";
+                mapDescription.text="도시 FPS / 주거단지 · 공장 · 검문소";
                 weaponType.text="돌격소총 / 보병 자유 이동";missionTitle.text="깃발 탈취 작전";
                 objective.text="동료 4명과 적의 깃발을 탈취하세요.\n건물·진지 방어병과 사방의 증원을 돌파하세요.";
-                range.text="304 × 304 m 도심 / 6개 깃발";
+                range.text="304 × 304 m 군사 도시 / 6개 깃발";
                 rule.text="깃발 근처에서 E 유지 · 전진하여 탈취\n동료도 피격·전사 · 깃발 탈취 시 탄약 보급";
                 controls.text="WASD 이동   E 깃발   1~4 무기   좌클릭 사격   우클릭 조준   R 장전   G 수류탄";
                 SetCard(equipmentLeft,"W","자유 이동","골목·상점·차량을 활용해 접근");

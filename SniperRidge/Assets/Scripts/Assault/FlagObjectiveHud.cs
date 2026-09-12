@@ -77,7 +77,7 @@ namespace SniperRidge
             vh.Clear();if(Game==null||Game.Assault==null)return;
             foreach(var building in AssaultLayout.Data.buildings)
             {
-                Vector2 size=building.asset=="apartment_slab"?new Vector2(30,16):building.asset=="retail_row"?new Vector2(28,14):new Vector2(20,20);
+                Vector2 size=building.asset=="apartment_slab"||building.asset=="town_residential"?new Vector2(30,16):building.asset=="retail_row"||building.asset=="town_shops"?new Vector2(28,14):new Vector2(20,20);
                 if(Mathf.Abs(Mathf.Sin(building.yaw*Mathf.Deg2Rad))>.5f)size=new Vector2(size.y,size.x);
                 Rect(vh,Map(building.WorldPosition),size/AssaultLayout.Size*rectTransform.rect.size,new Color(.22f,.26f,.27f));
             }

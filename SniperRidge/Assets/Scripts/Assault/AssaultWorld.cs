@@ -11,6 +11,7 @@ namespace SniperRidge
         NavMeshDataInstance navigation;
         TerrainData terrainData;
         TerrainLayer surface;
+        TerrainLayer courtyard;
         readonly List<GameObject> blocks=new List<GameObject>();
         readonly List<Renderer[]> blockRenderers=new List<Renderer[]>();
         Transform player;
@@ -30,8 +31,17 @@ namespace SniperRidge
             terrainData.SetHeights(0,0,heights);
             surface=new TerrainLayer{diffuseTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_urban"),
                 normalMapTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity"),normalScale=.08f,smoothness=0,metallic=0,specular=Color.black,tileSize=new Vector2(2,2)};
-            terrainData.terrainLayers=new[]{surface};terrainData.alphamapResolution=128;
-            var alpha=new float[128,128,1];for(int z=0;z<128;z++)for(int x=0;x<128;x++)alpha[z,x,0]=1;
+            courtyard=new TerrainLayer{diffuseTexture=Resources.Load<Texture2D>("Terrain/forest_albedo"),normalMapTexture=Resources.Load<Texture2D>("Terrain/forest_normal"),normalScale=.18f,smoothness=0,metallic=0,tileSize=new Vector2(5,5)};
+            terrainData.terrainLayers=new[]{surface,courtyard};terrainData.alphamapResolution=128;
+            var alpha=new float[128,128,2];
+            for(int z=0;z<128;z++)for(int x=0;x<128;x++)
+            {
+                var p=new Vector2((x+.5f)/128*AssaultLayout.Size-AssaultLayout.Size*.5f,(z+.5f)/128*AssaultLayout.Size-AssaultLayout.Size*.5f);
+                float green=0;
+                if(AssaultLayout.Data.greenery!=null)foreach(var tree in AssaultLayout.Data.greenery)
+                    green=Mathf.Max(green,1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(1.5f,5f,Vector2.Distance(p,new Vector2(tree.x,tree.z)))));
+                alpha[z,x,0]=1-green;alpha[z,x,1]=green;
+            }
             terrainData.SetAlphamaps(0,0,alpha);
             var ground=Terrain.CreateTerrainGameObject(terrainData);ground.transform.SetParent(transform);
             ground.transform.position=new Vector3(-AssaultLayout.Size*.5f,0,-AssaultLayout.Size*.5f);
@@ -46,7 +56,7 @@ namespace SniperRidge
             foreach(var item in AssaultLayout.Data.props)
             {
                 if(item.original)UrbanProps.Place(item.asset,transform,item.WorldPosition,item.yaw);
-                else Place(item.asset,transform,item.WorldPosition,item.yaw);
+                else {var prop=Place(item.asset,transform,item.WorldPosition,item.yaw);if(item.asset.StartsWith("town_"))UrbanStreetDetails.VaryFacade(prop,0);}
             }
             var sidewalk=Resources.Load<Material>("CityPack/Materials/Sidewalk");
             var white=Resources.Load<Material>("CityPack/Materials/White_Paint");
@@ -77,16 +87,14 @@ namespace SniperRidge
             Box("District south boundary",new Vector3(0,15,-boundary),new Vector3(boundary*2,6,2),concrete);
             Box("District north boundary",new Vector3(0,15,boundary),new Vector3(boundary*2,6,2),concrete);
             UrbanStreetDetails.Build(transform);
-            Physics.SyncTransforms();BuildNavigation();
-            StaticBatchingUtility.Combine(gameObject);
             foreach(var block in blocks)blockRenderers.Add(block.GetComponentsInChildren<Renderer>());
-            var post=gm.PlayerEye.GetComponent<PostEffect>();post.Exposure=1f;post.Contrast=1.01f;post.Saturation=.90f;post.BloomIntensity=.06f;post.Vignette=.08f;
             QualitySettings.shadowDistance=180;QualitySettings.lodBias=1.6f;
-            RenderSettings.fogDensity=.0014f;RenderSettings.fogColor=new Color(.59f,.65f,.69f);RenderSettings.reflectionIntensity=.20f;
-            RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor=new Color(.48f,.54f,.60f);RenderSettings.ambientEquatorColor=new Color(.33f,.36f,.37f);
-            RenderSettings.ambientGroundColor=new Color(.17f,.16f,.14f);RenderSettings.ambientIntensity=1;
-            if(RenderSettings.sun!=null){RenderSettings.sun.color=new Color(.98f,.96f,.91f);RenderSettings.sun.intensity=1;RenderSettings.sun.shadowStrength=.68f;}
+            MilitaryTownEnvironment.Build(transform,gm);
+            Physics.SyncTransforms();BuildNavigation();
+            var batch=new List<GameObject>();
+            foreach(var renderer in GetComponentsInChildren<MeshRenderer>())
+                if(renderer.GetComponentInParent<LODGroup>()==null && renderer.GetComponent<MeshFilter>()!=null)batch.Add(renderer.gameObject);
+            StaticBatchingUtility.Combine(batch.ToArray(),gameObject);
         }
         void BuildNavigation()
         {
@@ -156,7 +164,7 @@ namespace SniperRidge
         void OnDestroy()
         {
             if(navigation.valid)navigation.Remove();if(data!=null)Destroy(data);
-            if(terrainData!=null)Destroy(terrainData);if(surface!=null)Destroy(surface);
+            if(terrainData!=null)Destroy(terrainData);if(surface!=null)Destroy(surface);if(courtyard!=null)Destroy(courtyard);
         }
     }
 }
