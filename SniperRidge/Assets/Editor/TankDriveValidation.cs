@@ -69,7 +69,33 @@ namespace SniperRidge.EditorTools
                 Reset(body, physics, TankBattle.Bounds - 1f);
                 Advance(body, physics, 1f, 0f, 100);
                 Check(body.position.z <= TankBattle.Bounds + .05f, "전장 경계 통과");
-                Debug.Log("[Sniper Ridge] 전차 주행 검사 통과: 접지 전진/후진·최고 속도·제동·A/D 회전·벽 충돌·후진 탈출·경계. 전진 2초 이동 " + forward.ToString("0.00") + "m");
+                // Exercise the same slope motor against an actual TerrainCollider.
+                ground.transform.position=new Vector3(-300,0,-300);
+                groundData.heightmapResolution=513;groundData.size=new Vector3(600,200,600);
+                var hills=new float[513,513];
+                for(int z=0;z<513;z++)for(int x=0;x<513;x++)hills[z,x]=TankCanyon.Height(x/512f*600-300,z/512f*600-300)/200f;
+                groundData.SetHeights(0,0,hills);
+                var terrain=ground.AddComponent<Terrain>();terrain.terrainData=groundData;
+                body.constraints=RigidbodyConstraints.None;
+                Check(TankCanyon.Linked(TankCanyon.EntryNode,TankCanyon.EntryExitNode),"출발 방향의 협곡 진입로가 막혀 있습니다.");
+                body.position=TankCanyon.Ground(terrain,TankCanyon.Node(TankCanyon.EntryNode),.2f);
+                Vector3 normal=TankCanyon.Normal(terrain,body.position);
+                body.rotation=Quaternion.LookRotation(Vector3.ProjectOnPlane(TankCanyon.EntryDirection,normal).normalized,normal);
+                body.velocity=Vector3.up*4f;
+                Check(Mathf.Abs(TankDrive.SpeedAlongTracks(body))<.001f,"수직 접지 보정이 주행 속도로 잘못 계산됩니다.");
+                body.velocity=body.angularVelocity=Vector3.zero;Physics.SyncTransforms();
+                Advance(body,physics,0,0,75,terrain);float initialY=body.position.y;Vector3 entryStart=body.position;
+                Advance(body,physics,1,0,200,terrain);
+                Check(Vector3.Dot(body.position-entryStart,TankCanyon.EntryDirection)>25f,"실제 시작 위치에서 협곡 진입 실패");
+                Check(body.position.y>initialY+1f,"언덕을 오르며 고도가 증가하지 않습니다.");
+                Check(Vector3.Angle(body.rotation*Vector3.up,Vector3.up)>1f,"차체 경사 정렬 실패");
+                Check(Mathf.Abs(body.position.y-TankDrive.SupportHeight(body.position,body.rotation,1f,terrain))<.4f,"경사에서 궤도 접지 실패");
+                Advance(body,physics,0,0,100,terrain);
+                Check(new Vector2(body.velocity.x,body.velocity.z).magnitude<.2f,"언덕 정차 중 미끄러짐");
+                Vector3 reverseStart=body.position;
+                Advance(body,physics,-1,0,100,terrain);
+                Check(Vector3.Dot(body.position-reverseStart,TankCanyon.EntryDirection)<-4f,"협곡 경사에서 후진 실패");
+                Debug.Log("[Sniper Ridge] 전차 주행 검사 통과: 전후진·최고 속도·제동·A/D 회전·벽 충돌·경계·협곡 오르막·차체 경사·궤도 접지·언덕 정차. 전진 2초 이동 " + forward.ToString("0.00") + "m");
             }
             finally
             {
@@ -88,11 +114,11 @@ namespace SniperRidge.EditorTools
             Physics.SyncTransforms();
             Advance(body, physics, 0f, 0f, 75);
         }
-        static void Advance(Rigidbody body, PhysicsScene physics, float drive, float steering, int steps)
+        static void Advance(Rigidbody body, PhysicsScene physics, float drive, float steering, int steps,Terrain terrain=null)
         {
             for (int i = 0; i < steps; i++)
             {
-                TankDrive.Step(body, drive, steering, StepSeconds);
+                TankDrive.Step(body, drive, steering, StepSeconds,terrain);
                 physics.Simulate(StepSeconds);
             }
         }

@@ -14,8 +14,8 @@ namespace SniperRidge.EditorTools
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
                 throw new InvalidOperationException("Play를 중지하고 검사하세요.");
-            GrenadePackBuilder.BuildIfMissing();
-            var prefab = Resources.Load<GameObject>("Grenades/Prefabs/grenade_olive");
+            FPSWeaponsV2Setup.BuildIfMissing();
+            var prefab = WeaponModels.LoadPrefab("grenade_olive");
             Check(prefab != null && prefab.transform.Find("EffectOrigin") != null, "수류탄 프리팹/기준점 누락");
             foreach (var renderer in prefab.GetComponentsInChildren<MeshRenderer>())
                 foreach (var material in renderer.sharedMaterials)

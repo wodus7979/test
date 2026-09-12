@@ -39,7 +39,7 @@ namespace SniperRidge
         public float ShotVolume;
         public float ShotPitch;
 
-        public string ModelName;        // Resources/Weapons/Prefabs/<ModelName> (Firearm Asset Pack)
+        public string ModelName;        // Resources/WeaponsV2/Prefabs/<ModelName>
         public bool IsRocket;
         public bool IsMounted;
         public bool IsTank;
@@ -162,8 +162,8 @@ namespace SniperRidge
             },
             new WeaponDefinition
             {
-                Id = "tank", Name = "K2 흑표 기동전", IsTank = true, Mission = MissionType.Tank,
-                Description = "전차 대 전차전 · 적 K2/주력전차 · W/S/A/D 기동 · 마우스 포격",
+                Id = "tank", Name = "K2 흑표 협곡전", IsTank = true, Mission = MissionType.Tank,
+                Description = "협곡 근접 전차전 · 언덕과 암반 · W/S/A/D 기동 · 마우스 포격",
                 Fire = FireMode.Semi, RoundsPerMinute = 20f, MagSize = 1, Reserve = 60, ReloadTime = 3f,
                 MuzzleVelocity = 280f, Damage = 160f, ScopeFovs = new[] { 38f }, ScopeLabels = new[] { "포수 확대" },
                 ModelName = "k2_black_panther", ShotVolume = .82f, ShotPitch = 1f,

@@ -115,7 +115,7 @@ namespace SniperRidge
         public static void TankDestruction(Transform tank)
         {
             Bounds bounds=new Bounds(tank.position+Vector3.up*1.5f,new Vector3(4,3,8));bool found=false;
-            foreach(var renderer in tank.GetComponentsInChildren<Renderer>())
+            foreach(var renderer in tank.GetComponentsInChildren<MeshRenderer>())
             {
                 if(!found){bounds=renderer.bounds;found=true;}else bounds.Encapsulate(renderer.bounds);
             }

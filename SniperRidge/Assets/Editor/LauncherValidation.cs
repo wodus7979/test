@@ -16,6 +16,7 @@ namespace SniperRidge.EditorTools
             if (EditorApplication.isPlayingOrWillChangePlaymode)
                 throw new InvalidOperationException("Play를 중지한 뒤 검사하세요.");
             LauncherPackBuilder.BuildIfMissing();
+            FPSWeaponsV2Setup.BuildIfMissing();
             ValidateInventory();
             foreach (string name in new[] { "launcher_reusable", "launcher_compact", "launcher_heavy" })
             {

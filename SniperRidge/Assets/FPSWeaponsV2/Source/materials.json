@@ -1,0 +1,146 @@
+{
+  "materials": [
+    {
+      "name": "Graphite",
+      "color": [
+        0.075,
+        0.087,
+        0.1
+      ],
+      "metallic": 0.7,
+      "roughness": 0.37,
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/Graphite_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/Graphite_maskMap.png"
+    },
+    {
+      "name": "Steel",
+      "color": [
+        0.37,
+        0.4,
+        0.43
+      ],
+      "metallic": 0.9,
+      "roughness": 0.25,
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/Steel_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/Steel_maskMap.png"
+    },
+    {
+      "name": "Polymer",
+      "color": [
+        0.023,
+        0.029,
+        0.033
+      ],
+      "metallic": 0,
+      "roughness": 0.68,
+      "albedo": "Textures/PBR/polymer_albedo.jpg",
+      "normal": "Textures/PBR/polymer_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/Polymer_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/Polymer_maskMap.png"
+    },
+    {
+      "name": "Rubber",
+      "color": [
+        0.012,
+        0.015,
+        0.018
+      ],
+      "metallic": 0,
+      "roughness": 0.88,
+      "albedo": "Textures/PBR/rubber_albedo.jpg",
+      "normal": "Textures/PBR/rubber_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/Rubber_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/Rubber_maskMap.png"
+    },
+    {
+      "name": "Sand",
+      "color": [
+        0.36,
+        0.29,
+        0.19
+      ],
+      "metallic": 0.08,
+      "roughness": 0.52,
+      "albedo": "Textures/PBR/paint_albedo.jpg",
+      "normal": "Textures/PBR/paint_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/Sand_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/Sand_maskMap.png"
+    },
+    {
+      "name": "Recess",
+      "color": [
+        0.004,
+        0.006,
+        0.008
+      ],
+      "metallic": 0,
+      "roughness": 0.92
+    },
+    {
+      "name": "Glass",
+      "color": [
+        0.015,
+        0.075,
+        0.091
+      ],
+      "metallic": 0.75,
+      "roughness": 0.075
+    },
+    {
+      "name": "Markings",
+      "color": [
+        0.63,
+        0.65,
+        0.59
+      ],
+      "metallic": 0.05,
+      "roughness": 0.49
+    },
+    {
+      "name": "Olive",
+      "color": [
+        0.16,
+        0.2,
+        0.1
+      ],
+      "metallic": 0.08,
+      "roughness": 0.55,
+      "albedo": "Textures/PBR/paint_albedo.jpg",
+      "normal": "Textures/PBR/paint_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/Olive_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/Olive_maskMap.png"
+    },
+    {
+      "name": "Orange",
+      "color": [
+        0.55,
+        0.105,
+        0.012
+      ],
+      "metallic": 0.05,
+      "roughness": 0.48,
+      "albedo": "Textures/PBR/paint_albedo.jpg",
+      "normal": "Textures/PBR/paint_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/Orange_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/Orange_maskMap.png"
+    },
+    {
+      "name": "EdgeSteel",
+      "color": [
+        0.24,
+        0.27,
+        0.29
+      ],
+      "metallic": 0.8,
+      "roughness": 0.38,
+      "albedo": "Textures/PBR/metal_albedo.jpg",
+      "normal": "Textures/PBR/metal_normal_unity.png",
+      "metallicSmoothness": "Textures/PBR/EdgeSteel_metallicSmoothness.png",
+      "maskMap": "Textures/PBR/EdgeSteel_maskMap.png"
+    }
+  ]
+}

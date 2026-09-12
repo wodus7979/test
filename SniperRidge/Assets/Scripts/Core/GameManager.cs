@@ -124,6 +124,8 @@ namespace SniperRidge
         public void StartMission(WeaponDefinition weapon, BattlefieldMap map = BattlefieldMap.Field)
         {
             if (!IsSelecting) return;
+            if(!weapon.IsTank&&!WeaponModels.IsReady)
+            {Debug.LogError("[Sniper Ridge] V2 무기 생성이 필요합니다. Sniper Ridge → V2 무기 11종 생성 메뉴를 실행하세요.");return;}
             if (weapon.IsAssault) map = BattlefieldMap.City;
             if (weapon.IsTank)
             {
@@ -150,7 +152,7 @@ namespace SniperRidge
             {
                 Armor = TankBattle.Create(this);
                 if (Ambience != null) Ambience.volume = .12f;
-                Hud.OnMissionStart("전차 대 전차전 · 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\nK2 흑표와 다른 주력전차로 구성된 적 기갑부대를 격파하세요.");
+                Hud.OnMissionStart("가을 협곡 · 전차전 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\n언덕과 바위 사이의 흙길을 따라 적 기갑부대를 격파하세요.");
                 return;
             }
             if (Mission == MissionType.Assault)

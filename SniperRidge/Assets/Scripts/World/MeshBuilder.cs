@@ -98,6 +98,20 @@ namespace SniperRidge
         }
 
         // ---------- 기본 도형 ----------
+        public static Mesh DeadPine(System.Random rng,float height)
+        {
+            var b=new Buf();
+            AddCylinder(b,b.Trunk,Vector3.zero,new Vector3(.25f,height,0),.23f,.055f,9,rng,.035f);
+            for(int i=0;i<13;i++)
+            {
+                float angle=i*2.4f,y=height*(.25f+i*.048f),length=height*(.24f-i*.009f);
+                var start=new Vector3(.25f*y/height,y,0);
+                var tip=start+new Vector3(Mathf.Cos(angle)*length,.2f,Mathf.Sin(angle)*length);
+                AddCylinder(b,b.Trunk,start,tip,.07f,.012f,6,rng,.02f);
+                AddCylinder(b,b.Trunk,tip,tip+Vector3.up*.6f,.018f,.004f,5,rng,.01f);
+            }
+            return Finish(b,"Weathered dead pine");
+        }
 
         static void AddCylinder(Buf b, List<int> tris, Vector3 from, Vector3 to, float r0, float r1, int segs, System.Random rng, float jitter)
         {

@@ -1,0 +1,162 @@
+{
+  "assets": [
+    {
+      "name": "01_precision_rifle",
+      "label": "정밀 저격총",
+      "components": [
+        "Body",
+        "Magazine",
+        "Optic",
+        "ChargingHandle",
+        "Lens"
+      ],
+      "triangles": [
+        32508,
+        8488
+      ]
+    },
+    {
+      "name": "02_light_machine_gun",
+      "label": "경기관총",
+      "components": [
+        "Body",
+        "Magazine",
+        "ChargingHandle",
+        "Optic",
+        "Lens"
+      ],
+      "triangles": [
+        33140,
+        8412
+      ]
+    },
+    {
+      "name": "03_assault_rifle",
+      "label": "돌격소총",
+      "components": [
+        "Body",
+        "Magazine",
+        "ChargingHandle",
+        "Optic",
+        "Lens"
+      ],
+      "triangles": [
+        32172,
+        8456
+      ]
+    },
+    {
+      "name": "04_submachine_gun",
+      "label": "기관단총",
+      "components": [
+        "Body",
+        "Magazine",
+        "ChargingHandle",
+        "Optic",
+        "Lens"
+      ],
+      "triangles": [
+        8732,
+        5112
+      ]
+    },
+    {
+      "name": "05_pump_shotgun",
+      "label": "펌프 샷건",
+      "components": [
+        "Body",
+        "Pump",
+        "ChargingHandle",
+        "Optic",
+        "Lens"
+      ],
+      "triangles": [
+        5936,
+        3692
+      ]
+    },
+    {
+      "name": "06_service_pistol",
+      "label": "권총",
+      "components": [
+        "Body",
+        "Slide",
+        "Magazine",
+        "Optic",
+        "Lens"
+      ],
+      "triangles": [
+        5312,
+        3364
+      ]
+    },
+    {
+      "name": "launcher_reusable",
+      "label": "재사용형 로켓 발사기",
+      "components": [
+        "Body",
+        "Optic",
+        "Lens"
+      ],
+      "triangles": [
+        29992,
+        5204
+      ]
+    },
+    {
+      "name": "launcher_compact",
+      "label": "일회용 튜브형 발사기",
+      "components": [
+        "Body"
+      ],
+      "triangles": [
+        5996,
+        3248
+      ]
+    },
+    {
+      "name": "launcher_heavy",
+      "label": "중량형 로켓 발사기",
+      "components": [
+        "Body",
+        "Optic",
+        "Lens"
+      ],
+      "triangles": [
+        27900,
+        5160
+      ]
+    },
+    {
+      "name": "grenade_olive",
+      "label": "수류탄",
+      "components": [
+        "Body",
+        "Lever",
+        "PinRing"
+      ],
+      "triangles": [
+        3936,
+        1848
+      ]
+    },
+    {
+      "name": "mounted_machine_gun",
+      "label": "헬기 장착 기관총",
+      "components": [
+        "Base",
+        "YawMount",
+        "Weapon",
+        "ShieldLeft",
+        "ShieldRight"
+      ],
+      "triangles": [
+        11928,
+        5396
+      ]
+    }
+  ],
+  "asset_count": 11,
+  "texture_resolution": 2048,
+  "unity_editor_verified": false
+}

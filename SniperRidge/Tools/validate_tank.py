@@ -53,14 +53,9 @@ assert np.allclose(markers['Muzzle'],[0,2.035,5.57])
 # Muzzle lies forward of the hull in the base pose, track bottoms sit on the ground.
 assert markers['Muzzle'][2]>max(hi[2] for lo,hi in boxes)
 assert min(lo[1] for lo,hi in boxes)==0
-# All authored posts and the 170 m spawn ring fit the flat 440 m square arena.
-posts=[np.array([math.sin(math.radians(i*60+25))*75,math.cos(math.radians(i*60+25))*75-40]) for i in range(6)]
-assert max(np.max(abs(p)) for p in posts)<116
-for i,p in enumerate(posts):
-    assert min(np.linalg.norm(p-q) for j,q in enumerate(posts) if i!=j)>74
-# Conservatively clear enough reserved-ring arc remains even if the player and nine tanks occupy it.
-# Each tank reserves 15m, player reserves 65m, on a ring circumference > 1000m.
-assert 2*65+9*30 < 2*math.pi*170
+# Elevation, route connectivity and stage-five spawn capacity are sampled separately.
+from validate_tank_canyon import validate as validate_canyon
+validate_canyon()
 
 RATE=48000
 AUDIO=ROOT/'Assets/Resources/Audio'
@@ -101,6 +96,6 @@ for seed in range(48):
 assert peak<.99,('representative mix clips',peak)
 print(json.dumps({'tank_lod_triangles':triangles,'compound_colliders':len(boxes),'muzzle_metres':markers['Muzzle'].tolist(),
  'geometry_normals_uv_pbr':'pass','tank_only_stage_counts':[5,6,7,8,9],'enemy_models':['K2 Black Panther','opposition MBT'],
- 'wreck_effects':['fire','black smoke','sparks','secondary explosions','debris'],'posts_and_spawn_ring':'pass',
+ 'wreck_effects':['fire','black smoke','sparks','secondary explosions','debris'],'canyon_routes_and_spawns':'pass',
  'audio_mix_48_scenarios_peak':round(peak,4),'engine_loop_seam':round(float(np.max(abs(engine[-1]-engine[0]))),6)},indent=2))
 print('Unity compile, physics execution, rendering and listening still require the editor.')

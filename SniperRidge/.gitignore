@@ -65,3 +65,7 @@ Assets/Resources/Tank/
 Assets/Resources/Tank.meta
 __pycache__/
 *.pyc
+
+# Generated from the bundled FPSWeaponsV2 source and 2K textures
+Assets/Resources/WeaponsV2/
+Assets/Resources/WeaponsV2.meta
