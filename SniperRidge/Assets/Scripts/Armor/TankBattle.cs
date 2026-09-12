@@ -38,7 +38,7 @@ namespace SniperRidge
             float angle=(index*60f+25f)*Mathf.Deg2Rad;
             return new Vector3(Mathf.Sin(angle)*75f,TerrainGenerator.FieldElevation,Mathf.Cos(angle)*75f-40f);
         }
-        public static int EnemyTankCount(int stage)=>Mathf.Clamp(stage,1,Stages);
+        public static int EnemyTankCount(int stage)=>4+Mathf.Clamp(stage,1,Stages);
         public static TankAppearance EnemyAppearance(int stage,int ordinal)=>(ordinal+stage)%2==0?TankAppearance.K2BlackPanther:TankAppearance.Opposition;
         IEnumerator RunStages()
         {
@@ -47,7 +47,7 @@ namespace SniperRidge
             {
                 Stage=stage;Resupplying=false;tanks.Clear();
                 int tankCount=EnemyTankCount(stage);
-                int k2Count=stage/2,oppositionCount=tankCount-k2Count;
+                int k2Count=tankCount/2,oppositionCount=tankCount-k2Count;
                 gm.Hud.Announce(string.Format("전차전 {0} / 5 · 적 전차 {1}대 · K2 {2} / 주력전차 {3}",stage,tankCount,k2Count,oppositionCount));
                 for(int i=0;i<tankCount;i++)
                 {

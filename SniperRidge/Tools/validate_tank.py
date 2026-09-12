@@ -9,8 +9,9 @@ BATTLE=(ROOT/'Assets/Scripts/Armor/TankBattle.cs').read_text()
 VEHICLE=(ROOT/'Assets/Scripts/Armor/TankVehicle.cs').read_text()
 EFFECTS=(ROOT/'Assets/Scripts/Util/RocketEffects.cs').read_text()
 assert 'SpawnRocketTrooper' not in BATTLE and 'EnemySoldier' not in BATTLE and 'AliveRockets' not in BATTLE
-assert re.search(r'EnemyTankCount\(int stage\).*Mathf\.Clamp\(stage,1,Stages\)',BATTLE)
+assert re.search(r'EnemyTankCount\(int stage\).*4\+Mathf\.Clamp\(stage,1,Stages\)',BATTLE)
 assert 'TankAppearance.K2BlackPanther' in BATTLE and 'TankAppearance.Opposition' in BATTLE
+assert '(ordinal+stage)%2==0' in BATTLE
 assert 'k2_black_panther' in VEHICLE and 'tank_reference' in VEHICLE
 for token in ['Tank wreck flames','Tank wreck black smoke','Tank wreck sparks','SecondaryTankExplosion','TankDebris']:
     assert token in EFFECTS,token
@@ -54,9 +55,9 @@ posts=[np.array([math.sin(math.radians(i*60+25))*75,math.cos(math.radians(i*60+2
 assert max(np.max(abs(p)) for p in posts)<116
 for i,p in enumerate(posts):
     assert min(np.linalg.norm(p-q) for j,q in enumerate(posts) if i!=j)>74
-# Conservatively clear enough reserved-ring arc remains even if the player and five tanks occupy it.
+# Conservatively clear enough reserved-ring arc remains even if the player and nine tanks occupy it.
 # Each tank reserves 15m, player reserves 65m, on a ring circumference > 1000m.
-assert 2*65+5*30 < 2*math.pi*170
+assert 2*65+9*30 < 2*math.pi*170
 
 RATE=48000
 AUDIO=ROOT/'Assets/Resources/Audio'
@@ -86,8 +87,8 @@ for seed in range(48):
     mixed=np.zeros((n,2))
     def add(a,start,gain):
         start=int(start*RATE);end=min(n,start+len(a));mixed[start:end]+=a[:end-start]*gain
-    # Player engine + five nearby hostile engines, continuously advancing at different phases/pitches omitted.
-    for i,gain in enumerate([.22,.10,.10,.10,.10,.10]):
+    # Player engine + nine hostile engines. Far tanks use conservative spatial attenuation.
+    for i,gain in enumerate([.22,.10,.10,.10,.10,.07,.07,.05,.05,.04]):
         phase=int(rng.integers(0,len(engine)))
         mixed+=np.tile(np.roll(engine,phase,axis=0),(2,1))[:n]*gain
     for t in [0,3,6,9]:add(cannons[int(rng.integers(3))],t,.82)
@@ -96,7 +97,7 @@ for seed in range(48):
     peak=max(peak,float(abs(mixed).max()))
 assert peak<.99,('representative mix clips',peak)
 print(json.dumps({'tank_lod_triangles':triangles,'compound_colliders':len(boxes),'muzzle_metres':markers['Muzzle'].tolist(),
- 'geometry_normals_uv_pbr':'pass','tank_only_stages':[1,2,3,4,5],'enemy_models':['K2 Black Panther','opposition MBT'],
+ 'geometry_normals_uv_pbr':'pass','tank_only_stage_counts':[5,6,7,8,9],'enemy_models':['K2 Black Panther','opposition MBT'],
  'wreck_effects':['fire','black smoke','sparks','secondary explosions','debris'],'posts_and_spawn_ring':'pass',
  'audio_mix_48_scenarios_peak':round(peak,4),'engine_loop_seam':round(float(np.max(abs(engine[-1]-engine[0]))),6)},indent=2))
 print('Unity compile, physics execution, rendering and listening still require the editor.')

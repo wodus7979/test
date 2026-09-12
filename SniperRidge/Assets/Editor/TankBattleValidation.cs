@@ -15,8 +15,8 @@ namespace SniperRidge.EditorTools
             OriginalTankAssets.TankPackBuilder.BuildIfMissing();
             ValidatePrefab(TankVehicle.Resource,"k2_black_panther");
             ValidatePrefab(TankVehicle.OppositionResource,"tank_reference");
-            Check(TankBattle.EnemyTankCount(1)==1&&TankBattle.EnemyTankCount(5)==5,"단계별 적 전차 수 오류");
-            Check(TankBattle.EnemyAppearance(2,0)==TankAppearance.K2BlackPanther&&TankBattle.EnemyAppearance(2,1)==TankAppearance.Opposition,
+            Check(TankBattle.EnemyTankCount(1)==5&&TankBattle.EnemyTankCount(5)==9,"단계별 적 전차 수 오류");
+            Check(TankBattle.EnemyAppearance(1,0)==TankAppearance.Opposition&&TankBattle.EnemyAppearance(1,1)==TankAppearance.K2BlackPanther,
                 "K2와 다른 적 전차 혼합 오류");
             Check(RocketEffects.TankWreckLifetime>=15f,"격파 후 화재 지속 시간이 너무 짧습니다.");
             foreach(var name in new[]{"tank_cannon","tank_cannon_02","tank_cannon_03","tank_engine","tank_impact"})

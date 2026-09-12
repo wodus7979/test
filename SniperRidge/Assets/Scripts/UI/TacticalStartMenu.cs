@@ -324,7 +324,7 @@ namespace SniperRidge
                 rule.text = "W/S 전후진 · A/D 차체 회전\n마우스 조준 · 좌클릭 포격";
                 controls.text = "W  전진   S  후진   A/D  차체 회전   마우스  포탑 조준   좌클릭  포격   우클릭  확대";
                 SetCard(equipmentLeft,"W","전차 직접 조종","최대 43 km/h · 차체와 포탑 분리");
-                SetCard(equipmentRight,"5","단계별 증원","적 전차 1 → 2 → 3 → 4 → 5대");
+                SetCard(equipmentRight,"5","단계별 증원","적 전차 5 → 6 → 7 → 8 → 9대");
             }
             if(fps)
             {
