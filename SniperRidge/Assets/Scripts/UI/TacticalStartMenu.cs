@@ -191,17 +191,15 @@ namespace SniperRidge
             }
             Label(orbitMap.transform, "Orbit label", "4개 지점 · 동료 20명 구조", 18, Sand, 205, 194, 225, 28);
             tankMap = Box(map,"Tank positions",Ink,0,0,440,238).gameObject;
-            Label(tankMap.transform,"Tank legend","K2 흑표  ◆     적 주력전차  ■     단계별 증원  ↓",18,Muted,18,8,410,28);
-            for(int i=0;i<6;i++)
+            Label(tankMap.transform,"Tank legend","협곡 흙길 · 바위 능선 · 고저차",18,Muted,18,8,410,28);
+            for(int i=0;i<TankCanyon.NodeCount;i++)
             {
-                var p=TankBattle.Post(i);
-                bool k2=i%2==0;
-                var marker=Box(tankMap.transform,"Enemy tank approach",k2?Hostile:new Color(0.78f,0.57f,0.25f),216+p.x*.85f,116-p.z*.7f,k2?9:10,k2?9:10);
-                marker.localRotation=Quaternion.Euler(0,0,k2?45:0);
+                var p=TankCanyon.Node(i);var start=new Vector2(220+p.x*2.4f,124-p.y*1.15f);
+                for(int j=i+1;j<TankCanyon.NodeCount;j++)if(TankCanyon.Linked(i,j))
+                {var q=TankCanyon.Node(j);MapLine(tankMap.transform,start,new Vector2(220+q.x*2.4f,124-q.y*1.15f),Sand);}
+                Box(tankMap.transform,"Canyon junction",i==1?Sand:Hostile,start.x-4,start.y-4,8,8);
             }
-            Label(tankMap.transform,"Player tank","▲ 아군 전차",17,Sand,180,202,150,26);
-            foreach(int side in new[]{-1,1})
-                MapLine(tankMap.transform,new Vector2(220+side*160,60),new Vector2(220+side*105,110),Hostile);
+            Label(tankMap.transform,"Player tank","▲ 협곡 입구 · 아군 K2",17,Sand,130,204,280,26);
             assaultMap=Box(map,"Urban FPS route",Ink,0,0,440,238).gameObject;
             for(int x=40;x<440;x+=40)MapLine(assaultMap.transform,new Vector2(x,28),new Vector2(x,217),Line);
             for(int z=38;z<218;z+=25)MapLine(assaultMap.transform,new Vector2(20,z),new Vector2(420,z),Line);
@@ -315,12 +313,12 @@ namespace SniperRidge
                 air ? "경고 후 눌러 급격한 측면 기동" : "6개 지급 · 누르고 조준, 놓아 투척");
             if (tank)
             {
-                mapDescription.text = "전차 전장 / 넓은 들판 · 숲 · 바위";
+                mapDescription.text = "전차 전장 / 햇빛 협곡 · 언덕 · 층진 암반";
                 weaponType.text = "K2 흑표  /  차체 주행 · 독립 포탑";
-                missionTitle.text = "K2 흑표 기동전";
+                missionTitle.text = "K2 흑표 협곡전";
                 magazine.text = "포탄 60발"; reserve.text = "단계마다 +25발";
                 objective.text = "보병 없이 전차끼리 교전합니다.\n주력전차 3발 · K2 흑표 4발 직격 시 격파";
-                range.text = "기동 구역    440 × 440 m";
+                range.text = "협곡 200 × 200 m · 근거리 기갑전";
                 rule.text = "W/S 전후진 · A/D 차체 회전\n마우스 조준 · 좌클릭 포격";
                 controls.text = "W  전진   S  후진   A/D  차체 회전   마우스  포탑 조준   좌클릭  포격   우클릭  확대";
                 SetCard(equipmentLeft,"W","전차 직접 조종","최대 43 km/h · 차체와 포탑 분리");

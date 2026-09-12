@@ -19,7 +19,7 @@ namespace SniperRidge
         public int ShellHits { get; private set; }
         public int HitsToDestroy { get; private set; }
         public int RemainingShellHits => Mathf.Max(0,HitsToDestroy-ShellHits);
-        public Vector3 AimPoint => transform.position + Vector3.up * 1.45f;
+        public Vector3 AimPoint => transform.TransformPoint(Vector3.up * 1.45f);
         public float Fraction => health / maximumHealth;
         public float Speed => Vector3.Dot(body.velocity, body.rotation * Vector3.forward);
         public float ReloadRemaining => Mathf.Max(0f, nextShot-Time.time);
@@ -38,11 +38,15 @@ namespace SniperRidge
         ParticleSystem leftDust, rightDust;
         float nextAIShot, fireAt = -1f;
         Vector3 committedAim;
+        Vector3 navigationPoint;
+        bool hasNavigationPoint;
         public bool HasAim { get; private set; }
         public static TankVehicle Create(TankBattle owner, Vector3 position, bool player, int stage,TankAppearance appearance=TankAppearance.K2BlackPanther)
         {
             string resource=appearance==TankAppearance.K2BlackPanther?Resource:OppositionResource;
             var go = Instantiate(Resources.Load<GameObject>(resource), position, Quaternion.identity);
+            go.transform.localScale=Vector3.one*(player?1f:TankCanyon.EnemyScale);
+            go.transform.rotation=Quaternion.FromToRotation(Vector3.up,TankCanyon.Normal(GameManager.Instance.Terrain,position));
             go.name = player ? "Player K2 Black Panther" : appearance==TankAppearance.K2BlackPanther?"Enemy K2 Black Panther":"Enemy Main Battle Tank";
             var tank = go.AddComponent<TankVehicle>(); tank.battle = owner; tank.IsPlayer = player;tank.Appearance=appearance;
             tank.turret = go.transform.Find("Turret"); tank.barrel = tank.turret.Find("Barrel");
@@ -50,7 +54,7 @@ namespace SniperRidge
             tank.HitsToDestroy=player?0:HitsRequired(appearance);
             tank.maximumHealth = tank.health = player ? 500f : tank.HitsToDestroy;
             tank.body = go.AddComponent<Rigidbody>();
-            tank.traction = TankDrive.Configure(tank.body);
+            tank.traction = TankDrive.Configure(tank.body,true);
             tank.engine = go.AddComponent<AudioSource>(); tank.engine.clip = Resources.Load<AudioClip>("Audio/tank_engine");
             tank.engine.loop = true; tank.engine.playOnAwake = false; tank.engine.volume = player ? .18f : .10f;
             tank.engine.spatialBlend = player ? 0f : 1f; tank.engine.minDistance = 12f; tank.engine.maxDistance = 220f;
@@ -63,7 +67,7 @@ namespace SniperRidge
             {
                 tank.cameraEye = GameManager.Instance.Player.Eye.GetComponent<Camera>();
                 tank.cameraEye.transform.SetParent(null, true);
-                tank.cameraEye.fieldOfView = 60f;
+                tank.cameraEye.fieldOfView = 54f;
                 Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false;
             }
             return tank;
@@ -102,7 +106,7 @@ namespace SniperRidge
             steering=(Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0);
             cameraYaw+=Input.GetAxis("Mouse X")*1.8f;
             cameraPitch=Mathf.Clamp(cameraPitch-Input.GetAxis("Mouse Y")*1.3f,-5f,42f);
-            cameraEye.fieldOfView=Mathf.Lerp(cameraEye.fieldOfView,Input.GetMouseButton(1)?38f:60f,Time.deltaTime*10);
+            cameraEye.fieldOfView=Mathf.Lerp(cameraEye.fieldOfView,Input.GetMouseButton(1)?34f:54f,Time.deltaTime*10);
             UpdateCamera();
             Vector3 target = cameraEye.transform.position + cameraEye.transform.forward * 800f;
             if (ArmorProjectile.Cast(cameraEye.transform.position, target, transform, out var hit)) target=hit.point;
@@ -117,7 +121,7 @@ namespace SniperRidge
         {
             Quaternion orbit=Quaternion.Euler(cameraPitch,cameraYaw,0);
             Vector3 focus=transform.position+Vector3.up*2.6f;
-            Vector3 desired=focus-orbit*Vector3.forward*11.5f+Vector3.up*1.4f;
+            Vector3 desired=focus-orbit*Vector3.forward*10.5f+Vector3.up*1.4f;
             if (ArmorProjectile.Cast(focus,desired,transform,out var hit)) desired=hit.point+hit.normal*.35f;
             desired.y=Mathf.Max(desired.y,TerrainGenerator.GroundHeight(GameManager.Instance.Terrain,desired.x,desired.z)+.7f);
             cameraEye.transform.position=desired;
@@ -144,15 +148,28 @@ namespace SniperRidge
             if (target == null || target.IsDead) return;
             Vector3 flat=target.transform.position-transform.position; flat.y=0;
             float distance=flat.magnitude;
-            // Advance, turn around cover, then hold a firing distance.
+            bool lineOfFire=!ArmorProjectile.Obstructed(Muzzle.position,target.AimPoint,transform,target);
+            bool directRoad=TankCanyon.ClearRoad(transform.position,target.transform.position);
+            Vector3 movementTarget=target.transform.position;
+            if(!directRoad)
+            {
+                if(!hasNavigationPoint){navigationPoint=TankCanyon.Ground(GameManager.Instance.Terrain,TankCanyon.Node(TankCanyon.NearestNode(transform.position)));hasNavigationPoint=true;}
+                if(Vector2.Distance(new Vector2(transform.position.x,transform.position.z),new Vector2(navigationPoint.x,navigationPoint.z))<5f)
+                    navigationPoint=TankCanyon.NextWaypoint(GameManager.Instance.Terrain,transform.position,target.transform.position);
+                movementTarget=navigationPoint;
+            }
+            else hasNavigationPoint=false;
+            Vector3 travel=movementTarget-transform.position;travel.y=0;
+            // Close to 28–42 m, navigating around cliffs even when the player is behind a ridge.
             if (avoidanceTime>0f) { avoidanceTime-=Time.deltaTime; steering=1f; drive=-.45f; }
             else
             {
-                float angle=Vector3.SignedAngle(transform.forward,flat,Vector3.up);
+                float angle=Vector3.SignedAngle(transform.forward,travel,Vector3.up);
                 steering=Mathf.Clamp(angle/35f,-1,1);
-                drive=distance>50f ? .65f : distance<25f ? -.4f : 0f;
+                drive=!lineOfFire||distance>42f ? .55f : distance<24f&&directRoad ? -.35f : 0f;
+                if(Mathf.Abs(angle)>65f)drive*=.25f;
                 if (Mathf.Abs(drive)>.2f && body.velocity.magnitude<.35f) stuckTime+=Time.deltaTime; else stuckTime=0;
-                if (stuckTime>1.5f) { avoidanceTime=2.2f; stuckTime=0; }
+                if (stuckTime>1.5f) { avoidanceTime=2.2f; stuckTime=0;hasNavigationPoint=false; }
             }
             Vector3 aimPoint=target.AimPoint+target.Velocity*Mathf.Min(.65f,distance/160f);
             Aim(fireAt >= 0f ? committedAim : aimPoint,34f);
@@ -166,7 +183,7 @@ namespace SniperRidge
                 nextAIShot=Time.time+Random.Range(5.5f,8f);
                 return;
             }
-            if (Time.time<nextAIShot || !HasAim || distance>240f) return;
+            if (Time.time<nextAIShot || !HasAim || distance>125f) return;
             if (ArmorProjectile.Obstructed(Muzzle.position,aimPoint,transform,target) || !battle.ReserveEnemyCannon()) return;
             committedAim=aimPoint;fireAt=Time.time+1.1f;
             GameManager.Instance.Hud.WarnIncoming(transform.position,1.1f+distance/160f,"적 전차");
@@ -185,7 +202,7 @@ namespace SniperRidge
         {
             var gm=GameManager.Instance;
             if (body==null || IsDead || gm==null || !gm.IsPlaying) return;
-            TankDrive.Step(body, drive, steering, Time.fixedDeltaTime);
+            TankDrive.Step(body, drive, steering, Time.fixedDeltaTime,gm.Terrain);
         }
         public bool Damage(float amount,bool directShellHit=false)
         {

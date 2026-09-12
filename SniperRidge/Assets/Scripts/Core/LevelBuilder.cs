@@ -77,7 +77,7 @@ namespace SniperRidge
         public static void PrepareMap(GameManager gm)
         {
             if (gm.Mission == MissionType.Assault) AssaultWorld.Build(gm);
-            else if (gm.Mission == MissionType.Tank) BattlefieldScenery.BuildTankField(gm);
+            else if (gm.Mission == MissionType.Tank) TankCanyon.Build(gm);
             else if (gm.Map == BattlefieldMap.City) { CityBattlefield.Build(gm); BattlefieldScenery.CityDetails(gm); }
             else
             {

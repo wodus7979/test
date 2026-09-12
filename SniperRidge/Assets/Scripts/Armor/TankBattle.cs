@@ -6,7 +6,7 @@ namespace SniperRidge
 {
     public sealed class TankBattle : MonoBehaviour
     {
-        public const float Bounds=220f;
+        public const float Bounds=TankCanyon.CombatBounds;
         public const int Stages=5;
         public TankVehicle PlayerTank { get; private set; }
         public int Stage { get; private set; }
@@ -29,7 +29,7 @@ namespace SniperRidge
             battle.playerCannon.playOnAwake=false;battle.playerCannon.spatialBlend=0;battle.playerCannon.priority=24;
             battle.explosion=Resources.Load<AudioClip>("Audio/tank_impact");
             game.Player.AttachToTank(game.Weapon);
-            battle.PlayerTank=TankVehicle.Create(battle,new Vector3(0,TerrainGenerator.FieldElevation+.08f,-150),true,1);
+            battle.PlayerTank=TankVehicle.Create(battle,TankCanyon.Ground(game.Terrain,TankCanyon.Node(1),.2f),true,1);
             battle.StartCoroutine(battle.RunStages());
             return battle;
         }
@@ -51,6 +51,7 @@ namespace SniperRidge
                 gm.Hud.Announce(string.Format("전차전 {0} / 5 · 적 전차 {1}대 · K2 {2} / 주력전차 {3}",stage,tankCount,k2Count,oppositionCount));
                 for(int i=0;i<tankCount;i++)
                 {
+                    if(!gm.IsPlaying)yield break;
                     Vector3 spawn;
                     while(!TryChooseTankSpawn(i,stage,out spawn))
                     {
@@ -74,16 +75,19 @@ namespace SniperRidge
         }
         bool TryChooseTankSpawn(int ordinal,int stage,out Vector3 spawn)
         {
-            // Clear terrain lanes are reserved at the outer ring; choose away from the player.
+            // Sample clear road junctions at their actual elevation, including enlarged colliders.
             Physics.SyncTransforms();
-            for(int attempt=0;attempt<64;attempt++)
+            for(int attempt=0;attempt<TankCanyon.NodeCount*3;attempt++)
             {
-                float angle=(ordinal*82+stage*31+attempt*37)*Mathf.Deg2Rad;
-                var p=new Vector3(Mathf.Sin(angle)*170,TerrainGenerator.FieldElevation+.1f,Mathf.Cos(angle)*170);
-                if(Vector3.Distance(p,PlayerTank.transform.position)<65)continue;
+                int node=(ordinal*5+stage*3+attempt)%TankCanyon.NodeCount;
+                Vector2 offset=attempt<TankCanyon.NodeCount?Vector2.zero:Vector2.right*(attempt<TankCanyon.NodeCount*2?10:-10);
+                var p=TankCanyon.Ground(gm.Terrain,TankCanyon.Node(node)+offset,.25f);
+                if(TankCanyon.RoadDistance(p.x,p.z)>4||Vector3.Distance(p,PlayerTank.transform.position)<38)continue;
                 bool free=true;
-                foreach(var t in tanks)if(t!=null&&Vector3.Distance(p,t.transform.position)<15)free=false;
-                if(free && !Physics.CheckBox(p+Vector3.up*1.7f,new Vector3(2.3f,1.5f,4.1f),Quaternion.identity,
+                foreach(var t in tanks)if(t!=null&&Vector3.Distance(p,t.transform.position)<18)free=false;
+                Vector3 normal=TankCanyon.Normal(gm.Terrain,p);
+                Quaternion rotation=Quaternion.FromToRotation(Vector3.up,normal);
+                if(free && normal.y>.94f && !Physics.CheckBox(p+normal*2.2f,new Vector3(2.65f,1.8f,5.3f),rotation,
                     EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore)) { spawn=p;return true; }
             }
             spawn=default;return false;
