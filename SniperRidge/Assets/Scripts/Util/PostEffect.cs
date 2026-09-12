@@ -55,12 +55,12 @@ namespace SniperRidge
         float notice;
         string noticeText = "";
 
-        /// <summary>F9: 후처리 전체 끄고 켜기 (전후 비교). F10: SSAO 만 끄고 켜기. F12: Screenshots 폴더에 스크린샷 저장.</summary>
+        /// <summary>P: 후처리 전체 끄고 켜기 (전후 비교). O: SSAO 만 끄고 켜기. K: Screenshots 폴더에 스크린샷 저장.</summary>
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.F9)) { bypass = !bypass; Notice(bypass ? "후처리 OFF (원래 화면)" : "후처리 ON"); }
-            if (Input.GetKeyDown(KeyCode.F10)) { AoIntensity = AoIntensity > 0.001f ? 0f : .8f; UpdateDepthMode(); Notice(AoIntensity > 0f ? "SSAO ON" : "SSAO OFF"); }
-            if (Input.GetKeyDown(KeyCode.F12))
+            if (Input.GetKeyDown(KeyCode.P)) { bypass = !bypass; Notice(bypass ? "후처리 OFF (원래 화면)" : "후처리 ON"); }
+            if (Input.GetKeyDown(KeyCode.O)) { AoIntensity = AoIntensity > 0.001f ? 0f : .8f; UpdateDepthMode(); Notice(AoIntensity > 0f ? "SSAO ON" : "SSAO OFF"); }
+            if (Input.GetKeyDown(KeyCode.K))
             {
                 string dir = System.IO.Path.Combine(Application.dataPath, "../Screenshots");
                 System.IO.Directory.CreateDirectory(dir);
@@ -81,7 +81,7 @@ namespace SniperRidge
             GUI.color = new Color(0f, 0f, 0f, .6f);
             GUI.DrawTexture(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), Texture2D.whiteTexture);
             GUI.color = Color.white;
-            GUI.Label(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), noticeText + "   (F9 후처리 비교 · F10 SSAO · F12 스크린샷)", style);
+            GUI.Label(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), noticeText + "   (P 후처리 비교 · O SSAO · K 스크린샷)", style);
         }
 
         void OnEnable()
