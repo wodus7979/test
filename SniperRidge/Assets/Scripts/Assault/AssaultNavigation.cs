@@ -14,11 +14,14 @@ namespace SniperRidge
         Vector3[] corners;
         int corner;
         float refresh;
+        Vector3 lastTarget;
+        float stepLimit=float.PositiveInfinity;
         public void Repath(){refresh=0;corners=null;}
         public Vector3 Direction(Vector3 target)
         {
-            if(Time.time>=refresh)
+            if(Time.time>=refresh || (target-lastTarget).sqrMagnitude>1f)
             {
+                lastTarget=target;
                 refresh=Time.time+.55f;
                 if(NavMesh.SamplePosition(transform.position,out var start,2f,NavMesh.AllAreas) &&
                     NavMesh.SamplePosition(target,out var end,3f,NavMesh.AllAreas) &&
@@ -26,12 +29,17 @@ namespace SniperRidge
                 {corners=path.corners;corner=1;}
                 else corners=null;
             }
+            stepLimit=float.PositiveInfinity;
             if(corners==null)return Vector3.zero;
             if(!NavMesh.SamplePosition(transform.position,out var current,1f,NavMesh.AllAreas))return Vector3.zero;
             // Skip a bend only when the next segment is clear, so agents cannot cut into a building corner.
             while(corner+1<corners.Length && !NavMesh.Raycast(current.position,corners[corner+1],out var barrier,NavMesh.AllAreas))corner++;
-            if(corner>=corners.Length || Vector3.Distance(transform.position,corners[corner])<.08f)return Vector3.zero;
-            var dir=corners[corner]-transform.position;dir.y=0;return dir.normalized;
+            if(corner>=corners.Length)return Vector3.zero;
+            var dir=corners[corner]-current.position;dir.y=0;
+            while(dir.sqrMagnitude<.04f && corner+1<corners.Length)
+            {corner++;dir=corners[corner]-current.position;dir.y=0;}
+            stepLimit=dir.magnitude;
+            return stepLimit<.06f?Vector3.zero:dir.normalized;
         }
         public void Move(Vector3 direction,float speed,float dt)
         {
@@ -45,8 +53,9 @@ namespace SniperRidge
                 if(distance>.001f && distance<1.35f)separation+=delta/distance*(1.35f-distance)/1.35f;
             }
             var advance=(direction.normalized+Vector3.ClampMagnitude(separation,1f)*1.1f).normalized;
-            var next=transform.position+advance*speed*dt;
             if(!NavMesh.SamplePosition(transform.position,out var start,1f,NavMesh.AllAreas))return;
+            // Project both ends onto the navigation surface; terrain and baked mesh heights differ.
+            var next=start.position+advance*Mathf.Min(speed*dt,stepLimit);
             if(NavMesh.Raycast(start.position,next,out var edge,NavMesh.AllAreas))next=edge.position;
             if(NavMesh.SamplePosition(next,out var hit,.5f,NavMesh.AllAreas))transform.position=hit.position;
         }

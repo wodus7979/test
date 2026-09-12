@@ -8,14 +8,16 @@ namespace SniperRidge
     // targets are remembered from sight/nearby fire, not updated through buildings.
     public sealed class AssaultTactics:MonoBehaviour
     {
-        public enum Action { Advance, SeekCover, Hide, Peek, Flank }
+        public enum Action { Advance, SeekCover, Hide, Peek, Flank, Engage }
         static readonly List<AssaultTactics> active=new List<AssaultTactics>();
         readonly NavMeshPath path=new NavMeshPath();
         EnemySoldier owner;
         AssaultNavigation navigation;
         Vector3 knownEye, goal, shelter;
         bool informed, visible, hasShelter;
-        float nextSense, nextDecision, deadline, threatenedUntil, reactionAt, watched;
+        float nextSense, nextDecision, deadline, threatenedUntil, reactionAt, watched, nextThreat;
+        float stalled, clock;
+        Vector3 lastPosition;
         int side, peeks;
         public Action Current { get; private set; }
         public Vector3 Direction { get; private set; }
@@ -25,45 +27,63 @@ namespace SniperRidge
         public bool CanShoot { get; private set; }
 
         void Awake(){owner=GetComponent<EnemySoldier>();navigation=GetComponent<AssaultNavigation>();}
-        void OnEnable(){active.Add(this);side=Random.value<.5f?-1:1;nextSense=Time.time+Random.Range(0,.2f);}
+        void OnEnable(){active.Add(this);side=Random.value<.5f?-1:1;nextSense=Time.time+Random.Range(0,.2f);lastPosition=transform.position;}
         void OnDisable(){active.Remove(this);}
 
-        public void Suppress(Vector3 source)
+        public void Suppress(Vector3 source)=>SuppressAt(source,Time.time);
+        void SuppressAt(Vector3 source,float now)
         {
             if(owner==null||owner.IsDead)return;
-            if(Time.time>=threatenedUntil)reactionAt=Time.time+Random.Range(.25f,.55f);
-            threatenedUntil=Time.time+1.4f;
+            if(now<nextThreat)return;
+            reactionAt=now+Random.Range(.25f,.55f);
+            threatenedUntil=reactionAt+1f;
+            nextThreat=now+4f;
             knownEye=source;informed=true;
         }
 
         public void Tick(GameManager gm,float dt)
         {
             float now=Time.time;
+            bool sight=now>=nextSense ? owner.CanSee(gm.PlayerEye.position) : visible;
+            Step(gm.PlayerEye.position,gm.PlayerEye.forward,owner.Head.position,sight,dt,now);
+        }
+        // Explicit clock/perception inputs let the editor exercise the real state machine over time.
+        internal void Step(Vector3 playerEye,Vector3 playerForward,Vector3 headPosition,bool sight,float dt,float now)
+        {
+            clock=now;
+            bool moving=Current==Action.Advance || Current==Action.SeekCover || Current==Action.Flank || Current==Action.Peek && exposedAt<0;
+            stalled=moving && FlatDistance(transform.position,lastPosition)<Mathf.Max(.001f,dt*.12f) ? stalled+dt : 0;
+            lastPosition=transform.position;
             Direction=Vector3.zero;Speed=0;CanShoot=false;Crouch=0;
-            if(!informed){knownEye=gm.PlayerEye.position;informed=true;goal=knownEye;}
+            if(!informed){knownEye=playerEye;informed=true;goal=knownEye;}
             if(now>=nextSense)
             {
                 nextSense=now+.22f;
-                visible=owner.CanSee(gm.PlayerEye.position);
-                if(visible)knownEye=gm.PlayerEye.position;
-                Vector3 toMe=(owner.Head.position-gm.PlayerEye.position).normalized;
+                visible=sight;
+                if(visible)knownEye=playerEye;
+                Vector3 toMe=(headPosition-playerEye).normalized;
                 // Require sustained aim and an unobstructed view, with a human-scale delay.
-                watched=visible && Vector3.Dot(gm.PlayerEye.forward,toMe)>.975f ? watched+.22f : 0;
-                if(watched>.45f)Suppress(gm.PlayerEye.position);
+                watched=visible && Vector3.Dot(playerForward,toMe)>.975f ? watched+.22f : 0;
+                if(watched>.45f)SuppressAt(playerEye,now);
             }
             bool threatened=now<threatenedUntil && now>=reactionAt;
             if(threatened && now>=nextDecision && Current!=Action.SeekCover && Current!=Action.Hide)
                 Evade(now);
+            if(stalled>1.2f)
+            {
+                stalled=0;navigation.Repath();
+                if(visible)Begin(Action.Engage,transform.position,3.5f);
+                else BeginFlank();
+                nextDecision=now+1.5f;
+            }
 
             switch(Current)
             {
                 case Action.Advance:
                     if(now>=nextDecision && visible)
                     {
-                        // Even an unobserved rear attacker changes position after a short firing window.
-                        if(FindCover(out var cover)){shelter=cover;hasShelter=true;peeks=0;Begin(Action.SeekCover,cover,6f);}
-                        else BeginFlank();
-                        nextDecision=now+1.2f;
+                        Begin(Action.Engage,transform.position,3.5f);
+                        nextDecision=now+.7f;
                     }
                     if(Current!=Action.Advance)break;
                     Move(knownEye,3.1f);
@@ -76,7 +96,11 @@ namespace SniperRidge
                         if(Protected(transform.position))Begin(Action.Hide,goal,Random.Range(1f,1.8f));
                         else {hasShelter=false;BeginFlank();}
                     }
-                    else if(now>=deadline)Resume();
+                    else if(now>=deadline)
+                    {
+                        if(visible)Begin(Action.Engage,transform.position,3.5f);
+                        else Resume();
+                    }
                     break;
                 case Action.Hide:
                     Crouch=1;
@@ -92,7 +116,7 @@ namespace SniperRidge
                     {
                         // Start the exposure clock on arrival, not while walking around a wall.
                         if(Speed>0){Speed=0;Direction=Vector3.zero;}
-                        CanShoot=visible&&!threatened;
+                        CanShoot=visible;
                         if(exposedAt<0)exposedAt=now;
                     }
                     if((exposedAt>=0 && now-exposedAt>2.1f) || now>=deadline)
@@ -103,19 +127,26 @@ namespace SniperRidge
                     break;
                 case Action.Flank:
                     Move(goal,threatened?4.5f:3.5f);
-                    CanShoot=visible&&!threatened;
+                    CanShoot=visible;
                     if(FlatDistance(transform.position,goal)<.7f || now>=deadline)Resume();
+                    break;
+                case Action.Engage:
+                    CanShoot=visible;
+                    Crouch=.35f;
+                    if(!visible){Resume();break;}
+                    if(now>=deadline)Evade(now);
                     break;
             }
         }
         float exposedAt=-1;
         void Begin(Action action,Vector3 destination,float seconds)
         {
-            Current=action;goal=destination;deadline=Time.time+seconds;exposedAt=-1;
+            Current=action;goal=destination;deadline=clock+seconds;exposedAt=-1;
+            stalled=0;
             CanShoot=false;Direction=Vector3.zero;Speed=0;Crouch=action==Action.Hide?1f:0;
             navigation.Repath();
         }
-        void Resume(){Begin(Action.Advance,knownEye,0);nextDecision=Time.time+Random.Range(.9f,1.7f);hasShelter=false;}
+        void Resume(){Begin(Action.Advance,knownEye,0);nextDecision=clock+Random.Range(.9f,1.7f);hasShelter=false;}
         void Evade(float now)
         {
             nextDecision=now+1.1f;

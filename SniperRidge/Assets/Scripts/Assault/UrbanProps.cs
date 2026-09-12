@@ -34,48 +34,7 @@ namespace SniperRidge
         {
             if(kind=="Utility van" || kind=="Abandoned sedan")
             {
-                bool van=kind=="Utility van";
-                Part(root,new Vector3(0,.66f,0),new Vector3(1.92f,.65f,4.4f),painted);
-                Part(root,new Vector3(0,.42f,0),new Vector3(1.80f,.18f,4.1f),rubber);
-                if(van)
-                {
-                    Part(root,new Vector3(0,1.5f,-.65f),new Vector3(1.87f,1.15f,2.95f),painted);
-                    Part(root,new Vector3(0,1.3f,1.1f),new Vector3(1.72f,.76f,1.2f),glass);
-                    Part(root,new Vector3(0,1.72f,1.08f),new Vector3(1.9f,.10f,1.35f),painted);
-                }
-                else
-                {
-                    Part(root,new Vector3(0,1.13f,-.25f),new Vector3(1.62f,.62f,2.2f),glass);
-                    Part(root,new Vector3(0,1.46f,-.35f),new Vector3(1.65f,.09f,1.5f),painted);
-                    // Sloped front and rear glass, pillars, bumpers and door seams.
-                    Part(root,new Vector3(0,1.14f,.89f),new Vector3(1.6f,.67f,.07f),glass,Quaternion.Euler(-24,0,0));
-                }
-                foreach(int side in new[]{-1,1})
-                {
-                    for(int axle=0;axle<2;axle++)
-                    {
-                        float z=axle==0?-1.4f:1.4f;
-                        Part(root,new Vector3(side*.96f,.43f,z),new Vector3(.83f,.15f,.83f),rubber,Quaternion.Euler(0,0,90),PrimitiveType.Cylinder);
-                        Part(root,new Vector3(side*1.12f,.43f,z),new Vector3(.49f,.012f,.49f),metal,Quaternion.Euler(0,0,90),PrimitiveType.Cylinder);
-                        for(int bolt=0;bolt<5;bolt++)
-                        {
-                            float a=bolt*Mathf.PI*2/5;
-                            Part(root,new Vector3(side*1.135f,.43f+Mathf.Cos(a)*.14f,z+Mathf.Sin(a)*.14f),Vector3.one*.044f,rubber);
-                        }
-                    }
-                    for(int door=0;door<2;door++)
-                    {
-                        Part(root,new Vector3(side*.966f,.8f,-.7f+door*1.25f),new Vector3(.014f,.45f,.025f),rubber);
-                        Part(root,new Vector3(side*.98f,.94f,-1+door*1.25f),new Vector3(.04f,.035f,.19f),metal);
-                    }
-                    Part(root,new Vector3(side*1.04f,1.15f,.65f),new Vector3(.23f,.13f,.24f),painted);
-                    Part(root,new Vector3(side*.68f,.8f,2.22f),new Vector3(.46f,.17f,.04f),lamp);
-                    Part(root,new Vector3(side*.68f,.75f,-2.22f),new Vector3(.35f,.15f,.04f),Resources.Load<Material>("CityPack/Materials/Safety_Red"));
-                }
-                Part(root,new Vector3(0,.50f,2.24f),new Vector3(1.8f,.15f,.12f),metal);
-                Part(root,new Vector3(0,.52f,-2.24f),new Vector3(1.8f,.14f,.12f),rubber);
-                Part(root,new Vector3(0,.69f,2.26f),new Vector3(.65f,.19f,.018f),rubber);
-                var box=root.gameObject.AddComponent<BoxCollider>();box.center=new Vector3(0,van?1f:.78f,0);box.size=new Vector3(2.1f,van?2f:1.55f,4.55f);
+                VehicleModels.Build(root,kind=="Utility van");
             }
             else if(kind=="Sandbag corner")
             {

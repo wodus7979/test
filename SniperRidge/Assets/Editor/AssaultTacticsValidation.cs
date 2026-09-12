@@ -56,17 +56,50 @@ namespace SniperRidge.EditorTools
                 Check(reaction>=Time.time+.24f && reaction<=Time.time+.56f,"반응 지연 범위 오류");
                 brain.Suppress(origin+new Vector3(0,1.68f,-12));
                 Check((float)Get(brain,"reactionAt")==reaction,"연속 사격이 반응을 무기한 지연시킴");
+                float end=(float)Get(brain,"threatenedUntil");
+                for(int i=0;i<30;i++)Call(brain,"SuppressAt",origin+new Vector3(0,1.68f,-12),Time.time+i*.1f);
+                Check((float)Get(brain,"threatenedUntil")==end,"계속 바라보면 위협 상태가 무한 연장됨");
                 wall.SetActive(false);Physics.SyncTransforms();Set(brain,"hasShelter",false);
                 Check(!(bool)Call(brain,"Protected",shelter),"사라진 장애물을 여전히 엄폐로 사용");
                 Call(brain,"Evade",Time.time);
                 Check(brain.Current==AssaultTactics.Action.Flank,"엄폐물이 없을 때 옆으로 회피하지 못함");
-                Debug.Log("[Sniper Ridge] 실제 엄폐/노출 판별·엄폐 경로·사격 위치·반응 지연·엄폐 소실 시 회피 검사 통과");
+                Simulate(brain,navigation,owner,origin,false,false);
+                Simulate(brain,navigation,owner,origin,true,false);
+                wall.SetActive(true);Physics.SyncTransforms();
+                Simulate(brain,navigation,owner,origin,false,true);
+                Debug.Log("[Sniper Ridge] 엄폐 판정/경로 및 20초 행동 검사 통과: 이동, 조준받으며 반격, 엄폐 후 재사격");
             }
             finally
             {
                 if(instance.valid)instance.Remove();if(data!=null)UnityEngine.Object.DestroyImmediate(data);
                 EditorSceneManager.CloseScene(scene,true);
             }
+        }
+        static void Simulate(AssaultTactics brain,AssaultNavigation navigation,EnemySoldier owner,Vector3 origin,bool watched,bool cover)
+        {
+            owner.transform.position=origin+new Vector3(0,0,2);navigation.Repath();
+            float start=Time.time;Set(brain,"clock",start);Set(brain,"nextSense",0f);Set(brain,"nextDecision",0f);
+            Set(brain,"nextThreat",0f);Set(brain,"threatenedUntil",0f);Set(brain,"watched",0f);
+            Set(brain,"lastPosition",owner.transform.position);Set(brain,"hasShelter",false);Set(brain,"peeks",0);
+            Vector3 eye=origin+new Vector3(0,1.68f,-12);Set(brain,"knownEye",eye);
+            Call(brain,"Begin",AssaultTactics.Action.Advance,eye,0f);
+            if(cover)Call(brain,"Evade",start);
+            var step=typeof(AssaultTactics).GetMethod("Step",Private);
+            float movement=0,fireWindow=0,bestWindow=0;bool hid=false;
+            for(int i=0;i<400;i++)
+            {
+                Vector3 head=owner.transform.position+Vector3.up*Mathf.Lerp(2.4f,1.55f,brain.Crouch);
+                bool sight=!EnemyProjectile.WorldHit(head,eye,owner,out _);
+                Vector3 aim=watched?(head-eye).normalized:Vector3.back;
+                step.Invoke(brain,new object[]{eye,aim,head,sight,.05f,start+i*.05f});
+                var before=owner.transform.position;navigation.Move(brain.Direction,brain.Speed,.05f);
+                movement+=Vector3.Distance(before,owner.transform.position);
+                fireWindow=brain.CanShoot?fireWindow+.05f:0;bestWindow=Mathf.Max(bestWindow,fireWindow);
+                hid|=brain.Current==AssaultTactics.Action.Hide && brain.Crouch>.7f;
+            }
+            Check(movement>2f,"시간이 흘러도 적이 움직이지 않음");
+            Check(bestWindow>.85f,"사격 준비/3점사에 필요한 연속 반격 시간이 없음");
+            if(cover)Check(hid,"엄폐 위치에 도달해도 몸을 낮추지 않음");
         }
         static GameObject Box(Transform parent,string name,Vector3 p,Vector3 size)
         {
