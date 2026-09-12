@@ -100,7 +100,7 @@ namespace SniperRidge
             if (normal != null)
             {
                 layer.normalMapTexture = normal;
-                layer.normalScale = .45f;
+                layer.normalScale = .7f;
             }
             return layer;
         }

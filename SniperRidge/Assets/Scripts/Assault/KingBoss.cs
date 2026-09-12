@@ -97,8 +97,8 @@ namespace SniperRidge
         void BuildEquipment()
         {
             equipment=new GameObject("Royal armour and shoulder launcher").transform;equipment.SetParent(transform,false);
-            armorMaterial=ProceduralAssets.LitMaterial(new Color(.38f,.28f,.12f),.18f);
-            clothMaterial=ProceduralAssets.LitMaterial(new Color(.24f,.025f,.03f),0);
+            armorMaterial=SurfaceDetail.Make(Surface.PaintedMetal,new Color(.38f,.28f,.12f),.18f);
+            clothMaterial=SurfaceDetail.Make(Surface.Fabric,new Color(.24f,.025f,.03f),0);
             chestPlate=Piece("Royal breastplate",new Vector3(0,-.1f,.14f),new Vector3(.52f,.52f,.14f),armorMaterial,true);
             Piece("Left shoulder plate",new Vector3(-.32f,.1f,0),new Vector3(.24f,.14f,.3f),armorMaterial,true);
             Piece("Royal red back cloth",new Vector3(0,-.28f,-.22f),new Vector3(.62f,.83f,.055f),clothMaterial,false);

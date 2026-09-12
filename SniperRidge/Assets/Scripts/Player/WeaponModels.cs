@@ -11,10 +11,10 @@ namespace SniperRidge
         static void EnsureMaterials()
         {
             if (black != null) return;
-            black = ProceduralAssets.LitMaterial(new Color(0.08f, 0.08f, 0.09f), 0.45f);
-            wood = ProceduralAssets.LitMaterial(new Color(0.30f, 0.20f, 0.12f), 0.3f);
-            tan = ProceduralAssets.LitMaterial(new Color(0.45f, 0.40f, 0.28f), 0.25f);
-            steel = ProceduralAssets.LitMaterial(new Color(0.35f, 0.36f, 0.38f), 0.6f);
+            black = SurfaceDetail.Make(Surface.PaintedMetal, new Color(0.08f, 0.08f, 0.09f), 0.45f, 0.4f);
+            wood = SurfaceDetail.Make(Surface.Wood, new Color(0.30f, 0.20f, 0.12f), 0.3f);
+            tan = SurfaceDetail.Make(Surface.Polymer, new Color(0.45f, 0.40f, 0.28f), 0.25f);
+            steel = SurfaceDetail.Make(Surface.Steel, new Color(0.35f, 0.36f, 0.38f), 0.6f);
         }
 
         /// <summary>Firearm Asset Pack 프리팹 (Resources/Weapons/Prefabs) 을 찾는다. 없으면 null.</summary>

@@ -38,20 +38,19 @@ namespace SniperRidge
             string id=key+(van?"_van":"_sedan");
             if(materials.TryGetValue(id,out var found)&&found!=null)return found;
             // Opaque tinted glazing gives a solid cabin and controlled highlights without sorting artifacts.
-            var m=new Material(Shader.Find("Standard")){name="Vehicle "+id};
-            Color color;float smooth=.22f,metal=0;
+            Color color;float smooth=.22f,metal=0;Surface surface=Surface.PaintedMetal;
             switch(key)
             {
                 case "paint":color=van?new Color(.55f,.53f,.46f):new Color(.22f,.34f,.39f);metal=.25f;smooth=.32f;break;
-                case "glass":color=new Color(.07f,.14f,.19f);smooth=.55f;metal=.2f;break;
-                case "rubber":color=new Color(.045f,.05f,.055f);smooth=.08f;break;
-                case "metal":color=new Color(.42f,.46f,.48f);metal=.75f;smooth=.4f;break;
-                case "light":color=new Color(.78f,.85f,.84f);smooth=.45f;break;
+                case "glass":color=new Color(.07f,.14f,.19f);smooth=.55f;metal=.2f;surface=Surface.Polymer;break;
+                case "rubber":color=new Color(.045f,.05f,.055f);smooth=.08f;surface=Surface.Rubber;break;
+                case "metal":color=new Color(.42f,.46f,.48f);metal=.75f;smooth=.4f;surface=Surface.Steel;break;
+                case "light":color=new Color(.78f,.85f,.84f);smooth=.45f;surface=Surface.Polymer;break;
                 case "red":color=new Color(.52f,.055f,.045f);smooth=.38f;break;
                 case "plate":color=new Color(.7f,.71f,.64f);break;
-                default:color=new Color(.025f,.028f,.03f);smooth=.08f;break;
+                default:color=new Color(.025f,.028f,.03f);smooth=.08f;surface=Surface.Rubber;break;
             }
-            m.color=color;m.SetFloat("_Glossiness",smooth);m.SetFloat("_Metallic",metal);materials[id]=m;return m;
+            var m=SurfaceDetail.Make(surface,color,smooth,metal);m.name="Vehicle "+id;materials[id]=m;return m;
         }
     }
 }

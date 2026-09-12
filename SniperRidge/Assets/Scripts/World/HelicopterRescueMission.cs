@@ -31,8 +31,8 @@ namespace SniperRidge
         public static HelicopterRescueMission Create(GameManager game)
         {
             var mission=new GameObject("Helicopter rescue mission").AddComponent<HelicopterRescueMission>();mission.gm=game;
-            mission.uniform=ProceduralAssets.LitMaterial(new Color(.17f,.34f,.46f),.02f);
-            mission.skin=ProceduralAssets.LitMaterial(new Color(.58f,.40f,.28f),.01f);
+            mission.uniform=SurfaceDetail.Make(Surface.Fabric,new Color(.17f,.34f,.46f),.02f);
+            mission.skin=SurfaceDetail.Make(Surface.Skin,new Color(.58f,.40f,.28f),.25f);
             mission.marker=ProceduralAssets.LitMaterial(new Color(.12f,.75f,.9f),.05f);
             for(int i=0;i<SiteCount;i++)mission.BuildSite(i);
             return mission;

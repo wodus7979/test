@@ -11,7 +11,7 @@ namespace SniperRidge
             var pole=GameObject.CreatePrimitive(PrimitiveType.Cylinder);pole.transform.SetParent(root.transform,false);
             pole.transform.localPosition=Vector3.up*1.9f;pole.transform.localScale=new Vector3(.06f,1.9f,.06f);
             pole.GetComponent<Collider>().enabled=false;Destroy(pole.GetComponent<Collider>());
-            pole.GetComponent<Renderer>().sharedMaterial=ProceduralAssets.LitMaterial(new Color(.4f,.43f,.4f),.2f);
+            pole.GetComponent<Renderer>().sharedMaterial=SurfaceDetail.Make(Surface.PaintedMetal,new Color(.4f,.43f,.4f),.2f);
             var panel=new GameObject("Cloth",typeof(MeshFilter),typeof(MeshRenderer));flag.banner=panel.transform;
             panel.transform.SetParent(root.transform,false);panel.transform.localPosition=new Vector3(0,2.6f,0);
             flag.rest=new Vector3[52];var triangles=new int[144];
@@ -27,7 +27,7 @@ namespace SniperRidge
             }
             flag.vertices=(Vector3[])flag.rest.Clone();flag.mesh=new Mesh{name="Flag cloth"};flag.mesh.vertices=flag.vertices;flag.mesh.triangles=triangles;flag.mesh.RecalculateNormals();
             panel.GetComponent<MeshFilter>().sharedMesh=flag.mesh;
-            flag.cloth=ProceduralAssets.LitMaterial(new Color(.65f,.075f,.06f),.05f);panel.GetComponent<Renderer>().sharedMaterial=flag.cloth;
+            flag.cloth=SurfaceDetail.Make(Surface.Fabric,new Color(.65f,.075f,.06f),.05f);panel.GetComponent<Renderer>().sharedMaterial=flag.cloth;
             return flag;
         }
         public void SetProgress(float progress){if(!captured)banner.localPosition=new Vector3(0,2.6f+.25f*progress,0);}

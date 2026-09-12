@@ -95,13 +95,14 @@ namespace SniperRidge
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.94f, 0.85f);
-            sun.intensity = 1.05f;
+            // 늦은 오후의 햇빛: 약간 따뜻하고 낮은 고도, 짙은 그림자가 형태를 살린다.
+            sun.color = new Color(1f, 0.93f, 0.82f);
+            sun.intensity = 1.15f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.85f;
-            sun.shadowBias = 0.03f;
-            sun.shadowNormalBias = 0.25f;
-            sunGo.transform.rotation = Quaternion.Euler(42f, -35f, 0f);
+            sun.shadowStrength = 0.9f;
+            sun.shadowBias = 0.025f;
+            sun.shadowNormalBias = 0.3f;
+            sunGo.transform.rotation = Quaternion.Euler(38f, -35f, 0f);
             RenderSettings.sun = sun;
 
             RenderSettings.fog = true;
@@ -127,6 +128,8 @@ namespace SniperRidge
             }
 
             bool mobile = Application.isMobilePlatform;
+            // 저장소에 QualitySettings.asset 이 없어 PC 마다 기본 티어로 열린다. PC 에서는 최상위 티어부터 시작한다.
+            if (!mobile && QualitySettings.names.Length > 0) QualitySettings.SetQualityLevel(QualitySettings.names.Length - 1, false);
             QualitySettings.shadowDistance = mobile ? 90f : 460f;
             QualitySettings.shadowCascades = mobile ? 2 : 4;
             QualitySettings.shadowResolution = mobile ? ShadowResolution.Medium : ShadowResolution.VeryHigh;
@@ -136,6 +139,13 @@ namespace SniperRidge
             QualitySettings.lodBias = mobile ? 1f : 1.25f;
             QualitySettings.shadowCascade4Split = new Vector3(.08f, .23f, .5f);
             QualitySettings.pixelLightCount = mobile ? 2 : 8;
+            QualitySettings.shadowProjection = ShadowProjection.CloseFit;
+            QualitySettings.shadowNearPlaneOffset = 2f;
+            QualitySettings.softParticles = !mobile;
+            QualitySettings.realtimeReflectionProbes = !mobile;
+            QualitySettings.billboardsFaceCameraPosition = true;
+            QualitySettings.skinWeights = mobile ? SkinWeights.TwoBones : SkinWeights.FourBones;
+            QualitySettings.globalTextureMipmapLimit = 0;
             RenderSettings.reflectionIntensity = .42f;
         }
 
@@ -194,8 +204,7 @@ namespace SniperRidge
             cam.allowMSAA = true;
             eyeGo.AddComponent<AudioListener>();
             var post = eyeGo.AddComponent<PostEffect>();
-            post.Exposure = .98f; post.Saturation = .92f;
-            post.BloomIntensity = Application.isMobilePlatform ? 0.2f : 0.16f;
+            post.ApplyPreset(PostPreset.DaylightField);
 
             var muzzleGo = new GameObject("MuzzleFlash");
             muzzleGo.transform.SetParent(eyeGo.transform, false);
@@ -227,9 +236,9 @@ namespace SniperRidge
         static void EnsureEnemyMaterials()
         {
             if (enemyBody != null) return;
-            enemyBody = ProceduralAssets.LitMaterial(new Color(0.44f, 0.42f, 0.28f), 0.05f);
-            enemySkin = ProceduralAssets.LitMaterial(new Color(0.78f, 0.62f, 0.48f), 0.1f);
-            enemyGear = ProceduralAssets.LitMaterial(new Color(0.12f, 0.13f, 0.11f), 0.2f);
+            enemyBody = SurfaceDetail.Make(Surface.Fabric, new Color(0.44f, 0.42f, 0.28f), 0.05f);
+            enemySkin = SurfaceDetail.Make(Surface.Skin, new Color(0.78f, 0.62f, 0.48f), 0.3f);
+            enemyGear = SurfaceDetail.Make(Surface.Rubber, new Color(0.12f, 0.13f, 0.11f), 0.2f);
             enemyRock = ProceduralAssets.TexturedMaterial(new Color(0.85f, 0.83f, 0.8f), ProceduralAssets.LoadTex("Terrain/rock_albedo"), ProceduralAssets.LoadTex("Terrain/rock_normal"), 0.6f, 0.05f);
         }
 

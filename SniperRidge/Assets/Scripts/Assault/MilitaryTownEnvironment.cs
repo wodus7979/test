@@ -57,7 +57,7 @@ namespace SniperRidge
                 sky=new Material(RenderSettings.skybox);if(sky.HasProperty("_Exposure"))sky.SetFloat("_Exposure",.40f);
                 if(sky.HasProperty("_Tint"))sky.SetColor("_Tint",new Color(.40f,.46f,.53f));RenderSettings.skybox=sky;
             }
-            var post=game.PlayerEye.GetComponent<PostEffect>();post.Exposure=1.08f;post.Saturation=.76f;post.Contrast=1.03f;post.BloomIntensity=.15f;post.Vignette=.12f;
+            var post=game.PlayerEye.GetComponent<PostEffect>();if(post!=null)post.ApplyPreset(PostPreset.EveningTown);
         }
         void Lamp(Vector3 position,Vector3 target,Material material,Color color,bool warning)
         {

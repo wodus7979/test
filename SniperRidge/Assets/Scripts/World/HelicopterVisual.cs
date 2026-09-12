@@ -10,13 +10,13 @@ namespace SniperRidge
         static void Materials()
         {
             if (olive != null) return;
-            olive = ProceduralAssets.LitMaterial(new Color(.18f,.21f,.15f),.3f);
-            dark = ProceduralAssets.LitMaterial(new Color(.045f,.055f,.05f),.25f);
-            steel = ProceduralAssets.LitMaterial(new Color(.25f,.27f,.25f),.65f);
+            olive = SurfaceDetail.Make(Surface.PaintedMetal, new Color(.18f,.21f,.15f),.3f);
+            dark = SurfaceDetail.Make(Surface.PaintedMetal, new Color(.045f,.055f,.05f),.25f);
+            steel = SurfaceDetail.Make(Surface.Steel, new Color(.25f,.27f,.25f),.65f);
             glass = ProceduralAssets.LitMaterial(new Color(.10f,.19f,.23f),.85f);
-            rubber = ProceduralAssets.LitMaterial(new Color(.025f,.028f,.025f),.05f);
-            canvas = ProceduralAssets.LitMaterial(new Color(.24f,.27f,.21f),.12f);
-            warning = ProceduralAssets.LitMaterial(new Color(.8f,.58f,.12f),.15f);
+            rubber = SurfaceDetail.Make(Surface.Rubber, new Color(.025f,.028f,.025f),.05f);
+            canvas = SurfaceDetail.Make(Surface.Fabric, new Color(.24f,.27f,.21f),.12f);
+            warning = SurfaceDetail.Make(Surface.PaintedMetal, new Color(.8f,.58f,.12f),.15f);
         }
         static GameObject Part(Transform parent, string name, Vector3 p, Vector3 size, Material mat,
             PrimitiveType type = PrimitiveType.Cube, Quaternion? rotation = null)
