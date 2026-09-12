@@ -14,6 +14,7 @@ namespace SniperRidge
         Text enemyText, scoreText, timeText, windText, zeroText, rangeText, ammoText, stateText, weaponText, killFeed, introText, announceText, hintText, endTitle, endStats;
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
+        Texture2D damageMask;Sprite damageSprite;
         Text launcherHelp, coverText, threatText, shotFeedback, launcherLabel, grenadeCount, grenadeAim;
         Button launcherButton;
         float shotFeedbackTimer;
@@ -113,6 +114,15 @@ namespace SniperRidge
             hm.SetActive(false);
 
             damageFlash = UiKit.Fullscreen(g, "DamageFlash", new Color(0.8f, 0f, 0f, 0f)).GetComponent<Image>();
+            damageMask=new Texture2D(128,128,TextureFormat.RGBA32,false){name="Soft damage edges",wrapMode=TextureWrapMode.Clamp};
+            var edgePixels=new Color[128*128];
+            for(int y=0;y<128;y++)for(int x=0;x<128;x++)
+            {
+                float edge=Mathf.Max(Mathf.Abs((x+.5f)/128f*2-1),Mathf.Abs((y+.5f)/128f*2-1));
+                edgePixels[y*128+x]=new Color(1,1,1,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.62f,1f,edge)));
+            }
+            damageMask.SetPixels(edgePixels);damageMask.Apply();
+            damageSprite=Sprite.Create(damageMask,new Rect(0,0,128,128),Vector2.one*.5f);damageFlash.sprite=damageSprite;
 
             coverText = UiKit.Label(g, "CoverState", "", 24, TextAnchor.MiddleCenter, white,
                 new Vector2(.5f, 0f), new Vector2(.5f, 0f), new Vector2(0f, 90f), new Vector2(1000f, 80f), true);
@@ -170,6 +180,7 @@ namespace SniperRidge
                 "W 누르기: 수류탄 조준 / 놓기: 투척  |  Q 로켓포  |  C/Ctrl 엄폐  |  A/D 이동  |  우클릭 조준  |  R 재장전  |  휠 배율",
                 20, TextAnchor.LowerCenter, new Color(1f, 1f, 1f, 0.6f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(1700f, 30f));
             if (Application.isMobilePlatform) hintText.gameObject.SetActive(false);
+            FlagObjectiveHud.Create(g,canvasRect,gm);
             gameplayRoot.SetActive(false);
 
             // ===== 무기 선택 화면 =====
@@ -251,8 +262,9 @@ namespace SniperRidge
             if (gm == null || gm.Player == null) return;
             if (gm.IsSelecting) return;
             var p = gm.Player;
-            launcherButton.gameObject.SetActive(!p.IsMounted && !p.InTank);
-            launcherHelp.gameObject.SetActive(!p.IsMounted && !p.InTank);
+            launcherButton.gameObject.SetActive(!p.IsMounted && !p.InTank && !p.IsFreeRoam);
+            launcherHelp.gameObject.SetActive(!p.IsMounted && !p.InTank && !p.IsFreeRoam);
+            windArrow.gameObject.SetActive(!p.IsFreeRoam);
             grenadeCount.gameObject.SetActive(!p.IsMounted && !p.InTank);
             if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  우클릭 확대  |  R 탄띠 교체  |  휠/Z 배율  |  헬기 자동 선회";
             grenadeCount.text = string.Format(p.IsFreeRoam?"[G] 수류탄 {0}개 · 누르고 조준":"[W] 수류탄 {0}개 · 누르고 조준", p.Grenades.Count);
@@ -326,15 +338,20 @@ namespace SniperRidge
                 var battle=gm.Assault;
                 enemyText.fontSize=24;rangeText.fontSize=24;rangeText.rectTransform.sizeDelta=new Vector2(420,40);
                 if(p.Weapon.IsAssault)weaponText.text="돌격소총";
-                enemyText.text=string.Format("깃발 {0}/6 · {1} · 적 {2}",Mathf.Min(6,battle.Progress.Sector+1),battle.ObjectiveName,battle.Alive);
-                var direction=p.transform.InverseTransformDirection(battle.Objective-p.transform.position);
-                string bearing=direction.z<0?"뒤쪽":Mathf.Abs(direction.x)<Mathf.Abs(direction.z)*.3f?"전방":direction.x<0?"← 왼쪽":"오른쪽 →";
-                rangeText.text=string.Format("목표 {0:0} m · {1}",battle.Distance,bearing);
+                enemyText.text=string.Format("공격 작전 · 적 깃발 탈취 {0}/6",battle.Progress.Sector);
+                rangeText.text="";
                 coverText.text=(battle.InArea?string.Format("E 유지: 깃발 탈취 {0:0}%",battle.Progress.Secured/AssaultLayout.SecureSeconds*100):"깃발로 전진하세요 · 가까이에서 E를 누르세요")+"\n"+battle.SquadStatus;
                 coverText.color=new Color(.85f,.85f,.75f);
                 zeroText.text=p.FreeMovement.Crouching?"앉은 자세":p.FreeMovement.Sprinting?"달리는 중":"이동/교전";
-                windText.text="지구력";breathFill.localScale=new Vector3(p.FreeMovement.Stamina,1,1);
-                hintText.text="1 소총 · 2 기관총 · 3 저격총 · 4 로켓 | E 깃발 · R 장전 · G 수류탄 · C 엄폐 · M BGM";
+                windText.text="목표: "+battle.ObjectiveName;windText.fontSize=20;zeroText.text="[Tab] 지도 · 노란 깃발로 전진";
+                breathFill.localScale=new Vector3(p.FreeMovement.Stamina,1,1);
+                threatText.fontSize=20;threatText.rectTransform.anchoredPosition=new Vector2(0,-82);
+                killFeed.fontSize=22;killFeed.rectTransform.anchoredPosition=new Vector2(0,-120);
+                announceText.fontSize=27;announceText.rectTransform.anchoredPosition=new Vector2(0,-164);
+                if(Time.time<threatUntil)threatText.text="적 사격 · 이동하거나 장애물 뒤로 피하세요";
+                coverText.fontSize=20;
+                grenadeCount.fontSize=20;grenadeCount.rectTransform.anchoredPosition=new Vector2(-30,-100);
+                hintText.text="WASD 이동 · Tab 지도 | 1 소총 · 2 기관총 · 3 저격 · 4 로켓 | E 탈취 · R 장전 · G 수류탄";
                 if(Cursor.lockState!=CursorLockMode.Locked)hintText.text="게임 화면을 클릭해 조작을 시작하세요";
             }
             if (p.InTank && gm.Armor != null)
@@ -373,6 +390,7 @@ namespace SniperRidge
             c.a = Mathf.Clamp01(timer / fadeLen);
             t.color = c;
         }
+        void OnDestroy(){if(damageSprite!=null)Destroy(damageSprite);if(damageMask!=null)Destroy(damageMask);}
 
         void LayoutScope()
         {

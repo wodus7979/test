@@ -191,6 +191,8 @@ namespace SniperRidge
             if (weaponModel != null) { weaponModel.SetActive(false); Destroy(weaponModel); }
             weaponModel = WeaponModels.Build(IsMounted ? flight.GunnerStation : cam.transform, weapon);
             hands=IsFreeRoam && weaponModel!=null?FpsWeaponHands.Attach(weaponModel.transform,weapon):null;
+            if(IsFreeRoam && weaponModel!=null)
+            {weaponModel.transform.localPosition=FpsWeaponView.Offset(weapon,false);weaponModel.transform.localRotation=FpsWeaponView.Rotation(false,0);}
             doorGun = weaponModel != null ? weaponModel.GetComponent<DoorGunView>() : null;
             if (doorGun != null) { doorGun.Attach(cam); doorGun.Pose(yaw, pitch); }
             muzzleAnchor = WeaponModels.FindMuzzle(weaponModel);
@@ -367,10 +369,10 @@ namespace SniperRidge
                 }
                 else
                 {
-                    Vector3 offset=IsFreeRoam ? (IsScoped && !Weapon.IsRocket?new Vector3(0,-.13f,.60f):new Vector3(.13f,-.085f,.60f)) : Weapon.ViewOffset;
+                    Vector3 offset=IsFreeRoam ? FpsWeaponView.Offset(Weapon,IsScoped) : Weapon.ViewOffset;
                     Vector3 resting=offset + Vector3.down * lower * (IsFreeRoam?.055f:.42f);
                     weaponModel.transform.localPosition = IsFreeRoam ? Vector3.Lerp(weaponModel.transform.localPosition,resting,dt*16f) : resting;
-                    weaponModel.transform.localRotation = Quaternion.Euler(lower * 30f, 0f, lower * -12f);
+                    weaponModel.transform.localRotation = IsFreeRoam?FpsWeaponView.Rotation(IsScoped,lower):Quaternion.Euler(lower * 30f, 0f, lower * -12f);
                     if(hands!=null)hands.Pose(State==WeaponState.Reloading?1f-stateTimer/Weapon.ReloadTime:-1f,
                         State==WeaponState.Bolting?1f-stateTimer/Mathf.Max(.01f,Weapon.BoltTime):-1f);
                 }

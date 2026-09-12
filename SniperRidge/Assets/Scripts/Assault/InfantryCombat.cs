@@ -8,6 +8,7 @@ namespace SniperRidge
     {
         public bool Ally,Post;
         public int SquadIndex;
+        public Vector3 DefensePoint;
         public EnemySoldier Target { get; private set; }
         public bool TargetsPlayer { get; private set; }
         public Vector3 TargetPoint => Target!=null?Target.AimPoint:GameManager.Instance.Player.AimPoint;
@@ -72,6 +73,13 @@ namespace SniperRidge
             {
                 bool hidden=now<hideUntil || (now+postCycle)%6f<1.6f;
                 Crouch=hidden?1f:0f;CanShoot=!hidden&&visible;return;
+            }
+            if(!Ally && !visible && Vector3.Distance(transform.position,gm.Player.transform.position)>38f)
+            {
+                moving=false;
+                if(Vector3.Distance(transform.position,DefensePoint)>3f)
+                {Direction=navigation.Direction(DefensePoint);Speed=2.6f;LookPoint=transform.position+Direction*5;}
+                return;
             }
             stalled=moving && travelled<dt*.12f?stalled+dt:0;
             if(moving)

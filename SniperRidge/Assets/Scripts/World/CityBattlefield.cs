@@ -22,7 +22,7 @@ namespace SniperRidge
                     if (Resources.Load<GameObject>("CityPack/Prefabs/" + name) == null) return false;
                 return Resources.Load<Material>("CityPack/Materials/DryTerrain") != null
                     && Resources.Load<Material>("CityPack/Materials/Concrete") != null
-                    && Resources.Load<Texture2D>("CityPack/Textures/asphalt_albedo") != null
+                    && Resources.Load<Texture2D>("CityPack/Textures/asphalt_urban") != null
                     && Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity") != null;
             }
         }
@@ -46,7 +46,7 @@ namespace SniperRidge
         {
             // Replace the terrain's surface, not its collider: the dug checkpoint must stay open.
             pavement = new TerrainLayer {
-                diffuseTexture = Resources.Load<Texture2D>("CityPack/Textures/asphalt_albedo"),
+                diffuseTexture = Resources.Load<Texture2D>("CityPack/Textures/asphalt_urban"),
                 normalMapTexture = Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity"),
                 tileSize = new Vector2(3.5f, 3.5f), smoothness = 0f, metallic = 0f, specular = Color.black, normalScale = .18f
             };

@@ -8,10 +8,18 @@ namespace SniperRidge.EditorTools
     {
         public static IEnumerable<CityPackSetup.Part> WithDetails(CityPackSetup.Model model)
         {
-            foreach(var part in model.parts)yield return part;
+            foreach(var part in model.parts)
+            {
+                if(part.mat==4||part.mat==5)yield return WindowUV(part);
+                else if((model.name=="retail_row"&&part.mat==3)||(model.name=="auto_workshop"&&part.mat==1))
+                    yield return MasonryUV(part);
+                else yield return part;
+            }
             if(model.category!="building")yield break;
             var frames=new Buffer("Recessed window surrounds",6);
             var sills=new Buffer("Stone window sills",0);
+            var boards=new Buffer("Weathered shutters and boarded panes",14);
+            var units=new Buffer("Exterior AC housings",21);
             foreach(var part in model.parts)
             {
                 if(part.mat!=4 && part.mat!=5)continue;
@@ -39,6 +47,20 @@ namespace SniperRidge.EditorTools
                     }
                     sills.Box(bounds.center-Vector3.up*(height*.5f+.085f)+normal*.075f,
                         horizontal*(width+.22f)+Vector3.up*.10f+depth*.22f);
+                    frames.Box(centre,horizontal*.04f+Vector3.up*height+depth*.065f);
+                    if(height>1.5f)frames.Box(centre+Vector3.up*(height*.13f),horizontal*width+Vector3.up*.045f+depth*.065f);
+                    int choice=Mathf.Abs(Mathf.RoundToInt(bounds.center.x*71+bounds.center.z*113+bounds.center.y*29));
+                    if(bounds.center.y<9f && choice%7==0)
+                    {
+                        for(int slat=0;slat<3;slat++)boards.Box(centre+normal*.09f+Vector3.up*((slat-1)*height*.24f),
+                            horizontal*(width*.94f)+Vector3.up*.13f+depth*.075f);
+                    }
+                    if(bounds.center.y<12f && choice%9==0)
+                    {
+                        var ac=bounds.center+horizontal*(width*.5f+.55f)-Vector3.up*(height*.30f)+normal*.3f;
+                        units.Box(ac,horizontal*.78f+Vector3.up*.52f+depth*.45f);
+                        for(int vent=0;vent<5;vent++)frames.Box(ac+normal*.24f+Vector3.up*((vent-2)*.065f),horizontal*.62f+Vector3.up*.023f+depth*.015f);
+                    }
                 }
             }
             // Drainpipes and fixing straps add depth on otherwise flat high-rise corners.
@@ -56,6 +78,36 @@ namespace SniperRidge.EditorTools
                 }
             if(frames.Count>0)yield return frames.Finish();
             if(sills.Count>0)yield return sills.Finish();
+            if(boards.Count>0)yield return boards.Finish();
+            if(units.Count>0)yield return units.Finish();
+        }
+        static CityPackSetup.Part WindowUV(CityPackSetup.Part part)
+        {
+            var uv=(float[])part.uv.Clone();
+            for(int i=0;i+17<part.p.Length;i+=18)
+            {
+                Vector3 normal=Read(part.n,i);if(Mathf.Abs(normal.y)>.1f)continue;
+                var bounds=new Bounds(Read(part.p,i),Vector3.zero);for(int j=3;j<18;j+=3)bounds.Encapsulate(Read(part.p,i+j));
+                bool x=Mathf.Abs(normal.z)>.9f;float width=x?bounds.size.x:bounds.size.z;if(width<.05f||bounds.size.y<.05f)continue;
+                int variant=Mathf.Abs(Mathf.RoundToInt(bounds.center.x*19+bounds.center.y*37+bounds.center.z*11))%4;
+                for(int j=0;j<18;j+=3)
+                {
+                    var p=Read(part.p,i+j);float u=((x?p.x-bounds.min.x:p.z-bounds.min.z)/width),v=(p.y-bounds.min.y)/bounds.size.y;
+                    int k=(i+j)/3*2;uv[k]=(variant%2+.015f+u*.97f)*.5f;uv[k+1]=1-(variant/2+.015f+v*.97f)*.5f;
+                }
+            }
+            return new CityPackSetup.Part{name=part.name,mat=part.mat,p=part.p,n=part.n,uv=uv};
+        }
+        static CityPackSetup.Part MasonryUV(CityPackSetup.Part part)
+        {
+            var uv=new float[part.uv.Length];
+            for(int i=0;i<part.p.Length;i+=3)
+            {
+                var p=Read(part.p,i);var n=Read(part.n,i);int k=i/3*2;
+                uv[k]=(Mathf.Abs(n.x)>.5f?p.z:p.x)/3f;
+                uv[k+1]=-(Mathf.Abs(n.y)>.5f?p.z:p.y)/3f;
+            }
+            return new CityPackSetup.Part{name=part.name,mat=UrbanSurfaceAssets.StoneSlot,p=part.p,n=part.n,uv=uv};
         }
         static Vector3 Read(float[] values,int i)=>new Vector3(values[i],values[i+1],values[i+2]);
         sealed class Buffer

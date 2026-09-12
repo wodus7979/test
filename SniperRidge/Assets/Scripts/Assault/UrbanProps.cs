@@ -14,6 +14,7 @@ namespace SniperRidge
             if(painted!=null)return;
             painted=new Material(Resources.Load<Material>("CityPack/Materials/Industrial_Blue"));painted.color=new Color(.26f,.32f,.33f);
             glass=new Material(Resources.Load<Material>("CityPack/Materials/Window_Glass"));glass.color=new Color(.07f,.12f,.14f);
+            glass.mainTexture=null; // Vehicle glass must not inherit the building's curtain atlas.
             rubber=Resources.Load<Material>("CityPack/Materials/Rubber");metal=Resources.Load<Material>("CityPack/Materials/Metal_Silver");
             lamp=Resources.Load<Material>("CityPack/Materials/AC_White");cloth=new Material(Resources.Load<Material>("CityPack/Materials/Concrete"));cloth.color=new Color(.48f,.43f,.31f);
         }

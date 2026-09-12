@@ -14,7 +14,7 @@ namespace SniperRidge.EditorTools
     public static class CityPackSetup
     {
         const string Output = "Assets/Resources/CityPack";
-        const string Revision = "city-outward-facades-3";
+        const string Revision = "city-stone-streets-4";
         static bool building;
         static string Source => Path.GetFullPath(Path.Combine(Application.dataPath,
             "../../city_fps_textured_v2/Unity/Assets/KoreanCityPackTextured"));
@@ -124,8 +124,9 @@ namespace SniperRidge.EditorTools
             Shader shader = Shader.Find(shaderName);
             if (shader == null) throw new InvalidOperationException("Cannot find shader " + shaderName);
             Texture2D atlas = LoadTexture("Source/sign_atlas.png", false, true);
-            var result = new Material[file.materials.Length];
-            for (int i = 0; i < result.Length; i++)
+            var windows=UrbanSurfaceAssets.Windows();
+            var result = new Material[file.materials.Length+1];
+            for (int i = 0; i < file.materials.Length; i++)
             {
                 var info = file.materials[i]; var material = new Material(shader) { name = info.name, enableInstancing = true };
                 var color = new Color(info.color[0], info.color[1], info.color[2]).gamma; color.a = 1;
@@ -169,15 +170,23 @@ namespace SniperRidge.EditorTools
                 if(info.name=="Window_Glass" || info.name=="Window_Light")
                 {
                     // Opaque exterior glazing: the closed building shell must not read as an open floor stack.
-                    var tint=info.name=="Window_Glass" ? new Color(.12f,.17f,.20f,1) : new Color(.28f,.30f,.29f,1);
+                    var tint=info.name=="Window_Glass" ? Color.white : new Color(1.12f,1.08f,.98f,1);
                     if(material.HasProperty("_Color"))material.SetColor("_Color",tint);
                     if(material.HasProperty("_BaseColor"))material.SetColor("_BaseColor",tint);
                     SetFloat(material,"_Metallic",0);SetFloat(material,"_Glossiness",.32f);SetFloat(material,"_Smoothness",.32f);
+                    SetTexture(material,windows,"_MainTex","_BaseMap","_BaseColorMap");
                 }
                 if (info.name == "Asphalt" || info.name == "Sidewalk" || info.name == "Paver_Accent" ||
                     info.name == "White_Paint" || info.name == "Yellow_Paint") BattlefieldScenery.Dry(material);
                 result[i] = SaveAsset(material, output + "/Materials/" + info.name + ".mat");
             }
+            var stone=new Material(shader){name="AgedStone",enableInstancing=true};
+            SetTexture(stone,UrbanSurfaceAssets.Stone(),"_MainTex","_BaseMap","_BaseColorMap");
+            SetFloat(stone,"_Metallic",0);SetFloat(stone,"_Glossiness",.08f);SetFloat(stone,"_Smoothness",.08f);
+            stone.mainTextureScale=Vector2.one;
+            result[UrbanSurfaceAssets.StoneSlot]=SaveAsset(stone,output+"/Materials/AgedStone.mat");
+            var road=UrbanSurfaceAssets.Asphalt();
+            var asphalt=result[9];SetTexture(asphalt,road,"_MainTex","_BaseMap","_BaseColorMap");EditorUtility.SetDirty(asphalt);
             return result;
         }
         static void Validate(Model model, int materialCount)

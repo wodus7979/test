@@ -63,3 +63,5 @@ Assets/Resources/DoorGun.meta
 # Generated from TankAssetPack
 Assets/Resources/Tank/
 Assets/Resources/Tank.meta
+__pycache__/
+*.pyc

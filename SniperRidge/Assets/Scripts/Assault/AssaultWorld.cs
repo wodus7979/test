@@ -28,7 +28,7 @@ namespace SniperRidge
             terrainData=new TerrainData{heightmapResolution=129,size=new Vector3(AssaultLayout.Size,40,AssaultLayout.Size)};
             var heights=new float[129,129];for(int z=0;z<129;z++)for(int x=0;x<129;x++)heights[z,x]=AssaultLayout.Ground/40f;
             terrainData.SetHeights(0,0,heights);
-            surface=new TerrainLayer{diffuseTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_albedo"),
+            surface=new TerrainLayer{diffuseTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_urban"),
                 normalMapTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity"),normalScale=.08f,smoothness=0,metallic=0,specular=Color.black,tileSize=new Vector2(2,2)};
             terrainData.terrainLayers=new[]{surface};terrainData.alphamapResolution=128;
             var alpha=new float[128,128,1];for(int z=0;z<128;z++)for(int x=0;x<128;x++)alpha[z,x,0]=1;
@@ -39,7 +39,10 @@ namespace SniperRidge
             gm.Terrain=ground.GetComponent<Terrain>();gm.Terrain.materialTemplate=Resources.Load<Material>("CityPack/Materials/DryTerrain");gm.Terrain.drawInstanced=true;gm.Terrain.basemapDistance=1500;
             // Asset sizes stay life-size; the authored blocks now sit much closer together.
             foreach(var item in AssaultLayout.Data.buildings)
-                blocks.Add(Place(item.asset,transform,item.WorldPosition,item.yaw));
+            {
+                var block=Place(item.asset,transform,item.WorldPosition,item.yaw);blocks.Add(block);
+                UrbanStreetDetails.VaryFacade(block,blocks.Count);
+            }
             foreach(var item in AssaultLayout.Data.props)
             {
                 if(item.original)UrbanProps.Place(item.asset,transform,item.WorldPosition,item.yaw);
@@ -73,12 +76,17 @@ namespace SniperRidge
             Box("District east boundary",new Vector3(boundary,15,0),new Vector3(2,6,boundary*2),concrete);
             Box("District south boundary",new Vector3(0,15,-boundary),new Vector3(boundary*2,6,2),concrete);
             Box("District north boundary",new Vector3(0,15,boundary),new Vector3(boundary*2,6,2),concrete);
+            UrbanStreetDetails.Build(transform);
             Physics.SyncTransforms();BuildNavigation();
             StaticBatchingUtility.Combine(gameObject);
             foreach(var block in blocks)blockRenderers.Add(block.GetComponentsInChildren<Renderer>());
-            var post=gm.PlayerEye.GetComponent<PostEffect>();post.Exposure=1.03f;post.Contrast=1.07f;post.Saturation=.88f;post.BloomIntensity=.1f;post.Vignette=.1f;
+            var post=gm.PlayerEye.GetComponent<PostEffect>();post.Exposure=1f;post.Contrast=1.01f;post.Saturation=.90f;post.BloomIntensity=.06f;post.Vignette=.08f;
             QualitySettings.shadowDistance=180;QualitySettings.lodBias=1.6f;
-            RenderSettings.fogDensity=.0011f;RenderSettings.reflectionIntensity=.30f;
+            RenderSettings.fogDensity=.0014f;RenderSettings.fogColor=new Color(.59f,.65f,.69f);RenderSettings.reflectionIntensity=.20f;
+            RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor=new Color(.48f,.54f,.60f);RenderSettings.ambientEquatorColor=new Color(.33f,.36f,.37f);
+            RenderSettings.ambientGroundColor=new Color(.17f,.16f,.14f);RenderSettings.ambientIntensity=1;
+            if(RenderSettings.sun!=null){RenderSettings.sun.color=new Color(.98f,.96f,.91f);RenderSettings.sun.intensity=1;RenderSettings.sun.shadowStrength=.68f;}
         }
         void BuildNavigation()
         {
@@ -122,6 +130,17 @@ namespace SniperRidge
         {
             var go=GameObject.CreatePrimitive(PrimitiveType.Cube);go.name=name;go.transform.SetParent(transform,true);go.transform.position=p;go.transform.localScale=size;
             go.GetComponent<Renderer>().sharedMaterial=material;
+            if(name=="Pavement curb")
+            {
+                var filter=go.GetComponent<MeshFilter>();var mesh=Instantiate(filter.sharedMesh);mesh.name="Pavement with metre UVs";
+                var uv=mesh.uv;var vertices=mesh.vertices;var normals=mesh.normals;
+                for(int i=0;i<uv.Length;i++)
+                {
+                    Vector3 v=Vector3.Scale(vertices[i],size);
+                    uv[i]=Mathf.Abs(normals[i].y)>.5f?new Vector2(v.x,v.z)/3f:Mathf.Abs(normals[i].z)>.5f?new Vector2(v.x,v.y)/3f:new Vector2(v.z,v.y)/3f;
+                }
+                mesh.uv=uv;filter.sharedMesh=mesh;go.AddComponent<UrbanMeshOwner>().Mesh=mesh;
+            }
             if(!solid){go.GetComponent<Collider>().enabled=false;Destroy(go.GetComponent<Collider>());}
         }
         void Update()

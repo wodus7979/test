@@ -26,7 +26,8 @@ namespace SniperRidge.EditorTools
                     var model=WeaponModels.Build(camera.transform,definition);
                     try
                     {
-                        model.transform.localPosition=new Vector3(.13f,-.085f,.60f);
+                        model.transform.localPosition=FpsWeaponView.Offset(definition,false);
+                        model.transform.localRotation=FpsWeaponView.Rotation(false,0);
                         var pose=FpsWeaponHands.Attach(model.transform,definition);
                         foreach(string hand in new[]{"Trigger hand","Support and loading hand"})
                         {

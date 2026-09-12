@@ -26,6 +26,10 @@ namespace SniperRidge.EditorTools
                 }
             }
             var terrain=Resources.Load<Material>("CityPack/Materials/DryTerrain");
+            var stone=Resources.Load<Material>("CityPack/Materials/AgedStone");
+            Check(stone!=null && stone.mainTexture!=null,"석재 외벽 질감 누락");
+            Check(Resources.Load<Texture2D>("CityPack/Textures/asphalt_urban")!=null,"새 무광 아스팔트 질감 누락");
+            Check(Resources.Load<Material>("CityPack/Materials/Window_Glass").mainTexture!=null,"창문 커튼/블라인드 아틀라스 누락");
             Check(terrain!=null && terrain.shader.name=="Nature/Terrain/Diffuse","도로 지형 정반사 차단 재질 누락");
             foreach(var name in new[]{"Asphalt","Sidewalk","White_Paint","Yellow_Paint"})
             {
