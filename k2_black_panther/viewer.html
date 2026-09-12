@@ -1,0 +1,150 @@
+<title>K2 흑표</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500&display=swap">
+<style>
+  :root { --bg:#14171a; --panel:rgba(22,26,24,.86); --line:rgba(236,231,216,.12); --fg:#ece7d8; --muted:#9aa39a; --accent:#d9a441; --accent-ink:#1c1509; --olive:#2f3a2b; }
+  html,body{height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 "Noto Sans KR",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  body{margin:0;padding-inline:0;overflow:hidden}
+  #c{display:block;width:100%;height:100vh}
+  #ui{position:fixed;left:16px;top:16px;width:min(340px,calc(100vw - 32px));background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:6px;padding:14px 16px 16px}
+  #ui::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;background:var(--accent);border-radius:0 2px 2px 0}
+  .eyebrow{font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
+  h1{font:700 30px/1 "Barlow Condensed","Noto Sans KR",sans-serif;letter-spacing:.01em;margin:0;text-wrap:balance}
+  h1 small{display:block;font:500 13px/1.3 "Barlow Condensed",sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+  p{margin:8px 0 0;color:var(--muted);font-size:12px}
+  .row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  button{background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px 10px;font:500 12px/1 "Noto Sans KR",sans-serif;cursor:pointer}
+  button:hover{border-color:var(--accent)} button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .sl{margin-top:12px} .sl label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .sl label span{font:500 12px "IBM Plex Mono",monospace;color:var(--fg);font-variant-numeric:tabular-nums}
+  .sl input{width:100%;accent-color:var(--accent);margin-top:2px}
+  .hint{font:400 11px/1.4 "IBM Plex Mono",monospace;color:var(--muted)}
+  #spec{position:fixed;right:16px;bottom:16px;max-width:calc(100vw - 32px);background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:repeat(4,auto);gap:6px 18px}
+  #spec div{display:flex;flex-direction:column} #spec dt{font:500 10px/1 "IBM Plex Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  #spec dd{margin:3px 0 0;font:500 15px/1 "Barlow Condensed",sans-serif;font-variant-numeric:tabular-nums;color:var(--fg)}
+  #load{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);color:var(--muted);font:400 13px "IBM Plex Mono",monospace;z-index:5}
+  @media (max-width:640px){#spec{grid-template-columns:repeat(2,auto)}}
+  @media (max-width:480px){#spec{display:none}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<canvas id="c"></canvas>
+<div id="load">K2 흑표 모델 불러오는 중…</div>
+<div id="ui">
+  <p class="eyebrow">ROKA MBT · 3D ASSET</p>
+  <h1>K2 흑표<small>K2 Black Panther</small></h1>
+  <p>드래그 회전 · 휠 확대 · 우클릭 드래그 이동</p>
+  <div class="row">
+    <button data-v="hero" class="on">전방 3/4</button>
+    <button data-v="side">측면</button>
+    <button data-v="rear">후방 3/4</button>
+    <button data-v="top">상부</button>
+    <button id="spin">자동 회전</button>
+  </div>
+  <div class="sl"><label>포탑 선회 <span id="tv">0°</span></label><input id="trav" type="range" min="-180" max="180" value="0" step="1"></div>
+  <div class="sl"><label>포 고각 <span id="ev">0°</span></label><input id="elev" type="range" min="-7" max="20" value="0" step="0.5"></div>
+  <p class="hint">GLB 노드: Hull / Turret / Gun (선회·고각 피벗 포함)</p>
+</div>
+<dl id="spec">
+  <div><dt>전장</dt><dd>10.8 m</dd></div><div><dt>차체</dt><dd>7.5 m</dd></div>
+  <div><dt>전폭</dt><dd>3.6 m</dd></div><div><dt>전고</dt><dd>2.4 m</dd></div>
+  <div><dt>중량</dt><dd>55 t</dd></div><div><dt>주포</dt><dd>120 mm L/55</dd></div>
+  <div><dt>부무장</dt><dd>K6 12.7 mm</dd></div><div><dt>로드휠</dt><dd>6 / 측면</dd></div>
+</dl>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/environments/RoomEnvironment.js"></script>
+<script>
+const MODEL_URL = (typeof window.K2_MODEL_URL === 'string') ? window.K2_MODEL_URL : 'assets/k2_black_panther.glb';
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.physicallyCorrectLights = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8fa3b8);
+scene.fog = new THREE.Fog(0x8fa3b8, 30, 90);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+scene.background = new THREE.Color(0x9db2c6);
+
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 300);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.target.set(0.6, 1.2, 0);
+controls.maxPolarAngle = Math.PI/2 - 0.02;
+controls.minDistance = 4; controls.maxDistance = 45;
+
+// Lighting: sun + sky
+const sun = new THREE.DirectionalLight(0xfff1dd, 3.4);
+sun.position.set(12, 18, 9);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
+sun.shadow.camera.top = 10; sun.shadow.camera.bottom = -10;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 60;
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xbfd4ee, 0x5a4a35, 0.9));
+const fill = new THREE.DirectionalLight(0xdde8ff, 0.8); fill.position.set(-10, 6, -8); scene.add(fill);
+
+// Ground: procedural dirt with tyre-ish noise
+function groundTexture(){
+  const s=1024, c=document.createElement('canvas'); c.width=c.height=s; const g=c.getContext('2d');
+  g.fillStyle='#5a4e3c'; g.fillRect(0,0,s,s);
+  for(let i=0;i<90000;i++){ const x=Math.random()*s,y=Math.random()*s,r=Math.random()*3+0.5;
+    const v=Math.floor(60+Math.random()*70); const t=Math.random();
+    g.fillStyle=`rgba(${v+10},${v-2},${v-22},${0.10+t*0.30})`; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); }
+  for(let i=0;i<900;i++){ g.strokeStyle=`rgba(40,32,22,${Math.random()*0.35})`; g.lineWidth=Math.random()*2+0.5;
+    g.beginPath(); const x=Math.random()*s,y=Math.random()*s; g.moveTo(x,y); g.lineTo(x+Math.random()*60-30,y+Math.random()*60-30); g.stroke(); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(22,22); t.encoding=THREE.sRGBEncoding; t.anisotropy=8; return t;
+}
+const ground = new THREE.Mesh(new THREE.CircleGeometry(80, 64), new THREE.MeshStandardMaterial({map:groundTexture(), roughness:0.95, metalness:0}));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+// Load model
+let tank=null, turretNode=null, gunNode=null;
+new THREE.GLTFLoader().load(MODEL_URL, gltf=>{
+  tank = gltf.scene;
+  tank.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; if(o.material && o.material.map){ o.material.map.anisotropy=8; } } });
+  turretNode = tank.getObjectByName('Turret'); gunNode = tank.getObjectByName('Gun');
+  scene.add(tank);
+  document.getElementById('load').remove();
+  window.__k2ready = true;
+}, undefined, e=>{ document.getElementById('load').textContent='모델을 불러오지 못했습니다: '+e; });
+
+// Views
+const views = {
+  hero:{pos:[12.5,4.6,9.5], tgt:[1.2,1.2,0]},
+  side:{pos:[0.6,2.4,15.5], tgt:[0.6,1.2,0]},
+  rear:{pos:[-11,4.6,9], tgt:[-0.2,1.2,0]},
+  top:{pos:[0.6,17,0.01], tgt:[0.6,0.8,0]},
+};
+function setView(name){
+  const v=views[name]; camera.position.set(...v.pos); controls.target.set(...v.tgt); controls.update();
+  document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on', b.dataset.v===name));
+}
+document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+const spinBtn=document.getElementById('spin'); spinBtn.onclick=()=>{ controls.autoRotate=!controls.autoRotate; spinBtn.classList.toggle('on', controls.autoRotate); };
+controls.autoRotateSpeed = 0.9;
+const trav=document.getElementById('trav'), elev=document.getElementById('elev');
+function applyPose(){
+  if(turretNode) turretNode.rotation.y = -THREE.MathUtils.degToRad(+trav.value);
+  if(gunNode) gunNode.rotation.z = THREE.MathUtils.degToRad(+elev.value);
+  document.getElementById('tv').textContent = trav.value+'°'; document.getElementById('ev').textContent = elev.value+'°';
+}
+trav.oninput = applyPose; elev.oninput = applyPose;
+window.__setPose = (t,e)=>{ trav.value=t; elev.value=e; applyPose(); };
+window.__setView = setView;
+setView('hero');
+
+function resize(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+(function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera); })();
+</script>

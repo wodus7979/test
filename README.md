@@ -84,3 +84,11 @@ HTML 버전은 항목이 셋 더 있습니다.
 - `hue`, `sat` — 그 문제의 색(0~360의 색상값과 채도 %). 밝기는 화면 테마가 알아서 정하므로
   밝은 화면과 어두운 화면 모두에서 잘 보입니다.
 - `tag` — 문제 갈래 (인물, 나라, 숫자, 땅, 연도, 사건, 낱말).
+
+
+---
+
+# K2 흑표 3D 에셋
+
+`k2_black_panther/` 폴더에 K2 흑표 전차의 절차적 3D 에셋(GLB/OBJ, PBR 텍스처, three.js 뷰어)이 있습니다.
+자세한 내용은 [k2_black_panther/README.md](k2_black_panther/README.md)를 보세요.
