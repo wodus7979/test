@@ -72,8 +72,9 @@ namespace SniperRidge
             var directTank=direct!=null?direct.GetComponentInParent<TankVehicle>():null;
             foreach(var target in FindTankTargets(centre,damage,owner,friendly,directTank))
             {
-                bool killed=target.Key.Damage(target.Value);
-                if(friendly){gm.OnArmorHit(killed,!counted);counted=true;}
+                bool directHit=target.Key==directTank;
+                bool killed=target.Key.Damage(target.Value,directHit);
+                if(friendly&&directHit){gm.OnArmorHit(target.Key,killed,!counted);counted=true;}
             }
             if(friendly)
             {

@@ -11,10 +11,14 @@ namespace SniperRidge
         public const string OppositionResource = "Tank/Prefabs/tank_reference";
         public const float ForwardSpeed = 12f, ReverseSpeed = 6f, TurnRate = 42f, ReloadSeconds = 3f;
         public static bool IsReady => Resources.Load<GameObject>(Resource) != null && Resources.Load<GameObject>(OppositionResource) != null;
+        public static int HitsRequired(TankAppearance appearance)=>appearance==TankAppearance.K2BlackPanther?4:3;
         public bool IsPlayer { get; private set; }
         public bool IsDead { get; private set; }
         public TankAppearance Appearance { get; private set; }
         public string DisplayName => Appearance==TankAppearance.K2BlackPanther?"K2 흑표":"적 주력전차";
+        public int ShellHits { get; private set; }
+        public int HitsToDestroy { get; private set; }
+        public int RemainingShellHits => Mathf.Max(0,HitsToDestroy-ShellHits);
         public Vector3 AimPoint => transform.position + Vector3.up * 1.45f;
         public float Fraction => health / maximumHealth;
         public float Speed => Vector3.Dot(body.velocity, body.rotation * Vector3.forward);
@@ -43,7 +47,8 @@ namespace SniperRidge
             var tank = go.AddComponent<TankVehicle>(); tank.battle = owner; tank.IsPlayer = player;tank.Appearance=appearance;
             tank.turret = go.transform.Find("Turret"); tank.barrel = tank.turret.Find("Barrel");
             tank.barrelRest = tank.barrel.localPosition; tank.Muzzle = tank.barrel.Find("Muzzle");
-            tank.maximumHealth = tank.health = player ? 500f : 180f + stage * 30f;
+            tank.HitsToDestroy=player?0:HitsRequired(appearance);
+            tank.maximumHealth = tank.health = player ? 500f : tank.HitsToDestroy;
             tank.body = go.AddComponent<Rigidbody>();
             tank.traction = TankDrive.Configure(tank.body);
             tank.engine = go.AddComponent<AudioSource>(); tank.engine.clip = Resources.Load<AudioClip>("Audio/tank_engine");
@@ -182,11 +187,20 @@ namespace SniperRidge
             if (body==null || IsDead || gm==null || !gm.IsPlaying) return;
             TankDrive.Step(body, drive, steering, Time.fixedDeltaTime);
         }
-        public bool Damage(float amount)
+        public bool Damage(float amount,bool directShellHit=false)
         {
             if (IsDead) return false;
-            health=Mathf.Max(0,health-amount);
-            if (IsPlayer) GameManager.Instance.Hud.FlashDamage();
+            if(IsPlayer)
+            {
+                health=Mathf.Max(0,health-amount);
+                GameManager.Instance.Hud.FlashDamage();
+            }
+            else
+            {
+                if(!directShellHit)return false;
+                ShellHits=Mathf.Min(HitsToDestroy,ShellHits+1);
+                health=HitsToDestroy-ShellHits;
+            }
             if (health>0) return false;
             IsDead=true; StopVehicle();
             RocketEffects.TankDestruction(transform);

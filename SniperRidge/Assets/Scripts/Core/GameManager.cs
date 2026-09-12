@@ -350,13 +350,13 @@ namespace SniperRidge
                 Mathf.Clamp01(1.1f - distance / 900f) * .35f, 1f, direction.x * .8f);
         }
 
-        public void OnArmorHit(bool killed, bool countHit)
+        public void OnArmorHit(TankVehicle tank,bool killed,bool countHit)
         {
             if (!IsPlaying) return;
             if (countHit) Hits++;
             Hud.ShowHitMarker(false, killed);
             if (killed) { Kills++; Score+=600; Hud.KillFeed("적 전차 격파 +600"); }
-            else Hud.ShowShotFeedback("적 전차 명중");
+            else Hud.ShowShotFeedback(string.Format("{0} 직격 {1}/{2} · 격파까지 {3}발",tank.DisplayName,tank.ShellHits,tank.HitsToDestroy,tank.RemainingShellHits));
         }
         public void AddScore(int points){Score+=Mathf.Max(0,points);}
         public void CompleteAssault() { if (Mission == MissionType.Assault) EndMission(true); }

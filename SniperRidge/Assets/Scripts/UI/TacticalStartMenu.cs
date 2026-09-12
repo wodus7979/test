@@ -319,7 +319,7 @@ namespace SniperRidge
                 weaponType.text = "K2 흑표  /  차체 주행 · 독립 포탑";
                 missionTitle.text = "K2 흑표 기동전";
                 magazine.text = "포탄 60발"; reserve.text = "단계마다 +25발";
-                objective.text = "보병 없이 전차끼리 교전합니다.\n적 K2와 다른 주력전차를 모두 격파하세요.";
+                objective.text = "보병 없이 전차끼리 교전합니다.\n주력전차 3발 · K2 흑표 4발 직격 시 격파";
                 range.text = "기동 구역    440 × 440 m";
                 rule.text = "W/S 전후진 · A/D 차체 회전\n마우스 조준 · 좌클릭 포격";
                 controls.text = "W  전진   S  후진   A/D  차체 회전   마우스  포탑 조준   좌클릭  포격   우클릭  확대";

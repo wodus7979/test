@@ -13,6 +13,9 @@ assert re.search(r'EnemyTankCount\(int stage\).*4\+Mathf\.Clamp\(stage,1,Stages\
 assert 'TankAppearance.K2BlackPanther' in BATTLE and 'TankAppearance.Opposition' in BATTLE
 assert '(ordinal+stage)%2==0' in BATTLE
 assert 'k2_black_panther' in VEHICLE and 'tank_reference' in VEHICLE
+assert re.search(r'HitsRequired\(TankAppearance appearance\).*K2BlackPanther\?4:3',VEHICLE)
+assert 'if(!directShellHit)return false' in VEHICLE and 'ShellHits+1' in VEHICLE
+assert 'target.Key==directTank' in (ROOT/'Assets/Scripts/Armor/ArmorProjectile.cs').read_text()
 for token in ['Tank wreck flames','Tank wreck black smoke','Tank wreck sparks','SecondaryTankExplosion','TankDebris']:
     assert token in EFFECTS,token
 model=json.loads((PACK/'Source/tank_reference.json').read_text())
