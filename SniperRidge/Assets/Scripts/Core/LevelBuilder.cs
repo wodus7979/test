@@ -309,6 +309,16 @@ namespace SniperRidge
             enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);return enemy;
         }
 
+        public static EnemySoldier SpawnHelicopterEnemy(GameManager gm,Vector3 position,string name,EnemyRole role)
+        {
+            EnsureEnemyMaterials();
+            var spawn=new EnemySpawn(position.x,position.z,role==EnemyRole.RocketTrooper?EnemyKind.Cover:EnemyKind.Rusher,role:role);
+            float scale=gm.Map==BattlefieldMap.City?CityLayout.EnemyScale:EnemySoldier.DefenseModeScale;
+            var enemy=EnemySoldier.Create(name,gm.Terrain,spawn,gm.PlayerEye.position,scale,
+                enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(name.GetHashCode()),false);
+            enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);return enemy;
+        }
+
         // ---------- 장식 (숲, 덤불, 바위) ----------
 
         static void BuildDecorations(Terrain terrain, Vector3 playerPos, List<EnemySpawn> spawns)

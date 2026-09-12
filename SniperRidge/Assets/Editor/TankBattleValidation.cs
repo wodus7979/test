@@ -16,6 +16,7 @@ namespace SniperRidge.EditorTools
             OriginalLauncherAssets.LauncherPackBuilder.BuildIfMissing();
             var prefab=Resources.Load<GameObject>(TankVehicle.Resource);
             Check(prefab!=null,"전차 프리팹 누락");
+            Check(prefab.name=="k2_black_panther","K2 흑표 프리팹이 아닙니다.");
             Check(prefab.transform.Find("Turret/Barrel/Muzzle")!=null,"포탑/포신/총구 계층 누락");
             Check(prefab.GetComponentsInChildren<BoxCollider>().Length==4,"차체/포탑/궤도 충돌체 누락");
             Check(prefab.GetComponent<LODGroup>().GetLODs().Length==2,"전차 LOD 누락");

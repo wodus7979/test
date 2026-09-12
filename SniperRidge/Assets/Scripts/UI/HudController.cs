@@ -161,7 +161,7 @@ namespace SniperRidge
 
             launcherButton = UiKit.TextButton(g, "SwitchLauncher", "", 23,
                 new Color(.19f, .24f, .12f, .92f), Color.white, topRight, topRight,
-                new Vector2(-30f, -220f), new Vector2(300f, 65f), () => gm.Player.ToggleLauncher());
+                new Vector2(-30f, -220f), new Vector2(300f, 65f), ActionButton);
             launcherLabel = launcherButton.GetComponentInChildren<Text>();
             var nav = launcherButton.navigation; nav.mode = Navigation.Mode.None; launcherButton.navigation = nav;
             launcherHelp = UiKit.Label(g, "LauncherHelp", Application.isMobilePlatform ? "로켓은 발사 즉시 위치 발각" : "Q: 즉시 교체 · Esc: 버튼 클릭",
@@ -240,6 +240,12 @@ namespace SniperRidge
             damageTimer = 0.6f;
         }
 
+        void ActionButton()
+        {
+            if(gm.Player.IsMounted&&gm.Flight!=null)gm.Flight.TryDodge();
+            else gm.Player.ToggleLauncher();
+        }
+
         public void ShowEnd(bool won)
         {
             endPanel.SetActive(true);
@@ -248,7 +254,7 @@ namespace SniperRidge
             int m = Mathf.FloorToInt(gm.Elapsed / 60f);
             int s = Mathf.FloorToInt(gm.Elapsed % 60f);
             float acc = gm.Shots > 0 ? Mathf.Min(100f, 100f * gm.Hits / gm.Shots) : 0f;
-            string waveLine = gm.Mission == MissionType.Assault ? (gm.Assault.Progress.Complete?"왕 처치 완료\n":"왕 처치 작전\n") : gm.Mission == MissionType.Tank ? string.Format("전차전 단계 {0} / 5\n",gm.Armor.Stage) : gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
+            string waveLine = gm.Mission == MissionType.Assault ? (gm.Assault.Progress.Complete?"왕 처치 완료\n":"왕 처치 작전\n") : gm.Mission == MissionType.Helicopter && gm.Rescue!=null ? "동료 구조 "+gm.Rescue.Rescued+" / "+HelicopterRescueMission.TotalSurvivors+"\n" : gm.Mission == MissionType.Tank ? string.Format("전차전 단계 {0} / 5\n",gm.Armor.Stage) : gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
             endStats.text = string.Format(
                 "{0}\n{1}소요 시간  {2:00}:{3:00}\n사격 {4}발  /  명중 {5}발  (명중률 {6:0}%)\n사살 {7}  (헤드샷 {8})\n점수  {9}\n\n{10}",
                 gm.Weapon != null ? gm.Weapon.Name : "", waveLine, m, s, gm.Shots, gm.Hits, acc, gm.Kills, gm.Headshots, gm.Score,
@@ -262,16 +268,22 @@ namespace SniperRidge
             if (gm == null || gm.Player == null) return;
             if (gm.IsSelecting) return;
             var p = gm.Player;
-            launcherButton.gameObject.SetActive(!p.IsMounted && !p.InTank && !p.IsFreeRoam);
-            launcherHelp.gameObject.SetActive(!p.IsMounted && !p.InTank && !p.IsFreeRoam);
+            launcherButton.gameObject.SetActive(p.IsMounted || !p.InTank && !p.IsFreeRoam);
+            launcherHelp.gameObject.SetActive(p.IsMounted || !p.InTank && !p.IsFreeRoam);
             windArrow.gameObject.SetActive(!p.IsFreeRoam);
             grenadeCount.gameObject.SetActive(!p.IsMounted && !p.InTank);
-            if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  우클릭 확대  |  R 탄띠 교체  |  휠/Z 배율  |  헬기 자동 선회";
+            if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  Space 로켓 회피  |  우클릭 확대  |  R 탄띠 교체  |  헬기 자동 선회";
             grenadeCount.text = string.Format(p.IsFreeRoam?"[G] 수류탄 {0}개 · 누르고 조준":"[W] 수류탄 {0}개 · 누르고 조준", p.Grenades.Count);
             grenadeAim.text = p.Grenades.IsAiming ? p.Grenades.AimLabel : "";
             grenadeAim.color = p.Grenades.ValidTarget ? new Color(.55f, 1f, .65f) : new Color(1f, .55f, .3f);
             launcherButton.interactable = gm.IsPlaying && p.CanSwitchWeapon;
             launcherLabel.text = p.UsingLauncher ? "[Q] 원래 총으로 복귀" : string.Format("[Q] 로켓포 · {0}발", p.RocketsRemaining);
+            if(p.IsMounted&&gm.Flight!=null)
+            {
+                launcherButton.interactable=gm.Flight.CanDodge;
+                launcherLabel.text=gm.Flight.IsEvading?"회피 기동 중":gm.Flight.DodgeCooldown>0?"회피 재사용 "+gm.Flight.DodgeCooldown.ToString("0.0")+"초":"[SPACE] 로켓 회피";
+                launcherHelp.text=gm.Flight.IncomingRocket?"로켓 접근! 지금 회피 버튼을 누르세요":"로켓 경고가 뜨면 Space 또는 버튼";
+            }
             string posture = p.IsHidden ? "엄폐 중 · 키를 놓으면 일어섭니다" :
                 p.CanFireFromCover ? "노출 중 · C/Ctrl로 숨기 / A·D로 피하기" : "자세 전환 중";
             string contact = gm.Mission == MissionType.Sniper
@@ -280,7 +292,7 @@ namespace SniperRidge
                     : "위치 발각 · 적 반격 중")
                 : "적이 사격하며 접근합니다 · 엄폐 후 반격";
             coverText.text = p.IsMounted
-                ? string.Format("헬기 선회 중 · 고도 {0:0}m / 속도 {1:0}km/h\n거치식 중기관총 · 지상과 옥상의 적을 공격하세요", gm.Flight.Altitude, gm.Flight.Velocity.magnitude * 3.6f)
+                ? string.Format("헬기 구조 선회 · 고도 {0:0}m / 속도 {1:0}km/h\n{2}",gm.Flight.Altitude,gm.Flight.Velocity.magnitude*3.6f,gm.Rescue!=null?gm.Rescue.Status:"구조 지점 탐색")
                 : posture + "\n" + contact;
             coverText.color = p.IsHidden ? new Color(.55f, 1f, .7f) : new Color(1f, .8f, .45f);
             if (gm.IsPlaying && Time.time < threatUntil)
@@ -301,6 +313,11 @@ namespace SniperRidge
                 enemyText.text = gm.Wave == 0
                     ? "웨이브 준비 중..."
                     : string.Format("웨이브 {0} / {1}    남은 적 {2}{3}", gm.Wave, gm.TotalWaves, gm.AliveEnemies, gm.WaveSpawning ? " (증원 중)" : "");
+            }
+            if(p.IsMounted&&gm.Rescue!=null)
+            {
+                enemyText.text="동료 구조  "+gm.Rescue.Rescued+" / "+HelicopterRescueMission.TotalSurvivors+"    남은 경계병 "+gm.Rescue.ActiveThreats;
+                if(gm.Flight.IncomingRocket&&!gm.Flight.IsEvading)threatText.text="적 로켓 접근 · [SPACE] 또는 오른쪽 회피 버튼";
             }
             scoreText.text = string.Format("점수  {0}    사살 {1}", gm.Score, gm.Kills);
             timeText.text = string.Format("시간  {0:00}:{1:00}", Mathf.FloorToInt(gm.Elapsed / 60f), Mathf.FloorToInt(gm.Elapsed % 60f));

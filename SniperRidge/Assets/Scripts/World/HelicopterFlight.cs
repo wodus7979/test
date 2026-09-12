@@ -7,16 +7,21 @@ namespace SniperRidge
     public sealed class HelicopterFlight : MonoBehaviour
     {
         public const float OrbitSeconds = 52f;
-        public const float CityRadius = 92f, FieldRadius = 82f;
+        public const float CityRadius = 64f, FieldRadius = 62f;
         public const float CityAltitude = 66f, FieldAltitude = 44f;
         public const float Traverse = 50f, MinElevation = 5f, MaxDepression = 55f;
+        public const float DodgeDuration=4f,DodgeCooldownSeconds=6.5f;
         public Transform GunnerStation { get; private set; }
         public Vector3 Velocity { get; private set; }
         public float Altitude => gm.Map == BattlefieldMap.City ? CityAltitude : FieldAltitude;
         public float Radius => gm.Map == BattlefieldMap.City ? CityRadius : FieldRadius;
         public float Laps => elapsed / OrbitSeconds;
+        public bool IsEvading=>Time.time-dodgeStarted<DodgeDuration;
+        public bool IncomingRocket=>Time.time<incomingUntil;
+        public float DodgeCooldown=>Mathf.Max(0,nextDodge-Time.time);
+        public bool CanDodge=>gm!=null&&gm.IsPlaying&&DodgeCooldown<=0&&!IsEvading;
         GameManager gm;
-        float elapsed;
+        float elapsed,dodgeStarted=-99f,nextDodge,incomingUntil;int dodgeSide=1;
         Transform rotor, tailRotor;
         AudioSource rotorSound, engineSound;
         public static Vector3 Centre(BattlefieldMap map) => new Vector3(0f, TerrainGenerator.FieldElevation,
@@ -67,9 +72,19 @@ namespace SniperRidge
         void Update()
         {
             if (gm == null || !gm.IsPlaying) return;
+            if(Input.GetKeyDown(KeyCode.Space))TryDodge();
             Vector3 previous = transform.position;
             elapsed += Time.deltaTime;
-            transform.SetPositionAndRotation(Position(gm.Map, elapsed), Heading(elapsed));
+            Vector3 position=Position(gm.Map,elapsed);Quaternion heading=Heading(elapsed);
+            if(IsEvading)
+            {
+                float t=(Time.time-dodgeStarted)/DodgeDuration;
+                float amount=t<.16f?Mathf.SmoothStep(0,1,t/.16f):t<.82f?1f:1-Mathf.SmoothStep(0,1,(t-.82f)/.18f);
+                Vector3 sideways=-(heading*Vector3.right)*dodgeSide;
+                position+=sideways*(13f*amount)+Vector3.up*(3.2f*amount);
+                heading*=Quaternion.Euler(0,0,dodgeSide*11f*amount);
+            }
+            transform.SetPositionAndRotation(position,heading);
             Velocity = (transform.position - previous) / Mathf.Max(Time.deltaTime, .0001f);
             rotor.localRotation = Quaternion.Euler(0f, elapsed * 1620f, 0f);
             tailRotor.localRotation = Quaternion.Euler(elapsed * 2400f, 0f, 0f);
@@ -77,6 +92,18 @@ namespace SniperRidge
             rotorSound.pitch = 1f + Mathf.Sin(elapsed * .4f) * .008f;
             engineSound.pitch = 1f + Mathf.Sin(elapsed * .3f) * .01f;
         }
+        public bool TryDodge()
+        {
+            if(!CanDodge)return false;
+            dodgeSide=-dodgeSide;dodgeStarted=Time.time;nextDodge=Time.time+DodgeCooldownSeconds;
+            gm.Hud.Announce(IncomingRocket?"회피 기동! · 로켓의 고정 조준선 이탈":"회피 기동");return true;
+        }
+        public Vector3 PredictPlayerAimPoint(float secondsAhead)
+        {
+            Vector3 local=transform.InverseTransformPoint(gm.Player.AimPoint);
+            return Position(gm.Map,elapsed+Mathf.Max(0,secondsAhead))+Heading(elapsed+Mathf.Max(0,secondsAhead))*local;
+        }
+        public void NotifyRocket(float duration){incomingUntil=Mathf.Max(incomingUntil,Time.time+duration+.35f);}
         public void StopFlight()
         {
             Velocity = Vector3.zero;

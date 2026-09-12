@@ -48,7 +48,7 @@ namespace OriginalTankAssets
         }
         public static void BuildIfMissing()
         {
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(Target + "/Prefabs/tank_reference.prefab");
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(Target + "/Prefabs/k2_black_panther.prefab");
             if (prefab == null || prefab.GetComponentInChildren<MeshFilter>()?.sharedMesh == null) Build();
         }
         [MenuItem("Sniper Ridge/전차 에셋 생성")]
@@ -59,8 +59,8 @@ namespace OriginalTankAssets
             try
             {
                 foreach (string sub in new[] { "", "/Meshes", "/Materials", "/Prefabs" }) Folder(Target + sub);
-                var materials = JsonUtility.FromJson<MaterialFile>(File.ReadAllText(Root + "/Source/materials.json"));
-                var model = JsonUtility.FromJson<Model>(File.ReadAllText(Root + "/Source/tank_reference.json"));
+                var materials = JsonUtility.FromJson<MaterialFile>(File.ReadAllText(Root + "/Source/k2_materials.json"));
+                var model = JsonUtility.FromJson<Model>(File.ReadAllText(Root + "/Source/k2_black_panther.json"));
                 MakePrefab(model, MakeMaterials(materials, Target), Target);
                 AssetDatabase.SaveAssets();
                 Debug.Log("[Sniper Ridge] 전차 에셋 생성 완료: " + Target);
@@ -87,7 +87,7 @@ namespace OriginalTankAssets
             importer.alphaSource = TextureImporterAlphaSource.FromInput;
             importer.alphaIsTransparency = false; importer.wrapMode = TextureWrapMode.Repeat;
             importer.filterMode = FilterMode.Trilinear; importer.anisoLevel = 8;
-            importer.maxTextureSize = 1024; importer.mipmapEnabled = true;
+            importer.maxTextureSize = 2048; importer.mipmapEnabled = true;
             importer.textureCompression = TextureImporterCompression.CompressedHQ;
             importer.SaveAndReimport();
             var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);

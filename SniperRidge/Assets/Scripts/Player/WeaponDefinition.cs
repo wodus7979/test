@@ -151,7 +151,7 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "hmg", Name = "헬기 중기관총", IsMounted = true,
-                Description = "헬기 옆문 거치식 중기관총 · 자동 선회 · 250발 탄띠",
+                Description = "헬기 옆문 중기관총 · 동료 20명 구조 · Space 로켓 회피",
                 Mission = MissionType.Helicopter, Fire = FireMode.Auto,
                 RoundsPerMinute = 600f, MagSize = 250, Reserve = 2000, ReloadTime = 4f,
                 MuzzleVelocity = 890f, DragK = .0006f, Damage = 125f,
@@ -162,16 +162,16 @@ namespace SniperRidge
             },
             new WeaponDefinition
             {
-                Id = "tank", Name = "전차 기동전", IsTank = true, Mission = MissionType.Tank,
+                Id = "tank", Name = "K2 흑표 기동전", IsTank = true, Mission = MissionType.Tank,
                 Description = "W/S 전후진 · A/D 차체 회전 · 마우스 포탑 조준 · 좌클릭 포격",
                 Fire = FireMode.Semi, RoundsPerMinute = 20f, MagSize = 1, Reserve = 60, ReloadTime = 3f,
                 MuzzleVelocity = 280f, Damage = 160f, ScopeFovs = new[] { 38f }, ScopeLabels = new[] { "포수 확대" },
-                ModelName = "tank_reference", ShotVolume = .82f, ShotPitch = 1f,
+                ModelName = "k2_black_panther", ShotVolume = .82f, ShotPitch = 1f,
             },
             new WeaponDefinition
             {
                 Id = "urban_rifle", Name = "도시 FPS 작전", IsAssault = true, Mission = MissionType.Assault,
-                Description = "깃발 탈취 · 동료 4명과 총격전 · 1~4 무기 교체 · E 탈취",
+                Description = "도시 끝의 왕 처치 · 동료 4명과 진격 · 1~4 무기 교체",
                 Fire = FireMode.Auto, RoundsPerMinute = 650, MagSize = 30, Reserve = 600, ReloadTime = 2.2f,
                 MuzzleVelocity = 900, DragK = .0012f, Damage = 42,
                 ScopeFovs = new[] { 50f }, ScopeLabels = new[] { "조준" },

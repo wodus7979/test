@@ -183,7 +183,13 @@ namespace SniperRidge
                 MapLine(orbitMap.transform, new Vector2(220 + Mathf.Sin(a) * 160, 125 + Mathf.Cos(a) * 75),
                     new Vector2(220 + Mathf.Sin(b) * 160, 125 + Mathf.Cos(b) * 75), Sand);
             }
-            Label(orbitMap.transform, "Orbit label", "헬기 자동 선회 ↻", 18, Sand, 246, 194, 186, 28);
+            for(int i=0;i<HelicopterRescueMission.SiteCount;i++)
+            {
+                float angle=(45+i*90)*Mathf.Deg2Rad;
+                var rescue=Box(orbitMap.transform,"Rescue site",new Color(.2f,.75f,1f),216+Mathf.Sin(angle)*68,121+Mathf.Cos(angle)*42,10,10);
+                rescue.localRotation=Quaternion.Euler(0,0,45);
+            }
+            Label(orbitMap.transform, "Orbit label", "4개 지점 · 동료 20명 구조", 18, Sand, 205, 194, 225, 28);
             tankMap = Box(map,"Tank positions",Ink,0,0,440,238).gameObject;
             Label(tankMap.transform,"Tank legend","대전차 로켓병  ◆     적 전차 증원  ↓",18,Muted,18,8,410,28);
             for(int i=0;i<6;i++)
@@ -273,7 +279,7 @@ namespace SniperRidge
                 SetColors(rows[i], active ? new Color(.22f, .25f, .22f) : Panel);
                 selectionBars[i].enabled = active;
                 rowNames[i].color = active ? Sand : Paper;
-                rowStates[i].text = (WeaponDefinition.All[i].IsAssault ? "왕 처치 · 동료 4명" : WeaponDefinition.All[i].IsTank ? "전차 기동전 · 5단계" : WeaponDefinition.All[i].IsMounted ? "공중 선회 공격" : WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
+                rowStates[i].text = (WeaponDefinition.All[i].IsAssault ? "왕 처치 · 동료 4명" : WeaponDefinition.All[i].IsTank ? "K2 흑표 기동전 · 5단계" : WeaponDefinition.All[i].IsMounted ? "공중 구조 · 동료 20명" : WeaponDefinition.All[i].Mission == MissionType.Sniper ? "저격 임무" : "진지 방어") + (active ? "   /   선택됨" : "");
             }
             weaponName.text = weapon.Name;
             weaponType.text = weapon.Id == "shotgun" ? "근접 화력  /  펌프액션" : weapon.Fire == FireMode.Bolt ? "정밀 사격  /  볼트액션" : weapon.Fire == FireMode.Auto ? "지속 화력  /  자동 사격" : "단발 사격  /  반자동";
@@ -295,22 +301,22 @@ namespace SniperRidge
             if (air)
             {
                 weaponType.text = "공중 화력  /  옆문 거치식 중기관총";
-                missionTitle.text = city ? "도시 공중 공격" : "들판 공중 공격";
-                objective.text = "헬기에서 지상·옥상을 내려다보며\n적 10명을 모두 제거하세요.";
+                missionTitle.text = city ? "도시 공중 구조" : "들판 공중 구조";
+                objective.text = "4개 구조 지점의 경계병을 제거하고\n동료 20명을 5명씩 구조하세요.";
                 range.text = city ? "고도 66 m  /  선회 52초" : "고도 44 m  /  선회 52초";
-                rule.text = "마우스 조준 · 좌클릭 연사\n각도가 막히면 다음 선회를 노리세요.";
+                rule.text = "적 로켓 경고 시 Space 회피\n안전해진 구조 지점 위로 접근하세요.";
             }
-            controls.text = air ? "마우스  조준     좌클릭  연사     우클릭  확대     R  탄띠 교체     휠 / Z  배율"
+            controls.text = air ? "마우스  조준     좌클릭  연사     Space  로켓 회피     우클릭  확대     R  탄띠 교체"
                 : "C / Ctrl  엄폐     A / D  좌우 이동     우클릭  조준     R  재장전";
             SetCard(equipmentLeft, air ? "R" : "Q", air ? "250발 탄띠" : "로켓포",
                 air ? "예비 2,000발 · 탄띠 교체 4초" : "주무기와 즉시 교체 · 예비 8발");
-            SetCard(equipmentRight, air ? "↻" : "W", air ? "자동 선회" : "수류탄",
-                air ? "조종사 비행 · 사수는 조준과 사격" : "6개 지급 · 누르고 조준, 놓아 투척");
+            SetCard(equipmentRight, air ? "SPACE" : "W", air ? "로켓 회피" : "수류탄",
+                air ? "경고 후 눌러 급격한 측면 기동" : "6개 지급 · 누르고 조준, 놓아 투척");
             if (tank)
             {
                 mapDescription.text = "전차 전장 / 넓은 들판 · 숲 · 바위";
-                weaponType.text = "기갑 전투  /  차체 주행 · 독립 포탑";
-                missionTitle.text = "전차 기동전";
+                weaponType.text = "K2 흑표  /  차체 주행 · 독립 포탑";
+                missionTitle.text = "K2 흑표 기동전";
                 magazine.text = "포탄 60발"; reserve.text = "단계마다 +25발";
                 objective.text = "바위 뒤 로켓병을 먼저 찾아내세요.\n2단계부터 적 전차가 증원됩니다.";
                 range.text = "기동 구역    440 × 440 m";

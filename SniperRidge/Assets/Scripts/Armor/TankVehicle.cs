@@ -5,7 +5,7 @@ namespace SniperRidge
     [DefaultExecutionOrder(30)]
     public sealed class TankVehicle : MonoBehaviour
     {
-        public const string Resource = "Tank/Prefabs/tank_reference";
+        public const string Resource = "Tank/Prefabs/k2_black_panther";
         public const float ForwardSpeed = 12f, ReverseSpeed = 6f, TurnRate = 42f, ReloadSeconds = 3f;
         public static bool IsReady => Resources.Load<GameObject>(Resource) != null;
         public bool IsPlayer { get; private set; }
@@ -197,7 +197,7 @@ namespace SniperRidge
             {
                 var materials=renderer.sharedMaterials;
                 for(int i=0;i<materials.Length;i++)
-                    if(destroyed || materials[i].name=="Armor_Grey")renderer.SetPropertyBlock(block,i);
+                    if(destroyed || materials[i].name=="Armor_Grey" || materials[i].name=="K2_Camo")renderer.SetPropertyBlock(block,i);
             }
         }
         void OnDestroy() { if (traction != null) Destroy(traction); }

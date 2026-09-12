@@ -21,6 +21,10 @@ namespace SniperRidge.EditorTools
                 "헬기 무기 설정 누락");
             Check(weapon.Fire == FireMode.Auto && weapon.MagSize == 250 && weapon.Reserve == 2000,
                 "중기관총 탄띠 설정 오류");
+            Check(HelicopterRescueMission.TotalSurvivors==20&&HelicopterRescueMission.SiteCount==4&&HelicopterRescueMission.SurvivorsPerSite==5,
+                "구조 인원/지점 설정 오류");
+            Check(HelicopterFlight.DodgeDuration>=3.5f&&HelicopterFlight.DodgeCooldownSeconds>HelicopterFlight.DodgeDuration,
+                "로켓 도착 시점까지 유지되는 회피 기동 설정이 아닙니다.");
             foreach (var map in new[] { BattlefieldMap.Field, BattlefieldMap.City })
                 for (int frame = 0; frame < 520; frame++)
                 {
@@ -32,6 +36,12 @@ namespace SniperRidge.EditorTools
                     Check(Vector3.Distance(position, HelicopterFlight.Position(map, time + .1f)) < 1.2f,
                         "선회 중 순간 이동");
                 }
+            foreach(var map in new[]{BattlefieldMap.Field,BattlefieldMap.City})for(int i=0;i<HelicopterRescueMission.SiteCount;i++)
+            {
+                var site=HelicopterRescueMission.Site(map,i);var centre=HelicopterFlight.Centre(map);site.y=centre.y;
+                float radial=Vector3.Distance(site,centre),orbit=map==BattlefieldMap.City?HelicopterFlight.CityRadius:HelicopterFlight.FieldRadius;
+                Check(Mathf.Abs(orbit-radial)<=HelicopterRescueMission.PickupRadius,"구조 지점에 헬기가 접근할 수 없습니다.");
+            }
             foreach (var name in new[] { "helicopter_rotor", "helicopter_engine", "shot_hmg", "shot_hmg_02", "shot_hmg_03", "shot_hmg_04" })
             {
                 var clip = Resources.Load<AudioClip>("Audio/" + name);
@@ -45,6 +55,7 @@ namespace SniperRidge.EditorTools
             if (Application.isPlaying && game != null && game.Mission == MissionType.Helicopter && game.IsPlaying)
             {
                 Check(game.Flight != null && game.Player.IsMounted, "헬기 사수 연결 누락");
+                Check(game.Rescue!=null&&game.Rescue.Rescued<=HelicopterRescueMission.TotalSurvivors,"헬기 구조 임무 연결 누락");
                 Check(game.Player.transform.parent == game.Flight.GunnerStation, "사수가 기체에 고정되지 않았습니다.");
                 var muzzle = game.Flight.GunnerStation.Find("Mounted Heavy Machine Gun/Base/YawMount/Weapon/Muzzle");
                 Check(muzzle != null, "중기관총 총구 누락");

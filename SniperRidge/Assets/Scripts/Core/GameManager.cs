@@ -29,6 +29,7 @@ namespace SniperRidge
         public SoundBank Sounds;
         public AudioSource Ambience;
         public HelicopterFlight Flight { get; private set; }
+        public HelicopterRescueMission Rescue { get; private set; }
         public TankBattle Armor { get; private set; }
         public CityAssault Assault { get; private set; }
         GunshotPlayback gunshots;
@@ -167,8 +168,8 @@ namespace SniperRidge
             if (Mission == MissionType.Helicopter)
             {
                 Health.Configure(5f, 6f);
-                LevelBuilder.SpawnSniperEnemies(this);
-                Hud.OnMissionStart("헬기 옆문 중기관총 사격.\n조종사가 목표 주변을 자동 선회합니다.\n지상과 옥상의 적 10명을 모두 제거하세요.\n마우스 조준 · 좌클릭 연사 · 우클릭 확대 · R 탄띠 교체");
+                Rescue=HelicopterRescueMission.Create(this);
+                Hud.OnMissionStart("헬기 구조 작전 · 동료 20명.\n4개 구조 지점의 경계병을 위에서 제거하세요.\n지점이 안전해지면 헬기가 접근해 5명씩 구조합니다.\n적 로켓 경고가 뜨면 Space 또는 회피 버튼을 누르세요.");
             }
             else if (Mission == MissionType.Sniper)
             {
@@ -333,8 +334,8 @@ namespace SniperRidge
                 Hud.KillFeed(headshot ? string.Format("헤드샷!  +{0}", points) : string.Format("+{0}", points));
             }
             PlaySound(Sounds.HitTick, 0.8f);
-
-            if ((Mission == MissionType.Sniper || Mission == MissionType.Helicopter) && Kills >= enemies.Count) EndMission(true);
+            if(Mission==MissionType.Helicopter&&Rescue!=null)Rescue.OnEnemyKilled(e);
+            if (Mission == MissionType.Sniper && Kills >= enemies.Count) EndMission(true);
         }
 
         // ---------- 적 사격 관련 ----------
@@ -357,8 +358,10 @@ namespace SniperRidge
             if (killed) { Kills++; Score+=600; Hud.KillFeed("적 전차 격파 +600"); }
             else Hud.ShowShotFeedback("적 전차 명중");
         }
+        public void AddScore(int points){Score+=Mathf.Max(0,points);}
         public void CompleteAssault() { if (Mission == MissionType.Assault) EndMission(true); }
         public void CompleteArmoredMission() { if (Mission == MissionType.Tank) EndMission(true); }
+        public void CompleteHelicopterMission() { if (Mission == MissionType.Helicopter && Rescue!=null && Rescue.Rescued>=HelicopterRescueMission.TotalSurvivors) EndMission(true); }
         public void PlayerDied() => EndMission(false);
 
         void EndMission(bool won)

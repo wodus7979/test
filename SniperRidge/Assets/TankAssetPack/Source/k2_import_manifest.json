@@ -1,0 +1,22 @@
+{
+  "sourceArchive": "k2_black_panther_3d_asset.zip",
+  "sha256": "5deeda74dea11d98d39cc76646764e8872c65fd337d0e17613721f437d4185c3",
+  "triangles": 19328,
+  "components": [
+    "Hull",
+    "Turret",
+    "Barrel"
+  ],
+  "textures": [
+    "k2_camo_albedo.png",
+    "k2_camo_hdrp_mask.png",
+    "k2_camo_metallic_smoothness.png",
+    "k2_camo_normal_unity.png",
+    "k2_metal_albedo.png",
+    "k2_metal_hdrp_mask.png",
+    "k2_metal_metallic_smoothness.png",
+    "k2_rubber_albedo.png",
+    "k2_rubber_hdrp_mask.png",
+    "k2_rubber_metallic_smoothness.png"
+  ]
+}
