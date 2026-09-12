@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
@@ -12,7 +13,7 @@ namespace SniperRidge
         GameObject beacon;
         LineRenderer ring;
         float nextWaveRetry;
-        bool entered;
+        bool entered,spawning;
         public int Alive { get {int n=0;foreach(var e in squad)if(e!=null&&!e.IsDead)n++;return n;} }
         public Vector3 Objective => AssaultLayout.Objectives[Mathf.Min(Progress.Sector,AssaultLayout.Objectives.Length-1)];
         public float Distance => Vector3.Distance(gm.Player.transform.position,Objective);
@@ -38,12 +39,18 @@ namespace SniperRidge
             if(!gm.IsPlaying||Progress.Complete)return;
             if(InArea && !entered){entered=true;gm.Hud.Announce(ObjectiveName+" · 통신 거점 확보 시작 · 적 증원을 막으세요");}
             Progress.Tick(Time.deltaTime,InArea);
-            if(entered && Progress.WaveDue && Alive<=6 && Time.time>=nextWaveRetry)
+            if(entered && !spawning && Progress.WaveDue && Alive+AssaultLayout.WaveSize(Progress.WavesSent)<=AssaultLayout.MaxAlive && Time.time>=nextWaveRetry)
             {
                 nextWaveRetry=Time.time+1f;
-                if(SpawnWave())Progress.SentWave();
+                int wave=Progress.WavesSent;
+                var positions=FindEntrances(wave,AssaultLayout.WaveSize(wave));
+                if(positions!=null)
+                {
+                    Progress.SentWave();spawning=true;
+                    StartCoroutine(SpawnWave(wave,positions));
+                }
             }
-            if(Progress.TryAdvance(Alive))
+            if(!spawning && Progress.TryAdvance(Alive))
             {
                 foreach(var enemy in squad)if(enemy!=null)Destroy(enemy.gameObject);
                 squad.Clear();
@@ -53,32 +60,71 @@ namespace SniperRidge
                 gm.Hud.Announce("구역 확보 · 탄약/수류탄 보급 · 다음 목표: "+ObjectiveName);
             }
         }
-        bool SpawnWave()
+        List<Vector3> FindEntrances(int wave,int count)
         {
-            int wave=Progress.WavesSent;
+            Physics.SyncTransforms();
             var positions=new List<Vector3>();
-            var coverFlags=new List<bool>();
-            int count=wave==0?4:3;
-            for(int i=0;i<count;i++)
+            if(!NavMesh.SamplePosition(gm.Player.transform.position,out var target,3,NavMesh.AllAreas))return null;
+            var path=new NavMeshPath();
+            for(int slot=0;slot<12 && positions.Count<count;slot++)
             {
-                bool cover=wave==0 && i<2;
-                Vector3 candidate=cover?AssaultLayout.CoverPost(Progress.Sector,i):AssaultLayout.Entry(Progress.Sector,wave,i%3);
-                if(Vector3.Distance(candidate,gm.Player.transform.position)<20f)
-                {
-                    cover=false;float side=gm.Player.transform.position.z>Objective.z?-1f:1f;
-                    candidate=Objective+new Vector3((i-1.5f)*3f,0,side*(48+i*3));
-                }
-                if(!NavMesh.SamplePosition(candidate,out var nav,3f,NavMesh.AllAreas))return false;
-                if(Vector3.Distance(nav.position,gm.Player.transform.position)<15f)return false;
-                positions.Add(nav.position);coverFlags.Add(cover);
+                var candidate=AssaultLayout.Entry(Progress.Sector,wave,slot);
+                if(!NavMesh.SamplePosition(candidate,out var nav,1f,NavMesh.AllAreas))continue;
+                if(!CanSpawnHere(nav.position))continue;
+                bool crowded=false;
+                foreach(var reserved in positions)if(Vector3.Distance(reserved,nav.position)<1.35f)crowded=true;
+                if(crowded || !NavMesh.CalculatePath(nav.position,target.position,NavMesh.AllAreas,path) || path.status!=NavMeshPathStatus.PathComplete)continue;
+                positions.Add(nav.position);
             }
-            for(int i=0;i<count;i++)
-            {
-                bool cover=coverFlags[i];
-                var enemy=LevelBuilder.SpawnAssaultSoldier(gm,positions[i],cover,Progress.Sector*100+wave*10+i);
-                squad.Add(enemy);
-            }
+            return positions.Count==count?positions:null;
+        }
+        bool CanSpawnHere(Vector3 position)
+        {
+            if(Vector3.Distance(position,gm.Player.transform.position)<14f || !Concealed(position))return false;
+            if(Physics.CheckCapsule(position+Vector3.up*.55f,position+Vector3.up*1.95f,.48f,
+                EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))return false;
+            foreach(var enemy in squad)
+                if(enemy!=null&&!enemy.IsDead&&Vector3.Distance(enemy.transform.position,position)<2f)return false;
             return true;
+        }
+        bool Concealed(Vector3 position)
+        {
+            var camera=gm.PlayerEye.GetComponent<Camera>();
+            Vector3 chest=position+Vector3.up*1.3f,head=position+Vector3.up*2.45f;
+            if(camera!=null && OutsideView(camera,chest) && OutsideView(camera,head))return true;
+            return Blocked(chest) && Blocked(head);
+        }
+        static bool OutsideView(Camera camera,Vector3 point)
+        {
+            var view=camera.WorldToViewportPoint(point);
+            return view.z<=0 || view.x<-.12f || view.x>1.12f || view.y<-.12f || view.y>1.12f;
+        }
+        bool Blocked(Vector3 point)
+        {
+            return Physics.Linecast(gm.PlayerEye.position,point,out var hit,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore)
+                && hit.collider.GetComponentInParent<EnemySoldier>()==null;
+        }
+        IEnumerator SpawnWave(int wave,List<Vector3> positions)
+        {
+            if(wave>0)gm.Hud.Announce("골목에서 적 분대 접근 · "+positions.Count+"명");
+            for(int i=0;i<positions.Count;i++)
+            {
+                if(!gm.IsPlaying)break;
+                // Recheck both visibility and occupancy after each staggered spawn.
+                Physics.SyncTransforms();
+                var point=positions[i];
+                while(gm.IsPlaying && !CanSpawnHere(point))
+                {
+                    var alternative=FindEntrances(wave+i,1);
+                    if(alternative!=null){point=alternative[0];break;}
+                    yield return new WaitForSeconds(.25f);
+                }
+                if(!gm.IsPlaying)break;
+                var enemy=LevelBuilder.SpawnAssaultSoldier(gm,point,false,Progress.Sector*100+wave*10+i);
+                squad.Add(enemy);
+                yield return new WaitForSeconds(.32f);
+            }
+            spawning=false;
         }
     }
 }

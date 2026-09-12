@@ -34,40 +34,26 @@ namespace SniperRidge
             var alpha=new float[128,128,1];for(int z=0;z<128;z++)for(int x=0;x<128;x++)alpha[z,x,0]=1;
             terrainData.SetAlphamaps(0,0,alpha);
             var ground=Terrain.CreateTerrainGameObject(terrainData);ground.transform.SetParent(transform);
-            ground.transform.position=new Vector3(-600,0,-600);
+            ground.transform.position=new Vector3(-AssaultLayout.Size*.5f,0,-AssaultLayout.Size*.5f);
             var old=gm.Terrain;old.gameObject.SetActive(false);Destroy(old.terrainData);Destroy(old.gameObject);
             gm.Terrain=ground.GetComponent<Terrain>();gm.Terrain.materialTemplate=Resources.Load<Material>("CityPack/Materials/DryTerrain");gm.Terrain.drawInstanced=true;gm.Terrain.basemapDistance=1500;
-            string[] types={"retail_row","warehouse","office_midrise","auto_workshop","apartment_slab","office_tower"};
-            // 120 m city grid, 192 buildings with cross streets, courtyards and enterable shops/workshops.
-            int index=0;
-            for(int z=-420;z<=420;z+=120)for(int x=-300;x<=300;x+=120)
+            // Asset sizes stay life-size; the authored blocks now sit much closer together.
+            foreach(var item in AssaultLayout.Data.buildings)
+                blocks.Add(Place(item.asset,transform,item.WorldPosition,item.yaw));
+            foreach(var item in AssaultLayout.Data.props)
             {
-                var block=new GameObject("District block "+index).transform;block.SetParent(transform,false);block.position=new Vector3(x,12,z);blocks.Add(block.gameObject);
-                for(int i=0;i<4;i++)
-                {
-                    string type=types[(index+i*2)%types.Length];
-                    Place(type,block,new Vector3(x+(i%2==0?-25:25),12.04f,z+(i<2?-24:24)),i%2==0?90:-90);
-                }
-                for(int side=-1;side<=1;side+=2)
-                {
-                    UrbanProps.Place((index%3==0?"Utility van":"Abandoned sedan"),block,new Vector3(x+side*50,12.18f,z+9),index%2==0?8:172);
-                    UrbanProps.Place("Utility cabinet",block,new Vector3(x+side*47,12.2f,z-17),side*90);
-                    UrbanProps.Place("Street dumpster",block,new Vector3(x+side*42,12.2f,z+28),side*90);
-                    Place("street_lamp",block,new Vector3(x+side*51,12,z-42),0);
-                    Place("pallet_crates",block,new Vector3(x+side*39,12,z-41),0);
-                }
-                index++;
+                if(item.original)UrbanProps.Place(item.asset,transform,item.WorldPosition,item.yaw);
+                else Place(item.asset,transform,item.WorldPosition,item.yaw);
             }
-            // Sidewalk curbs and lane markings are solid, dry and aligned with the navigable street grid.
             var sidewalk=Resources.Load<Material>("CityPack/Materials/Sidewalk");
             var white=Resources.Load<Material>("CityPack/Materials/White_Paint");
-            for(int x=-360;x<=360;x+=120)
+            for(int x=-144;x<=144;x+=72)
             {
-                foreach(int side in new[]{-1,1})Box("Pavement curb",new Vector3(x+side*14,12.09f,0),new Vector3(5,.18f,1030),sidewalk);
-                for(int z=-510;z<515;z+=9)Box("Lane paint",new Vector3(x,12.008f,z),new Vector3(.12f,.012f,3),white,false);
+                foreach(int side in new[]{-1,1})Box("Pavement curb",new Vector3(x+side*4.8f,12.09f,0),new Vector3(1.6f,.18f,300),sidewalk);
+                for(int z=-144;z<=144;z+=9)Box("Lane paint",new Vector3(x,12.008f,z),new Vector3(.10f,.012f,2.6f),white,false);
             }
-            for(int z=-480;z<=480;z+=120)
-                for(int x=-410;x<=410;x+=9)Box("Cross street paint",new Vector3(x,12.009f,z),new Vector3(3,.012f,.12f),white,false);
+            for(int z=-144;z<=144;z+=72)
+                for(int x=-144;x<=144;x+=9)Box("Cross street paint",new Vector3(x,12.009f,z),new Vector3(2.6f,.012f,.1f),white,false);
             for(int sector=0;sector<AssaultLayout.Objectives.Length;sector++)
             {
                 var centre=AssaultLayout.Objectives[sector];
@@ -77,16 +63,16 @@ namespace SniperRidge
                     var cover=UrbanProps.Place("Sandbag corner",transform,p+front*1.5f,Quaternion.LookRotation(front).eulerAngles.y);
                     cover.transform.localScale=new Vector3(1,1.5f/1.14f,1);
                 }
-                Place("concrete_barrier",transform,centre+new Vector3(-4,0,-7),90);
-                Place("concrete_barrier",transform,centre+new Vector3(4,0,7),90);
-                UrbanProps.Place("Utility cabinet",transform,centre+Vector3.right*10,90);
-                for(int t=0;t<2;t++)Vegetation.Tree(transform,centre+new Vector3(t==0?-20:20,0,48),.6f,Vegetation.TreeType.Broadleaf,new System.Random(sector*19+t));
+                Place("concrete_barrier",transform,centre+new Vector3(-3,0,-6),90);
+                Place("concrete_barrier",transform,centre+new Vector3(3,0,6),90);
+                UrbanProps.Place("Utility cabinet",transform,centre+Vector3.right*4.2f,90);
             }
             var concrete=Resources.Load<Material>("CityPack/Materials/Concrete");
-            Box("District west boundary",new Vector3(-445,15,0),new Vector3(2,6,1090),concrete);
-            Box("District east boundary",new Vector3(445,15,0),new Vector3(2,6,1090),concrete);
-            Box("District south boundary",new Vector3(0,15,-545),new Vector3(890,6,2),concrete);
-            Box("District north boundary",new Vector3(0,15,545),new Vector3(890,6,2),concrete);
+            float boundary=AssaultLayout.BoundaryX;
+            Box("District west boundary",new Vector3(-boundary,15,0),new Vector3(2,6,boundary*2),concrete);
+            Box("District east boundary",new Vector3(boundary,15,0),new Vector3(2,6,boundary*2),concrete);
+            Box("District south boundary",new Vector3(0,15,-boundary),new Vector3(boundary*2,6,2),concrete);
+            Box("District north boundary",new Vector3(0,15,boundary),new Vector3(boundary*2,6,2),concrete);
             Physics.SyncTransforms();BuildNavigation();
             StaticBatchingUtility.Combine(gameObject);
             foreach(var block in blocks)blockRenderers.Add(block.GetComponentsInChildren<Renderer>());
@@ -101,7 +87,7 @@ namespace SniperRidge
             settings.overrideVoxelSize=true;settings.voxelSize=.2f;
             var sources=new List<NavMeshBuildSource>();
             NavMeshBuilder.CollectSources(transform,EnemyRagdoll.CombatMask,NavMeshCollectGeometry.PhysicsColliders,0,new List<NavMeshBuildMarkup>(),sources);
-            data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(new Vector3(0,25,0),new Vector3(920,70,1120)),Vector3.zero,Quaternion.identity);
+            data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(new Vector3(0,25,0),new Vector3(AssaultLayout.Size,70,AssaultLayout.Size)),Vector3.zero,Quaternion.identity);
             if(data==null)throw new InvalidOperationException("도시 이동 경로 생성 실패");
             navigation=NavMesh.AddNavMeshData(data);
             ValidateNavigation();
@@ -116,7 +102,7 @@ namespace SniperRidge
                 RequireRoute(previous,objective);previous=objective;
                 for(int slot=0;slot<4;slot++)RequireRoute(AssaultLayout.CoverPost(sector,slot),objective);
                 for(int wave=0;wave<AssaultLayout.Waves;wave++)
-                    for(int slot=0;slot<3;slot++)RequireRoute(AssaultLayout.Entry(sector,wave,slot),objective);
+                    for(int slot=0;slot<12;slot++)RequireRoute(AssaultLayout.Entry(sector,wave,slot),objective);
             }
         }
         static void RequireRoute(Vector3 from,Vector3 to)

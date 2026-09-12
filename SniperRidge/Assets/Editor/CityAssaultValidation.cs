@@ -28,6 +28,15 @@ namespace SniperRidge.EditorTools
         }
         static void ValidateProgress()
         {
+            Check(AssaultLayout.Data.buildings.Length==64 && AssaultLayout.BoundaryX==152f,"밀집 도시 배치/경계 오류");
+            int enemies=0;
+            for(int wave=0;wave<AssaultLayout.Waves;wave++)
+            {
+                int count=AssaultLayout.WaveSize(wave);
+                Check(count>=5 && count<=6 && count<=AssaultLayout.MaxAlive,"분대 크기/동시 출현 제한 오류");
+                enemies+=count;
+            }
+            Check(enemies*AssaultLayout.Objectives.Length==156,"전체 증원 인원 오류");
             var progress=new AssaultProgress();
             progress.Tick(600,false);
             Check(progress.Secured==0 && !progress.TryAdvance(0),"구역 밖에서 목표 진행");

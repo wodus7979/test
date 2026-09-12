@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -5,6 +6,10 @@ namespace SniperRidge
 {
     public sealed class AssaultNavigation:MonoBehaviour
     {
+        static readonly List<AssaultNavigation> active=new List<AssaultNavigation>();
+        EnemySoldier owner;
+        void OnEnable(){owner=GetComponent<EnemySoldier>();active.Add(this);}
+        void OnDisable(){active.Remove(this);}
         readonly NavMeshPath path=new NavMeshPath();
         Vector3[] corners;
         int corner;
@@ -30,7 +35,16 @@ namespace SniperRidge
         public void Move(Vector3 direction,float speed,float dt)
         {
             if(direction.sqrMagnitude<.001f)return;
-            var next=transform.position+direction.normalized*speed*dt;
+            Vector3 separation=Vector3.zero;
+            foreach(var other in active)
+            {
+                if(other==null||other==this||other.owner==null||other.owner.IsDead)continue;
+                var delta=transform.position-other.transform.position;delta.y=0;
+                float distance=delta.magnitude;
+                if(distance>.001f && distance<1.35f)separation+=delta/distance*(1.35f-distance)/1.35f;
+            }
+            var advance=(direction.normalized+Vector3.ClampMagnitude(separation,1f)*1.1f).normalized;
+            var next=transform.position+advance*speed*dt;
             if(!NavMesh.SamplePosition(transform.position,out var start,1f,NavMesh.AllAreas))return;
             if(NavMesh.Raycast(start.position,next,out var edge,NavMesh.AllAreas))next=edge.position;
             if(NavMesh.SamplePosition(next,out var hit,.5f,NavMesh.AllAreas))transform.position=hit.position;
