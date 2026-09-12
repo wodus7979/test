@@ -128,8 +128,8 @@ namespace SniperRidge
             if (weapon.IsTank)
             {
                 map = BattlefieldMap.Field;
-                if (!TankVehicle.IsReady || WeaponModels.LoadPrefab("launcher_reusable") == null)
-                { Debug.LogError("[Sniper Ridge] 전차 에셋 생성과 로켓포 프리팹 생성 메뉴를 실행하세요."); return; }
+                if (!TankVehicle.IsReady)
+                { Debug.LogError("[Sniper Ridge] K2와 적 주력전차 에셋 생성 메뉴를 실행하세요."); return; }
             }
             if (map == BattlefieldMap.City && !CityBattlefield.IsReady)
             {
@@ -150,7 +150,7 @@ namespace SniperRidge
             {
                 Armor = TankBattle.Create(this);
                 if (Ambience != null) Ambience.volume = .12f;
-                Hud.OnMissionStart("전차 기동전 · 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\n바위 뒤 로켓병과 증원되는 적 전차를 제거하세요.");
+                Hud.OnMissionStart("전차 대 전차전 · 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\nK2 흑표와 다른 주력전차로 구성된 적 기갑부대를 격파하세요.");
                 return;
             }
             if (Mission == MissionType.Assault)

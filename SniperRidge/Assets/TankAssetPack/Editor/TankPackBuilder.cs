@@ -14,6 +14,7 @@ namespace OriginalTankAssets
     public static class TankPackBuilder
     {
         const string Root = "Assets/TankAssetPack";
+        const string VersionMarker="TankPackVersion_2";
         [Serializable] public class Part { public string name; public int mat; public float[] p, n, uv; }
         [Serializable] public class Level { public Part[] parts; }
         [Serializable] public class Collision { public string type; public float[] center, size; public float radius, height; }
@@ -48,8 +49,11 @@ namespace OriginalTankAssets
         }
         public static void BuildIfMissing()
         {
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(Target + "/Prefabs/k2_black_panther.prefab");
-            if (prefab == null || prefab.GetComponentInChildren<MeshFilter>()?.sharedMesh == null) Build();
+            var k2 = AssetDatabase.LoadAssetAtPath<GameObject>(Target + "/Prefabs/k2_black_panther.prefab");
+            var opposition = AssetDatabase.LoadAssetAtPath<GameObject>(Target + "/Prefabs/tank_reference.prefab");
+            if (k2 == null || k2.GetComponentInChildren<MeshFilter>()?.sharedMesh == null ||
+                opposition == null || opposition.GetComponentInChildren<MeshFilter>()?.sharedMesh == null ||
+                k2.transform.Find(VersionMarker)==null || opposition.transform.Find(VersionMarker)==null) Build();
         }
         [MenuItem("Sniper Ridge/전차 에셋 생성")]
         public static void Build()
@@ -59,9 +63,12 @@ namespace OriginalTankAssets
             try
             {
                 foreach (string sub in new[] { "", "/Meshes", "/Materials", "/Prefabs" }) Folder(Target + sub);
-                var materials = JsonUtility.FromJson<MaterialFile>(File.ReadAllText(Root + "/Source/k2_materials.json"));
-                var model = JsonUtility.FromJson<Model>(File.ReadAllText(Root + "/Source/k2_black_panther.json"));
-                MakePrefab(model, MakeMaterials(materials, Target), Target);
+                var k2Materials = JsonUtility.FromJson<MaterialFile>(File.ReadAllText(Root + "/Source/k2_materials.json"));
+                var k2Model = JsonUtility.FromJson<Model>(File.ReadAllText(Root + "/Source/k2_black_panther.json"));
+                MakePrefab(k2Model, MakeMaterials(k2Materials, Target), Target);
+                var oppositionMaterials = JsonUtility.FromJson<MaterialFile>(File.ReadAllText(Root + "/Source/materials.json"));
+                var oppositionModel = JsonUtility.FromJson<Model>(File.ReadAllText(Root + "/Source/tank_reference.json"));
+                MakePrefab(oppositionModel, MakeMaterials(oppositionMaterials, Target), Target,true);
                 AssetDatabase.SaveAssets();
                 Debug.Log("[Sniper Ridge] 전차 에셋 생성 완료: " + Target);
             }
@@ -143,7 +150,7 @@ namespace OriginalTankAssets
             }
             return result;
         }
-        static Mesh MakeMesh(Level level,string name)
+        static Mesh MakeMesh(Level level,string name,bool reverseWinding)
         {
             var vertices=new List<Vector3>();var normals=new List<Vector3>();var uvs=new List<Vector2>();var indices=new List<int[]>();
             foreach(Part p in level.parts)
@@ -151,6 +158,7 @@ namespace OriginalTankAssets
                 if(p.p==null||p.n==null||p.uv==null||p.p.Length%9!=0||p.n.Length!=p.p.Length||p.uv.Length*3!=p.p.Length*2)throw new InvalidDataException("Invalid mesh: "+name);
                 int count=p.p.Length/3,start=vertices.Count;int[] tris=new int[count];
                 for(int i=0;i<count;i++){vertices.Add(V(p.p,i*3));normals.Add(V(p.n,i*3).normalized);uvs.Add(new Vector2(p.uv[i*2],1-p.uv[i*2+1]));tris[i]=start+i;}
+                if(reverseWinding)for(int i=0;i<count;i+=3){int swap=tris[i+1];tris[i+1]=tris[i+2];tris[i+2]=swap;}
                 indices.Add(tris);
             }
             var mesh=new Mesh{name=name,indexFormat=vertices.Count>65535?IndexFormat.UInt32:IndexFormat.UInt16};
@@ -158,12 +166,13 @@ namespace OriginalTankAssets
             for(int i=0;i<indices.Count;i++)mesh.SetTriangles(indices[i],i);
             mesh.RecalculateBounds();mesh.RecalculateTangents();return mesh;
         }
-        static GameObject MakePrefab(Model model,Material[] materials,string output)
+        static GameObject MakePrefab(Model model,Material[] materials,string output,bool reverseWinding=false)
         {
             if(model.components==null||model.components.Length==0)throw new InvalidDataException("Missing tank components.");
             var root=new GameObject(model.name);
             try
             {
+                var version=new GameObject(VersionMarker);version.transform.SetParent(root.transform,false);
                 var pivots=new Dictionary<string,Transform>();
                 var lodRenderers=new[]{new List<Renderer>(),new List<Renderer>()};
                 foreach(var component in model.components)
@@ -179,7 +188,7 @@ namespace OriginalTankAssets
                     for(int j=0;j<2;j++)
                     {
                         var child=new GameObject("LOD"+j);child.transform.SetParent(pivot,false);
-                        var mesh=MakeMesh(component.lods[j],model.name+"_"+component.name+"_LOD"+j);
+                        var mesh=MakeMesh(component.lods[j],model.name+"_"+component.name+"_LOD"+j,reverseWinding);
                         mesh=SaveAsset(mesh,output+"/Meshes/"+mesh.name+".asset");child.AddComponent<MeshFilter>().sharedMesh=mesh;
                         var renderer=child.AddComponent<MeshRenderer>();var slots=new Material[component.lods[j].parts.Length];
                         for(int k=0;k<slots.Length;k++)slots[k]=materials[component.lods[j].parts[k].mat];

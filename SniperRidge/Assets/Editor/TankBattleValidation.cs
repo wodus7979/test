@@ -13,17 +13,12 @@ namespace SniperRidge.EditorTools
         {
             Check(!EditorApplication.isPlayingOrWillChangePlaymode,"Play를 멈춘 뒤 검사하세요.");
             OriginalTankAssets.TankPackBuilder.BuildIfMissing();
-            OriginalLauncherAssets.LauncherPackBuilder.BuildIfMissing();
-            var prefab=Resources.Load<GameObject>(TankVehicle.Resource);
-            Check(prefab!=null,"전차 프리팹 누락");
-            Check(prefab.name=="k2_black_panther","K2 흑표 프리팹이 아닙니다.");
-            Check(prefab.transform.Find("Turret/Barrel/Muzzle")!=null,"포탑/포신/총구 계층 누락");
-            Check(prefab.GetComponentsInChildren<BoxCollider>().Length==4,"차체/포탑/궤도 충돌체 누락");
-            Check(prefab.GetComponent<LODGroup>().GetLODs().Length==2,"전차 LOD 누락");
-            foreach(var renderer in prefab.GetComponentsInChildren<MeshRenderer>())
-                foreach(var material in renderer.sharedMaterials)
-                    Check(material!=null && material.shader!=null && material.shader.isSupported,"전차 재질/셰이더 오류");
-            Check(WeaponModels.LoadPrefab("launcher_reusable")!=null,"로켓병 무기 누락");
+            ValidatePrefab(TankVehicle.Resource,"k2_black_panther");
+            ValidatePrefab(TankVehicle.OppositionResource,"tank_reference");
+            Check(TankBattle.EnemyTankCount(1)==1&&TankBattle.EnemyTankCount(5)==5,"단계별 적 전차 수 오류");
+            Check(TankBattle.EnemyAppearance(2,0)==TankAppearance.K2BlackPanther&&TankBattle.EnemyAppearance(2,1)==TankAppearance.Opposition,
+                "K2와 다른 적 전차 혼합 오류");
+            Check(RocketEffects.TankWreckLifetime>=15f,"격파 후 화재 지속 시간이 너무 짧습니다.");
             foreach(var name in new[]{"tank_cannon","tank_cannon_02","tank_cannon_03","tank_engine","tank_impact"})
             {
                 var clip=Resources.Load<AudioClip>("Audio/"+name);
@@ -32,7 +27,34 @@ namespace SniperRidge.EditorTools
                 Check(importer.defaultSampleSettings.compressionFormat==AudioCompressionFormat.PCM,"PCM 가져오기 오류");
             }
             ValidateCollision();
-            Debug.Log("[Sniper Ridge] 전차 에셋·오디오·사선·엄폐·직격·폭발 중복 검사 통과. Play에서 9번 전차를 선택해 주행과 5단계를 확인하세요.");
+            Debug.Log("[Sniper Ridge] K2/적 주력전차, 전차 전용 5단계, 오디오·사선·직격·화재 지속 검사 통과. Play에서 9번 전차를 선택하세요.");
+        }
+        static void ValidatePrefab(string resource,string expectedName)
+        {
+            var prefab=Resources.Load<GameObject>(resource);
+            Check(prefab!=null&&prefab.name==expectedName,"전차 프리팹 누락/종류 오류: "+expectedName);
+            Check(prefab.transform.Find("Turret/Barrel/Muzzle")!=null,"포탑/포신/총구 계층 누락: "+expectedName);
+            Check(prefab.GetComponentsInChildren<BoxCollider>().Length==4,"차체/포탑/궤도 충돌체 누락: "+expectedName);
+            Check(prefab.GetComponent<LODGroup>().GetLODs().Length==2,"전차 LOD 누락: "+expectedName);
+            foreach(var renderer in prefab.GetComponentsInChildren<MeshRenderer>())
+                foreach(var material in renderer.sharedMaterials)
+                    Check(material!=null&&material.shader!=null&&material.shader.isSupported,"전차 재질/셰이더 오류: "+expectedName);
+            foreach(var filter in prefab.GetComponentsInChildren<MeshFilter>())ValidateWinding(filter.sharedMesh,expectedName);
+        }
+        static void ValidateWinding(Mesh mesh,string expectedName)
+        {
+            Check(mesh!=null&&mesh.normals.Length==mesh.vertexCount,"전차 메시/노멀 누락: "+expectedName);
+            var vertices=mesh.vertices;var normals=mesh.normals;
+            for(int sub=0;sub<mesh.subMeshCount;sub++)
+            {
+                var triangles=mesh.GetTriangles(sub);
+                for(int i=0;i<triangles.Length;i+=Mathf.Max(3,(triangles.Length/90/3)*3))
+                {
+                    int a=triangles[i],b=triangles[i+1],c=triangles[i+2];
+                    Vector3 face=Vector3.Cross(vertices[b]-vertices[a],vertices[c]-vertices[a]);
+                    Check(Vector3.Dot(face,normals[a]+normals[b]+normals[c])>0,"전차 외부 면 방향 오류: "+expectedName);
+                }
+            }
         }
         static void ValidateCollision()
         {

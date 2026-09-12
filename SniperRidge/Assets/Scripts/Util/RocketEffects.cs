@@ -5,7 +5,8 @@ namespace SniperRidge
 {
     public static class RocketEffects
     {
-        static Material smokeMaterial;
+        public const float TankWreckLifetime=18f;
+        static Material smokeMaterial,debrisMaterial;
         static Material Material
         {
             get
@@ -109,6 +110,79 @@ namespace SniperRidge
             for (int i = 0; i < 12; i++)
                 Effects.Tracer(point, point + (Random.onUnitSphere + Vector3.up * .3f) * Random.Range(1.5f, 4f),
                     new Color(1f, .63f, .22f), .12f, .035f);
+        }
+
+        public static void TankDestruction(Transform tank)
+        {
+            Bounds bounds=new Bounds(tank.position+Vector3.up*1.5f,new Vector3(4,3,8));bool found=false;
+            foreach(var renderer in tank.GetComponentsInChildren<Renderer>())
+            {
+                if(!found){bounds=renderer.bounds;found=true;}else bounds.Encapsulate(renderer.bounds);
+            }
+            Vector3 centre=bounds.center;
+            Explosion(centre);
+            TankDebris(centre,Mathf.Clamp(bounds.extents.magnitude*.38f,2.2f,4.2f));
+
+            var root=new GameObject("Burning tank wreck");root.transform.position=centre;
+            var fire=System("Tank wreck flames",centre+Vector3.up*.2f,1.05f,1.8f,2.8f,new Color(1f,.22f,.025f,.95f));
+            fire.transform.SetParent(root.transform,true);
+            var fireMain=fire.main;fireMain.loop=true;fireMain.duration=1f;fireMain.maxParticles=180;
+            var fireEmission=fire.emission;fireEmission.enabled=true;fireEmission.rateOverTime=34f;
+            var fireShape=fire.shape;fireShape.shapeType=ParticleSystemShapeType.Box;fireShape.scale=new Vector3(2.8f,.25f,4.6f);
+            fire.Play();
+
+            var smoke=System("Tank wreck black smoke",centre+Vector3.up*.8f,5.5f,3.1f,2.2f,new Color(.055f,.05f,.045f,.86f));
+            smoke.transform.SetParent(root.transform,true);
+            var smokeMain=smoke.main;smokeMain.loop=true;smokeMain.duration=1f;smokeMain.maxParticles=220;
+            var smokeEmission=smoke.emission;smokeEmission.enabled=true;smokeEmission.rateOverTime=13f;
+            var smokeShape=smoke.shape;smokeShape.shapeType=ParticleSystemShapeType.Box;smokeShape.scale=new Vector3(1.7f,.2f,2.8f);
+            smoke.Play();
+
+            var sparks=System("Tank wreck sparks",centre+Vector3.up*.5f,1.25f,.11f,7f,new Color(1f,.62f,.12f,.95f));
+            sparks.transform.SetParent(root.transform,true);
+            var sparkMain=sparks.main;sparkMain.loop=true;sparkMain.duration=1f;sparkMain.maxParticles=72;sparkMain.gravityModifier=.9f;
+            var sparkEmission=sparks.emission;sparkEmission.enabled=true;sparkEmission.rateOverTime=6f;
+            sparks.Play();
+
+            var glow=root.AddComponent<Light>();glow.type=LightType.Point;glow.color=new Color(1f,.26f,.035f);
+            glow.range=14f;glow.intensity=6f;glow.shadows=LightShadows.None;
+            root.AddComponent<TankWreckFire>().Initialize(glow);
+            Object.Destroy(root,TankWreckLifetime);
+        }
+
+        static void TankDebris(Vector3 centre,float radius)
+        {
+            if(debrisMaterial==null)debrisMaterial=ProceduralAssets.LitMaterial(new Color(.075f,.065f,.055f),.08f);
+            for(int i=0;i<14;i++)
+            {
+                var fragment=GameObject.CreatePrimitive(PrimitiveType.Cube);fragment.name="Burning tank fragment";
+                fragment.transform.position=centre+Random.insideUnitSphere*.7f;fragment.transform.rotation=Random.rotation;
+                fragment.transform.localScale=new Vector3(Random.Range(.10f,.32f),Random.Range(.05f,.18f),Random.Range(.18f,.55f));
+                fragment.GetComponent<Renderer>().sharedMaterial=debrisMaterial;
+                var body=fragment.AddComponent<Rigidbody>();body.mass=Random.Range(.4f,1.8f);body.collisionDetectionMode=CollisionDetectionMode.ContinuousDynamic;
+                Vector3 direction=(Random.onUnitSphere+Vector3.up*1.1f).normalized;
+                body.velocity=direction*Random.Range(radius*1.8f,radius*3.4f);body.angularVelocity=Random.onUnitSphere*Random.Range(4f,12f);
+                Object.Destroy(fragment.GetComponent<Collider>(),3f);Object.Destroy(fragment,8f);
+            }
+        }
+
+        internal static void SecondaryTankExplosion(Vector3 point)
+        {
+            Explosion(point);
+            var gm=GameManager.Instance;if(gm!=null&&gm.Armor!=null)gm.Armor.PlayExplosion(point);
+        }
+    }
+
+    public sealed class TankWreckFire:MonoBehaviour
+    {
+        Light glow;float started;bool first,second;
+        public void Initialize(Light light){glow=light;started=Time.time;}
+        void Update()
+        {
+            float age=Time.time-started;
+            if(glow!=null)glow.intensity=(6f+Mathf.Sin(Time.time*17f)*1.7f)*Mathf.Clamp01((RocketEffects.TankWreckLifetime-age)/3f);
+            if(!first&&age>.55f){first=true;RocketEffects.SecondaryTankExplosion(transform.position+new Vector3(.8f,.35f,-.6f));}
+            if(!second&&age>1.45f){second=true;RocketEffects.SecondaryTankExplosion(transform.position+new Vector3(-.65f,.15f,.9f));}
         }
     }
 }

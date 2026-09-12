@@ -11,10 +11,10 @@ namespace SniperRidge
         public TankVehicle PlayerTank { get; private set; }
         public int Stage { get; private set; }
         public int AliveTanks { get { int n=0;foreach(var t in tanks)if(t!=null&&!t.IsDead)n++;return n; } }
-        public int AliveRockets { get { int n=0;foreach(var e in soldiers)if(e!=null&&!e.IsDead)n++;return n; } }
+        public int AliveK2 { get { int n=0;foreach(var t in tanks)if(t!=null&&!t.IsDead&&t.Appearance==TankAppearance.K2BlackPanther)n++;return n; } }
+        public int AliveOpposition { get { int n=0;foreach(var t in tanks)if(t!=null&&!t.IsDead&&t.Appearance==TankAppearance.Opposition)n++;return n; } }
         public bool Resupplying { get; private set; }
         readonly List<TankVehicle> tanks=new List<TankVehicle>();
-        readonly List<EnemySoldier> soldiers=new List<EnemySoldier>();
         readonly List<AudioClip> cannons=new List<AudioClip>();
         AudioClip explosion;
         AudioSource playerCannon;
@@ -38,22 +38,18 @@ namespace SniperRidge
             float angle=(index*60f+25f)*Mathf.Deg2Rad;
             return new Vector3(Mathf.Sin(angle)*75f,TerrainGenerator.FieldElevation,Mathf.Cos(angle)*75f-40f);
         }
+        public static int EnemyTankCount(int stage)=>Mathf.Clamp(stage,1,Stages);
+        public static TankAppearance EnemyAppearance(int stage,int ordinal)=>(ordinal+stage)%2==0?TankAppearance.K2BlackPanther:TankAppearance.Opposition;
         IEnumerator RunStages()
         {
             yield return new WaitForSeconds(3f);
             for(int stage=1;stage<=Stages&&gm.IsPlaying;stage++)
             {
-                Stage=stage;Resupplying=false;soldiers.Clear();tanks.Clear();
-                int rocketCount=stage<3?4:stage==3?5:6;
-                gm.Hud.Announce(string.Format("전차전 {0} / 5 · 로켓병 {1} · 적 전차 {2}",stage,rocketCount,stage-1));
-                for(int i=0;i<rocketCount;i++)
-                {
-                    int slot=(i+stage-1)%6;
-                    var position=Post(slot);
-                    var soldier=LevelBuilder.SpawnRocketTrooper(gm,position,"AT_"+stage+"_"+i);
-                    soldiers.Add(soldier);
-                }
-                for(int i=0;i<stage-1;i++)
+                Stage=stage;Resupplying=false;tanks.Clear();
+                int tankCount=EnemyTankCount(stage);
+                int k2Count=stage/2,oppositionCount=tankCount-k2Count;
+                gm.Hud.Announce(string.Format("전차전 {0} / 5 · 적 전차 {1}대 · K2 {2} / 주력전차 {3}",stage,tankCount,k2Count,oppositionCount));
+                for(int i=0;i<tankCount;i++)
                 {
                     Vector3 spawn;
                     while(!TryChooseTankSpawn(i,stage,out spawn))
@@ -61,10 +57,11 @@ namespace SniperRidge
                         if(!gm.IsPlaying)yield break;
                         yield return new WaitForSeconds(1f);
                     }
-                    var tank=TankVehicle.Create(this,spawn,false,stage);tanks.Add(tank);
+                    TankAppearance appearance=EnemyAppearance(stage,i);
+                    var tank=TankVehicle.Create(this,spawn,false,stage,appearance);tanks.Add(tank);
                     yield return new WaitForSeconds(1.3f);
                 }
-                while(gm.IsPlaying&&(AliveTanks>0||AliveRockets>0))yield return new WaitForSeconds(.4f);
+                while(gm.IsPlaying&&AliveTanks>0)yield return new WaitForSeconds(.4f);
                 if(!gm.IsPlaying)yield break;
                 if(stage<Stages)
                 {

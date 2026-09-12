@@ -2,14 +2,19 @@ using UnityEngine;
 
 namespace SniperRidge
 {
+    public enum TankAppearance { K2BlackPanther, Opposition }
+
     [DefaultExecutionOrder(30)]
     public sealed class TankVehicle : MonoBehaviour
     {
         public const string Resource = "Tank/Prefabs/k2_black_panther";
+        public const string OppositionResource = "Tank/Prefabs/tank_reference";
         public const float ForwardSpeed = 12f, ReverseSpeed = 6f, TurnRate = 42f, ReloadSeconds = 3f;
-        public static bool IsReady => Resources.Load<GameObject>(Resource) != null;
+        public static bool IsReady => Resources.Load<GameObject>(Resource) != null && Resources.Load<GameObject>(OppositionResource) != null;
         public bool IsPlayer { get; private set; }
         public bool IsDead { get; private set; }
+        public TankAppearance Appearance { get; private set; }
+        public string DisplayName => Appearance==TankAppearance.K2BlackPanther?"K2 흑표":"적 주력전차";
         public Vector3 AimPoint => transform.position + Vector3.up * 1.45f;
         public float Fraction => health / maximumHealth;
         public float Speed => Vector3.Dot(body.velocity, body.rotation * Vector3.forward);
@@ -30,11 +35,12 @@ namespace SniperRidge
         float nextAIShot, fireAt = -1f;
         Vector3 committedAim;
         public bool HasAim { get; private set; }
-        public static TankVehicle Create(TankBattle owner, Vector3 position, bool player, int stage)
+        public static TankVehicle Create(TankBattle owner, Vector3 position, bool player, int stage,TankAppearance appearance=TankAppearance.K2BlackPanther)
         {
-            var go = Instantiate(Resources.Load<GameObject>(Resource), position, Quaternion.identity);
-            go.name = player ? "Player Tank" : "Enemy Tank";
-            var tank = go.AddComponent<TankVehicle>(); tank.battle = owner; tank.IsPlayer = player;
+            string resource=appearance==TankAppearance.K2BlackPanther?Resource:OppositionResource;
+            var go = Instantiate(Resources.Load<GameObject>(resource), position, Quaternion.identity);
+            go.name = player ? "Player K2 Black Panther" : appearance==TankAppearance.K2BlackPanther?"Enemy K2 Black Panther":"Enemy Main Battle Tank";
+            var tank = go.AddComponent<TankVehicle>(); tank.battle = owner; tank.IsPlayer = player;tank.Appearance=appearance;
             tank.turret = go.transform.Find("Turret"); tank.barrel = tank.turret.Find("Barrel");
             tank.barrelRest = tank.barrel.localPosition; tank.Muzzle = tank.barrel.Find("Muzzle");
             tank.maximumHealth = tank.health = player ? 500f : 180f + stage * 30f;
@@ -183,15 +189,16 @@ namespace SniperRidge
             if (IsPlayer) GameManager.Instance.Hud.FlashDamage();
             if (health>0) return false;
             IsDead=true; StopVehicle();
-            RocketEffects.Explosion(AimPoint);
+            RocketEffects.TankDestruction(transform);
             ApplyColor(true);
             if (IsPlayer) GameManager.Instance.PlayerDied();
-            else Destroy(gameObject,12f);
+            else Destroy(gameObject,20f);
             return true;
         }
         void ApplyColor(bool destroyed)
         {
-            var color=destroyed ? new Color(.08f,.075f,.06f) : IsPlayer ? new Color(.38f,.43f,.27f) : new Color(.48f,.35f,.25f);
+            var color=destroyed ? new Color(.08f,.075f,.06f) : IsPlayer ? new Color(.38f,.43f,.27f) :
+                Appearance==TankAppearance.K2BlackPanther?new Color(.34f,.39f,.24f):new Color(.36f,.31f,.25f);
             var block=new MaterialPropertyBlock();block.SetColor("_Color",color);block.SetColor("_BaseColor",color);
             foreach(var renderer in GetComponentsInChildren<MeshRenderer>())
             {

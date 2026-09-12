@@ -191,12 +191,13 @@ namespace SniperRidge
             }
             Label(orbitMap.transform, "Orbit label", "4개 지점 · 동료 20명 구조", 18, Sand, 205, 194, 225, 28);
             tankMap = Box(map,"Tank positions",Ink,0,0,440,238).gameObject;
-            Label(tankMap.transform,"Tank legend","대전차 로켓병  ◆     적 전차 증원  ↓",18,Muted,18,8,410,28);
+            Label(tankMap.transform,"Tank legend","K2 흑표  ◆     적 주력전차  ■     단계별 증원  ↓",18,Muted,18,8,410,28);
             for(int i=0;i<6;i++)
             {
                 var p=TankBattle.Post(i);
-                var marker=Box(tankMap.transform,"Rocket post",Hostile,216+p.x*.85f,116-p.z*.7f,8,8);
-                marker.localRotation=Quaternion.Euler(0,0,45);
+                bool k2=i%2==0;
+                var marker=Box(tankMap.transform,"Enemy tank approach",k2?Hostile:new Color(0.78f,0.57f,0.25f),216+p.x*.85f,116-p.z*.7f,k2?9:10,k2?9:10);
+                marker.localRotation=Quaternion.Euler(0,0,k2?45:0);
             }
             Label(tankMap.transform,"Player tank","▲ 아군 전차",17,Sand,180,202,150,26);
             foreach(int side in new[]{-1,1})
@@ -318,12 +319,12 @@ namespace SniperRidge
                 weaponType.text = "K2 흑표  /  차체 주행 · 독립 포탑";
                 missionTitle.text = "K2 흑표 기동전";
                 magazine.text = "포탄 60발"; reserve.text = "단계마다 +25발";
-                objective.text = "바위 뒤 로켓병을 먼저 찾아내세요.\n2단계부터 적 전차가 증원됩니다.";
+                objective.text = "보병 없이 전차끼리 교전합니다.\n적 K2와 다른 주력전차를 모두 격파하세요.";
                 range.text = "기동 구역    440 × 440 m";
                 rule.text = "W/S 전후진 · A/D 차체 회전\n마우스 조준 · 좌클릭 포격";
                 controls.text = "W  전진   S  후진   A/D  차체 회전   마우스  포탑 조준   좌클릭  포격   우클릭  확대";
                 SetCard(equipmentLeft,"W","전차 직접 조종","최대 43 km/h · 차체와 포탑 분리");
-                SetCard(equipmentRight,"5","단계별 증원","적 전차 0 → 1 → 2 → 3 → 4대");
+                SetCard(equipmentRight,"5","단계별 증원","적 전차 1 → 2 → 3 → 4 → 5대");
             }
             if(fps)
             {
@@ -363,8 +364,8 @@ namespace SniperRidge
                     Debug.LogError("[Sniper Ridge] Sniper Ridge → 도시 에셋 생성 후 다시 출전하세요.");
                     return;
                 }
-                if (WeaponDefinition.All[selected].IsTank && (!TankVehicle.IsReady || WeaponModels.LoadPrefab("launcher_reusable") == null))
-                { mapDescription.text = "전차·로켓포 에셋 생성 메뉴를 실행하세요."; return; }
+                if (WeaponDefinition.All[selected].IsTank && !TankVehicle.IsReady)
+                { mapDescription.text = "K2·적 주력전차 에셋 생성 메뉴를 실행하세요."; return; }
                 if (WeaponDefinition.All[selected].IsMounted && !DoorGunView.IsReady)
                 { mapDescription.text = "헬기 중기관총 에셋 생성 메뉴를 실행하세요."; return; }
                 gm.StartMission(WeaponDefinition.All[selected], selectedMap);

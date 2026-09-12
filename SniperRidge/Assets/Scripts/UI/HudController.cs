@@ -374,8 +374,8 @@ namespace SniperRidge
             if (p.InTank && gm.Armor != null)
             {
                 var tank = gm.Armor.PlayerTank;
-                enemyText.text = string.Format("전차전 {0}/5 · 적 전차 {1} · 로켓병 {2}",gm.Armor.Stage,gm.Armor.AliveTanks,gm.Armor.AliveRockets);
-                coverText.text = string.Format("속도 {0:0} km/h · 장갑 {1:0}%\n바위로 로켓 사선을 막고 포격하세요.",tank.Speed*3.6f,tank.Fraction*100f);
+                enemyText.text = string.Format("전차전 {0}/5 · 적 전차 {1} · K2 {2} / 주력전차 {3}",gm.Armor.Stage,gm.Armor.AliveTanks,gm.Armor.AliveK2,gm.Armor.AliveOpposition);
+                coverText.text = string.Format("속도 {0:0} km/h · 장갑 {1:0}%\n기동하며 적 포탄을 피하고 측면을 포격하세요.",tank.Speed*3.6f,tank.Fraction*100f);
                 hpFill.localScale = new Vector3(tank.Fraction,1,1);
                 ammoText.text = "포탄 " + tank.Shells;
                 stateText.text = tank.ReloadRemaining>0 ? string.Format("재장전 {0:0.0}초",tank.ReloadRemaining) : tank.HasAim ? "포격 준비" : "포탑 정렬 중";

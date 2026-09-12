@@ -1,10 +1,19 @@
 """Offline source/geometry/audio checks. Unity runtime checks: TankBattleValidation menu."""
 from pathlib import Path
-import json,math,wave
+import json,math,re,wave
 import numpy as np
 from PIL import Image
 ROOT=Path(__file__).resolve().parents[1]
 PACK=ROOT/'Assets/TankAssetPack'
+BATTLE=(ROOT/'Assets/Scripts/Armor/TankBattle.cs').read_text()
+VEHICLE=(ROOT/'Assets/Scripts/Armor/TankVehicle.cs').read_text()
+EFFECTS=(ROOT/'Assets/Scripts/Util/RocketEffects.cs').read_text()
+assert 'SpawnRocketTrooper' not in BATTLE and 'EnemySoldier' not in BATTLE and 'AliveRockets' not in BATTLE
+assert re.search(r'EnemyTankCount\(int stage\).*Mathf\.Clamp\(stage,1,Stages\)',BATTLE)
+assert 'TankAppearance.K2BlackPanther' in BATTLE and 'TankAppearance.Opposition' in BATTLE
+assert 'k2_black_panther' in VEHICLE and 'tank_reference' in VEHICLE
+for token in ['Tank wreck flames','Tank wreck black smoke','Tank wreck sparks','SecondaryTankExplosion','TankDebris']:
+    assert token in EFFECTS,token
 model=json.loads((PACK/'Source/tank_reference.json').read_text())
 materials=json.loads((PACK/'Source/materials.json').read_text())['materials']
 world={};triangles=[0,0];boxes=[]
@@ -17,8 +26,9 @@ for c in model['components']:
             assert p.shape==n.shape and np.isfinite(p).all() and np.isfinite(n).all() and np.isfinite(uv).all()
             q=p.reshape(-1,3,3);normal=np.cross(q[:,1]-q[:,0],q[:,2]-q[:,0]);average=n.reshape(-1,3,3).mean(1)
             assert np.all(np.sum(normal*average,axis=1)>1e-12),(c['name'],'source winding')
-            q=q*[1,1,-1];average=average*[1,1,-1]
-            assert np.all(np.sum(np.cross(q[:,1]-q[:,0],q[:,2]-q[:,0])*average,axis=1)<-1e-12),'Unity reflected winding'
+            # The builder reverses the legacy opponent tank before its Z reflection.
+            q=q[:,[0,2,1]]*[1,1,-1];average=average*[1,1,-1]
+            assert np.all(np.sum(np.cross(q[:,1]-q[:,0],q[:,2]-q[:,0])*average,axis=1)>1e-12),'Unity corrected winding'
             assert np.max(abs(np.linalg.norm(n,axis=1)-1))<.002
             assert len(uv)*3==len(p)
             if materials[part['mat']].get('albedo'):
@@ -44,9 +54,9 @@ posts=[np.array([math.sin(math.radians(i*60+25))*75,math.cos(math.radians(i*60+2
 assert max(np.max(abs(p)) for p in posts)<116
 for i,p in enumerate(posts):
     assert min(np.linalg.norm(p-q) for j,q in enumerate(posts) if i!=j)>74
-# Conservatively clear enough reserved-ring arc remains even if the player and four tanks occupy it.
+# Conservatively clear enough reserved-ring arc remains even if the player and five tanks occupy it.
 # Each tank reserves 15m, player reserves 65m, on a ring circumference > 1000m.
-assert 2*65+4*30 < 2*math.pi*170
+assert 2*65+5*30 < 2*math.pi*170
 
 RATE=48000
 AUDIO=ROOT/'Assets/Resources/Audio'
@@ -76,18 +86,17 @@ for seed in range(48):
     mixed=np.zeros((n,2))
     def add(a,start,gain):
         start=int(start*RATE);end=min(n,start+len(a));mixed[start:end]+=a[:end-start]*gain
-    # Player engine + four nearby hostile engines, continuously advancing at different phases/pitches omitted.
-    for i,gain in enumerate([.22,.10,.10,.10,.10]):
+    # Player engine + five nearby hostile engines, continuously advancing at different phases/pitches omitted.
+    for i,gain in enumerate([.22,.10,.10,.10,.10,.10]):
         phase=int(rng.integers(0,len(engine)))
         mixed+=np.tile(np.roll(engine,phase,axis=0),(2,1))[:n]*gain
     for t in [0,3,6,9]:add(cannons[int(rng.integers(3))],t,.82)
     for t in np.arange(.5,11,1.6):add(cannons[int(rng.integers(3))],t,.28)
     for t in [0,1.2,3,4.7,6,7.3,9,10.4]:add(impact,t,.32)
-    # Representative rocket launches, wind and kill ticks alongside tank battle.
-    for t in np.arange(.7,11,2):add(load('rocket_launch'),t,.28)
-    add(load('shot_lmg'),2,.2)
     peak=max(peak,float(abs(mixed).max()))
 assert peak<.99,('representative mix clips',peak)
 print(json.dumps({'tank_lod_triangles':triangles,'compound_colliders':len(boxes),'muzzle_metres':markers['Muzzle'].tolist(),
- 'geometry_normals_uv_pbr':'pass','posts_and_spawn_ring':'pass','audio_mix_48_scenarios_peak':round(peak,4),'engine_loop_seam':round(float(np.max(abs(engine[-1]-engine[0]))),6)},indent=2))
+ 'geometry_normals_uv_pbr':'pass','tank_only_stages':[1,2,3,4,5],'enemy_models':['K2 Black Panther','opposition MBT'],
+ 'wreck_effects':['fire','black smoke','sparks','secondary explosions','debris'],'posts_and_spawn_ring':'pass',
+ 'audio_mix_48_scenarios_peak':round(peak,4),'engine_loop_seam':round(float(np.max(abs(engine[-1]-engine[0]))),6)},indent=2))
 print('Unity compile, physics execution, rendering and listening still require the editor.')

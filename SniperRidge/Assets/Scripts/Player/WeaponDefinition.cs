@@ -163,7 +163,7 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "tank", Name = "K2 흑표 기동전", IsTank = true, Mission = MissionType.Tank,
-                Description = "W/S 전후진 · A/D 차체 회전 · 마우스 포탑 조준 · 좌클릭 포격",
+                Description = "전차 대 전차전 · 적 K2/주력전차 · W/S/A/D 기동 · 마우스 포격",
                 Fire = FireMode.Semi, RoundsPerMinute = 20f, MagSize = 1, Reserve = 60, ReloadTime = 3f,
                 MuzzleVelocity = 280f, Damage = 160f, ScopeFovs = new[] { 38f }, ScopeLabels = new[] { "포수 확대" },
                 ModelName = "k2_black_panther", ShotVolume = .82f, ShotPitch = 1f,
