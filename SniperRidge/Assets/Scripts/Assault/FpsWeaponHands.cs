@@ -8,12 +8,15 @@ namespace SniperRidge
         Quaternion feedRest;
         Quaternion supportRotation=Quaternion.Euler(-90,0,0);
         bool rocket;
+        FpsGlovedHand leftGlove,rightGlove;
         public static FpsWeaponHands Attach(Transform weapon,WeaponDefinition definition)
         {
             var pose=weapon.gameObject.AddComponent<FpsWeaponHands>();pose.rocket=definition.IsRocket;
             float gripZ=definition.Id=="lmg"?-.211f:definition.Id=="sniper"?-.207f:-.172f;
             pose.right=Grip(weapon,"Trigger hand",pose.rocket?new Vector3(0,-.07f,-.02f):new Vector3(0,-.047f,gripZ),1);
-            pose.left=Grip(weapon,"Support and loading hand",new Vector3(0,.013f,pose.rocket?.28f:.175f),-1);
+            float supportZ=pose.rocket?.28f:definition.Id=="lmg"?.065f:definition.Id=="sniper"?.08f:.175f;
+            pose.left=Grip(weapon,"Support and loading hand",new Vector3(0,pose.rocket?-.015f:.013f,supportZ),-1);
+            pose.leftGlove=pose.left.GetComponentInChildren<FpsGlovedHand>();pose.rightGlove=pose.right.GetComponentInChildren<FpsGlovedHand>();
             pose.leftRest=pose.left.localPosition;pose.rightRest=pose.right.localPosition;
             pose.magazine=weapon.Find("Magazine");if(pose.magazine==null)pose.magazine=weapon.Find("AmmoBox");
             if(pose.rocket)
@@ -33,19 +36,22 @@ namespace SniperRidge
         static Transform Grip(Transform parent,string name,Vector3 position,float side)
         {
             var grip=new GameObject(name).transform;grip.SetParent(parent,false);grip.localPosition=position;
-            GunnerHands.Build(grip,side,false);return grip;
+            FpsGlovedHand.Create(grip,side);return grip;
         }
         static float Ease(float t)=>Mathf.SmoothStep(0,1,Mathf.Clamp01(t));
         public void Pose(float reload,float cycling)
         {
             left.localPosition=leftRest;right.localPosition=rightRest;
-            left.localRotation=supportRotation;
+            left.localRotation=supportRotation;right.localRotation=Quaternion.Euler(-12,0,0);
+            leftGlove.SetOpen(0);rightGlove.SetOpen(0);
             if(magazine!=null){magazine.localPosition=magRest;magazine.gameObject.SetActive(!rocket);}
             if(bolt!=null)bolt.localPosition=boltRest;
             if(feed!=null)feed.localRotation=feedRest;
             if(reload>=0)
             {
                 float t=Mathf.Clamp01(reload);
+                float reach=t<.18f?Mathf.Sin(t/.18f*Mathf.PI):t>.77f?Mathf.Sin((t-.77f)/.23f*Mathf.PI):.12f;
+                leftGlove.SetOpen(reach*.70f);
                 left.localRotation=Quaternion.Slerp(supportRotation,Quaternion.identity,t<.18f?Ease(t/.18f):t>.88f?1-Ease((t-.88f)/.12f):1);
                 Vector3 grip=magRest+new Vector3(-.045f,0,0);
                 Vector3 lowered=magRest+new Vector3(-.15f,-.20f,-.05f);

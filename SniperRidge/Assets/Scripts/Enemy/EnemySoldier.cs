@@ -71,6 +71,10 @@ namespace SniperRidge
         Animator animator;
         EnemyAnimationRig motion;
         public InfantryCombat Combat { get; private set; }
+        public KingBoss Boss { get; private set; }
+        public Vector3 Muzzle=>rifleTip.position;
+        public void ConfigureBoss(KingBoss boss){Boss=boss;Health=KingBoss.MaximumHealth;}
+        public void BossRecoil(){if(motion!=null)motion.Fire();}
         public void AttachCombat(InfantryCombat combat){Combat=combat;}
         public bool IsAlly => Combat!=null && Combat.Ally;
         public Vector3 AimPoint => head!=null?head.position-Vector3.up*.35f:transform.position+Vector3.up*1.5f;
@@ -341,7 +345,7 @@ namespace SniperRidge
                 Vector3 direction=Combat.LookPoint-transform.position;direction.y=0;
                 if(direction.sqrMagnitude>.001f)faceDir=direction.normalized;
                 if(!Combat.CanShoot)preparingShot=false;
-                else TryShoot(Combat.Speed>.1f?1.5f:.75f,IsAlly?1.1f:1.8f,IsAlly?2.0f:3.1f);
+                else if(Boss==null)TryShoot(Combat.Speed>.1f?1.5f:.75f,IsAlly?1.1f:1.8f,IsAlly?2.0f:3.1f);
             }
             else switch (state)
             {
@@ -594,8 +598,8 @@ namespace SniperRidge
         public bool TakeHit(float damage, bool headshot, Vector3 bulletDir)
         {
             if (IsDead) return false;
-            Health -= damage * (headshot ? 3f : 1f);
-            staggerTimer = .18f;
+            Health -= Boss!=null ? Boss.AbsorbHit(damage,headshot) : damage*(headshot?3f:1f);
+            staggerTimer = Boss!=null?0f:.18f;
             if (motion != null) motion.Hit(bulletDir);
             SetAware();
             if (Health <= 0f)
@@ -603,6 +607,7 @@ namespace SniperRidge
                 Kill(headshot, bulletDir);
                 return true;
             }
+            if(Boss!=null)return false;
             if(Combat!=null)Combat.Suppress();
             // 부상: 돌격 중이면 잠깐 멈칫, 엄폐형이면 숨는다
             if (Kind == EnemyKind.Rusher)
@@ -621,6 +626,7 @@ namespace SniperRidge
             if (IsDead) return;
             IsDead = true;
             Health = 0f;
+            if(gm!=null && gm.Assault!=null)gm.Assault.OnSoldierKilled(this);
             var navigation=GetComponent<AssaultNavigation>();if(navigation!=null)navigation.enabled=false;
             var marker=transform.Find("Friendly blue marker");if(marker!=null)marker.gameObject.SetActive(false);
             if(IsAlly && gm!=null)gm.Hud.Announce(name+" 전사 · 남은 동료 "+gm.Assault.AlliesAlive+"명");

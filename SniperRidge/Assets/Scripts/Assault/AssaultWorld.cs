@@ -111,6 +111,7 @@ namespace SniperRidge
         // Run against the actual baked geometry, also available to the Play-mode validation menu.
         public static void ValidateNavigation()
         {
+            RequireRoute(AssaultLayout.Start,AssaultLayout.BossPosition);
             Vector3 previous=AssaultLayout.Start;
             for(int sector=0;sector<AssaultLayout.Objectives.Length;sector++)
             {

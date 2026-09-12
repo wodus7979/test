@@ -10,25 +10,28 @@ namespace SniperRidge
         public readonly AssaultProgress Progress=new AssaultProgress();
         public readonly List<EnemySoldier> Soldiers=new List<EnemySoldier>();
         readonly List<EnemySoldier> allies=new List<EnemySoldier>();
-        readonly List<CaptureFlag> flags=new List<CaptureFlag>();
+        public KingBoss King { get; private set; }
+        int defeated;
         GameManager gm;
         float nextReinforcement;
         bool spawning;
         int ordinal;
         public int Alive {get {int n=0;foreach(var e in Soldiers)if(e!=null&&!e.IsDead&&!allies.Contains(e))n++;return n;}}
         public int AlliesAlive {get {int n=0;foreach(var e in allies)if(e!=null&&!e.IsDead)n++;return n;}}
-        public Vector3 Objective=>AssaultLayout.Objectives[Mathf.Min(Progress.Sector,AssaultLayout.Objectives.Length-1)];
+        public Vector3 Objective=>King!=null?King.transform.position:AssaultLayout.BossPosition;
+        Vector3 Frontline=>new Vector3(0,AssaultLayout.Ground,AssaultLayout.Objectives[Progress.Sector].z);
         public float Distance=>Vector3.Distance(gm.Player.transform.position,Objective);
-        public bool InArea=>Distance<=AssaultLayout.CaptureRadius && !Physics.Linecast(gm.PlayerEye.position,Objective+Vector3.up,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore);
-        public string ObjectiveName=>AssaultLayout.Names[Mathf.Min(Progress.Sector,AssaultLayout.Names.Length-1)];
+        public string ObjectiveName=>"북부 요새의 왕";
         public string SquadStatus
         {
             get {var text="동료 ";for(int i=0;i<allies.Count;i++)text+=(i+1)+":"+(allies[i]!=null&&!allies[i].IsDead?Mathf.CeilToInt(allies[i].Health)+"%":"전사")+"  ";return text;}
         }
         public static CityAssault Create(GameManager game)
         {
-            var battle=new GameObject("Flag assault and squad").AddComponent<CityAssault>();battle.gm=game;
-            for(int i=0;i<AssaultLayout.Objectives.Length;i++)battle.flags.Add(CaptureFlag.Create(battle.transform,AssaultLayout.Objectives[i],i+1));
+            var battle=new GameObject("King assault and squad").AddComponent<CityAssault>();battle.gm=game;
+            if(!NavMesh.SamplePosition(AssaultLayout.BossPosition,out var kingPoint,2f,NavMesh.AllAreas))throw new System.InvalidOperationException("왕의 전투 구역 경로 누락");
+            var king=LevelBuilder.SpawnAssaultSoldier(game,kingPoint.position,false,900,EnemyRole.MachineGunner);
+            battle.Soldiers.Add(king);battle.King=KingBoss.Attach(king,game);
             for(int i=0;i<4;i++)
             {
                 Vector3 point=AssaultLayout.Start+new Vector3((i-1.5f)*1.8f,0,-3f-(i%2)*1.5f);
@@ -41,16 +44,13 @@ namespace SniperRidge
         }
         void Update()
         {
-            if(!gm.IsPlaying||Progress.Complete)return;
-            bool taking=InArea && Input.GetKey(KeyCode.E) && Cursor.lockState==CursorLockMode.Locked;
-            Progress.Tick(Time.deltaTime,taking);
-            flags[Progress.Sector].SetProgress(Progress.Secured/AssaultLayout.SecureSeconds);
-            if(Progress.TryAdvance(Alive))
+            if(!gm.IsPlaying)return;
+            if(Progress.Complete){gm.CompleteAssault();return;}
+            if(Progress.Advance(gm.Player.transform.position))
             {
-                flags[Progress.Sector-1].Capture();
-                gm.Player.Resupply(250);gm.Player.ResupplyRockets(2);gm.Player.Grenades.Resupply(2);
-                if(Progress.Complete){gm.CompleteAssault();return;}
-                gm.Hud.Announce("적 깃발 탈취! · 다음 깃발로 전진: "+ObjectiveName);Guards();nextReinforcement=Time.time+12f;
+                gm.Hud.Announce("북부 요새로 전진 · 왕까지 "+Mathf.RoundToInt(Distance)+" m");
+                foreach(var soldier in Soldiers)if(soldier!=null&&!soldier.IsDead&&!soldier.IsAlly&&soldier.Boss==null)soldier.Combat.DefensePoint=Frontline;
+                Guards();nextReinforcement=Time.time+10f;
             }
             if(!spawning && Time.time>=nextReinforcement && Alive<AssaultLayout.MaxAlive)
             {spawning=true;nextReinforcement=Time.time+Random.Range(14f,20f);StartCoroutine(Reinforce());}
@@ -58,7 +58,7 @@ namespace SniperRidge
         EnemySoldier Spawn(Vector3 point,bool post,EnemyRole role,bool roof=false)
         {
             var enemy=LevelBuilder.SpawnAssaultSoldier(gm,point,post,100+ordinal++,role,false,roof);
-            Vector2 spread=Random.insideUnitCircle*6f;enemy.Combat.DefensePoint=Objective+new Vector3(spread.x,0,spread.y);
+            Vector2 spread=Random.insideUnitCircle*6f;enemy.Combat.DefensePoint=Frontline+new Vector3(spread.x,0,spread.y);
             Soldiers.Add(enemy);return enemy;
         }
         void Guards()
@@ -66,16 +66,16 @@ namespace SniperRidge
             for(int slot=0;slot<2;slot++)
             {
                 if(Alive>=AssaultLayout.MaxAlive)return;
-                var p=AssaultLayout.CoverPost(Progress.Sector,slot);
-                if(NavMesh.SamplePosition(p,out var nav,2f,NavMesh.AllAreas))Spawn(nav.position,true,slot==0?EnemyRole.MachineGunner:EnemyRole.Sniper);
+                var p=Frontline+new Vector3(slot==0?-2.5f:2.5f,0,10f);
+                if(NavMesh.SamplePosition(p,out var nav,2f,NavMesh.AllAreas))Spawn(nav.position,false,slot==0?EnemyRole.MachineGunner:EnemyRole.Sniper);
             }
-            // Choose a real building roof edge with an open line toward this flag.
+            // Choose a real building roof edge with an open line toward this route sector.
             foreach(var building in AssaultLayout.Data.buildings)
             {
                 if(building.asset.StartsWith("town_") && building.asset!="town_command")continue; // Pitched roofs have no standing platform.
                 if(Alive>=AssaultLayout.MaxAlive)return;
-                if(Vector3.Distance(building.WorldPosition,Objective)>42f)continue;
-                Vector3 toward=(Objective-building.WorldPosition).normalized;toward.y=0;
+                if(Vector3.Distance(building.WorldPosition,Frontline)>42f)continue;
+                Vector3 toward=(Frontline-building.WorldPosition).normalized;toward.y=0;
                 for(int offset=8;offset<=14;offset+=2)
                 {
                     var probe=building.WorldPosition+toward*offset+Vector3.up*50;
@@ -84,7 +84,7 @@ namespace SniperRidge
                     var point=hit.point-toward*1.6f+Vector3.up*.05f;
                     Vector3 right=Vector3.Cross(Vector3.up,toward);
                     if(!Supported(point) || !Supported(hit.point+right*1.3f) || !Supported(hit.point-right*1.3f))continue;
-                    if(Physics.Linecast(point+Vector3.up*2.3f,Objective+Vector3.up*1.6f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))continue;
+                    if(Physics.Linecast(point+Vector3.up*2.3f,Frontline+Vector3.up*1.6f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))continue;
                     Spawn(point,true,Progress.Sector%2==0?EnemyRole.Sniper:EnemyRole.RocketTrooper,true);
                     var cover=UrbanProps.Place("Sandbag corner",transform,point+toward*1.6f,Quaternion.LookRotation(toward).eulerAngles.y);
                     cover.transform.localScale=new Vector3(1,1.5f/1.14f,1);return;
@@ -116,10 +116,10 @@ namespace SniperRidge
             for(int i=0;i<48;i++)
             {
                 float angle=Random.Range(0,Mathf.PI*2),radius=Random.Range(26f,52f);
-                Vector3 centre=Objective;
+                Vector3 centre=Frontline;
                 Vector3 candidate=centre+new Vector3(Mathf.Sin(angle),0,Mathf.Cos(angle))*radius;
                 // Reinforcements come from the enemy district and its flanks, not behind the player's spawn.
-                Vector3 advance=Objective-gm.Player.transform.position;advance.y=0;
+                Vector3 advance=AssaultLayout.BossPosition-gm.Player.transform.position;advance.y=0;
                 if(Vector3.Dot(candidate-gm.Player.transform.position,advance.normalized)<6f)continue;
                 if(Mathf.Abs(candidate.x)>AssaultLayout.BoundaryX-4 || Mathf.Abs(candidate.z)>AssaultLayout.BoundaryZ-4)continue;
                 if(!NavMesh.SamplePosition(candidate,out var nav,2f,NavMesh.AllAreas) || Vector3.Distance(nav.position,gm.Player.transform.position)<20f)continue;
@@ -136,6 +136,15 @@ namespace SniperRidge
         }
         bool Blocked(Vector3 point)=>Physics.Linecast(gm.PlayerEye.position,point,out var hit,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore)
             && hit.collider.GetComponentInParent<EnemySoldier>()==null;
+        public void OnSoldierKilled(EnemySoldier enemy)
+        {
+            if(enemy.IsAlly || !gm.IsPlaying)return;
+            if(enemy.Boss!=null){Progress.DefeatKing();return;}
+            defeated++;
+            int rockets=enemy.Role==EnemyRole.RocketTrooper || defeated%6==0?1:0;
+            int supplied=gm.Player.ResupplyCombat(30,45,5,rockets);
+            if(supplied>0)gm.Hud.Announce("적 탄약 확보 · 예비탄 +"+supplied+(rockets>0?" (로켓 포함)":""));
+        }
         public void NotifyIncoming(EnemySoldier shooter,Vector3 from,Vector3 to)
         {
             Vector3 segment=to-from;

@@ -246,6 +246,8 @@ namespace SniperRidge
             return loadout.Primary != null ? loadout.Primary.Supply(rounds) : 0;
         }
 
+        public int ResupplyCombat(int rifle,int machineGun,int sniper,int rockets)=>loadout.SupplyCombat(rifle,machineGun,sniper,rockets);
+
         public int ResupplyRockets(int rounds) => loadout.Rocket != null ? loadout.Rocket.Supply(rounds) : 0;
 
         public void OnMissionEnd()

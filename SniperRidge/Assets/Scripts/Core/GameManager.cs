@@ -157,7 +157,7 @@ namespace SniperRidge
                 Player.AttachToCityAssault(AssaultLayout.Start);
                 Player.Equip(weapon);Health.Configure(5f,10f);
                 Assault=CityAssault.Create(this);
-                Hud.OnMissionStart("공격 작전 · 적 깃발 6개를 탈취하세요\n노란 F1 표식을 향해 동료 4명과 전진하세요\nTab: 전술 지도와 이동 경로 · 깃발 앞에서 E 2초\nWASD 이동 · 좌클릭 사격 · 우클릭 조준\n1 소총 · 2 기관총 · 3 저격총 · 4 로켓포");
+                Hud.OnMissionStart("왕 처치 작전 · 입구에서 북부 요새까지 진격\n동료 4명과 도시 끝의 왕을 무찌르세요\nTab: 왕까지의 경로 · 적 처치 시 탄약 확보\nWASD 이동 · 좌클릭 사격 · 우클릭 조준\n1 소총 · 2 기관총 · 3 저격총 · 4 로켓포");
                 return;
             }
             Player.Equip(weapon);

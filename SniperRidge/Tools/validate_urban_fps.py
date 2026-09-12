@@ -61,20 +61,27 @@ def main():
                     distance[zz,xx]=distance[z,x]+1;q.append((zz,xx))
         return distance
     start=[DATA['start']['x'],12,DATA['start']['z']];distance=flood(start)
-    for p in [*OBJECTIVES,*posts,*entries]:assert distance[cell(p)]>=0,('Unreachable infantry position',p)
+    boss=np.array([0.,12.,132.])
+    for p in [boss,*OBJECTIVES,*posts,*entries]:assert distance[cell(p)]>=0,('Unreachable infantry position',p)
     routes=[];previous=start
     for objective in OBJECTIVES:
         length=flood(previous)[cell(objective)]*spacing;assert 0<length<150,length
         routes.append(length);previous=objective
     assert len(OBJECTIVES)==6 and len(DATA['buildings'])==64
     layout=(ROOT/'Assets/Scripts/Assault/AssaultLayout.cs').read_text()
-    assert 'SecureSeconds=2f' in layout and 'CaptureRadius=3.2f' in layout and 'MaxAlive=24' in layout
-    # Buildings conceal multiple entrances from the capture centre at full enemy head height.
+    assert 'BossPosition=>new Vector3(0,Ground,132f)' in layout and 'DefeatKing()' in layout and 'MaxAlive=24' in layout
+    boss_source=(ROOT/'Assets/Scripts/Assault/KingBoss.cs').read_text()
+    city_source=(ROOT/'Assets/Scripts/Assault/CityAssault.cs').read_text()
+    assert 'MaximumHealth=1800f,MaximumArmor=1200f' in boss_source
+    assert 'attacks++%3==2' in boss_source and 'float warning=rocket?1.8f:.85f' in boss_source
+    assert 'Vector3 target=rocket?game.Player.transform.position' in boss_source
+    assert 'ResupplyCombat(30,45,5,rockets)' in city_source
+    # Buildings conceal multiple reinforcement entrances from each route sector at full enemy head height.
     hidden=[]
     for sector,centre in enumerate(OBJECTIVES):
         count=sum(any(b.hit(centre+[0,1.68,0],p+[0,2.45,0]) for b in boxes) for p in entries[sector*12:sector*12+12])
         assert count>=6,('Not enough concealed entrances',sector,count);hidden.append(count)
-    # Random reinforcement candidates must work around each flag, not only at authored entry slots.
+    # Random reinforcement candidates must work around each sector, not only at authored entry slots.
     rng=np.random.default_rng(913)
     for sector,centre in enumerate(OBJECTIVES):
         legal=[];quadrants=set()
@@ -85,11 +92,13 @@ def main():
             if not any(b.hit(centre+[0,1.68,0],point+[0,2.45,0]) for b in boxes):continue
             legal.append(point);quadrants.add((point[0]>centre[0],point[2]>centre[2]))
         assert len(legal)>=20 and len(quadrants)>=3,('Sparse random reinforcement area',sector,len(legal),quadrants)
-    print('PASS: randomized, connected and concealed reinforcement candidates around all 6 flags')
+    print('PASS: randomized, connected and concealed reinforcement candidates around all 6 route sectors')
     with wave.open(str(ROOT/'Assets/Resources/Audio/fps_footstep.wav'),'rb') as w:
         assert (w.getframerate(),w.getnchannels(),w.getsampwidth())==(48000,2,2)
-    print(f'PASS: {len(DATA["buildings"])} buildings, {len(DATA["props"])} props / {len(boxes)} collider boxes; 6 objectives, 24 cover posts, 72 sampled approach slots reachable')
+    print(f'PASS: {len(DATA["buildings"])} buildings, {len(DATA["props"])} props / {len(boxes)} collider boxes; 6 route sectors, 24 cover posts, 72 sampled approach slots reachable')
     print('PASS: route lengths (m):',routes,'; concealed entrance slots per sector:',hidden)
-    print('PASS: 6 flags, 2 s interaction, max 24 enemies; 304 m square play area; runtime reinforcements use random validated positions')
+    boss_distance=distance[cell(boss)]*spacing
+    assert 250<boss_distance<450,boss_distance
+    print(f'PASS: entrance-to-king route {boss_distance:.0f} m, king defeat objective, max 24 enemies; 304 m square play area')
     print('Limits: source geometry and conservative grid only; Unity compile, NavMesh, actual spawn visibility and Play still require editor.')
 if __name__=='__main__':main()

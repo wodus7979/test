@@ -248,7 +248,7 @@ namespace SniperRidge
             int m = Mathf.FloorToInt(gm.Elapsed / 60f);
             int s = Mathf.FloorToInt(gm.Elapsed % 60f);
             float acc = gm.Shots > 0 ? Mathf.Min(100f, 100f * gm.Hits / gm.Shots) : 0f;
-            string waveLine = gm.Mission == MissionType.Assault ? string.Format("깃발 탈취 {0} / 6\n",gm.Assault.Progress.Sector) : gm.Mission == MissionType.Tank ? string.Format("전차전 단계 {0} / 5\n",gm.Armor.Stage) : gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
+            string waveLine = gm.Mission == MissionType.Assault ? (gm.Assault.Progress.Complete?"왕 처치 완료\n":"왕 처치 작전\n") : gm.Mission == MissionType.Tank ? string.Format("전차전 단계 {0} / 5\n",gm.Armor.Stage) : gm.Mission == MissionType.Defense ? string.Format("웨이브  {0} / {1}\n", gm.Wave, gm.TotalWaves) : "";
             endStats.text = string.Format(
                 "{0}\n{1}소요 시간  {2:00}:{3:00}\n사격 {4}발  /  명중 {5}발  (명중률 {6:0}%)\n사살 {7}  (헤드샷 {8})\n점수  {9}\n\n{10}",
                 gm.Weapon != null ? gm.Weapon.Name : "", waveLine, m, s, gm.Shots, gm.Hits, acc, gm.Kills, gm.Headshots, gm.Score,
@@ -338,20 +338,20 @@ namespace SniperRidge
                 var battle=gm.Assault;
                 enemyText.fontSize=24;rangeText.fontSize=24;rangeText.rectTransform.sizeDelta=new Vector2(420,40);
                 if(p.Weapon.IsAssault)weaponText.text="돌격소총";
-                enemyText.text=string.Format("공격 작전 · 적 깃발 탈취 {0}/6",battle.Progress.Sector);
+                enemyText.text="왕 처치 작전 · 북부 요새로 진격";
                 rangeText.text="";
-                coverText.text=(battle.InArea?string.Format("E 유지: 깃발 탈취 {0:0}%",battle.Progress.Secured/AssaultLayout.SecureSeconds*100):"깃발로 전진하세요 · 가까이에서 E를 누르세요")+"\n"+battle.SquadStatus;
+                coverText.text="적 처치 시 예비 탄약 자동 확보\n"+battle.SquadStatus;
                 coverText.color=new Color(.85f,.85f,.75f);
                 zeroText.text=p.FreeMovement.Crouching?"앉은 자세":p.FreeMovement.Sprinting?"달리는 중":"이동/교전";
-                windText.text="목표: "+battle.ObjectiveName;windText.fontSize=20;zeroText.text="[Tab] 지도 · 노란 깃발로 전진";
+                windText.text="목표: "+battle.ObjectiveName;windText.fontSize=20;zeroText.text="[Tab] 지도 · 왕 표식으로 전진";
                 breathFill.localScale=new Vector3(p.FreeMovement.Stamina,1,1);
-                threatText.fontSize=20;threatText.rectTransform.anchoredPosition=new Vector2(0,-82);
-                killFeed.fontSize=22;killFeed.rectTransform.anchoredPosition=new Vector2(0,-120);
-                announceText.fontSize=27;announceText.rectTransform.anchoredPosition=new Vector2(0,-164);
+                threatText.fontSize=20;threatText.rectTransform.anchoredPosition=new Vector2(0,-154);
+                killFeed.fontSize=22;killFeed.rectTransform.anchoredPosition=new Vector2(0,-188);
+                announceText.fontSize=27;announceText.rectTransform.anchoredPosition=new Vector2(0,-222);
                 if(Time.time<threatUntil)threatText.text="적 사격 · 이동하거나 장애물 뒤로 피하세요";
                 coverText.fontSize=20;
                 grenadeCount.fontSize=20;grenadeCount.rectTransform.anchoredPosition=new Vector2(-30,-100);
-                hintText.text="WASD 이동 · Tab 지도 | 1 소총 · 2 기관총 · 3 저격 · 4 로켓 | E 탈취 · R 장전 · G 수류탄";
+                hintText.text="WASD 이동 · Tab 지도 | 1 소총 · 2 기관총 · 3 저격 · 4 로켓 | R 장전 · G 수류탄";
                 if(Cursor.lockState!=CursorLockMode.Locked)hintText.text="게임 화면을 클릭해 조작을 시작하세요";
             }
             if (p.InTank && gm.Armor != null)

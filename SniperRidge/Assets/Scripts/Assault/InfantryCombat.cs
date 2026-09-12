@@ -50,6 +50,7 @@ namespace SniperRidge
         }
         public void Suppress()
         {
+            if(owner!=null&&owner.Boss!=null)return;
             if(Time.time<nextThreat)return;nextThreat=Time.time+4f;
             if(Post){hideUntil=Time.time+1.4f;return;}
             if(owner!=null)ChooseMove(true);
@@ -64,6 +65,14 @@ namespace SniperRidge
             bool targetAlive=TargetsPlayer || Target!=null&&!Target.IsDead;
             bool visible=targetAlive && Visible(TargetPoint,Target);
             LookPoint=visible?TargetPoint:transform.position+transform.forward*5;
+            if(owner.Boss!=null)
+            {
+                TargetsPlayer=true;Target=null;LookPoint=gm.Player.AimPoint;
+                CanShoot=owner.Boss.Engaged&&Visible(LookPoint,null);
+                if(owner.Boss.Engaged&&!owner.Boss.IsAttacking)
+                {Direction=navigation.Direction(owner.Boss.MoveTarget);Speed=1.6f;}
+                return;
+            }
             if(Ally && Vector3.Distance(transform.position,gm.Player.transform.position)>28f)
             {
                 Vector3 formation=gm.Player.transform.TransformPoint(new Vector3((SquadIndex-1.5f)*1.8f,0,-4f));

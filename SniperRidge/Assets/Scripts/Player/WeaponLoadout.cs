@@ -47,6 +47,11 @@ namespace SniperRidge
             if(fpsSlots==null||index<0||index>=fpsSlots.Length||Active==fpsSlots[index])return false;
             Active=fpsSlots[index];if(Active!=Rocket)Primary=Active;return true;
         }
+        public int SupplyCombat(int rifle,int machineGun,int sniper,int rockets)
+        {
+            if(fpsSlots==null)return 0;
+            return fpsSlots[0].Supply(rifle)+fpsSlots[1].Supply(machineGun)+fpsSlots[2].Supply(sniper)+fpsSlots[3].Supply(rockets);
+        }
         public void Toggle() => Active = Active == Primary ? Rocket : Primary;
     }
 }
