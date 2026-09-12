@@ -56,7 +56,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/environments/RoomEnvironment.js"></script>
 <script>
-const MODEL_URL = (typeof window.K2_MODEL_URL === 'string') ? window.K2_MODEL_URL : 'assets/k2_black_panther.glb';
+const MODEL_URLS = ['assets/k2_black_panther.glb', 'assets/k2_black_panther.json']; // .json = self-contained glTF for hosts that cannot serve .glb
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true, preserveDrawingBuffer:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -110,14 +110,15 @@ ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
 
 // Load model
 let tank=null, turretNode=null, gunNode=null;
-new THREE.GLTFLoader().load(MODEL_URL, gltf=>{
+function loadModel(i){ new THREE.GLTFLoader().load(MODEL_URLS[i], gltf=>{
   tank = gltf.scene;
   tank.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; if(o.material && o.material.map){ o.material.map.anisotropy=8; } } });
   turretNode = tank.getObjectByName('Turret'); gunNode = tank.getObjectByName('Gun');
   scene.add(tank);
   document.getElementById('load').remove();
   window.__k2ready = true;
-}, undefined, e=>{ document.getElementById('load').textContent='모델을 불러오지 못했습니다: '+e; });
+}, undefined, e=>{ if(i+1<MODEL_URLS.length) return loadModel(i+1); document.getElementById('load').textContent='모델을 불러오지 못했습니다: '+e; }); }
+loadModel(0);
 
 // Views
 const views = {
