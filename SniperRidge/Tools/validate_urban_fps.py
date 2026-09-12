@@ -70,7 +70,9 @@ def main():
     # PBR material names referenced by the new props and world must exist in the source pack.
     mats={m['name'] for m in json.loads((SOURCE/'materials.json').read_text())['materials']}
     prop_code=(ROOT/'Assets/Scripts/Assault/UrbanProps.cs').read_text()
-    for mat in re.findall(r'CityPack/Materials/([a-zA-Z_]+)',WORLD+prop_code):assert mat in mats,mat
+    for mat in re.findall(r'CityPack/Materials/([a-zA-Z_]+)',WORLD+prop_code):assert mat in mats or mat=='DryTerrain',mat
+    builder=(ROOT/'Assets/Editor/CityPackSetup.cs').read_text()
+    assert 'Nature/Terrain/Diffuse' in builder and '/Materials/DryTerrain.mat' in builder
     with wave.open(str(ROOT/'Assets/Resources/Audio/fps_footstep.wav'),'rb') as w:
         assert (w.getframerate(),w.getnchannels(),w.getsampwidth())==(48000,2,2)
         samples=np.frombuffer(w.readframes(w.getnframes()),dtype='<i2')/32768

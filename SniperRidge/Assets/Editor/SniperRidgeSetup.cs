@@ -187,7 +187,7 @@ namespace SniperRidge.EditorTools
             string[] names =
             {
                 "Standard", "Unlit/Color", "Sprites/Default", "UI/Default",
-                "Nature/Terrain/Standard", "Legacy Shaders/Diffuse",
+                "Nature/Terrain/Standard", "Nature/Terrain/Diffuse", "Legacy Shaders/Diffuse",
                 "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
                 "Hidden/TerrainEngine/Details/WavingDoublePass",
                 "Skybox/Panoramic", "Hidden/SniperRidge/Post", "SniperRidge/Foliage",

@@ -80,7 +80,7 @@ namespace SniperRidge
             else if(kind=="Sandbag corner")
             {
                 for(int row=0;row<4;row++)for(int i=0;i<4;i++)
-                    Part(root,new Vector3((i-1.5f)*.64f+(row%2)*.12f,.16f+row*.27f,0),new Vector3(.72f,.29f,.58f),cloth,Quaternion.identity,PrimitiveType.Sphere);
+                    SandbagDetail.Build(root,row*4+i,new Vector3((i-1.5f)*.64f+(row%2)*.12f,.16f+row*.27f,0));
                 var c=root.gameObject.AddComponent<BoxCollider>();c.center=new Vector3(.06f,.57f,0);c.size=new Vector3(2.8f,1.14f,.6f);
             }
             else if(kind=="Utility cabinet")

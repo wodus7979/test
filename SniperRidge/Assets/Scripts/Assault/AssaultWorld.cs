@@ -29,14 +29,14 @@ namespace SniperRidge
             var heights=new float[129,129];for(int z=0;z<129;z++)for(int x=0;x<129;x++)heights[z,x]=AssaultLayout.Ground/40f;
             terrainData.SetHeights(0,0,heights);
             surface=new TerrainLayer{diffuseTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_albedo"),
-                normalMapTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity"),normalScale=.15f,smoothness=0,metallic=0,tileSize=new Vector2(4,4)};
+                normalMapTexture=Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity"),normalScale=.08f,smoothness=0,metallic=0,specular=Color.black,tileSize=new Vector2(2,2)};
             terrainData.terrainLayers=new[]{surface};terrainData.alphamapResolution=128;
             var alpha=new float[128,128,1];for(int z=0;z<128;z++)for(int x=0;x<128;x++)alpha[z,x,0]=1;
             terrainData.SetAlphamaps(0,0,alpha);
             var ground=Terrain.CreateTerrainGameObject(terrainData);ground.transform.SetParent(transform);
             ground.transform.position=new Vector3(-600,0,-600);
             var old=gm.Terrain;old.gameObject.SetActive(false);Destroy(old.terrainData);Destroy(old.gameObject);
-            gm.Terrain=ground.GetComponent<Terrain>();gm.Terrain.drawInstanced=true;gm.Terrain.basemapDistance=1500;
+            gm.Terrain=ground.GetComponent<Terrain>();gm.Terrain.materialTemplate=Resources.Load<Material>("CityPack/Materials/DryTerrain");gm.Terrain.drawInstanced=true;gm.Terrain.basemapDistance=1500;
             string[] types={"retail_row","warehouse","office_midrise","auto_workshop","apartment_slab","office_tower"};
             // 120 m city grid, 192 buildings with cross streets, courtyards and enterable shops/workshops.
             int index=0;

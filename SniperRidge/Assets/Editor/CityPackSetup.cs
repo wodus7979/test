@@ -14,7 +14,7 @@ namespace SniperRidge.EditorTools
     public static class CityPackSetup
     {
         const string Output = "Assets/Resources/CityPack";
-        const string Revision = "city-dry-surfaces-2";
+        const string Revision = "city-outward-facades-3";
         static bool building;
         static string Source => Path.GetFullPath(Path.Combine(Application.dataPath,
             "../../city_fps_textured_v2/Unity/Assets/KoreanCityPackTextured"));
@@ -57,6 +57,9 @@ namespace SniperRidge.EditorTools
                 AssetDatabase.Refresh();
                 var file = JsonUtility.FromJson<MaterialFile>(File.ReadAllText(Source + "/Source/materials.json"));
                 var materials = MakeMaterials(file, Output);
+                var terrainShader = Shader.Find("Nature/Terrain/Diffuse");
+                if (terrainShader == null) throw new InvalidOperationException("Built-in dry terrain shader missing");
+                SaveAsset(new Material(terrainShader) { name="DryTerrain", enableInstancing=true }, Output+"/Materials/DryTerrain.mat");
                 for (int i = 0; i < CityBattlefield.RequiredModels.Length; i++)
                 {
                     string name = CityBattlefield.RequiredModels[i];
@@ -163,6 +166,14 @@ namespace SniperRidge.EditorTools
                         SetFloat(material, "_SmoothnessTextureChannel", 0);
                     }
                 }
+                if(info.name=="Window_Glass" || info.name=="Window_Light")
+                {
+                    // Opaque exterior glazing: the closed building shell must not read as an open floor stack.
+                    var tint=info.name=="Window_Glass" ? new Color(.12f,.17f,.20f,1) : new Color(.28f,.30f,.29f,1);
+                    if(material.HasProperty("_Color"))material.SetColor("_Color",tint);
+                    if(material.HasProperty("_BaseColor"))material.SetColor("_BaseColor",tint);
+                    SetFloat(material,"_Metallic",0);SetFloat(material,"_Glossiness",.32f);SetFloat(material,"_Smoothness",.32f);
+                }
                 if (info.name == "Asphalt" || info.name == "Sidewalk" || info.name == "Paver_Accent" ||
                     info.name == "White_Paint" || info.name == "Yellow_Paint") BattlefieldScenery.Dry(material);
                 result[i] = SaveAsset(material, output + "/Materials/" + info.name + ".mat");
@@ -183,7 +194,7 @@ namespace SniperRidge.EditorTools
             {
                 var vertices = new List<Vector3>(); var normals = new List<Vector3>(); var uv = new List<Vector2>();
                 var triangles = new List<int[]>(); var slots = new List<Material>();
-                foreach (Part p in model.parts)
+                foreach (Part p in CityFacadeDetails.WithDetails(model))
                 {
                     int start = vertices.Count; int count = p.p.Length / 3; int[] indices = new int[count];
                     for (int i = 0; i < count; i++)
@@ -191,7 +202,9 @@ namespace SniperRidge.EditorTools
                         vertices.Add(ToUnity(p.p, i * 3)); normals.Add(ToUnity(p.n, i * 3).normalized);
                         uv.Add(new Vector2(p.uv[i * 2], 1 - p.uv[i * 2 + 1])); indices[i] = start + i;
                     }
-                    // Z reflection changes handedness, retaining the original indices for Unity's clockwise front faces.
+                    // Reflecting Z reverses the geometric normal. Reverse indices too so the
+                    // Unity triangle normal agrees with the transformed outward source normal.
+                    for(int i=0;i<count;i+=3){int swap=indices[i+1];indices[i+1]=indices[i+2];indices[i+2]=swap;}
                     triangles.Add(indices); slots.Add(materials[p.mat]);
                 }
                 var mesh = new Mesh { name = model.name, indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };

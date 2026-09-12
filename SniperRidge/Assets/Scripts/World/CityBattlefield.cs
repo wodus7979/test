@@ -20,7 +20,8 @@ namespace SniperRidge
                 if (Resources.Load<TextAsset>("Maps/city_combat") == null) return false;
                 foreach (string name in RequiredModels)
                     if (Resources.Load<GameObject>("CityPack/Prefabs/" + name) == null) return false;
-                return Resources.Load<Material>("CityPack/Materials/Concrete") != null
+                return Resources.Load<Material>("CityPack/Materials/DryTerrain") != null
+                    && Resources.Load<Material>("CityPack/Materials/Concrete") != null
                     && Resources.Load<Texture2D>("CityPack/Textures/asphalt_albedo") != null
                     && Resources.Load<Texture2D>("CityPack/Textures/asphalt_normal_unity") != null;
             }
@@ -50,6 +51,7 @@ namespace SniperRidge
                 tileSize = new Vector2(3.5f, 3.5f), smoothness = 0f, metallic = 0f, specular = Color.black, normalScale = .18f
             };
             var terrain = gm.Terrain;
+            terrain.materialTemplate=Resources.Load<Material>("CityPack/Materials/DryTerrain");
             int res = terrain.terrainData.alphamapResolution;
             var oldLayers = terrain.terrainData.terrainLayers;
             var original = terrain.terrainData.GetAlphamaps(0,0,res,res);

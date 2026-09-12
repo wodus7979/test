@@ -73,9 +73,14 @@ def main():
         for part in model['parts']:
             p=np.array(part['p']).reshape(-1,3);n=np.array(part['n']).reshape(-1,3)
             assert len(p)==len(n) and len(part['uv'])==len(p)*2
-            # Source glTF faces are CCW. Reflecting Z makes them clockwise for Unity, keeping indices.
+            # Source winding must agree with outward normals before conversion.
             cross=np.cross(p[1::3]-p[0::3],p[2::3]-p[0::3])
             assert np.all(np.sum(cross*n[0::3],axis=1)>1e-10),name
+            # Unity import reflects Z AND reverses each triangle. Check the actual result.
+            unity_p=(p*np.array([1,1,-1])).reshape(-1,3,3)[:,[0,2,1],:]
+            unity_n=(n*np.array([1,1,-1])).reshape(-1,3,3)[:,[0,2,1],:]
+            unity_cross=np.cross(unity_p[:,1]-unity_p[:,0],unity_p[:,2]-unity_p[:,0])
+            assert np.all(np.sum(unity_cross*unity_n[:,0],axis=1)>1e-10),(name,'Unity front face')
             triangles+=len(p)//3
     world=[]
     for i,b in enumerate(DATA['buildings']):
