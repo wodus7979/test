@@ -216,7 +216,9 @@ def union(meshes):
 # Materials
 # ----------------------------------------------------------------------------
 
-camo_albedo, camo_mr, camo_nrm = make_camo_texture()
+TEX = int(os.environ.get("K2_TEX", "2048"))          # K2_TEX=1024 -> lighter web build
+SUFFIX = "" if TEX == 2048 else f"_{TEX}"
+camo_albedo, camo_mr, camo_nrm = make_camo_texture(size=TEX)
 rub_albedo, rub_mr = make_rubber_texture()
 met_albedo, met_mr = make_metal_texture()
 
@@ -578,8 +580,10 @@ print("bounds (m):", np.round(bounds, 2).tolist())
 print("size (m):  ", np.round(bounds[1] - bounds[0], 2).tolist())
 print("triangles: ", total_tris)
 
-scene.export(os.path.join(OUT, "k2_black_panther.glb"))
-# OBJ + MTL + textures
+scene.export(os.path.join(OUT, f"k2_black_panther{SUFFIX}.glb"))
+# OBJ + MTL + textures (full-resolution build only)
+if SUFFIX:
+    raise SystemExit(0)
 obj_dir = os.path.join(OUT, "obj")
 os.makedirs(obj_dir, exist_ok=True)
 scene.export(os.path.join(obj_dir, "k2_black_panther.obj"))

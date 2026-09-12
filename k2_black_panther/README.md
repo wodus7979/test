@@ -8,6 +8,7 @@
 | 파일 | 설명 |
 | --- | --- |
 | `assets/k2_black_panther.glb` | 메인 에셋 (glTF 2.0 바이너리, PBR 재질·텍스처 내장, 약 19,000 삼각형) |
+| `assets/k2_black_panther_1024.glb` | 웹용 경량판 (1024² 텍스처, 약 6.6 MB) |
 | `assets/obj/` | OBJ + MTL + 텍스처 (Blender, 3ds Max, Unity 등 범용 임포트용) |
 | `assets/k2_camo_albedo.png` | 2048² 위장 알베도 텍스처 (한국군 4색: 녹색·갈색·모래색·검정 + 오염) |
 | `assets/k2_camo_metalrough.png` | 2048² 금속성/거칠기 텍스처 |
@@ -43,7 +44,8 @@ Hull            ← 차체 + 주행장치
 
 ```bash
 pip install numpy trimesh shapely pillow mapbox-earcut scipy
-python3 build_k2.py            # assets/ 재생성
+python3 build_k2.py            # assets/ 재생성 (2048² 텍스처, OBJ 포함)
+K2_TEX=1024 python3 build_k2.py  # 웹용 경량 GLB
 ```
 
 `viewer.html`은 로컬 파일로 열면 브라우저 보안 정책 때문에 GLB 로드가 막힙니다.
