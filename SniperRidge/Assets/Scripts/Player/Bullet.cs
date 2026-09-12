@@ -77,6 +77,7 @@ namespace SniperRidge
 
                 if (Physics.Raycast(pos, seg / len, out RaycastHit hit, len, EnemyRagdoll.CombatMask, QueryTriggerInteraction.Ignore))
                 {
+                    if(gm!=null && gm.Mission==MissionType.Assault)gm.NotifyBulletPass(pos,hit.point);
                     Impact(hit);
                     return;
                 }

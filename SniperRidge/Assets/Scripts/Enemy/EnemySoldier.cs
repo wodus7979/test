@@ -70,6 +70,7 @@ namespace SniperRidge
         GameManager gm;
         Animator animator;
         EnemyAnimationRig motion;
+        AssaultTactics tactics;
         Transform weaponVisual;
         Vector3 previousRigPosition, lastMotionVelocity;
         float staggerTimer;
@@ -288,6 +289,7 @@ namespace SniperRidge
         void Start()
         {
             gm = GameManager.Instance;
+            tactics=GetComponent<AssaultTactics>();
             if (gm.Mission != MissionType.Sniper) IsAware = true;
             switch (Kind)
             {
@@ -325,7 +327,19 @@ namespace SniperRidge
             ApplyCover();
 
             float speedForAnim = 0f;
-            switch (state)
+            if(tactics!=null)
+            {
+                tactics.Tick(gm,dt);
+                coverTarget=tactics.Crouch;
+                MoveOnTerrain(tactics.Direction,tactics.Speed,dt);
+                speedForAnim=tactics.Speed;
+                state=speedForAnim>0?State.Rushing:State.Halt;
+                var facing=tactics.LookTarget-transform.position;facing.y=0;
+                if(facing.sqrMagnitude>.001f)faceDir=facing.normalized;
+                if(!tactics.CanShoot)preparingShot=false;
+                else TryShoot(speedForAnim>0?1.6f:.85f,1.6f,2.8f);
+            }
+            else switch (state)
             {
                 case State.Hidden:
                     coverTarget = 1f;
@@ -399,7 +413,7 @@ namespace SniperRidge
                     break;
             }
 
-            if (state != State.Walking && state != State.Rushing)
+            if (tactics==null && state != State.Walking && state != State.Rushing)
             {
                 Vector3 d = (gm.Armor != null ? gm.EnemyAimPoint : gm.PlayerEye.position) - transform.position;
                 d.y = 0f;
@@ -414,8 +428,8 @@ namespace SniperRidge
             previousRigPosition = rig.position;
             if (motion != null)
                 motion.Drive(actualSpeed, cover, peekSide,
-                    IsAware && (preparingShot || state != State.Walking && state != State.Rushing),
-                    preparingShot ? plannedTarget : gm.EnemyAimPoint, dt);
+                    IsAware && (tactics!=null ? tactics.CanShoot : preparingShot || state != State.Walking && state != State.Rushing),
+                    preparingShot ? plannedTarget : tactics!=null ? tactics.LookTarget : gm.EnemyAimPoint, dt);
             else if (animator != null)
             {
                 SetAnim("Speed", speedForAnim);
@@ -560,6 +574,7 @@ namespace SniperRidge
         {
             if (IsDead) return;
             SetAware();
+            if(tactics!=null){tactics.Suppress(gm.PlayerEye.position);return;}
             if (Kind == EnemyKind.Cover || Kind == EnemyKind.Tree)
             {
                 state = State.Hidden;
@@ -584,6 +599,7 @@ namespace SniperRidge
                 Kill(headshot, bulletDir);
                 return true;
             }
+            if(tactics!=null)tactics.Suppress(gm.PlayerEye.position);
             // 부상: 돌격 중이면 잠깐 멈칫, 엄폐형이면 숨는다
             if (Kind == EnemyKind.Rusher)
             {

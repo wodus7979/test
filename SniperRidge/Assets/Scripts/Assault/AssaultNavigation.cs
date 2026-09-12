@@ -14,6 +14,7 @@ namespace SniperRidge
         Vector3[] corners;
         int corner;
         float refresh;
+        public void Repath(){refresh=0;corners=null;}
         public Vector3 Direction(Vector3 target)
         {
             if(Time.time>=refresh)

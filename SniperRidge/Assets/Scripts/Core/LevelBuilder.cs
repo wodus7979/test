@@ -291,7 +291,11 @@ namespace SniperRidge
             var enemy=EnemySoldier.Create("Urban enemy "+ordinal,gm.Terrain,spawn,gm.PlayerEye.position,AssaultLayout.EnemyScale,
                 enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(ordinal+9201),false);
             enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);
-            if(!cover)enemy.gameObject.AddComponent<AssaultNavigation>();
+            if(!cover)
+            {
+                enemy.gameObject.AddComponent<AssaultNavigation>();
+                enemy.gameObject.AddComponent<AssaultTactics>();
+            }
             return enemy;
         }
 

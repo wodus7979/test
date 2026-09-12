@@ -281,12 +281,17 @@ namespace SniperRidge
 
         public void NotifyBulletPass(Vector3 a, Vector3 b)
         {
-            if (Mission != MissionType.Sniper) return;
+            if (Mission != MissionType.Sniper && Mission != MissionType.Assault) return;
             foreach (var e in enemies)
             {
                 if (e == null || e.IsDead) continue;
-                Vector3 c = e.transform.position + Vector3.up;
-                if (DistancePointSegment(c, a, b) < 2.5f)
+                Vector3 c = e.transform.position + Vector3.up*(Mission==MissionType.Assault?1.3f:1f);
+                Vector3 segment=b-a;
+                Vector3 closest=a+segment*Mathf.Clamp01(Vector3.Dot(c-a,segment)/Mathf.Max(segment.sqrMagnitude,.0001f));
+                // Begin just before an impact surface so an origin on the wall cannot miss its collider.
+                Vector3 probe=closest-segment.normalized*.03f;
+                if (DistancePointSegment(c, a, b) < 2.5f &&
+                    (Mission!=MissionType.Assault || !EnemyProjectile.WorldHit(probe,c,e,out _)))
                     e.Alert(Random.Range(3f, 7f));
             }
         }
