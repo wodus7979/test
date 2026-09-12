@@ -51,6 +51,38 @@ namespace SniperRidge
 
         Material mat;
         Camera cam;
+        bool bypass;
+        float notice;
+        string noticeText = "";
+
+        /// <summary>F9: 후처리 전체 끄고 켜기 (전후 비교). F10: SSAO 만 끄고 켜기. F12: Screenshots 폴더에 스크린샷 저장.</summary>
+        void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.F9)) { bypass = !bypass; Notice(bypass ? "후처리 OFF (원래 화면)" : "후처리 ON"); }
+            if (Input.GetKeyDown(KeyCode.F10)) { AoIntensity = AoIntensity > 0.001f ? 0f : .8f; UpdateDepthMode(); Notice(AoIntensity > 0f ? "SSAO ON" : "SSAO OFF"); }
+            if (Input.GetKeyDown(KeyCode.F12))
+            {
+                string dir = System.IO.Path.Combine(Application.dataPath, "../Screenshots");
+                System.IO.Directory.CreateDirectory(dir);
+                string file = System.IO.Path.GetFullPath(System.IO.Path.Combine(dir, "sniper_ridge_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + (bypass ? "_off" : "_on") + ".png"));
+                ScreenCapture.CaptureScreenshot(file);
+                Notice("스크린샷 저장: " + file);
+                Debug.Log("[Sniper Ridge] " + noticeText);
+            }
+        }
+
+        void Notice(string text) { noticeText = text; notice = Time.unscaledTime + 3f; }
+
+        void OnGUI()
+        {
+            if (Time.unscaledTime > notice) return;
+            var style = new GUIStyle(GUI.skin.label) { fontSize = 18, alignment = TextAnchor.MiddleCenter };
+            style.normal.textColor = Color.white;
+            GUI.color = new Color(0f, 0f, 0f, .6f);
+            GUI.DrawTexture(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), noticeText + "   (F9 후처리 비교 · F10 SSAO · F12 스크린샷)", style);
+        }
 
         void OnEnable()
         {
@@ -131,7 +163,7 @@ namespace SniperRidge
 
         void OnRenderImage(RenderTexture src, RenderTexture dst)
         {
-            if (mat == null) { Graphics.Blit(src, dst); return; }
+            if (mat == null || bypass) { Graphics.Blit(src, dst); return; }
             if (cam == null) cam = GetComponent<Camera>();
             bool ao = AoEnabled;
             if (ao && (cam.depthTextureMode & DepthTextureMode.DepthNormals) == 0) UpdateDepthMode();

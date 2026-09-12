@@ -19,7 +19,7 @@ git switch claude/compassionate-meitner-qvr8kt
 git pull --ff-only origin claude/compassionate-meitner-qvr8kt
 ```
 
-Unity를 다시 열면 셰이더와 스크립트가 다시 컴파일됩니다. 다른 조작은 필요 없습니다. 화면이 너무 어둡거나 밝으면 Play 중에 카메라의 **Post Effect** 컴포넌트에서 Exposure, AoIntensity, Sharpen, Grain 값을 바로 조절해 볼 수 있습니다.
+Unity를 다시 열면 셰이더와 스크립트가 다시 컴파일됩니다. 다른 조작은 필요 없습니다. Play 중 **F9**를 누르면 후처리를 통째로 끄고 켜서 전후를 바로 비교할 수 있고, **F10**은 SSAO만, **F12**는 프로젝트 옆 `Screenshots` 폴더에 PNG를 저장합니다. 화면이 너무 어둡거나 밝으면 Play 중에 카메라의 **Post Effect** 컴포넌트에서 Exposure, AoIntensity, Sharpen, Grain 값을 바로 조절해 볼 수 있습니다.
 
 검증: 변경한 C# 16개 파일과 셰이더의 괄호 균형, C#에서 설정하는 셰이더 프로퍼티 이름과 셰이더 선언의 일치, 노이즈 함수의 타일 경계 연속성을 검사했습니다. **이 환경에는 Unity가 없어 Unity 컴파일, 셰이더 컴파일, 실제 화면과 성능은 검증하지 못했습니다.** 실행 후 스크린샷을 보고 프리셋 값을 다듬는 단계가 필요합니다.
 
