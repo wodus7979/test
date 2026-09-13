@@ -138,6 +138,8 @@ namespace SniperRidge
             if (cam == null) return;
             if (AoEnabled) cam.depthTextureMode |= DepthTextureMode.DepthNormals;
             else cam.depthTextureMode &= ~DepthTextureMode.DepthNormals;
+            // 소프트 파티클(연기가 지면·벽과 만나는 부분을 부드럽게)용 깊이 텍스처. PC 전용.
+            if (!Application.isMobilePlatform) cam.depthTextureMode |= DepthTextureMode.Depth;
         }
 
         /// <summary>프리셋을 적용한다. 이후 개별 값을 덮어써도 된다.</summary>

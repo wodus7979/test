@@ -205,6 +205,7 @@ namespace SniperRidge
             eyeGo.AddComponent<AudioListener>();
             var post = eyeGo.AddComponent<PostEffect>();
             post.ApplyPreset(PostPreset.DaylightField);
+            eyeGo.AddComponent<CameraShake>();
 
             var muzzleGo = new GameObject("MuzzleFlash");
             muzzleGo.transform.SetParent(eyeGo.transform, false);
@@ -212,8 +213,8 @@ namespace SniperRidge
             var muzzle = muzzleGo.AddComponent<Light>();
             muzzle.type = LightType.Point;
             muzzle.color = new Color(1f, 0.85f, 0.6f);
-            muzzle.intensity = 5f;
-            muzzle.range = 8f;
+            muzzle.intensity = 9f;
+            muzzle.range = 10f;
             muzzle.enabled = false;
 
             var ctrl = player.AddComponent<SniperController>();

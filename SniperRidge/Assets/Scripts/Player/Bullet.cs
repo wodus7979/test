@@ -41,11 +41,7 @@ namespace SniperRidge
             b.lr.positionCount = 2;
             b.lr.SetPosition(0, origin);
             b.lr.SetPosition(1, origin);
-            b.lr.startWidth = 0.05f;
-            b.lr.endWidth = 0.05f;
-            b.lr.material = Effects.Unlit(new Color(1f, 0.92f, 0.6f));
-            b.lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            b.lr.receiveShadows = false;
+            CombatVfx.StyleTracer(b.lr, new Color(1f, 0.85f, 0.5f), 0.07f);
         }
 
         // EnemyAnimationRig finishes skeletal posing and hitboxes in LateUpdate at order 150.
@@ -88,7 +84,10 @@ namespace SniperRidge
                 if (traveled > 2500f || pos.y < -100f) { Finish(); return; }
             }
 
-            lr.SetPosition(0, frameStart);
+            // 예광탄 꼬리는 현재 위치 뒤로 최대 12 m. 프레임 길이와 무관하게 같은 모양을 유지한다.
+            float tail = Mathf.Min(12f, traveled);
+            Vector3 heading = vel.sqrMagnitude > .0001f ? vel.normalized : (pos - frameStart).normalized;
+            lr.SetPosition(0, pos - heading * tail);
             lr.SetPosition(1, pos);
             transform.position = pos;
         }

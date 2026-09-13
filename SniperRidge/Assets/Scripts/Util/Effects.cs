@@ -32,15 +32,23 @@ namespace SniperRidge
             lr.material = Unlit(color);
             lr.shadowCastingMode = ShadowCastingMode.Off;
             lr.receiveShadows = false;
+            // 짧게 사라지는 선은 예광탄 스타일(가산, 머리 밝음). 오래 남는 선(조준 경고)은 단색 유지.
+            if (life < .3f) CombatVfx.StyleTracer(lr, color, width * 1.6f);
             Object.Destroy(go, life);
         }
 
         public static void Dust(Vector3 pos, Vector3 normal, float size)
         {
-            Puff(pos, normal, size, new Color(0.62f, 0.55f, 0.42f), 0.7f);
+            CombatVfx.Impact(pos, normal, size);
         }
 
         public static void Puff(Vector3 pos, Vector3 normal, float size, Color color, float life)
+        {
+            CombatVfx.Puff(pos, normal, size, color, life);
+        }
+
+        /// <summary>구 프리미티브로 만든 옛 먼지 효과. 파티클 셰이더를 못 쓰는 환경용 예비.</summary>
+        public static void LegacyPuff(Vector3 pos, Vector3 normal, float size, Color color, float life)
         {
             var mat = Unlit(color);
             for (int i = 0; i < 3; i++)

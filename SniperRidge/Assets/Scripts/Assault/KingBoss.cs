@@ -74,6 +74,7 @@ namespace SniperRidge
             {
                 InfantryRocket.Launch(Soldier,launcherTip.position,target);
                 Effects.Flash(launcherTip.position,new Color(1,.55f,.15f),4,8,.10f);
+                CombatVfx.MuzzleFlash(launcherTip.position,target-launcherTip.position,1.7f);
                 game.PlaySound(game.Sounds.RocketLaunch,.65f);Soldier.BossRecoil();
             }
             else
@@ -85,6 +86,7 @@ namespace SniperRidge
                     Vector3 aim=target+Random.insideUnitSphere*.28f;
                     EnemyProjectile.Launch(game,Soldier,Soldier.Muzzle,aim,Enraged?11f:9f);
                     Effects.Flash(Soldier.Muzzle,new Color(1,.8f,.4f),4,6,.045f);Soldier.BossRecoil();
+                    CombatVfx.MuzzleFlash(Soldier.Muzzle,aim-Soldier.Muzzle,1.2f);
                     game.StartCoroutine(game.EnemyShotSound(Soldier.Muzzle,"lmg"));
                     yield return new WaitForSeconds(.13f);
                 }

@@ -67,7 +67,7 @@ namespace SniperRidge
         {
             if(done)return;done=true;
             var gm=GameManager.Instance;Vector3 centre=point+normal*.12f;
-            RocketEffects.Explosion(centre);gm.Armor.PlayExplosion(centre);
+            RocketEffects.Explosion(centre,rocket?1f:1.4f);gm.Armor.PlayExplosion(centre);
             bool counted=false;
             var directTank=direct!=null?direct.GetComponentInParent<TankVehicle>():null;
             foreach(var target in FindTankTargets(centre,damage,owner,friendly,directTank))

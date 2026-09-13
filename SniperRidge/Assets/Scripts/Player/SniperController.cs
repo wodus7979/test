@@ -547,9 +547,11 @@ namespace SniperRidge
         IEnumerator MuzzleFlash()
         {
             if (muzzleLight == null) yield break;
-            muzzleLight.transform.position = muzzleAnchor != null
+            Vector3 flashPoint = muzzleAnchor != null
                 ? muzzleAnchor.TransformPoint(0f, 0f, 0.05f)
                 : cam.transform.TransformPoint(0.28f, -0.18f, 1.2f);
+            muzzleLight.transform.position = flashPoint;
+            CombatVfx.MuzzleFlash(flashPoint, cam.transform.forward, CombatVfx.MuzzleScale(Weapon));
             if (muzzleBurst != null) muzzleBurst.gameObject.SetActive(true);
             muzzleLight.enabled = true;
             yield return new WaitForSeconds(0.05f);
