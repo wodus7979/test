@@ -83,7 +83,24 @@ namespace SniperRidge
             terrain.drawInstanced = !Application.isMobilePlatform;
             terrain.detailObjectDistance = Application.isMobilePlatform ? 60f : 180f;
             terrain.detailObjectDensity = Application.isMobilePlatform ? 0.35f : 0.85f;
+            ApplyMatteMaterial(terrain);
             return terrain;
+        }
+
+        /// <summary>
+        /// 반사광이 없는 지형 재질. Unity 기본 지형 셰이더는 거칠기 0 이어도 낮은 태양 아래 넓은 하늘 반사가 생겨
+        /// 모래·흙이 반짝인다. 자체 매트 셰이더가 컴파일되지 않으면 도시 맵과 같은 Nature/Terrain/Diffuse 로 대체한다.
+        /// </summary>
+        public static void ApplyMatteMaterial(Terrain terrain)
+        {
+            var shader = Shader.Find("SniperRidge/TerrainMatte");
+            if (shader == null || !shader.isSupported)
+            {
+                Debug.LogWarning("[Sniper Ridge] 매트 지형 셰이더를 쓸 수 없어 Nature/Terrain/Diffuse 로 대체합니다.");
+                shader = Shader.Find("Nature/Terrain/Diffuse");
+            }
+            if (shader == null) return;
+            terrain.materialTemplate = new Material(shader) { name = "Matte terrain", enableInstancing = true };
         }
 
         /// <summary>Resources/Terrain 의 실사 텍스처가 있으면 사용하고, 없으면 절차적 노이즈 텍스처.</summary>
