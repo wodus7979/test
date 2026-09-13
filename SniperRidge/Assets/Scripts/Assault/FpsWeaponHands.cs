@@ -3,7 +3,7 @@ namespace SniperRidge
 {
     public sealed class FpsWeaponHands:MonoBehaviour
     {
-        Transform left,right,magazine,bolt,feed,lens;
+        Transform left,right,magazine,bolt,feed,lens,aimOccluder;
         Vector3 leftRest,rightRest,magRest,boltRest;
         Quaternion feedRest;
         Quaternion supportRotation=Quaternion.Euler(-90,0,0);
@@ -38,6 +38,9 @@ namespace SniperRidge
             if(pose.bolt!=null)pose.boltRest=weapon.InverseTransformPoint(pose.bolt.position);
             pose.feed=WeaponModels.FindPart(weapon,"FeedCover");if(pose.feed!=null)pose.feedRest=pose.feed.localRotation;
             pose.lens=WeaponModels.FindPart(weapon,"Lens");
+            // The generated LMG optic has closed front and rear caps in its housing mesh.
+            // Hiding only the glass still leaves that cap directly on the camera sight line.
+            pose.aimOccluder=definition.Id=="lmg"?WeaponModels.FindPart(weapon,"Optic"):pose.lens;
             pose.Pose(-1,-1);return pose;
         }
         static Transform Grip(Transform parent,string name,Vector3 position,float side)
@@ -47,7 +50,7 @@ namespace SniperRidge
         }
         static float Ease(float t)=>Mathf.SmoothStep(0,1,Mathf.Clamp01(t));
         void Position(Transform part,Vector3 weaponLocal)=>part.position=transform.TransformPoint(weaponLocal);
-        public void SetAiming(bool aiming){if(lens!=null)lens.gameObject.SetActive(!aiming);}
+        public void SetAiming(bool aiming){if(aimOccluder!=null)aimOccluder.gameObject.SetActive(!aiming);}
         public void Pose(float reload,float cycling)
         {
             left.localPosition=leftRest;right.localPosition=rightRest;

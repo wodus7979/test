@@ -453,10 +453,12 @@ namespace SniperRidge
             if (Input.GetKeyDown(KeyCode.Q)) { ToggleLauncher(); return; }
             if (Input.GetMouseButtonDown(0)) fireQueued = true;
             fireHeld = Input.GetMouseButton(0);
-            if (IsFreeRoam)
+            bool holdToAim=IsFreeRoam||(Weapon!=null&&Weapon.Id=="lmg");
+            if (holdToAim)
             {
                 IsScoped=Input.GetMouseButton(1) && CanFireFromCover && State!=WeaponState.Reloading;
-                for(int i=0;i<4;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))SelectFpsWeapon(i);
+                scopeToggleQueued=false;
+                if(IsFreeRoam)for(int i=0;i<4;i++)if(Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1+i)))SelectFpsWeapon(i);
             }
             else if (Input.GetMouseButtonDown(1)) scopeToggleQueued = true;
             if (Input.GetKeyDown(KeyCode.R)) reloadQueued = true;

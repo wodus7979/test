@@ -69,6 +69,11 @@ namespace SniperRidge.EditorTools
                     Vector3 local=instance.transform.InverseTransformPoint(sight.position);
                     Vector3 aim=FpsWeaponView.Offset(definition,true,instance.transform)+local;
                     Check(new Vector2(aim.x,aim.y).magnitude<.001f&&aim.z>.1f,"조준축 정렬 오류: "+definition.Id);
+                    hands.SetAiming(true);
+                    var occluder=WeaponModels.FindPart(instance.transform,definition.Id=="lmg"?"Optic":"Lens");
+                    if(occluder!=null)Check(!occluder.gameObject.activeSelf,"조준 시 시야 가림 메시가 남습니다: "+definition.Id);
+                    hands.SetAiming(false);
+                    if(occluder!=null)Check(occluder.gameObject.activeSelf,"조준 해제 후 광학장비가 복원되지 않습니다: "+definition.Id);
                 }
             }
             finally{UnityEngine.Object.DestroyImmediate(instance);}
