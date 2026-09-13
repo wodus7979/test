@@ -54,17 +54,43 @@ namespace SniperRidge
         bool bypass;
         float notice;
         string noticeText = "";
+        int diagnostic;
+        float[] savedNormalScale;
+
+        /// <summary>L: 진단 모드 순환. 0 정상, 1 태양 그림자 끔, 2 지형 노멀맵 끔, 3 지형 풀/나무 끔.</summary>
+        void CycleDiagnostic()
+        {
+            diagnostic = (diagnostic + 1) % 4;
+            var sun = RenderSettings.sun;
+            var terrain = Terrain.activeTerrain;
+            if (sun != null) sun.shadows = diagnostic == 1 ? LightShadows.None : LightShadows.Soft;
+            if (terrain != null)
+            {
+                var layers = terrain.terrainData.terrainLayers;
+                if (savedNormalScale == null || savedNormalScale.Length != layers.Length)
+                {
+                    savedNormalScale = new float[layers.Length];
+                    for (int i = 0; i < layers.Length; i++) savedNormalScale[i] = layers[i].normalScale;
+                }
+                for (int i = 0; i < layers.Length; i++) layers[i].normalScale = diagnostic == 2 ? 0f : savedNormalScale[i];
+                terrain.drawTreesAndFoliage = diagnostic != 3;
+                terrain.Flush();
+            }
+            string[] names = { "진단 0: 정상", "진단 1: 태양 그림자 끔", "진단 2: 지형 노멀맵 끔", "진단 3: 지형 풀/나무 끔" };
+            Notice(names[diagnostic]);
+        }
 
         /// <summary>P: 후처리 전체 끄고 켜기 (전후 비교). O: SSAO 만 끄고 켜기. K: Screenshots 폴더에 스크린샷 저장.</summary>
         void Update()
         {
             if (Input.GetKeyDown(KeyCode.P)) { bypass = !bypass; Notice(bypass ? "후처리 OFF (원래 화면)" : "후처리 ON"); }
             if (Input.GetKeyDown(KeyCode.O)) { AoIntensity = AoIntensity > 0.001f ? 0f : .8f; UpdateDepthMode(); Notice(AoIntensity > 0f ? "SSAO ON" : "SSAO OFF"); }
+            if (Input.GetKeyDown(KeyCode.L)) CycleDiagnostic();
             if (Input.GetKeyDown(KeyCode.K))
             {
                 string dir = System.IO.Path.Combine(Application.dataPath, "../Screenshots");
                 System.IO.Directory.CreateDirectory(dir);
-                string file = System.IO.Path.GetFullPath(System.IO.Path.Combine(dir, "sniper_ridge_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + (bypass ? "_off" : "_on") + ".png"));
+                string file = System.IO.Path.GetFullPath(System.IO.Path.Combine(dir, "sniper_ridge_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + (bypass ? "_off" : "_on") + "_d" + diagnostic + ".png"));
                 ScreenCapture.CaptureScreenshot(file);
                 Notice("스크린샷 저장: " + file);
                 Debug.Log("[Sniper Ridge] " + noticeText);
@@ -81,7 +107,7 @@ namespace SniperRidge
             GUI.color = new Color(0f, 0f, 0f, .6f);
             GUI.DrawTexture(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), Texture2D.whiteTexture);
             GUI.color = Color.white;
-            GUI.Label(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), noticeText + "   (P 후처리 비교 · O SSAO · K 스크린샷)", style);
+            GUI.Label(new Rect(0f, Screen.height * .5f - 24f, Screen.width, 48f), noticeText + "   (P 후처리 비교 · O SSAO · L 진단 · K 스크린샷)", style);
         }
 
         void OnEnable()

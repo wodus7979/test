@@ -100,8 +100,9 @@ namespace SniperRidge
             sun.intensity = 1.15f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.9f;
-            sun.shadowBias = 0.025f;
-            sun.shadowNormalBias = 0.3f;
+            // 낮은 태양 고도에서 지면에 점 무늬(그림자 acne)가 생기지 않도록 바이어스를 넉넉히 둔다.
+            sun.shadowBias = 0.05f;
+            sun.shadowNormalBias = 0.6f;
             sunGo.transform.rotation = Quaternion.Euler(38f, -35f, 0f);
             RenderSettings.sun = sun;
 
@@ -139,8 +140,7 @@ namespace SniperRidge
             QualitySettings.lodBias = mobile ? 1f : 1.25f;
             QualitySettings.shadowCascade4Split = new Vector3(.08f, .23f, .5f);
             QualitySettings.pixelLightCount = mobile ? 2 : 8;
-            QualitySettings.shadowProjection = ShadowProjection.CloseFit;
-            QualitySettings.shadowNearPlaneOffset = 2f;
+            QualitySettings.shadowProjection = ShadowProjection.StableFit;
             QualitySettings.softParticles = !mobile;
             QualitySettings.realtimeReflectionProbes = !mobile;
             QualitySettings.billboardsFaceCameraPosition = true;
