@@ -12,6 +12,9 @@ namespace SniperRidge
             get
             {
                 if (smokeMaterial != null) return smokeMaterial;
+                // 소프트 파티클과 위쪽 조명이 있는 공용 연기 재질을 우선 쓴다.
+                smokeMaterial = CombatVfx.SmokeMaterial;
+                if (smokeMaterial != null) return smokeMaterial;
                 var texture = new Texture2D(64, 64, TextureFormat.RGBA32, false);
                 texture.name = "RocketSoftParticle";
                 texture.wrapMode = TextureWrapMode.Clamp;
@@ -92,24 +95,13 @@ namespace SniperRidge
 
         public static void CannonMuzzle(Vector3 point, Vector3 direction)
         {
-            var blast = System("Cannon muzzle blast",point,.16f,1.4f,12f,new Color(1f,.67f,.24f,.85f));
-            blast.transform.rotation = Quaternion.LookRotation(direction);
-            var shape = blast.shape;shape.shapeType = ParticleSystemShapeType.Cone;shape.angle=20f;
-            blast.Play();blast.Emit(14);Object.Destroy(blast.gameObject,.4f);
-            var smoke = System("Cannon muzzle smoke",point,1.3f,1.2f,2f,new Color(.55f,.52f,.45f,.4f));
-            smoke.Play();smoke.Emit(16);Object.Destroy(smoke.gameObject,1.6f);
+            CombatVfx.CannonBlast(point, direction);
         }
 
-        public static void Explosion(Vector3 point)
+        /// <summary>로켓·수류탄·포탄 폭발. scale 1 = 로켓, 1.4 = 전차 포탄, 2.4 = 전차 격파.</summary>
+        public static void Explosion(Vector3 point, float scale = 1f)
         {
-            var smoke = System("RocketBlastSmoke", point, 2.8f, 2.2f, 5f, new Color(.30f, .27f, .23f, .75f));
-            smoke.Play(); smoke.Emit(42); Object.Destroy(smoke.gameObject, 3.2f);
-            var fire = System("RocketBlastFlash", point, .4f, 2.8f, 8f, new Color(1f, .46f, .08f, .95f));
-            fire.Play(); fire.Emit(16); Object.Destroy(fire.gameObject, .7f);
-            Effects.Flash(point, new Color(1f, .55f, .16f), 7f, 16f, .16f);
-            for (int i = 0; i < 12; i++)
-                Effects.Tracer(point, point + (Random.onUnitSphere + Vector3.up * .3f) * Random.Range(1.5f, 4f),
-                    new Color(1f, .63f, .22f), .12f, .035f);
+            CombatVfx.Explosion(point, scale);
         }
 
         public static void TankDestruction(Transform tank)
@@ -120,7 +112,7 @@ namespace SniperRidge
                 if(!found){bounds=renderer.bounds;found=true;}else bounds.Encapsulate(renderer.bounds);
             }
             Vector3 centre=bounds.center;
-            Explosion(centre);
+            Explosion(centre,2.4f);
             TankDebris(centre,Mathf.Clamp(bounds.extents.magnitude*.38f,2.2f,4.2f));
 
             var root=new GameObject("Burning tank wreck");root.transform.position=centre;
@@ -129,6 +121,7 @@ namespace SniperRidge
             var fireMain=fire.main;fireMain.loop=true;fireMain.duration=1f;fireMain.maxParticles=180;
             var fireEmission=fire.emission;fireEmission.enabled=true;fireEmission.rateOverTime=34f;
             var fireShape=fire.shape;fireShape.shapeType=ParticleSystemShapeType.Box;fireShape.scale=new Vector3(2.8f,.25f,4.6f);
+            fire.GetComponent<ParticleSystemRenderer>().sharedMaterial=CombatVfx.FireMaterial;
             fire.Play();
 
             var smoke=System("Tank wreck black smoke",centre+Vector3.up*.8f,5.5f,3.1f,2.2f,new Color(.055f,.05f,.045f,.86f));
@@ -142,6 +135,7 @@ namespace SniperRidge
             sparks.transform.SetParent(root.transform,true);
             var sparkMain=sparks.main;sparkMain.loop=true;sparkMain.duration=1f;sparkMain.maxParticles=72;sparkMain.gravityModifier=.9f;
             var sparkEmission=sparks.emission;sparkEmission.enabled=true;sparkEmission.rateOverTime=6f;
+            sparks.GetComponent<ParticleSystemRenderer>().sharedMaterial=CombatVfx.SparkMaterial;
             sparks.Play();
 
             var glow=root.AddComponent<Light>();glow.type=LightType.Point;glow.color=new Color(1f,.26f,.035f);
@@ -168,7 +162,7 @@ namespace SniperRidge
 
         internal static void SecondaryTankExplosion(Vector3 point)
         {
-            Explosion(point);
+            Explosion(point,1.3f);
             var gm=GameManager.Instance;if(gm!=null&&gm.Armor!=null)gm.Armor.PlayExplosion(point);
         }
     }

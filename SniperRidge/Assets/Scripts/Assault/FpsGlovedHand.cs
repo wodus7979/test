@@ -34,7 +34,7 @@ namespace SniperRidge
                 {float v=.78f+((x/2+y/2)%2)*.08f+Mathf.PerlinNoise(x*.8f,y*.8f)*.08f;weave.SetPixel(x,y,new Color(v,v,v));}
                 weave.Apply();
                 fabric=ProceduralAssets.TexturedMaterial(new Color(.46f,.34f,.22f),weave,null,1f,.025f);
-                rubber=ProceduralAssets.LitMaterial(new Color(.14f,.105f,.068f),.02f);
+                rubber=SurfaceDetail.Make(Surface.Rubber,new Color(.14f,.105f,.068f),.02f);
             }
             bones.Add(transform);
             foreach(var finger in source.fingers)for(int s=0;s<3;s++)

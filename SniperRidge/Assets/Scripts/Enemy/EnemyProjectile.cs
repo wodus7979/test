@@ -37,11 +37,7 @@ namespace SniperRidge
             bullet.line.positionCount = 2;
             bullet.line.SetPosition(0, muzzle);
             bullet.line.SetPosition(1, muzzle);
-            bullet.line.startWidth = .09f;
-            bullet.line.endWidth = .035f;
-            bullet.line.sharedMaterial = Effects.Unlit(new Color(1f, .42f, .12f));
-            bullet.line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            bullet.line.receiveShadows = false;
+            CombatVfx.StyleTracer(bullet.line, new Color(1f, .45f, .12f), .09f);
             // Also bounds shots that miss terrain and fly out of the playable area.
             Destroy(go, 4f);
         }

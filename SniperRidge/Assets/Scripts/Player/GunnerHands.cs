@@ -12,9 +12,9 @@ namespace SniperRidge
         {
             if (glove == null)
             {
-                glove = ProceduralAssets.LitMaterial(new Color(.18f, .145f, .10f), .22f);
-                seam = ProceduralAssets.LitMaterial(new Color(.07f, .065f, .05f), .12f);
-                sleeve = ProceduralAssets.LitMaterial(new Color(.22f, .25f, .15f), .1f);
+                glove = SurfaceDetail.Make(Surface.Fabric, new Color(.18f, .145f, .10f), .22f);
+                seam = SurfaceDetail.Make(Surface.Rubber, new Color(.07f, .065f, .05f), .12f);
+                sleeve = SurfaceDetail.Make(Surface.Fabric, new Color(.22f, .25f, .15f), .1f);
             }
             var hand = new GameObject(side < 0 ? "Left gripping hand" : "Right gripping hand").transform;
             hand.SetParent(grip, false);

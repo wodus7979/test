@@ -113,8 +113,11 @@ namespace SniperRidge
                 heights[z,x]=Height(x/(float)(resolution-1)*600-300,z/(float)(resolution-1)*600-300)/TerrainGenerator.MaxHeight;
             data.SetHeights(0,0,heights);
             // Brown forest litter replaces the green meadow albedo, not just its tint.
-            data.terrainLayers=new[]{Layer("forest",new Color(.62f,.42f,.23f),3.2f),Layer("rock",new Color(.62f,.55f,.45f),5f),
-                Layer("dirt",new Color(.78f,.49f,.23f),4f),Layer("forest",new Color(.48f,.29f,.14f),5.5f)};
+            // 틴트는 원본 알베도(숲 평균 0.47/0.42/0.29, 흙 0.60/0.52/0.40, 바위 0.69/0.67/0.63)에 곱해지므로
+            // 낮은 값을 주면 지면이 거의 검게 눌린다. 목표 최종색(숲 .50/.36/.22, 흙 .58/.44/.28, 바위 .55/.52/.47,
+            // 짙은 숲 .40/.28/.17)을 원본으로 나눈 값을 쓴다. 가을 붉은 갈색 색조는 그대로 두고 밝기만 올린 것.
+            data.terrainLayers=new[]{Layer("forest",new Color(.94f,.80f,.68f),3.2f),Layer("rock",new Color(.80f,.78f,.75f),5f),
+                Layer("dirt",new Color(.86f,.72f,.57f),4f),Layer("forest",new Color(.80f,.62f,.52f),5.5f)};
             data.alphamapResolution=alpha;var weights=new float[alpha,alpha,4];
             for(int z=0;z<alpha;z++)for(int x=0;x<alpha;x++)
             {
@@ -139,17 +142,18 @@ namespace SniperRidge
                 {
                     float nx=(x+.5f)/detail,nz=(z+.5f)/detail,wx=nx*600-300,wz=nz*600-300;
                     if(Mathf.Abs(wx)>190||Mathf.Abs(wz)>190||data.GetSteepness(nx,nz)>32)continue;
-                    grass[z,x]=Mathf.RoundToInt(9f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(4,10,RoadDistance(wx,wz))));
+                    // 밀도를 낮춰 높은 곳에서 풀잎이 모래 위 반짝임처럼 보이지 않게 한다.
+                    grass[z,x]=Mathf.RoundToInt(4f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(4,10,RoadDistance(wx,wz))));
                 }
                 data.SetDetailLayer(0,0,0,grass);
             }
-            terrain.heightmapPixelError=1f;terrain.detailObjectDistance=140;terrain.detailObjectDensity=1;
+            terrain.heightmapPixelError=1f;terrain.detailObjectDistance=80;terrain.detailObjectDensity=.7f;
             terrain.Flush();Dress(terrain);Lighting(gm);Physics.SyncTransforms();
         }
         static TerrainLayer Layer(string name,Color tint,float tile)
         {
             return new TerrainLayer{diffuseTexture=TintedTexture(name,tint),
-                normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=.7f,
+                normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=0f, // 노멀맵 반짝임 방지
                 diffuseRemapMin=Vector4.zero,diffuseRemapMax=Vector4.one,
                 tileSize=Vector2.one*tile,metallic=0,smoothness=0,specular=Color.black};
         }
@@ -178,16 +182,17 @@ namespace SniperRidge
         static void Lighting(GameManager gm)
         {
             var sun=RenderSettings.sun;
-            if(sun!=null){sun.transform.rotation=Quaternion.Euler(27,-48,0);sun.color=new Color(1,.82f,.66f);sun.intensity=.78f;sun.shadowStrength=.86f;}
+            // 태양 고도 27°·강도 .78 은 평지 직사광이 0.35 수준이라 지면이 어두웠다. 고도와 강도를 올리고 색은 따뜻하게 유지.
+            if(sun!=null){sun.transform.rotation=Quaternion.Euler(34,-48,0);sun.color=new Color(1,.85f,.70f);sun.intensity=1.0f;sun.shadowStrength=.82f;}
             RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.00115f;
             RenderSettings.fogColor=new Color(.52f,.50f,.47f);
-            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.36f,.39f,.43f);
-            RenderSettings.ambientEquatorColor=new Color(.35f,.29f,.23f);RenderSettings.ambientGroundColor=new Color(.17f,.12f,.09f);
+            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.42f,.46f,.52f);
+            RenderSettings.ambientEquatorColor=new Color(.46f,.40f,.33f);RenderSettings.ambientGroundColor=new Color(.27f,.21f,.16f);
             RenderSettings.reflectionIntensity=.18f;
-            if(RenderSettings.skybox!=null){RenderSettings.skybox.SetFloat("_Exposure",.82f);RenderSettings.skybox.SetFloat("_Rotation",48);}
+            if(RenderSettings.skybox!=null){RenderSettings.skybox.SetFloat("_Exposure",.70f);RenderSettings.skybox.SetFloat("_Rotation",48);} // 하늘·강물이 하얗게 날아가던 것을 누른다
             QualitySettings.shadowDistance=240;QualitySettings.lodBias=1.8f;
             var post=gm.PlayerEye.GetComponent<PostEffect>();
-            if(post!=null){post.Exposure=.74f;post.Saturation=1.06f;post.Contrast=1.08f;post.BloomIntensity=.05f;post.Vignette=.10f;}
+            if(post!=null){post.Exposure=.90f;post.Saturation=.98f;post.Contrast=1.04f;post.BloomIntensity=.05f;post.Vignette=.10f;} // 노출 .74 → .95: 지면 어둡던 문제
             DynamicGI.UpdateEnvironment();
         }
         static void Dress(Terrain terrain)

@@ -25,7 +25,7 @@ namespace SniperRidge
         {
             var root=new GameObject("Road repairs drains and street litter").transform;root.SetParent(parent,false);
             var asphalt=new Material(Resources.Load<Material>("CityPack/Materials/Asphalt")){color=new Color(.67f,.69f,.68f)};
-            var iron=ProceduralAssets.LitMaterial(new Color(.12f,.13f,.13f),0);
+            var iron=SurfaceDetail.Make(Surface.Steel,new Color(.12f,.13f,.13f),.12f,.6f);
             var paper=ProceduralAssets.LitMaterial(new Color(.49f,.46f,.38f),0);
             var concrete=Resources.Load<Material>("CityPack/Materials/Concrete");
             var random=new System.Random(27091);

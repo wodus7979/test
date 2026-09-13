@@ -31,7 +31,7 @@ namespace SniperRidge
             timber = Own(ProceduralAssets.TexturedMaterial(new Color(.63f, .48f, .32f), Own(TrenchGeometry.SurfaceTexture(false)), null, 1f, .08f));
             canvas = Own(ProceduralAssets.TexturedMaterial(new Color(.77f, .71f, .51f), Own(TrenchGeometry.SurfaceTexture(true)), null, 2f, .01f));
             earth = Own(ProceduralAssets.TexturedMaterial(new Color(.48f, .36f, .23f), ProceduralAssets.LoadTex("Terrain/dirt_albedo"), ProceduralAssets.LoadTex("Terrain/dirt_normal"), 1f, .03f));
-            metal = Own(ProceduralAssets.LitMaterial(new Color(.13f, .15f, .13f), .28f));
+            metal = Own(SurfaceDetail.Make(Surface.Steel, new Color(.13f, .15f, .13f), .28f));
             wetMud = Own(ProceduralAssets.LitMaterial(new Color(.14f, .12f, .08f), .62f));
             thread = Own(ProceduralAssets.LitMaterial(new Color(.30f, .25f, .15f), .01f));
             foreach (var material in new[] { timber, canvas, earth, metal, wetMud, thread }) material.enableInstancing = true;

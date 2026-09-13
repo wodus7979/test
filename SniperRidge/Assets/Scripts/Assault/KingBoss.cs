@@ -74,6 +74,7 @@ namespace SniperRidge
             {
                 InfantryRocket.Launch(Soldier,launcherTip.position,target);
                 Effects.Flash(launcherTip.position,new Color(1,.55f,.15f),4,8,.10f);
+                CombatVfx.MuzzleFlash(launcherTip.position,target-launcherTip.position,1.7f);
                 game.PlaySound(game.Sounds.RocketLaunch,.65f);Soldier.BossRecoil();
             }
             else
@@ -85,6 +86,7 @@ namespace SniperRidge
                     Vector3 aim=target+Random.insideUnitSphere*.28f;
                     EnemyProjectile.Launch(game,Soldier,Soldier.Muzzle,aim,Enraged?11f:9f);
                     Effects.Flash(Soldier.Muzzle,new Color(1,.8f,.4f),4,6,.045f);Soldier.BossRecoil();
+                    CombatVfx.MuzzleFlash(Soldier.Muzzle,aim-Soldier.Muzzle,1.2f);
                     game.StartCoroutine(game.EnemyShotSound(Soldier.Muzzle,"lmg"));
                     yield return new WaitForSeconds(.13f);
                 }
@@ -97,8 +99,8 @@ namespace SniperRidge
         void BuildEquipment()
         {
             equipment=new GameObject("Royal armour and shoulder launcher").transform;equipment.SetParent(transform,false);
-            armorMaterial=ProceduralAssets.LitMaterial(new Color(.38f,.28f,.12f),.18f);
-            clothMaterial=ProceduralAssets.LitMaterial(new Color(.24f,.025f,.03f),0);
+            armorMaterial=SurfaceDetail.Make(Surface.PaintedMetal,new Color(.38f,.28f,.12f),.18f);
+            clothMaterial=SurfaceDetail.Make(Surface.Fabric,new Color(.24f,.025f,.03f),0);
             chestPlate=Piece("Royal breastplate",new Vector3(0,-.1f,.14f),new Vector3(.52f,.52f,.14f),armorMaterial,true);
             Piece("Left shoulder plate",new Vector3(-.32f,.1f,0),new Vector3(.24f,.14f,.3f),armorMaterial,true);
             Piece("Royal red back cloth",new Vector3(0,-.28f,-.22f),new Vector3(.62f,.83f,.055f),clothMaterial,false);

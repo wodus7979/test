@@ -756,6 +756,7 @@ namespace SniperRidge
             if (motion != null) motion.Fire();
             Vector3 muzzle = rifleTip.position;
             Effects.Flash(muzzle, new Color(1f, .8f, .5f), 4f, 6f, .06f);
+            CombatVfx.MuzzleFlash(muzzle, target - muzzle, Role == EnemyRole.RocketTrooper ? 1.7f : 1.1f);
             if(Role==EnemyRole.RocketTrooper && (Combat!=null || gm.Mission==MissionType.Helicopter))
             {
                 InfantryRocket.Launch(this,muzzle,target);gm.PlaySound(gm.Sounds.RocketLaunch,.45f);return;
