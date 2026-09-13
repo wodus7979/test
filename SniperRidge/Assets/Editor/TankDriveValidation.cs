@@ -87,7 +87,7 @@ namespace SniperRidge.EditorTools
                 Advance(body,physics,0,0,75,terrain);float initialY=body.position.y;Vector3 entryStart=body.position;
                 Advance(body,physics,1,0,200,terrain);
                 Check(Vector3.Dot(body.position-entryStart,TankCanyon.EntryDirection)>25f,"실제 시작 위치에서 협곡 진입 실패");
-                Check(body.position.y>initialY+1f,"언덕을 오르며 고도가 증가하지 않습니다.");
+                Check(body.position.y>initialY+.35f,"낮은 언덕을 오르며 고도가 증가하지 않습니다.");
                 Check(Vector3.Angle(body.rotation*Vector3.up,Vector3.up)>1f,"차체 경사 정렬 실패");
                 Check(Mathf.Abs(body.position.y-TankDrive.SupportHeight(body.position,body.rotation,1f,terrain))<.4f,"경사에서 궤도 접지 실패");
                 Advance(body,physics,0,0,100,terrain);
@@ -95,6 +95,15 @@ namespace SniperRidge.EditorTools
                 Vector3 reverseStart=body.position;
                 Advance(body,physics,-1,0,100,terrain);
                 Check(Vector3.Dot(body.position-reverseStart,TankCanyon.EntryDirection)<-4f,"협곡 경사에서 후진 실패");
+                // Drive across a former rock island, away from the authored dirt roads.
+                body.position=TankCanyon.Ground(terrain,new Vector2(-10,-8),.2f);
+                normal=TankCanyon.Normal(terrain,body.position);
+                body.rotation=Quaternion.LookRotation(Vector3.ProjectOnPlane(Vector3.right,normal).normalized,normal);
+                body.velocity=body.angularVelocity=Vector3.zero;Physics.SyncTransforms();
+                Advance(body,physics,0,0,75,terrain);Vector3 offRoadStart=body.position;
+                Advance(body,physics,1,0,150,terrain);
+                Check(body.position.x-offRoadStart.x>12f,"낮은 언덕의 비포장 구간 주행 실패");
+                Check(Mathf.Abs(body.position.y-TankDrive.SupportHeight(body.position,body.rotation,1f,terrain))<.4f,"낮은 언덕의 궤도 접지 실패");
                 Debug.Log("[Sniper Ridge] 전차 주행 검사 통과: 전후진·최고 속도·제동·A/D 회전·벽 충돌·경계·협곡 오르막·차체 경사·궤도 접지·언덕 정차. 전진 2초 이동 " + forward.ToString("0.00") + "m");
             }
             finally

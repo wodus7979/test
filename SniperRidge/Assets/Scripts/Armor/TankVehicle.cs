@@ -167,7 +167,7 @@ namespace SniperRidge
             }
             else hasNavigationPoint=false;
             Vector3 travel=movementTarget-transform.position;travel.y=0;
-            // Close to 28–42 m, navigating around cliffs even when the player is behind a ridge.
+            // Cross low hills directly, using the road network around trees and rocks.
             if (avoidanceTime>0f) { avoidanceTime-=Time.deltaTime; steering=1f; drive=-.45f; }
             else
             {

@@ -162,7 +162,7 @@ namespace SniperRidge
             },
             new WeaponDefinition
             {
-                Id = "tank", Name = "K2 흑표 협곡전", IsTank = true, Mission = MissionType.Tank,
+                Id = "tank", Name = "K2 흑표 구릉전", IsTank = true, Mission = MissionType.Tank,
                 Description = "협곡 근접 전차전 · 언덕과 암반 · W/S/A/D 기동 · 마우스 포격",
                 Fire = FireMode.Semi, RoundsPerMinute = 20f, MagSize = 1, Reserve = 60, ReloadTime = 3f,
                 MuzzleVelocity = 280f, Damage = 160f, ScopeFovs = new[] { 38f }, ScopeLabels = new[] { "포수 확대" },

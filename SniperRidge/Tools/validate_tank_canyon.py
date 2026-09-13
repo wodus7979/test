@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 SOURCE=(ROOT/'Assets/Scripts/World/TankCanyon.cs').read_text()
 offsets=[float(v) for v in re.search(r'RowOffsets=\{([^}]+)',SOURCE)[1].replace('f','').split(',')]
 columns=[float(v) for v in re.search(r'ColumnOffsets=\{([^}]+)',SOURCE)[1].replace('f','').split(',')]
-closed=[int(v) for v in re.search(r'ClosedLinks=\{([^}]+)',SOURCE)[1].split(',')]
+closed=[int(v) for v in re.search(r'ClosedLinks=\{([^}]*)',SOURCE)[1].split(',') if v.strip()]
 nodes=np.array([[-60+(i%4)*40+offsets[i//4],-60+(i//4)*40+columns[i%4]] for i in range(16)])
 edges=[(i,j) for i in range(16) for j in range(i+1,16) if ((i//4==j//4 and j-i==1) or j-i==4) and i*16+j not in closed]
 def road_distance(x,z):
@@ -70,20 +70,26 @@ def validate():
             maximum_slope=max(maximum_slope,float(slope(p[:,0],p[:,1]).max()))
     assert maximum_slope<18,('impassable road',maximum_slope)
     samples=np.array(road_samples);elevations=height(samples[:,0],samples[:,1])
-    assert np.ptp(elevations)>8,'roads are flat'
+    assert 2<np.ptp(elevations)<7,'roads must remain low rolling hills'
+    # Check the entire playable area plus the enlarged chassis footprint, not only roads.
+    field=np.linspace(-106,106,425);fx,fz=np.meshgrid(field,field)
+    field_heights=height(fx,fz);field_slope=float(slope(fx,fz).max())
+    assert np.ptp(field_heights)<7,'large elevation barrier inside the combat area'
+    assert field_slope<10,('off-road terrain too steep',field_slope)
     minimum_spawns=min(np.count_nonzero(np.linalg.norm(nodes-p,axis=1)>=38) for p in samples)
     assert minimum_spawns>=9,('insufficient stage-five spawn junctions',minimum_spawns)
     minimum_rock_clearance=np.inf
     for row in range(3):
         for col in range(3):
             p=(nodes[row*4+col]+nodes[(row+1)*4+col+1])*.5
-            clearance=float(road_distance(*p))-6.5*1.09*1.02
+            clearance=float(road_distance(*p))-2.8*1.09*1.02
             minimum_rock_clearance=min(minimum_rock_clearance,clearance)
-    assert minimum_rock_clearance>9,'cliffs intrude into driving corridor'
+    assert minimum_rock_clearance>12,'rocks intrude into driving corridor'
     grid=np.linspace(-200,200,201);x,z=np.meshgrid(grid,grid);h=height(x,z)
     assert np.isfinite(h).all() and h.min()>0 and h.max()<200
     print(json.dumps(dict(connected_junctions=16,road_links=len(edges),combat_area_m=[200,200],enemy_scale=1.3,
         entry_drivable_distance_m=30,entry_footprint_max_slope_degrees=round(entry_slope,2),
+        whole_field_max_slope_degrees=round(field_slope,2),whole_field_height_difference_m=round(float(np.ptp(field_heights)),2),
         road_elevation_range_m=[round(float(elevations.min()),2),round(float(elevations.max()),2)],
         maximum_road_slope_degrees=round(maximum_slope,2),minimum_available_spawn_junctions=int(minimum_spawns),
         cliff_clearance_from_road_centre_m=round(minimum_rock_clearance,2)),indent=2))
@@ -92,7 +98,7 @@ def validate():
         image=Image.new('RGB',(1400,980),'#18242b');draw=ImageDraw.Draw(image)
         font_path='/System/Library/Fonts/Helvetica.ttc'
         title=ImageFont.truetype(font_path,32);font=ImageFont.truetype(font_path,19)
-        draw.text((55,35),'SUNLIT CANYON / TANK BATTLE',font=title,fill='white')
+        draw.text((55,35),'AUTUMN LOW HILLS / TANK BATTLE',font=title,fill='white')
         draw.text((55,83),'Terrain and route study - not a Unity screenshot',font=font,fill='#d6cbb4')
         grid=np.linspace(-170,170,121);x,z=np.meshgrid(grid,grid);h=height(x,z)
         dz,dx=np.gradient(h,340/120);norm=np.sqrt(dx*dx+dz*dz+1)
@@ -101,13 +107,13 @@ def validate():
         cells=sorted(((i,j) for i in range(120) for j in range(120)),key=lambda ij:sum(ij))
         for i,j in cells:
             wx,wz=x[i,j],z[i,j];road=float(road_distance(wx,wz))
-            color=np.array([155,134,95]) if road<6 else np.array([124,132,82]) if h[i,j]<32 else np.array([154,147,130])
+            color=np.array([155,134,95]) if road<6 else np.array([142,113,76])
             rgb=tuple((color*light[i,j]).astype(int))
             points=[project(x[a,b],z[a,b],h[a,b]) for a,b in [(i,j),(i+1,j),(i+1,j+1),(i,j+1)]]
             draw.polygon(points,fill=rgb)
         p=nodes[1];sx,sy=project(*p,float(height(*p))+1)
         draw.ellipse((sx-6,sy-6,sx+6,sy+6),fill='#6cd0e6');draw.text((sx+12,sy-8),'PLAYER',font=font,fill='white')
-        draw.text((55,890),'200 x 200 m combat zone | 16 linked junctions | Road elevation 9-25 m',font=font,fill='white')
+        draw.text((55,890),'200 x 200 m | 24 connected roads | Low hills with open cross-country routes',font=font,fill='white')
         draw.text((55,925),'Rock props, vegetation, tanks and final lighting are generated in Unity.',font=font,fill='#b7c1c3')
         path=Path(sys.argv[1]);path.parent.mkdir(parents=True,exist_ok=True);image.save(path)
     print('Unity terrain contact, rendering and gameplay remain untested here.')

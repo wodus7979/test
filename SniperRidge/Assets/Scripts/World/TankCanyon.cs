@@ -4,14 +4,15 @@ using UnityEngine.Rendering;
 
 namespace SniperRidge
 {
-    /// <summary>Compact, connected driving routes between terraced rock islands.</summary>
+    /// <summary>Low autumn hills with open cross-country driving and connected fallback roads.</summary>
     public static class TankCanyon
     {
         public const float CombatBounds=100f, EnemyScale=1.3f;
         public const int NodeCount=16, EntryNode=1, EntryExitNode=5;
         static readonly float[] RowOffsets={-4f,5f,-5f,3f};
         static readonly float[] ColumnOffsets={-5f,4f,-3f,6f};
-        static readonly int[] ClosedLinks={86,154}; // Keep the player's entry (1,5) open.
+        static readonly int[] ClosedLinks={};
+        static readonly List<Vector3> Obstacles=new List<Vector3>(); // X/Z centre and horizontal radius.
         struct RoadSegment { public Vector2 Start,Delta; public float InverseLengthSquared; }
         static readonly RoadSegment[] RoadSegments=MakeSegments();
         public static Vector2 Node(int i)=>new Vector2(-60f+(i%4)*40f+RowOffsets[i/4],-60f+(i/4)*40f+ColumnOffsets[i%4]);
@@ -48,13 +49,10 @@ namespace SniperRidge
         }
         public static float Height(float x,float z)
         {
-            float road=RoadDistance(x,z);
-            float floor=17f+3f*Mathf.Sin(z*.024f)+2f*Mathf.Sin(x*.03f)+z*.045f;
-            float shelf=4f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(11,15,road))
-                +5f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(16,20,road));
-            float strata=.85f+.25f*Mathf.Sin(x*.065f+z*.043f);
-            float outer=Mathf.SmoothStep(0,1,Mathf.InverseLerp(88,155,Mathf.Max(Mathf.Abs(x),Mathf.Abs(z))));
-            return floor+shelf*strata+outer*(28f+12f*Mathf.Sin(x*.031f)*Mathf.Cos(z*.027f));
+            float floor=12f+1.5f*Mathf.Sin(z*.024f)+1.2f*Mathf.Sin(x*.03f);
+            float hill=.7f*Mathf.Sin((x+z)*.028f);
+            float outer=Mathf.SmoothStep(0,1,Mathf.InverseLerp(125,220,Mathf.Max(Mathf.Abs(x),Mathf.Abs(z))));
+            return floor+hill+outer*4f;
         }
         public static Vector3 Ground(Terrain terrain,Vector2 p,float lift=.12f)=>TerrainGenerator.OnGround(terrain,p.x,p.y,lift);
         public static Vector3 Normal(Terrain terrain,Vector3 p)
@@ -71,7 +69,7 @@ namespace SniperRidge
         public static Vector3 NextWaypoint(Terrain terrain,Vector3 from,Vector3 target)
         {
             int start=NearestNode(from),goal=NearestNode(target);
-            // Return to a road junction before turning across a raised rock island.
+            // Rejoin a road junction when a tree or low rock blocks a direct approach.
             if(Vector2.Distance(new Vector2(from.x,from.z),Node(start))>7f)return Ground(terrain,Node(start));
             if(start==goal)return Ground(terrain,Node(goal));
             var parent=new int[NodeCount];for(int i=0;i<NodeCount;i++)parent[i]=-1;
@@ -86,11 +84,22 @@ namespace SniperRidge
         }
         public static bool ClearRoad(Vector3 from,Vector3 to)
         {
+            Vector2 a=new Vector2(from.x,from.z),d=new Vector2(to.x-from.x,to.z-from.z);
+            foreach(var obstacle in Obstacles)
+            {
+                Vector2 centre=new Vector2(obstacle.x,obstacle.y);
+                float t=d.sqrMagnitude>.001f?Mathf.Clamp01(Vector2.Dot(centre-a,d)/d.sqrMagnitude):0;
+                // Reserve a 6m wide corridor for enlarged enemy tanks, including turns.
+                if(Vector2.SqrMagnitude(centre-a-d*t)<(obstacle.z+3f)*(obstacle.z+3f))return false;
+            }
             int steps=Mathf.CeilToInt(Vector3.Distance(from,to)/2f);
             for(int i=0;i<=steps;i++)
             {
                 var p=Vector3.Lerp(from,to,i/(float)Mathf.Max(1,steps));
-                if(RoadDistance(p.x,p.z)>7f)return false;
+                if(Mathf.Abs(p.x)>CombatBounds||Mathf.Abs(p.z)>CombatBounds)return false;
+                float dx=(Height(p.x+.5f,p.z)-Height(p.x-.5f,p.z));
+                float dz=(Height(p.x,p.z+.5f)-Height(p.x,p.z-.5f));
+                if(dx*dx+dz*dz>.07f)return false; // About 15 degrees, independent of road texture.
             }
             return true;
         }
@@ -162,23 +171,23 @@ namespace SniperRidge
         }
         static void Dress(Terrain terrain)
         {
-            var root=new GameObject("Autumn terraced canyon").transform;var rng=new System.Random(9014);
+            var root=new GameObject("Autumn low hills").transform;var rng=new System.Random(9014);Obstacles.Clear();
             var stone=ProceduralAssets.TexturedMaterial(new Color(.90f,.86f,.76f),ProceduralAssets.LoadTex("Terrain/rock_albedo"),ProceduralAssets.LoadTex("Terrain/rock_normal"),.85f,.035f);
             var moss=ProceduralAssets.TexturedMaterial(new Color(.91f,.73f,.50f),ProceduralAssets.LoadTex("Terrain/forest_albedo"),ProceduralAssets.LoadTex("Terrain/forest_normal"),.5f,.015f);
             var bark=ProceduralAssets.TexturedMaterial(new Color(.62f,.57f,.48f),ProceduralAssets.LoadTex("Nature/bark_albedo"),ProceduralAssets.LoadTex("Nature/bark_normal"),.6f,.02f);
             for(int row=0;row<3;row++)for(int col=0;col<3;col++)
             {
                 Vector2 p=(Node(row*4+col)+Node((row+1)*4+col+1))*.5f;
-                Cliff(root,Ground(terrain,p,-4f),6.5f,7f+(row+col)%3*2f,row*7+col,stone,moss);
+                Cliff(root,Ground(terrain,p,-.8f),2.8f,2.2f+(row+col)%3*.3f,row*7+col,stone,moss);
             }
-            for(int i=0;i<44;i++)
+            for(int i=0;i<12;i++)
             {
-                float a=i*Mathf.PI*2/44,r=115+(i%4)*12;
+                float a=i*Mathf.PI*2/12,r=145+(i%4)*12;
                 var p=new Vector2(Mathf.Cos(a)*r,Mathf.Sin(a)*r);
-                Cliff(root,Ground(terrain,p,-6),11+i%4*2,15+i%5*4,i+30,stone,moss);
+                Cliff(root,Ground(terrain,p,-.8f),3f+i%3*.4f,2.5f,i+30,stone,moss);
             }
             Physics.SyncTransforms();
-            for(int i=0;i<650;i++)
+            for(int i=0;i<420;i++)
             {
                 float x=(float)rng.NextDouble()*370-185,z=(float)rng.NextDouble()*370-185;
                 if(RoadDistance(x,z)<13||Normal(terrain,new Vector3(x,0,z)).y<.83f)continue;
@@ -204,6 +213,13 @@ namespace SniperRidge
                     var bush=Vegetation.Bush(root,p,.3f+(float)rng.NextDouble()*.6f,rng);
                     AutumnLeaves(bush,AutumnColor(i));
                 }
+            }
+            Physics.SyncTransforms();
+            foreach(var collider in root.GetComponentsInChildren<Collider>())
+            {
+                if(!collider.enabled||collider.isTrigger)continue;
+                Bounds b=collider.bounds;
+                Obstacles.Add(new Vector3(b.center.x,b.center.z,new Vector2(b.extents.x,b.extents.z).magnitude));
             }
         }
         static Color AutumnColor(int index)
