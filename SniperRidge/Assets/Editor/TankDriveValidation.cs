@@ -84,17 +84,26 @@ namespace SniperRidge.EditorTools
                 body.constraints=RigidbodyConstraints.None;
                 Check(TankCanyon.Linked(TankCanyon.EntryNode,TankCanyon.EntryExitNode),"출발 방향의 협곡 진입로가 막혀 있습니다.");
                 body.position=TankCanyon.Ground(terrain,TankCanyon.Node(TankCanyon.EntryNode),.2f);
+                Check(Mathf.Abs(TerrainGenerator.GroundHeight(terrain,body.position.x,body.position.z)-
+                    TankCanyon.Height(body.position.x,body.position.z))<.08f,"생성된 Terrain 높이가 산악 지형 함수와 다릅니다.");
                 Vector3 normal=TankCanyon.Normal(terrain,body.position);
                 body.rotation=Quaternion.LookRotation(Vector3.ProjectOnPlane(TankCanyon.EntryDirection,normal).normalized,normal);
                 body.velocity=Vector3.up*4f;
                 Check(Mathf.Abs(TankDrive.SpeedAlongTracks(body))<.001f,"수직 접지 보정이 주행 속도로 잘못 계산됩니다.");
                 body.velocity=body.angularVelocity=Vector3.zero;Physics.SyncTransforms();
-                Advance(body,physics,0,0,75,terrain);float initialY=body.position.y;Vector3 entryStart=body.position;
+                Advance(body,physics,0,0,75,terrain);Vector3 entryStart=body.position;
                 Advance(body,physics,1,0,200,terrain);
                 Check(Vector3.Dot(body.position-entryStart,TankCanyon.EntryDirection)>25f,"실제 시작 위치에서 협곡 진입 실패");
-                Check(body.position.y>initialY+.35f,"낮은 언덕을 오르며 고도가 증가하지 않습니다.");
                 Check(Vector3.Angle(body.rotation*Vector3.up,Vector3.up)>1f,"차체 경사 정렬 실패");
                 Check(Mathf.Abs(body.position.y-TankDrive.SupportHeight(body.position,body.rotation,1f,terrain))<.4f,"경사에서 궤도 접지 실패");
+                float low=float.MaxValue,high=float.MinValue;
+                for(int z=-100;z<=100;z+=10)for(int x=-100;x<=100;x+=10)
+                {float h=TankCanyon.Height(x,z);low=Mathf.Min(low,h);high=Mathf.Max(high,h);}
+                Check(high-low>2.5f&&high-low<8f,"전투 구역의 고저차가 완만한 산악 지형 범위를 벗어났습니다.");
+                body.position+=Vector3.up*45f;body.velocity=Vector3.up*18f;
+                TankDrive.Step(body,0,0,StepSeconds,terrain);
+                Check(body.position.y-TankDrive.SupportHeight(body.position,body.rotation,1f,terrain)<2.5f,
+                    "전차가 지형 충돌 충격 뒤 지면으로 복귀하지 못했습니다.");
                 Advance(body,physics,0,0,100,terrain);
                 Check(new Vector2(body.velocity.x,body.velocity.z).magnitude<.2f,"언덕 정차 중 미끄러짐");
                 Vector3 reverseStart=body.position;
@@ -109,7 +118,13 @@ namespace SniperRidge.EditorTools
                 Advance(body,physics,1,0,150,terrain);
                 Check(body.position.x-offRoadStart.x>12f,"낮은 언덕의 비포장 구간 주행 실패");
                 Check(Mathf.Abs(body.position.y-TankDrive.SupportHeight(body.position,body.rotation,1f,terrain))<.4f,"낮은 언덕의 궤도 접지 실패");
-                Debug.Log("[Sniper Ridge] 전차 주행 검사 통과: 전후진·최고 속도·제동·A/D 회전·벽 충돌·경계·협곡 오르막·차체 경사·궤도 접지·언덕 정차. 전진 2초 이동 " + forward.ToString("0.00") + "m");
+                var tree=new GameObject("Knock-down validation tree");
+                var treeCollider=tree.AddComponent<CapsuleCollider>();
+                var knockdown=tree.AddComponent<KnockdownTree>();
+                knockdown.KnockDown(Vector3.forward);
+                Check(knockdown.IsFalling&&!treeCollider.enabled,"전차 충돌용 나무가 쓰러지기 시작하거나 주행로를 비우지 못했습니다.");
+                UnityEngine.Object.DestroyImmediate(tree);
+                Debug.Log("[Sniper Ridge] 전차 주행 검사 통과: 전후진·최고 속도·제동·A/D 회전·벽 충돌·경계·산악 오르막·차체 경사·궤도 접지·초지 주행·나무 전도. 전진 2초 이동 " + forward.ToString("0.00") + "m");
             }
             finally
             {

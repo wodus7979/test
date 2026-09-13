@@ -385,7 +385,7 @@ namespace SniperRidge
             {
                 var tank = gm.Armor.PlayerTank;
                 enemyText.text = string.Format("전차전 {0}/5 · 적 전차 {1} · K2 {2} / 주력전차 {3}",gm.Armor.Stage,gm.Armor.AliveTanks,gm.Armor.AliveK2,gm.Armor.AliveOpposition);
-                coverText.text = string.Format("속도 {0:0} km/h · 장갑 {1:0}% · 고도 {2:0}m\n협곡 길을 따라 이동 · 능선 뒤에서 포탄 회피",tank.Speed*3.6f,tank.Fraction*100f,tank.transform.position.y);
+                coverText.text = string.Format("속도 {0:0} km/h · 장갑 {1:0}% · 고도 {2:0}m\n숲길과 초지를 이동 · 나무 충돌로 돌파",tank.Speed*3.6f,tank.Fraction*100f,tank.transform.position.y);
                 hpFill.localScale = new Vector3(tank.Fraction,1,1);
                 ammoText.text = "포탄 " + tank.Shells;
                 stateText.text = tank.ReloadRemaining>0 ? string.Format("재장전 {0:0.0}초",tank.ReloadRemaining) : tank.HasAim ? "포격 준비" : "포탑 정렬 중";

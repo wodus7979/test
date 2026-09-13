@@ -152,7 +152,7 @@ namespace SniperRidge
             {
                 Armor = TankBattle.Create(this);
                 if (Ambience != null) Ambience.volume = .12f;
-                Hud.OnMissionStart("가을 구릉 · 전차전 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\n낮은 언덕과 흙길을 자유롭게 이동하며 적 기갑부대를 격파하세요.");
+                Hud.OnMissionStart("산악 침엽수 계곡 · 전차전 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\n숲과 완만한 초지를 돌파하세요. 전차로 들이받은 나무는 진행 방향으로 쓰러집니다.");
                 return;
             }
             if (Mission == MissionType.Assault)

@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 namespace SniperRidge
 {
-    /// <summary>Low autumn hills with open cross-country driving and connected fallback roads.</summary>
+    /// <summary>Open alpine tank valley with forests, boulders and connected fallback roads.</summary>
     public static class TankCanyon
     {
         public const float CombatBounds=100f, EnemyScale=1.3f;
@@ -49,12 +49,22 @@ namespace SniperRidge
         }
         public static float Height(float x,float z)
         {
-            float floor=12f+1.5f*Mathf.Sin(z*.024f)+1.2f*Mathf.Sin(x*.03f);
-            float hill=.7f*Mathf.Sin((x+z)*.028f);
-            float outer=Mathf.SmoothStep(0,1,Mathf.InverseLerp(125,220,Mathf.Max(Mathf.Abs(x),Mathf.Abs(z))));
-            // A broad, shallow rim hides the flat terrain edge without becoming a
-            // canyon wall or blocking the drivable 200 m combat area.
-            return floor+hill+outer*8f;
+            float floor=12f+1.35f*Mathf.Sin(z*.026f)+1.05f*Mathf.Sin(x*.031f)+.55f*Mathf.Sin((x+z)*.046f);
+            float distance=Mathf.Max(Mathf.Abs(x),Mathf.Abs(z));
+            float outer=Mathf.SmoothStep(0,1,Mathf.InverseLerp(104,275,distance));
+            // Tall distant ridges frame the valley while the playable 200m square
+            // remains low enough for tanks to cross in any direction.
+            float ridges=70f+43f*Mathf.PerlinNoise(x*.018f+8.4f,z*.018f+3.1f)+27f*Mathf.Abs(Mathf.Sin(x*.032f-z*.011f));
+            float height=floor+outer*ridges;
+            // A lake beyond the north edge opens the view toward the mountain ring.
+            float lake=LakeWeight(x,z);
+            if(z>102f)height=Mathf.Lerp(height,9.1f,lake);
+            return height;
+        }
+        static float LakeWeight(float x,float z)
+        {
+            float dx=x/62f,dz=(z-145f)/34f;
+            return Mathf.SmoothStep(0,1,Mathf.Clamp01(1f-(dx*dx+dz*dz)));
         }
         public static Vector3 Ground(Terrain terrain,Vector2 p,float lift=.12f)=>TerrainGenerator.OnGround(terrain,p.x,p.y,lift);
         public static Vector3 Normal(Terrain terrain,Vector3 p)
@@ -110,32 +120,43 @@ namespace SniperRidge
             var terrain=gm.Terrain;var data=terrain.terrainData;
             const int resolution=513,alpha=512,detail=512;
             data.heightmapResolution=resolution;
+            // Changing an existing TerrainData resolution can restore Unity's
+            // 1000 x 600 x 1000 default size. Reassert world metres before writing
+            // heights or SampleHeight will put tanks and scenery high in the air.
+            data.size=new Vector3(TerrainGenerator.Size,TerrainGenerator.MaxHeight,TerrainGenerator.Size);
             var heights=new float[resolution,resolution];
             for(int z=0;z<resolution;z++)for(int x=0;x<resolution;x++)
                 heights[z,x]=Height(x/(float)(resolution-1)*600-300,z/(float)(resolution-1)*600-300)/TerrainGenerator.MaxHeight;
             data.SetHeights(0,0,heights);
-            // Keep the four surfaces in one restrained dry-autumn palette. The old
-            // red dirt against grey rock produced broad horizontal colour bands.
-            data.terrainLayers=new[]{Layer("dirt",new Color(.74f,.70f,.63f),4.2f),Layer("rock",new Color(.75f,.73f,.69f),5.5f),
-                Layer("dirt",new Color(.70f,.66f,.59f),4.8f),Layer("dirt",new Color(.64f,.61f,.55f),6.2f)};
+            data.terrainLayers=new[]{Layer("NaturePack/Textures/meadow",Color.white,5.5f),
+                Layer("NaturePack/Textures/rock",new Color(.96f,.95f,.93f),7f),
+                Layer("Terrain/dirt",new Color(.90f,.84f,.73f),5.2f),
+                Layer("NaturePack/Textures/meadow",new Color(.72f,.80f,.66f),9f)};
             data.alphamapResolution=alpha;var weights=new float[alpha,alpha,4];
             for(int z=0;z<alpha;z++)for(int x=0;x<alpha;x++)
             {
                 float nx=(x+.5f)/alpha,nz=(z+.5f)/alpha,wx=nx*600-300,wz=nz*600-300;
                 float road=RoadDistance(wx,wz),slope=data.GetSteepness(nx,nz);
-                float rock=Mathf.InverseLerp(19,42,slope)*.95f;
-                float dirt=(1-rock)*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(3.5f,9,road)))*.94f;
-                float forest=(1-rock-dirt)*Mathf.PerlinNoise(wx*.065f+5,wz*.065f)*.14f;
-                weights[z,x,0]=1-rock-dirt-forest;weights[z,x,1]=rock;weights[z,x,2]=dirt;weights[z,x,3]=forest;
+                float rock=Mathf.InverseLerp(12,34,slope)*.92f;
+                float dirt=(1-rock)*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(3.7f,10.5f,road)))*.88f;
+                float patch=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.42f,.72f,Mathf.PerlinNoise(wx*.035f+5,wz*.035f)));
+                float darkMeadow=(1-rock-dirt)*(.06f+patch*.24f);
+                weights[z,x,0]=1-rock-dirt-darkMeadow;weights[z,x,1]=rock;weights[z,x,2]=dirt;weights[z,x,3]=darkMeadow;
             }
             data.SetAlphamaps(0,0,weights);
+            // The custom matte shader can keep the stale basemap after TerrainLayer
+            // replacement in a player build. Built-in Diffuse refreshes the splats
+            // immediately and has no metallic or smooth specular road reflection.
+            var terrainShader=Shader.Find("Nature/Terrain/Diffuse");
+            if(terrainShader!=null)terrain.materialTemplate=new Material(terrainShader){name="Alpine diffuse terrain"};
+            terrain.drawInstanced=false;terrain.drawHeightmap=true;terrain.basemapDistance=350f;
             var prototypes=data.detailPrototypes;
             if(prototypes.Length>0)
             {
                 prototypes[0].minHeight=.25f;prototypes[0].maxHeight=.65f;
-                prototypes[0].prototypeTexture=ProceduralAssets.GrassBladeTexture(bladeColor:new Color(.58f,.54f,.38f));
-                prototypes[0].healthyColor=new Color(.58f,.55f,.39f);prototypes[0].dryColor=new Color(.48f,.42f,.30f);
-                data.wavingGrassTint=new Color(.63f,.59f,.43f);
+                prototypes[0].prototypeTexture=ProceduralAssets.GrassBladeTexture(bladeColor:new Color(.38f,.55f,.25f));
+                prototypes[0].healthyColor=new Color(.44f,.61f,.30f);prototypes[0].dryColor=new Color(.57f,.52f,.31f);
+                data.wavingGrassTint=new Color(.50f,.64f,.35f);
                 data.detailPrototypes=prototypes;data.SetDetailResolution(detail,32);
                 var grass=new int[detail,detail];
                 for(int z=0;z<detail;z++)for(int x=0;x<detail;x++)
@@ -143,161 +164,108 @@ namespace SniperRidge
                     float nx=(x+.5f)/detail,nz=(z+.5f)/detail,wx=nx*600-300,wz=nz*600-300;
                     if(Mathf.Abs(wx)>190||Mathf.Abs(wz)>190||data.GetSteepness(nx,nz)>32)continue;
                     // 밀도를 낮춰 높은 곳에서 풀잎이 모래 위 반짝임처럼 보이지 않게 한다.
-                    grass[z,x]=Mathf.RoundToInt(.8f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(6,14,RoadDistance(wx,wz))));
+                    grass[z,x]=Mathf.RoundToInt(2f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(5,12,RoadDistance(wx,wz))));
                 }
                 data.SetDetailLayer(0,0,0,grass);
             }
-            terrain.heightmapPixelError=1f;terrain.detailObjectDistance=48;terrain.detailObjectDensity=.22f;
+            terrain.heightmapPixelError=1f;terrain.detailObjectDistance=85;terrain.detailObjectDensity=.48f;
             terrain.Flush();Dress(terrain);Lighting(gm);Physics.SyncTransforms();
         }
-        static TerrainLayer Layer(string name,Color tint,float tile)
+        static TerrainLayer Layer(string resourceBase,Color tint,float tile)
         {
-            return new TerrainLayer{diffuseTexture=TintedTexture(name,tint),
-                normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=0f, // 노멀맵 반짝임 방지
-                diffuseRemapMin=Vector4.zero,diffuseRemapMax=Vector4.one,
+            var normal=Resources.Load<Texture2D>(resourceBase+"_normal_unity");
+            if(normal==null)normal=Resources.Load<Texture2D>(resourceBase+"_normal");
+            return new TerrainLayer{diffuseTexture=Resources.Load<Texture2D>(resourceBase+"_albedo"),
+                normalMapTexture=normal,normalScale=.22f,
+                diffuseRemapMin=Vector4.zero,diffuseRemapMax=new Vector4(tint.r,tint.g,tint.b,1f),
                 tileSize=Vector2.one*tile,metallic=0,smoothness=0,specular=Color.black};
-        }
-        static Texture2D TintedTexture(string name,Color tint)
-        {
-            var source=ProceduralAssets.LoadTex("Terrain/"+name+"_albedo");
-            if(source==null)return null;
-            int width=Mathf.Min(1024,source.width),height=Mathf.Min(1024,source.height);
-            var previous=RenderTexture.active;
-            var target=RenderTexture.GetTemporary(width,height,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB);
-            try
-            {
-                Graphics.Blit(source,target);RenderTexture.active=target;
-                var result=new Texture2D(width,height,TextureFormat.RGB24,true,false){name="Autumn "+name};
-                result.ReadPixels(new Rect(0,0,width,height),0,0,false);
-                var pixels=result.GetPixels32();
-                byte r=(byte)Mathf.RoundToInt(tint.r*255),g=(byte)Mathf.RoundToInt(tint.g*255),b=(byte)Mathf.RoundToInt(tint.b*255);
-                for(int i=0;i<pixels.Length;i++)
-                {
-                    Color32 p=pixels[i];p.r=(byte)(p.r*r/255);p.g=(byte)(p.g*g/255);p.b=(byte)(p.b*b/255);pixels[i]=p;
-                }
-                result.SetPixels32(pixels);result.Apply(true,true);return result;
-            }
-            finally {RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);}
         }
         static void Lighting(GameManager gm)
         {
             var sun=RenderSettings.sun;
-            // 태양 고도 27°·강도 .78 은 평지 직사광이 0.35 수준이라 지면이 어두웠다. 고도와 강도를 올리고 색은 따뜻하게 유지.
-            if(sun!=null){sun.transform.rotation=Quaternion.Euler(34,-48,0);sun.color=new Color(1,.85f,.70f);sun.intensity=1.0f;sun.shadowStrength=.82f;}
-            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.0018f;
-            RenderSettings.fogColor=new Color(.58f,.57f,.54f);
-            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.45f,.48f,.52f);
-            RenderSettings.ambientEquatorColor=new Color(.45f,.42f,.37f);RenderSettings.ambientGroundColor=new Color(.29f,.27f,.23f);
-            RenderSettings.reflectionIntensity=.18f;
-            // The shared quarry panorama contains a dark photographic tree line at
-            // its horizon. A procedural sky gives this open tank map a clean,
-            // continuous skyline that blends into the distance fog.
+            if(sun!=null){sun.transform.rotation=Quaternion.Euler(31,-52,0);sun.color=new Color(1f,.94f,.83f);sun.intensity=1.18f;sun.shadowStrength=.84f;}
+            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.00078f;
+            RenderSettings.fogColor=new Color(.68f,.78f,.87f);
+            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.55f,.65f,.77f);
+            RenderSettings.ambientEquatorColor=new Color(.45f,.49f,.54f);RenderSettings.ambientGroundColor=new Color(.28f,.27f,.23f);
+            RenderSettings.reflectionIntensity=.26f;
             var skyShader=Shader.Find("Skybox/Procedural");
             if(skyShader!=null)
             {
-                var sky=new Material(skyShader){name="Tank autumn sky"};
-                sky.SetColor("_SkyTint",new Color(.54f,.61f,.67f));
-                sky.SetColor("_GroundColor",new Color(.43f,.41f,.37f));
-                sky.SetFloat("_Exposure",.82f);sky.SetFloat("_AtmosphereThickness",.72f);sky.SetFloat("_SunSize",.035f);
+                var sky=new Material(skyShader){name="Tank alpine sky"};
+                sky.SetColor("_SkyTint",new Color(.38f,.61f,.86f));
+                sky.SetColor("_GroundColor",new Color(.38f,.44f,.49f));
+                sky.SetFloat("_Exposure",.98f);sky.SetFloat("_AtmosphereThickness",.74f);sky.SetFloat("_SunSize",.045f);
                 RenderSettings.skybox=sky;
             }
             QualitySettings.shadowDistance=240;QualitySettings.lodBias=1.8f;
             var post=gm.PlayerEye.GetComponent<PostEffect>();
-            if(post!=null){post.Exposure=.90f;post.Saturation=.88f;post.Contrast=1.02f;post.BloomIntensity=.035f;post.Vignette=.08f;}
+            if(post!=null){post.Exposure=.96f;post.Saturation=1.04f;post.Contrast=1.06f;post.BloomIntensity=.055f;post.Vignette=.06f;}
             DynamicGI.UpdateEnvironment();
         }
         static void Dress(Terrain terrain)
         {
-            var root=new GameObject("Autumn low hills").transform;var rng=new System.Random(9014);Obstacles.Clear();
-            var stone=ProceduralAssets.TexturedMaterial(new Color(.42f,.39f,.34f),ProceduralAssets.LoadTex("Terrain/rock_albedo"),ProceduralAssets.LoadTex("Terrain/rock_normal"),.85f,.025f);
-            var moss=ProceduralAssets.TexturedMaterial(new Color(.34f,.31f,.23f),ProceduralAssets.LoadTex("Terrain/forest_albedo"),ProceduralAssets.LoadTex("Terrain/forest_normal"),.5f,.01f);
-            var bark=ProceduralAssets.TexturedMaterial(new Color(.29f,.22f,.16f),ProceduralAssets.LoadTex("Nature/bark_albedo"),ProceduralAssets.LoadTex("Nature/bark_normal"),.6f,.015f);
-            for(int row=0;row<3;row++)for(int col=0;col<3;col++)
+            var root=new GameObject("Alpine forest valley").transform;var rng=new System.Random(9014);Obstacles.Clear();
+            var stone=ProceduralAssets.TexturedMaterial(new Color(.82f,.82f,.79f),
+                Resources.Load<Texture2D>("NaturePack/Textures/rock_albedo"),Resources.Load<Texture2D>("NaturePack/Textures/rock_normal_unity"),.42f,.025f);
+            Pond(root);
+            // Solid boulders create firing cover while staying clear of every road.
+            for(int i=0;i<64;i++)
             {
-                if((row+col)%2!=0)continue;
-                Vector2 p=(Node(row*4+col)+Node((row+1)*4+col+1))*.5f;
-                Cliff(root,Ground(terrain,p,-.8f),2.8f,2.2f+(row+col)%3*.3f,row*7+col,stone,moss);
-            }
-            for(int i=0;i<10;i++)
-            {
-                float a=i*Mathf.PI*2/10,r=150+(i%3)*14;
-                var p=new Vector2(Mathf.Cos(a)*r,Mathf.Sin(a)*r);
-                Cliff(root,Ground(terrain,p,-.8f),3f+i%3*.4f,2.5f,i+30,stone,moss);
+                float x=(float)rng.NextDouble()*236-118,z=(float)rng.NextDouble()*236-118;
+                if(RoadDistance(x,z)<15f||Normal(terrain,new Vector3(x,0,z)).y<.9f)continue;
+                Vector3 p=TerrainGenerator.OnGround(terrain,x,z,.12f);
+                Boulder(root,p,new Vector3(1.7f+(float)rng.NextDouble()*2.3f,1.1f+(float)rng.NextDouble()*1.5f,1.5f+(float)rng.NextDouble()*2f),i,stone);
             }
             Physics.SyncTransforms();
-            for(int i=0;i<230;i++)
+            // Dense enough to read as a forest, sparse enough for the two LODs and
+            // wide tank corridors. Trees inside the arena can be knocked down.
+            for(int i=0;i<1350;i++)
             {
-                float x=(float)rng.NextDouble()*370-185,z=(float)rng.NextDouble()*370-185;
+                float x=(float)rng.NextDouble()*410-205,z=(float)rng.NextDouble()*410-205;
                 float radius=Mathf.Max(Mathf.Abs(x),Mathf.Abs(z));
-                if(RoadDistance(x,z)<15||Normal(terrain,new Vector3(x,0,z)).y<.83f)continue;
-                // Leave the playable centre readable and build a sparse natural frame
-                // toward the perimeter instead of a dark wall of hundreds of plants.
-                if(radius<105f&&i%4!=0)continue;
+                if(LakeWeight(x,z)>.12f||RoadDistance(x,z)<8.5f)continue;
+                Vector3 probe=new Vector3(x,0,z);if(Normal(terrain,probe).y<(radius<112f?.88f:.72f))continue;
+                float grove=Mathf.PerlinNoise(x*.024f+7,z*.024f+13);
+                if(grove<(radius<112f?.38f:.24f))continue;
                 Vector3 p=TerrainGenerator.OnGround(terrain,x,z);
-                if(Physics.Raycast(p+Vector3.up*100,Vector3.down,out var surface,110,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore)
-                    &&(surface.collider is MeshCollider||surface.collider is TerrainCollider))
-                {if(surface.normal.y<.8f)continue;p=surface.point;}
-                if(i%23==0)
-                {
-                    var dead=new GameObject("Bare pine silhouette",typeof(MeshFilter),typeof(MeshRenderer));
-                    dead.transform.SetParent(root,false);dead.transform.position=p;dead.transform.rotation=Quaternion.Euler(0,i*39,3);
-                    dead.GetComponent<MeshFilter>().sharedMesh=MeshBuilder.DeadPine(rng,7+i%5);
-                    dead.GetComponent<MeshRenderer>().sharedMaterials=new[]{bark,bark};dead.AddComponent<OwnedHandMesh>();
-                }
-                else if(i%2==0)
-                {
-                    bool evergreen=i%4==0;
-                    var tree=Vegetation.Tree(root,p,.55f+(float)rng.NextDouble()*.45f,evergreen?Vegetation.TreeType.Pine:Vegetation.TreeType.Broadleaf,rng);
-                    AutumnLeaves(tree,evergreen?new Color(.30f,.32f,.23f):AutumnColor(i));
-                }
-                else
-                {
-                    var bush=Vegetation.Bush(root,p,.25f+(float)rng.NextDouble()*.40f,rng);
-                    AutumnLeaves(bush,AutumnColor(i));
-                }
+                bool pine=i%7!=0;
+                var tree=Vegetation.Tree(root,p,.78f+(float)rng.NextDouble()*.72f,pine?Vegetation.TreeType.Pine:Vegetation.TreeType.Broadleaf,rng);
+                if(radius<112f){tree.name="Knock-down "+tree.name;tree.AddComponent<KnockdownTree>();}
+                else foreach(var collider in tree.GetComponentsInChildren<Collider>(true))collider.enabled=false;
+            }
+            for(int i=0;i<180;i++)
+            {
+                float x=(float)rng.NextDouble()*250-125,z=(float)rng.NextDouble()*250-125;
+                if(RoadDistance(x,z)<7f)continue;
+                var bush=Vegetation.Bush(root,TerrainGenerator.OnGround(terrain,x,z),.28f+(float)rng.NextDouble()*.42f,rng);
+                foreach(var collider in bush.GetComponentsInChildren<Collider>(true))collider.enabled=false;
             }
             Physics.SyncTransforms();
             foreach(var collider in root.GetComponentsInChildren<Collider>())
             {
-                if(!collider.enabled||collider.isTrigger)continue;
+                if(!collider.enabled||collider.isTrigger||collider.GetComponentInParent<KnockdownTree>()!=null)continue;
                 Bounds b=collider.bounds;
                 Obstacles.Add(new Vector3(b.center.x,b.center.z,new Vector2(b.extents.x,b.extents.z).magnitude));
             }
         }
-        static Color AutumnColor(int index)
+        static GameObject Boulder(Transform root,Vector3 position,Vector3 scale,int index,Material stone)
         {
-            switch(index%4)
-            {
-                case 0:return new Color(.49f,.43f,.25f);
-                case 1:return new Color(.45f,.37f,.22f);
-                case 2:return new Color(.39f,.32f,.22f);
-                default:return new Color(.52f,.47f,.30f);
-            }
+            var rock=GameObject.CreatePrimitive(PrimitiveType.Sphere);rock.name="Granite boulder";rock.transform.SetParent(root,true);
+            rock.transform.position=position;rock.transform.localScale=scale;rock.transform.rotation=Quaternion.Euler(index*11f,index*67f,index*7f);
+            rock.GetComponent<Renderer>().sharedMaterial=stone;
+            return NatureModels.Upgrade(rock,index%2==0?"boulder_1":"boulder_2");
         }
-        static void AutumnLeaves(GameObject plant,Color color)
+        static void Pond(Transform root)
         {
-            // Pack LOD material order varies; identify foliage by shader, not slot 1.
-            // The original distant proxy has bark in slot 0 and textured leaves in slot 1.
-            var block=new MaterialPropertyBlock();
-            foreach(var renderer in plant.GetComponentsInChildren<MeshRenderer>(true))
-            {
-                var materials=renderer.sharedMaterials;
-                for(int slot=0;slot<materials.Length;slot++)
-                {
-                    var material=materials[slot];if(material==null)continue;
-                    string materialName=material.name;
-                    bool packLeaf=material.shader!=null&&material.shader.name=="SniperRidge/Foliage" ||
-                        materialName.Contains("Leaf")||materialName.Contains("Needle")||materialName.Contains("Grass");
-                    if(!packLeaf&&(renderer.gameObject!=plant||slot!=1))continue;
-                    renderer.GetPropertyBlock(block,slot);
-                    // Keep both detailed pack foliage and its distant proxy inside
-                    // the same muted palette; the former red boost made dot-like
-                    // highlights across the horizon.
-                    Color tint=color;
-                    block.SetColor("_Color",tint);block.SetColor("_BaseColor",tint);
-                    renderer.SetPropertyBlock(block,slot);block.Clear();
-                }
-            }
+            var water=GameObject.CreatePrimitive(PrimitiveType.Cylinder);water.name="Mountain lake";water.transform.SetParent(root,true);
+            water.transform.position=new Vector3(0,9.25f,145f);water.transform.localScale=new Vector3(61f,.035f,33f);
+            var waterCollider=water.GetComponent<Collider>();waterCollider.enabled=false;Object.Destroy(waterCollider);
+            var shader=Shader.Find("Standard");var material=new Material(shader){name="Clear mountain water"};
+            material.color=new Color(.18f,.42f,.52f,.72f);material.SetFloat("_Metallic",.05f);material.SetFloat("_Glossiness",.72f);
+            material.SetFloat("_Mode",3);material.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);material.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);
+            material.SetInt("_ZWrite",0);material.EnableKeyword("_ALPHABLEND_ON");material.renderQueue=3000;
+            water.GetComponent<Renderer>().sharedMaterial=material;
         }
         static void Cliff(Transform root,Vector3 position,float radius,float height,int seed,Material rock,Material moss)
         {

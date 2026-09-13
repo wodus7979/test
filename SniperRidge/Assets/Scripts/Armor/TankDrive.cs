@@ -70,6 +70,14 @@ namespace SniperRidge
                 float support=SupportHeight(body.position,turn,body.transform.localScale.x,terrain);
                 float gap=body.position.y-support;
                 float vertical=body.velocity.y;
+                // Dense scenery can produce a large one-frame depenetration impulse while
+                // the terrain collider refreshes. A tracked vehicle must stay planted on
+                // its six sampled contact points instead of being launched above the map.
+                if(gap>2.5f||gap<-.75f)
+                {
+                    body.position=new Vector3(body.position.x,support+.08f,body.position.z);
+                    gap=.08f;vertical=0f;
+                }
                 if(gap<.75f)vertical=planar.y+Mathf.Clamp(-gap*10f,-3f,4f);
                 body.velocity=new Vector3(planar.x,vertical,planar.z);
                 return;

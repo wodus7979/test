@@ -191,7 +191,7 @@ namespace SniperRidge
             }
             Label(orbitMap.transform, "Orbit label", "4개 지점 · 동료 20명 구조", 18, Sand, 205, 194, 225, 28);
             tankMap = Box(map,"Tank positions",Ink,0,0,440,238).gameObject;
-            Label(tankMap.transform,"Tank legend","협곡 흙길 · 바위 능선 · 고저차",18,Muted,18,8,410,28);
+            Label(tankMap.transform,"Tank legend","침엽수 숲 · 산악 호수 · 화강암 지대",18,Muted,18,8,410,28);
             for(int i=0;i<TankCanyon.NodeCount;i++)
             {
                 var p=TankCanyon.Node(i);var start=new Vector2(220+p.x*2.4f,124-p.y*1.15f);
@@ -199,7 +199,7 @@ namespace SniperRidge
                 {var q=TankCanyon.Node(j);MapLine(tankMap.transform,start,new Vector2(220+q.x*2.4f,124-q.y*1.15f),Sand);}
                 Box(tankMap.transform,"Canyon junction",i==1?Sand:Hostile,start.x-4,start.y-4,8,8);
             }
-            Label(tankMap.transform,"Player tank","▲ 협곡 입구 · 아군 K2",17,Sand,130,204,280,26);
+            Label(tankMap.transform,"Player tank","▲ 계곡 입구 · 아군 K2",17,Sand,130,204,280,26);
             assaultMap=Box(map,"Urban FPS route",Ink,0,0,440,238).gameObject;
             for(int x=40;x<440;x+=40)MapLine(assaultMap.transform,new Vector2(x,28),new Vector2(x,217),Line);
             for(int z=38;z<218;z+=25)MapLine(assaultMap.transform,new Vector2(20,z),new Vector2(420,z),Line);
@@ -313,13 +313,13 @@ namespace SniperRidge
                 air ? "경고 후 눌러 급격한 측면 기동" : "6개 지급 · 누르고 조준, 놓아 투척");
             if (tank)
             {
-                mapDescription.text = "전차 전장 / 가을 구릉 · 낮은 언덕 · 개방형 전장";
+                mapDescription.text = "전차 전장 / 산악 침엽수 계곡 · 호수 · 완만한 전투로";
                 weaponType.text = "K2 흑표  /  차체 주행 · 독립 포탑";
-                missionTitle.text = "K2 흑표 구릉전";
+                missionTitle.text = "K2 흑표 산악전";
                 magazine.text = "포탄 60발"; reserve.text = "단계마다 +25발";
                 objective.text = "보병 없이 전차끼리 교전합니다.\n주력전차 3발 · K2 흑표 4발 직격 시 격파";
-                range.text = "협곡 200 × 200 m · 근거리 기갑전";
-                rule.text = "W/S 전후진 · A/D 차체 회전\n마우스 조준 · 좌클릭 포격";
+                range.text = "산악 계곡 200 × 200 m · 근거리 기갑전";
+                rule.text = "나무는 충돌하면 쓰러집니다.\n바위로 포탄을 막고 숲을 돌파하세요.";
                 controls.text = "W  전진   S  후진   A/D  차체 회전   마우스  포탑 조준   좌클릭  포격   우클릭  확대";
                 SetCard(equipmentLeft,"W","전차 직접 조종","최대 43 km/h · 차체와 포탑 분리");
                 SetCard(equipmentRight,"5","단계별 증원","적 전차 5 → 6 → 7 → 8 → 9대");
