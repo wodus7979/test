@@ -253,7 +253,11 @@ namespace SniperRidge
             if(engine!=null)engine.Stop();
             if(leftDust!=null)leftDust.Stop();
             if(rightDust!=null)rightDust.Stop();
-            if(body!=null) { body.velocity=Vector3.zero;body.angularVelocity=Vector3.zero;body.isKinematic=true; }
+            if(body!=null)
+            {
+                if(!body.isKinematic){body.velocity=Vector3.zero;body.angularVelocity=Vector3.zero;}
+                body.isKinematic=true;
+            }
         }
     }
 }

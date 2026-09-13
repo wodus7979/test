@@ -18,13 +18,18 @@ namespace SniperRidge.EditorTools
             OriginalTankAssets.TankPackBuilder.BuildIfMissing();
             var prefab = Resources.Load<GameObject>(TankVehicle.Resource);
             Check(prefab != null, "전차 프리팹 누락");
-            var scene = SceneManager.CreateScene("Tank drive check " + Guid.NewGuid(),
-                new CreateSceneParameters(LocalPhysicsMode.Physics3D));
+            Scene previousScene=SceneManager.GetActiveScene();
+            bool batch=Application.isBatchMode;
+            var scene=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,
+                batch?NewSceneMode.Single:NewSceneMode.Additive);
+            SceneManager.SetActiveScene(scene);
+            SimulationMode previousSimulationMode=Physics.simulationMode;
+            Physics.simulationMode=SimulationMode.Script;
             TerrainData groundData = null;
             PhysicMaterial contact = null;
             try
             {
-                var physics = scene.GetPhysicsScene();
+                var physics = Physics.defaultPhysicsScene;
                 groundData = new TerrainData { heightmapResolution = 33, size = new Vector3(500f, 10f, 500f) };
                 var ground = new GameObject("Test terrain", typeof(TerrainCollider));
                 SceneManager.MoveGameObjectToScene(ground, scene);
@@ -108,7 +113,12 @@ namespace SniperRidge.EditorTools
             }
             finally
             {
-                EditorSceneManager.CloseScene(scene, true);
+                Physics.simulationMode=previousSimulationMode;
+                if(!batch)
+                {
+                    SceneManager.SetActiveScene(previousScene);
+                    EditorSceneManager.CloseScene(scene,true);
+                }
                 if (contact != null) UnityEngine.Object.DestroyImmediate(contact);
                 if (groundData != null) UnityEngine.Object.DestroyImmediate(groundData);
             }
