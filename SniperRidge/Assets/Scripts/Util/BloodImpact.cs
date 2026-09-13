@@ -15,7 +15,7 @@ namespace SniperRidge
         readonly List<ParticleCollisionEvent> collisions = new List<ParticleCollisionEvent>(32);
         readonly Renderer[] marks = new Renderer[MaxMarks];
         readonly float[] markTimes = new float[MaxMarks];
-        readonly MaterialPropertyBlock properties = new MaterialPropertyBlock();
+        MaterialPropertyBlock properties; // 필드 초기화에서 만들면 Unity 가 CreateImpl 예외를 내고 null 로 남는다
         int nextMark;
         float nextMarkTime;
         public static void Emit(Vector3 point, Vector3 surfaceNormal, Vector3 incoming, bool headshot)
@@ -25,6 +25,7 @@ namespace SniperRidge
         }
         void Awake()
         {
+            properties = new MaterialPropertyBlock();
             instance = this;
             texture = Pattern();
             material = new Material(Resources.Load<Shader>("Shaders/BloodParticles")) { mainTexture = texture };

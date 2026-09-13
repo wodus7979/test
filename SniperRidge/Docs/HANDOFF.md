@@ -23,6 +23,15 @@
    - P 키로 후처리를 껐다 켜서 켠 쪽이 밝기는 비슷하고 톤만 다른지 본다. 켠 쪽이 훨씬 어두우면 색보정 문제다.
 4. 고친 것은 같은 브랜치에 커밋·푸시하고 README 맨 위 섹션에 한 줄 추가.
 
+## 2026-09-13 로컬(Mac mini) 검증 결과
+- 브랜치 `claude/compassionate-meitner-qvr8kt` 를 `/Users/jjung/Documents/cowork/test` 에 클론했고 Unity 2022.3.62f3 로 열었다. 배치 모드 컴파일 검사 통과 (에셋 826개, C# 에러 0).
+- **배치 모드(-nographics) 는 Metal 셰이더 에러를 못 잡았다.** 실제 Play 에서 `CombatParticles` 가 `unityFogFactor` 재정의로 실패해 폭발이 분홍 사각형으로 나왔고, 두 안개 매크로를 `{ }` 블록으로 나눠 고쳤다. 고친 뒤 도시 FPS 폭발(섬광·불티·파편·연기)이 정상.
+- Codex 코드의 MonoBehaviour 필드 초기화 3곳(`AssaultNavigation.path`, `FlagObjectiveHud.route` 의 NavMeshPath, `BloodImpact.properties` 의 MaterialPropertyBlock)이 Unity 예외를 내고 null 로 남아 NullReference 를 수백 개 만들었다. Awake 로 옮겼다. 도시 FPS·전차전 모두 런타임 에러 0.
+- 후처리 P 비교: 켠 쪽이 약간 밝고 따뜻함. 어두워지는 문제 없음. `TerrainMatte` 는 컴파일 성공(폴백 경고 없음).
+- 스크린샷은 `Screenshots/auto_city2_on/off.png`(도시 FPS), `auto_city3_on.png`(폭발), `auto_tank2_on/off.png`(가을 구릉 전차전) — 저장소에는 없고 로컬에만 있다.
+- 사용자가 아직 보지 않은 것: 전차전 가을 구릉의 지면이 붉은 갈색 단색으로 어둡고 하늘·먼 강물은 매우 밝아 대비가 크다. Codex 의 의도인지 지형 색·노출 문제인지 사용자 판단이 필요하다.
+- 자동 실행 도구 `Assets/Editor/SniperRidgeAutoPlay.cs` 를 추가했다. 사용법은 `CLAUDE.md` 2-1 항목.
+
 ## 지금까지 한 일 (요약, 시간순)
 1. 후처리 재작성: SSAO(DepthNormals, 깊이 인식 블러), 화이트 밸런스, 리프트/감마/게인, 스플릿 토닝, 샤프닝, 그레인, 프리셋 2종.
 2. 표면 디테일 재질(SurfaceDetail) 을 단색 재질 25곳에 적용 (적 군복, 총기, 헬기, 손, 왕, 참호 철재, 차량 등).

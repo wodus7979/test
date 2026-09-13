@@ -8,7 +8,8 @@ namespace SniperRidge
     {
         GameManager game; RectTransform canvas,marker,arrow,map,bossPanel,healthFill,armorFill;
         Text label,compass,mapTitle,bossText; AssaultMapGraphic graphic;
-        readonly NavMeshPath route=new NavMeshPath(); float refresh;
+        NavMeshPath route; float refresh;
+        void Awake(){route=new NavMeshPath();} // 필드 초기화에서 NavMeshPath 를 만들면 Unity 가 예외를 낸다
         public static void Create(Transform parent,RectTransform canvas,GameManager game)
         {
             var root=new GameObject("King navigation",typeof(RectTransform));root.transform.SetParent(parent,false);

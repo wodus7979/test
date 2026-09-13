@@ -84,10 +84,12 @@ Shader "SniperRidge/CombatParticles"
                 // 위쪽이 밝은 연기: 스프라이트 uv.y 를 기준으로 음영을 넣는다.
                 col.rgb *= lerp(1.0, lerp(0.55, 1.15, i.uv.y), _TopLight);
 
+                // UNITY_APPLY_FOG 계열 매크로는 각각 unityFogFactor 지역 변수를 선언하므로 블록으로 범위를 나눈다
+                // (같은 범위에 두 번 쓰면 Metal 에서 'redefinition of unityFogFactor' 컴파일 에러).
                 fixed4 fogged = col;
-                UNITY_APPLY_FOG(i.fogCoord, fogged);
+                { UNITY_APPLY_FOG(i.fogCoord, fogged); }
                 fixed4 foggedBlack = col;
-                UNITY_APPLY_FOG_COLOR(i.fogCoord, foggedBlack, fixed4(0, 0, 0, 0));
+                { UNITY_APPLY_FOG_COLOR(i.fogCoord, foggedBlack, fixed4(0, 0, 0, 0)); }
                 return lerp(fogged, foggedBlack, _FogAdditive);
             }
             ENDCG

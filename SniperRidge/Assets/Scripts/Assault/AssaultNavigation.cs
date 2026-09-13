@@ -29,7 +29,8 @@ namespace SniperRidge
             if(owner==null||owner.IsDead){agent.enabled=false;return;}
             if(GameManager.Instance==null||!GameManager.Instance.IsPlaying)agent.isStopped=true;
         }
-        readonly NavMeshPath path=new NavMeshPath();
+        NavMeshPath path;
+        void Awake(){path=new NavMeshPath();} // 필드 초기화에서 NavMeshPath 를 만들면 Unity 가 예외를 낸다
         Vector3[] corners;
         int corner;
         float refresh;

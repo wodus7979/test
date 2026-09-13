@@ -69,3 +69,7 @@ __pycache__/
 # Generated from the bundled FPSWeaponsV2 source and 2K textures
 Assets/Resources/WeaponsV2/
 Assets/Resources/WeaponsV2.meta
+
+# 로컬 검증 산출물
+[Ss]creenshots/
+ProjectSettings/PackageManagerSettings.asset
