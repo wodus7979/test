@@ -61,7 +61,14 @@ namespace SniperRidge.EditorTools
         static void ValidateCollision()
         {
             Scene previous=SceneManager.GetActiveScene();
-            Scene fixture=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Additive);
+            bool batch=Application.isBatchMode;
+            // A batch-mode editor starts with an unsaved untitled scene, which
+            // prevents additive editor scenes from being created. Replacing the
+            // empty startup scene is safe because the process quits after this
+            // validation. Interactive validation remains additive so the user's
+            // currently open scene is preserved.
+            Scene fixture=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,
+                batch?NewSceneMode.Single:NewSceneMode.Additive);
             SceneManager.SetActiveScene(fixture);
             try
             {
@@ -82,7 +89,15 @@ namespace SniperRidge.EditorTools
                 Check(ArmorProjectile.FindTankTargets(origin,160,null,false).Count==0,"적 포탄 아군 오사 필터 오류");
                 Check(ArmorProjectile.FindTankTargets(origin,160,null,true,hidden)[hidden]==160,"직격 피해 누락");
             }
-            finally { SceneManager.SetActiveScene(previous);EditorSceneManager.CloseScene(fixture,true);Physics.SyncTransforms(); }
+            finally
+            {
+                if(!batch)
+                {
+                    SceneManager.SetActiveScene(previous);
+                    EditorSceneManager.CloseScene(fixture,true);
+                }
+                Physics.SyncTransforms();
+            }
         }
         static TankVehicle Dummy(Vector3 position)
         {

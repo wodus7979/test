@@ -108,6 +108,23 @@ namespace SniperRidge.EditorTools
             Report(BuildPipeline.BuildPlayer(options), "Builds/Windows/SniperRidge.exe");
         }
 
+        [MenuItem("Sniper Ridge/macOS 빌드")]
+        public static void BuildMacOS()
+        {
+            EnsureScene(false);
+            EnsurePlayerSettings();
+            EnsureAlwaysIncludedShaders();
+            Directory.CreateDirectory("Builds/macOS");
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = "Builds/macOS/Sniper Ridge.app",
+                target = BuildTarget.StandaloneOSX,
+                options = BuildOptions.None,
+            };
+            Report(BuildPipeline.BuildPlayer(options), "Builds/macOS/Sniper Ridge.app");
+        }
+
         // ---------- 적 모델 자동 설정 ----------
 
 

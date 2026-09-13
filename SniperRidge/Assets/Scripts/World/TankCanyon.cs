@@ -113,8 +113,8 @@ namespace SniperRidge
                 heights[z,x]=Height(x/(float)(resolution-1)*600-300,z/(float)(resolution-1)*600-300)/TerrainGenerator.MaxHeight;
             data.SetHeights(0,0,heights);
             // Brown forest litter replaces the green meadow albedo, not just its tint.
-            data.terrainLayers=new[]{Layer("forest",new Color(1f,.86f,.67f),3.2f),Layer("rock",new Color(.91f,.87f,.79f),5f),
-                Layer("dirt",new Color(1f,.91f,.77f),4f),Layer("forest",new Color(.88f,.72f,.55f),5.5f)};
+            data.terrainLayers=new[]{Layer("forest",new Color(.62f,.42f,.23f),3.2f),Layer("rock",new Color(.62f,.55f,.45f),5f),
+                Layer("dirt",new Color(.78f,.49f,.23f),4f),Layer("forest",new Color(.48f,.29f,.14f),5.5f)};
             data.alphamapResolution=alpha;var weights=new float[alpha,alpha,4];
             for(int z=0;z<alpha;z++)for(int x=0;x<alpha;x++)
             {
@@ -148,32 +148,54 @@ namespace SniperRidge
         }
         static TerrainLayer Layer(string name,Color tint,float tile)
         {
-            return new TerrainLayer{diffuseTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_albedo"),
+            return new TerrainLayer{diffuseTexture=TintedTexture(name,tint),
                 normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=.7f,
-                diffuseRemapMin=Vector4.zero,diffuseRemapMax=new Vector4(tint.r,tint.g,tint.b,1),
+                diffuseRemapMin=Vector4.zero,diffuseRemapMax=Vector4.one,
                 tileSize=Vector2.one*tile,metallic=0,smoothness=0,specular=Color.black};
+        }
+        static Texture2D TintedTexture(string name,Color tint)
+        {
+            var source=ProceduralAssets.LoadTex("Terrain/"+name+"_albedo");
+            if(source==null)return null;
+            int width=Mathf.Min(1024,source.width),height=Mathf.Min(1024,source.height);
+            var previous=RenderTexture.active;
+            var target=RenderTexture.GetTemporary(width,height,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB);
+            try
+            {
+                Graphics.Blit(source,target);RenderTexture.active=target;
+                var result=new Texture2D(width,height,TextureFormat.RGB24,true,false){name="Autumn "+name};
+                result.ReadPixels(new Rect(0,0,width,height),0,0,false);
+                var pixels=result.GetPixels32();
+                byte r=(byte)Mathf.RoundToInt(tint.r*255),g=(byte)Mathf.RoundToInt(tint.g*255),b=(byte)Mathf.RoundToInt(tint.b*255);
+                for(int i=0;i<pixels.Length;i++)
+                {
+                    Color32 p=pixels[i];p.r=(byte)(p.r*r/255);p.g=(byte)(p.g*g/255);p.b=(byte)(p.b*b/255);pixels[i]=p;
+                }
+                result.SetPixels32(pixels);result.Apply(true,true);return result;
+            }
+            finally {RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);}
         }
         static void Lighting(GameManager gm)
         {
             var sun=RenderSettings.sun;
-            if(sun!=null){sun.transform.rotation=Quaternion.Euler(27,-48,0);sun.color=new Color(1,.90f,.76f);sun.intensity=1.10f;sun.shadowStrength=.80f;}
-            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.0028f;
-            RenderSettings.fogColor=new Color(.76f,.75f,.73f);
-            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.55f,.60f,.68f);
-            RenderSettings.ambientEquatorColor=new Color(.51f,.45f,.38f);RenderSettings.ambientGroundColor=new Color(.28f,.22f,.17f);
-            RenderSettings.reflectionIntensity=.25f;
-            if(RenderSettings.skybox!=null){RenderSettings.skybox.SetFloat("_Exposure",1.12f);RenderSettings.skybox.SetFloat("_Rotation",48);}
+            if(sun!=null){sun.transform.rotation=Quaternion.Euler(27,-48,0);sun.color=new Color(1,.82f,.66f);sun.intensity=.78f;sun.shadowStrength=.86f;}
+            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.00115f;
+            RenderSettings.fogColor=new Color(.52f,.50f,.47f);
+            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.36f,.39f,.43f);
+            RenderSettings.ambientEquatorColor=new Color(.35f,.29f,.23f);RenderSettings.ambientGroundColor=new Color(.17f,.12f,.09f);
+            RenderSettings.reflectionIntensity=.18f;
+            if(RenderSettings.skybox!=null){RenderSettings.skybox.SetFloat("_Exposure",.82f);RenderSettings.skybox.SetFloat("_Rotation",48);}
             QualitySettings.shadowDistance=240;QualitySettings.lodBias=1.8f;
             var post=gm.PlayerEye.GetComponent<PostEffect>();
-            if(post!=null){post.Exposure=1.04f;post.Saturation=.90f;post.BloomIntensity=.10f;}
+            if(post!=null){post.Exposure=.74f;post.Saturation=1.06f;post.Contrast=1.08f;post.BloomIntensity=.05f;post.Vignette=.10f;}
             DynamicGI.UpdateEnvironment();
         }
         static void Dress(Terrain terrain)
         {
             var root=new GameObject("Autumn low hills").transform;var rng=new System.Random(9014);Obstacles.Clear();
-            var stone=ProceduralAssets.TexturedMaterial(new Color(.90f,.86f,.76f),ProceduralAssets.LoadTex("Terrain/rock_albedo"),ProceduralAssets.LoadTex("Terrain/rock_normal"),.85f,.035f);
-            var moss=ProceduralAssets.TexturedMaterial(new Color(.91f,.73f,.50f),ProceduralAssets.LoadTex("Terrain/forest_albedo"),ProceduralAssets.LoadTex("Terrain/forest_normal"),.5f,.015f);
-            var bark=ProceduralAssets.TexturedMaterial(new Color(.62f,.57f,.48f),ProceduralAssets.LoadTex("Nature/bark_albedo"),ProceduralAssets.LoadTex("Nature/bark_normal"),.6f,.02f);
+            var stone=ProceduralAssets.TexturedMaterial(new Color(.38f,.33f,.27f),ProceduralAssets.LoadTex("Terrain/rock_albedo"),ProceduralAssets.LoadTex("Terrain/rock_normal"),.85f,.025f);
+            var moss=ProceduralAssets.TexturedMaterial(new Color(.32f,.21f,.11f),ProceduralAssets.LoadTex("Terrain/forest_albedo"),ProceduralAssets.LoadTex("Terrain/forest_normal"),.5f,.01f);
+            var bark=ProceduralAssets.TexturedMaterial(new Color(.29f,.22f,.16f),ProceduralAssets.LoadTex("Nature/bark_albedo"),ProceduralAssets.LoadTex("Nature/bark_normal"),.6f,.015f);
             for(int row=0;row<3;row++)for(int col=0;col<3;col++)
             {
                 Vector2 p=(Node(row*4+col)+Node((row+1)*4+col+1))*.5f;
