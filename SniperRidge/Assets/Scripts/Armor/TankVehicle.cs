@@ -237,12 +237,24 @@ namespace SniperRidge
         {
             var color=destroyed ? new Color(.08f,.075f,.06f) : IsPlayer ? new Color(.38f,.43f,.27f) :
                 Appearance==TankAppearance.K2BlackPanther?new Color(.34f,.39f,.24f):new Color(.36f,.31f,.25f);
-            var block=new MaterialPropertyBlock();block.SetColor("_Color",color);block.SetColor("_BaseColor",color);
-            foreach(var renderer in GetComponentsInChildren<MeshRenderer>())
+            var block=new MaterialPropertyBlock();
+            foreach(var renderer in GetComponentsInChildren<MeshRenderer>(true))
             {
                 var materials=renderer.sharedMaterials;
                 for(int i=0;i<materials.Length;i++)
-                    if(destroyed || materials[i].name=="Armor_Grey" || materials[i].name=="K2_Camo")renderer.SetPropertyBlock(block,i);
+                {
+                    if(materials[i]==null)continue;
+                    renderer.GetPropertyBlock(block,i);
+                    // The source pack splits the hull, skirts, wheels and tracks across
+                    // several materials. Tint every slot so no white bare-metal panels
+                    // or camouflage patches remain and each tank reads as one coherent
+                    // painted vehicle. Normal and metallic maps still preserve detail.
+                    block.SetTexture("_MainTex",Texture2D.whiteTexture);
+                    block.SetTexture("_BaseMap",Texture2D.whiteTexture);
+                    block.SetTexture("_BaseColorMap",Texture2D.whiteTexture);
+                    block.SetColor("_Color",color);block.SetColor("_BaseColor",color);
+                    renderer.SetPropertyBlock(block,i);block.Clear();
+                }
             }
         }
         void OnDestroy() { if (traction != null) Destroy(traction); }
