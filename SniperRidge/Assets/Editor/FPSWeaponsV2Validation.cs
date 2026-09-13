@@ -39,7 +39,7 @@ namespace SniperRidge.EditorTools
             CheckHands(WeaponDefinition.Launcher);
             var mounted=WeaponModels.LoadPrefab("mounted_machine_gun");
             Check(mounted.transform.Find("Base/YawMount/Weapon/RearGripLeft")!=null&&mounted.transform.Find("Base/YawMount/Weapon/RearGripRight")!=null,"헬기 양손 기준점 누락");
-            Debug.Log("[Sniper Ridge] V2 무기 11종: 메시 면 방향·재질·LOD·총구·손 기준점·재장전 복귀·조준 정렬 검사 통과. Play에서 최종 화면을 확인하세요.");
+            Debug.Log("[Sniper Ridge] V2 무기 11종: 메시 면 방향·재질·LOD·총구·손 기준점·재장전 복귀·조준 정렬·경기관총 조준 구멍 검사 통과. Play에서 최종 화면을 확인하세요.");
         }
         static void CheckHands(WeaponDefinition definition)
         {
@@ -69,9 +69,54 @@ namespace SniperRidge.EditorTools
                     Vector3 local=instance.transform.InverseTransformPoint(sight.position);
                     Vector3 aim=FpsWeaponView.Offset(definition,true,instance.transform)+local;
                     Check(new Vector2(aim.x,aim.y).magnitude<.001f&&aim.z>.1f,"조준축 정렬 오류: "+definition.Id);
+                    hands.SetAiming(true);
+                    var occluder=WeaponModels.FindPart(instance.transform,definition.Id=="lmg"?"Optic":"Lens");
+                    if(occluder!=null)Check(!occluder.gameObject.activeSelf,"조준 시 시야 가림 메시가 남습니다: "+definition.Id);
+                    if(definition.Id=="lmg")
+                    {
+                        instance.transform.SetPositionAndRotation(FpsWeaponView.Offset(definition,true,instance.transform),Quaternion.identity);
+                        Check(!CenterRayBlocked(instance,out string blocker),"경기관총 조준 구멍이 메시로 막혔습니다: "+blocker);
+                    }
+                    hands.SetAiming(false);
+                    if(occluder!=null)Check(occluder.gameObject.activeSelf,"조준 해제 후 광학장비가 복원되지 않습니다: "+definition.Id);
                 }
             }
             finally{UnityEngine.Object.DestroyImmediate(instance);}
+        }
+        static bool CenterRayBlocked(GameObject weapon,out string blocker)
+        {
+            var ray=new Ray(Vector3.zero,Vector3.forward);
+            foreach(var filter in weapon.GetComponentsInChildren<MeshFilter>(false))
+            {
+                var renderer=filter.GetComponent<Renderer>();
+                if(renderer==null||!renderer.enabled)continue;
+                var vertices=filter.sharedMesh.vertices;var triangles=filter.sharedMesh.triangles;
+                for(int i=0;i<triangles.Length;i+=3)
+                {
+                    Vector3 a=filter.transform.TransformPoint(vertices[triangles[i]]);
+                    Vector3 b=filter.transform.TransformPoint(vertices[triangles[i+1]]);
+                    Vector3 c=filter.transform.TransformPoint(vertices[triangles[i+2]]);
+                    if(RayTriangle(ray,a,b,c,out float distance)&&distance>.01f&&distance<2f)
+                    {blocker=filter.name;return true;}
+                }
+            }
+            blocker="";return false;
+        }
+        static bool RayTriangle(Ray ray,Vector3 a,Vector3 b,Vector3 c,out float distance)
+        {
+            const float epsilon=.000001f;
+            Vector3 edge1=b-a,edge2=c-a,p=Vector3.Cross(ray.direction,edge2);
+            float determinant=Vector3.Dot(edge1,p);
+            if(Mathf.Abs(determinant)<epsilon){distance=0;return false;}
+            float inverse=1f/determinant;
+            Vector3 t=ray.origin-a;
+            float u=Vector3.Dot(t,p)*inverse;
+            if(u<0f||u>1f){distance=0;return false;}
+            Vector3 q=Vector3.Cross(t,edge1);
+            float v=Vector3.Dot(ray.direction,q)*inverse;
+            if(v<0f||u+v>1f){distance=0;return false;}
+            distance=Vector3.Dot(edge2,q)*inverse;
+            return distance>epsilon;
         }
         static void Check(bool ok,string message){if(!ok)throw new InvalidOperationException("[V2 무기 검사] "+message);}
     }

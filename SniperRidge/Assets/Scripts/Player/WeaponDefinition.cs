@@ -107,7 +107,7 @@ namespace SniperRidge
                 Mission = MissionType.Defense, Fire = FireMode.Auto,
                 RoundsPerMinute = 700f, BoltTime = 0f, MagSize = 100, Reserve = 900, ReloadTime = 4.5f,
                 MuzzleVelocity = 850f, DragK = 0.001f, Damage = 45f,
-                ScopeFovs = new[] { 40f, 20f }, ScopeLabels = new[] { "1.5x", "3x" }, DefaultZoomIndex = 0, HasZeroing = false,
+                ScopeFovs = new[] { 32f, 18f }, ScopeLabels = new[] { "2x", "4x" }, DefaultZoomIndex = 0, HasZeroing = false,
                 RecoilKick = 0.7f, RecoilClimb = 0.18f, SwayScoped = 0.3f, SwayHip = 1.4f, HipSpread = 3.2f, AdsSpread = 0.7f,
                 ShotVolume = 0.85f, ShotPitch = 1.1f,
                 ModelName = "02_light_machine_gun", ViewOffset = new Vector3(0.22f, -0.21f, 0.36f),
