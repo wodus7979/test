@@ -130,17 +130,18 @@ namespace SniperRidge
                 {
                     float nx=(x+.5f)/detail,nz=(z+.5f)/detail,wx=nx*600-300,wz=nz*600-300;
                     if(Mathf.Abs(wx)>190||Mathf.Abs(wz)>190||data.GetSteepness(nx,nz)>32)continue;
-                    grass[z,x]=Mathf.RoundToInt(9f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(4,10,RoadDistance(wx,wz))));
+                    // 밀도를 낮춰 높은 곳에서 풀잎이 모래 위 반짝임처럼 보이지 않게 한다.
+                    grass[z,x]=Mathf.RoundToInt(4f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(4,10,RoadDistance(wx,wz))));
                 }
                 data.SetDetailLayer(0,0,0,grass);
             }
-            terrain.heightmapPixelError=1f;terrain.detailObjectDistance=140;terrain.detailObjectDensity=1;
+            terrain.heightmapPixelError=1f;terrain.detailObjectDistance=80;terrain.detailObjectDensity=.7f;
             terrain.Flush();Dress(terrain);Lighting(gm);Physics.SyncTransforms();
         }
         static TerrainLayer Layer(string name,Color tint,float tile)
         {
             return new TerrainLayer{diffuseTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_albedo"),
-                normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=.7f,
+                normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=.4f,
                 diffuseRemapMin=Vector4.zero,diffuseRemapMax=new Vector4(tint.r,tint.g,tint.b,1),
                 tileSize=Vector2.one*tile,metallic=0,smoothness=0,specular=Color.black};
         }
@@ -152,7 +153,7 @@ namespace SniperRidge
             RenderSettings.fogColor=new Color(.76f,.75f,.73f);
             RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.55f,.60f,.68f);
             RenderSettings.ambientEquatorColor=new Color(.51f,.45f,.38f);RenderSettings.ambientGroundColor=new Color(.28f,.22f,.17f);
-            RenderSettings.reflectionIntensity=.25f;
+            RenderSettings.reflectionIntensity=.18f;
             if(RenderSettings.skybox!=null){RenderSettings.skybox.SetFloat("_Exposure",1.12f);RenderSettings.skybox.SetFloat("_Rotation",48);}
             QualitySettings.shadowDistance=240;QualitySettings.lodBias=1.8f;
             var post=gm.PlayerEye.GetComponent<PostEffect>();

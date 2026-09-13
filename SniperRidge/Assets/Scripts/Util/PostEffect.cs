@@ -130,7 +130,7 @@ namespace SniperRidge
                     SplitHighlights = new Color(.54f, .52f, .47f, 1f);
                     SplitStrength = .3f; SplitBalance = -.05f;
                     AoIntensity = .7f; AoRadius = .8f; AoBias = .06f; AoPower = 1.5f; AoMaxDistance = 70f;
-                    Sharpen = .25f; Grain = .015f;
+                    Sharpen = .15f; Grain = .01f;
                     break;
                 case PostPreset.EveningTown:
                     Exposure = 1.15f; BloomThreshold = 1.0f; BloomIntensity = .15f;
@@ -143,7 +143,7 @@ namespace SniperRidge
                     SplitHighlights = new Color(.56f, .52f, .45f, 1f);
                     SplitStrength = .35f; SplitBalance = -.08f;
                     AoIntensity = .75f; AoRadius = .7f; AoBias = .06f; AoPower = 1.5f; AoMaxDistance = 60f;
-                    Sharpen = .2f; Grain = .02f;
+                    Sharpen = .15f; Grain = .015f;
                     break;
             }
             if (mobile) { Sharpen = 0f; Grain = 0f; AoIntensity = 0f; }
