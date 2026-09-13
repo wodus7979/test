@@ -13,8 +13,16 @@ namespace SniperRidge
         {
             var pose=weapon.gameObject.AddComponent<FpsWeaponHands>();pose.rocket=definition.IsRocket;
             var rightMarker=WeaponModels.FindPart(weapon,"RightHand");var leftMarker=WeaponModels.FindPart(weapon,"LeftHand");
-            pose.right=Grip(weapon,"Trigger hand",rightMarker!=null?weapon.InverseTransformPoint(rightMarker.position):new Vector3(0,-.047f,-.172f),1);
-            pose.left=Grip(weapon,"Support and loading hand",leftMarker!=null?weapon.InverseTransformPoint(leftMarker.position):new Vector3(0,.013f,.175f),-1);
+            Vector3 rightPosition=rightMarker!=null?weapon.InverseTransformPoint(rightMarker.position):new Vector3(0,-.047f,-.172f);
+            Vector3 leftPosition=leftMarker!=null?weapon.InverseTransformPoint(leftMarker.position):new Vector3(0,.013f,.175f);
+            // Put the gloves just outside the receiver instead of burying them in it. The
+            // markers describe the mechanical grip centre; the palm itself sits outboard.
+            // The trigger hand is nearest to the camera and otherwise falls below the
+            // widescreen frame. Lift it onto the pistol grip so the fingers remain visible.
+            rightPosition+=new Vector3(.050f,.088f,-.020f);
+            leftPosition+=new Vector3(-.045f,.018f,.015f);
+            pose.right=Grip(weapon,"Trigger hand",rightPosition,1);
+            pose.left=Grip(weapon,"Support and loading hand",leftPosition,-1);
             if(definition.Id=="pistol"||definition.ModelName=="03_assault_rifle")pose.supportRotation=Quaternion.Euler(-12,0,0);
             pose.leftGlove=pose.left.GetComponentInChildren<FpsGlovedHand>();pose.rightGlove=pose.right.GetComponentInChildren<FpsGlovedHand>();
             pose.leftRest=pose.left.localPosition;pose.rightRest=pose.right.localPosition;
@@ -38,9 +46,11 @@ namespace SniperRidge
             if(pose.bolt!=null)pose.boltRest=weapon.InverseTransformPoint(pose.bolt.position);
             pose.feed=WeaponModels.FindPart(weapon,"FeedCover");if(pose.feed!=null)pose.feedRest=pose.feed.localRotation;
             pose.lens=WeaponModels.FindPart(weapon,"Lens");
-            // The generated LMG optic has closed front and rear caps in its housing mesh.
-            // Hiding only the glass still leaves that cap directly on the camera sight line.
-            pose.aimOccluder=definition.Id=="lmg"?WeaponModels.FindPart(weapon,"Optic"):pose.lens;
+            // V2 optical housings are closed display meshes. Every low-power weapon can use
+            // one of them, including the separate urban_rifle id, so clear the whole optic
+            // while ADS is active and draw the usable reticle in the HUD.
+            pose.aimOccluder=WeaponModels.FindPart(weapon,"Optic");
+            if(pose.aimOccluder==null)pose.aimOccluder=pose.lens;
             pose.Pose(-1,-1);return pose;
         }
         static Transform Grip(Transform parent,string name,Vector3 position,float side)

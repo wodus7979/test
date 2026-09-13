@@ -174,7 +174,7 @@ namespace SniperRidge
                 Description = "도시 끝의 왕 처치 · 동료 4명과 진격 · 1~4 무기 교체",
                 Fire = FireMode.Auto, RoundsPerMinute = 650, MagSize = 30, Reserve = 600, ReloadTime = 2.2f,
                 MuzzleVelocity = 900, DragK = .0012f, Damage = 42,
-                ScopeFovs = new[] { 50f }, ScopeLabels = new[] { "조준" },
+                ScopeFovs = new[] { 36f }, ScopeLabels = new[] { "2x 조준" },
                 RecoilKick = .48f, RecoilClimb = .20f, SwayScoped = .06f, SwayHip = .16f,
                 HipSpread = 1.2f, AdsSpread = .12f, ShotVolume = .75f, ShotPitch = 1,
                 ModelName = "03_assault_rifle", ViewOffset = new Vector3(.20f,-.20f,.36f),

@@ -37,7 +37,7 @@ namespace SniperRidge
             threatUntil = Mathf.Max(threatUntil, Time.time + duration);
         }
         Image[] hitLines;
-        GameObject scopeRoot, crosshair, endPanel, selectPanel, gameplayRoot;
+        GameObject scopeRoot, adsRoot, crosshair, endPanel, selectPanel, gameplayRoot;
 
         float hitTimer, killFeedTimer, introTimer, announceTimer, damageTimer;
 
@@ -89,6 +89,14 @@ namespace SniperRidge
             barTop = UiKit.Panel(scopeRoot.transform, "BarT", Color.black, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
             barBottom = UiKit.Panel(scopeRoot.transform, "BarB", Color.black, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), Vector2.zero, Vector2.zero);
             scopeRoot.SetActive(false);
+
+            // Low-power ADS keeps the weapon visible and adds a clear reflex sight picture.
+            adsRoot = new GameObject("LowPowerADS", typeof(RectTransform));
+            adsRoot.transform.SetParent(g, false);
+            UiKit.Place(adsRoot.GetComponent<RectTransform>(), center, center, center, Vector2.zero, new Vector2(300f, 300f));
+            var adsImage = UiKit.Panel(adsRoot.transform, "Reflex reticle", white, center, center, center, Vector2.zero, new Vector2(300f, 300f));
+            adsImage.GetComponent<Image>().sprite = ProceduralAssets.SpriteFrom(ProceduralAssets.ReflexReticle());
+            adsRoot.SetActive(false);
 
             // 십자선
             crosshair = new GameObject("Crosshair", typeof(RectTransform));
@@ -339,9 +347,11 @@ namespace SniperRidge
             hpFill.localScale = new Vector3(Mathf.Clamp01(gm.Health.Fraction), 1f, 1f);
             breathFill.localScale = new Vector3(Mathf.Clamp01(p.Breath), 1f, 1f);
 
-            bool scoped = p.IsScoped && p.CurrentScopeFov < 20f;   // 저배율 광학(2x 등)은 오버레이 없이 총 모델로 조준
+            bool scoped = p.IsScoped && p.CurrentScopeFov < 20f;
+            bool lowPowerAds = p.IsScoped && !scoped && p.Weapon != null && !p.Weapon.IsRocket;
             if (scopeRoot.activeSelf != scoped) scopeRoot.SetActive(scoped);
-            bool showCross = !scoped;
+            if (adsRoot.activeSelf != lowPowerAds) adsRoot.SetActive(lowPowerAds);
+            bool showCross = !scoped && !lowPowerAds;
             if (crosshair.activeSelf != showCross) crosshair.SetActive(showCross);
             if (scoped) LayoutScope();
 

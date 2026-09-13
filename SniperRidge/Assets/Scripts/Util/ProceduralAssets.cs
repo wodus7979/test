@@ -193,6 +193,28 @@ namespace SniperRidge
             return tex;
         }
 
+        /// <summary>Transparent low-power optic ring used while a first-person weapon is aimed.</summary>
+        public static Texture2D ReflexReticle(int size = 256)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                { name = "Low-power ADS reticle", wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color[size * size];
+            float center = (size - 1) * .5f, radius = size * .24f;
+            var ring = new Color(.92f, .95f, .89f, .82f);
+            var dot = new Color(1f, .18f, .08f, .98f);
+            for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+            {
+                float dx = x - center, dy = y - center, distance = Mathf.Sqrt(dx * dx + dy * dy);
+                bool circle = Mathf.Abs(distance - radius) < 1.25f;
+                bool tick = (Mathf.Abs(dx) < 1.15f && Mathf.Abs(Mathf.Abs(dy) - radius) < 8f)
+                         || (Mathf.Abs(dy) < 1.15f && Mathf.Abs(Mathf.Abs(dx) - radius) < 8f);
+                bool centreDot = distance < 3.2f;
+                pixels[y * size + x] = centreDot ? dot : (circle || tick ? ring : Color.clear);
+            }
+            tex.SetPixels(pixels); tex.Apply(false);
+            return tex;
+        }
+
         /// <summary>지형 디테일용 풀잎 빌보드 텍스처 (여러 가닥, 알파 있음).</summary>
         public static Texture2D GrassBladeTexture(int w = 64, int h = 128, Color? bladeColor = null)
         {

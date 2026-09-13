@@ -39,7 +39,7 @@ namespace SniperRidge.EditorTools
             CheckHands(WeaponDefinition.Launcher);
             var mounted=WeaponModels.LoadPrefab("mounted_machine_gun");
             Check(mounted.transform.Find("Base/YawMount/Weapon/RearGripLeft")!=null&&mounted.transform.Find("Base/YawMount/Weapon/RearGripRight")!=null,"헬기 양손 기준점 누락");
-            Debug.Log("[Sniper Ridge] V2 무기 11종: 메시 면 방향·재질·LOD·총구·손 기준점·재장전 복귀·조준 정렬·경기관총 조준 구멍 검사 통과. Play에서 최종 화면을 확인하세요.");
+            Debug.Log("[Sniper Ridge] V2 무기 11종: 메시 면 방향·재질·LOD·총구·손 기준점·재장전 복귀·조준 정렬·모든 저배율 조준선 검사 통과. Play에서 최종 화면을 확인하세요.");
         }
         static void CheckHands(WeaponDefinition definition)
         {
@@ -70,12 +70,13 @@ namespace SniperRidge.EditorTools
                     Vector3 aim=FpsWeaponView.Offset(definition,true,instance.transform)+local;
                     Check(new Vector2(aim.x,aim.y).magnitude<.001f&&aim.z>.1f,"조준축 정렬 오류: "+definition.Id);
                     hands.SetAiming(true);
-                    var occluder=WeaponModels.FindPart(instance.transform,definition.Id=="lmg"?"Optic":"Lens");
+                    var occluder=WeaponModels.FindPart(instance.transform,"Optic");
+                    if(occluder==null)occluder=WeaponModels.FindPart(instance.transform,"Lens");
                     if(occluder!=null)Check(!occluder.gameObject.activeSelf,"조준 시 시야 가림 메시가 남습니다: "+definition.Id);
-                    if(definition.Id=="lmg")
+                    if(definition.ScopeFovs[definition.DefaultZoomIndex]>=20f)
                     {
                         instance.transform.SetPositionAndRotation(FpsWeaponView.Offset(definition,true,instance.transform),Quaternion.identity);
-                        Check(!CenterRayBlocked(instance,out string blocker),"경기관총 조준 구멍이 메시로 막혔습니다: "+blocker);
+                        Check(!CenterRayBlocked(instance,out string blocker),"저배율 조준선이 메시로 막혔습니다: "+definition.Id+"/"+blocker);
                     }
                     hands.SetAiming(false);
                     if(occluder!=null)Check(occluder.gameObject.activeSelf,"조준 해제 후 광학장비가 복원되지 않습니다: "+definition.Id);

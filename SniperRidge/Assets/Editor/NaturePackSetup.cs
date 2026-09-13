@@ -14,7 +14,7 @@ namespace SniperRidge.EditorTools
     public static class NaturePackSetup
     {
         const string Output = "Assets/Resources/NaturePack";
-        const string Revision = "pc-nature-1";
+        const string Revision = "pc-nature-2-standard-double-sided";
         static readonly string[] Names = { "pine_1", "pine_2", "broadleaf_1", "broadleaf_2", "bush", "boulder_1", "boulder_2", "grass_short", "grass_tall" };
         static string Source => Path.GetFullPath(Path.Combine(Application.dataPath, "../../nature_fps_asset_pack/Unity/Assets/NatureFPSPack"));
         [Serializable] public class Part { public int mat; public float[] p, n, uv; }
@@ -50,8 +50,7 @@ namespace SniperRidge.EditorTools
         {
             if (!Directory.Exists(Source)) throw new DirectoryNotFoundException("저장소 전체를 받아 주세요. 자연 팩 경로: " + Source);
             var standard = Shader.Find("Standard");
-            var foliage = Shader.Find("SniperRidge/Foliage");
-            if (standard == null || foliage == null) throw new InvalidOperationException("자연 에셋 셰이더가 아직 준비되지 않았습니다.");
+            if (standard == null) throw new InvalidOperationException("표준 자연 에셋 셰이더가 아직 준비되지 않았습니다.");
             foreach (string folder in new[] { Output, Output + "/Meshes", Output + "/Materials", Output + "/Prefabs", Output + "/Textures" })
                 Directory.CreateDirectory(folder);
             AssetDatabase.Refresh();
@@ -60,7 +59,10 @@ namespace SniperRidge.EditorTools
             for (int i = 0; i < materials.Length; i++)
             {
                 var info = file.materials[i];
-                var mat = new Material(info.doubleSided ? foliage : standard) { name = info.name, enableInstancing = true };
+                // Standard is present on every supported desktop build. Leaf planes become
+                // double-sided in the generated mesh below, avoiding platform-specific pink
+                // fallback materials while keeping natural PBR colour and lighting.
+                var mat = new Material(standard) { name = info.name, enableInstancing = true };
                 mat.color = new Color(info.color[0], info.color[1], info.color[2]).gamma;
                 mat.SetFloat("_Glossiness", 1f - info.roughness);
                 mat.SetFloat("_Metallic", info.metallic);
@@ -89,7 +91,7 @@ namespace SniperRidge.EditorTools
                         {
                             var child = new GameObject("LOD" + l);
                             child.transform.SetParent(root.transform, false);
-                            var mesh = SaveAsset(MakeMesh(model.lods[l], model.name + "_LOD" + l), Output + "/Meshes/" + model.name + "_LOD" + l + ".asset");
+                            var mesh = SaveAsset(MakeMesh(model.lods[l], model.name + "_LOD" + l, file.materials), Output + "/Meshes/" + model.name + "_LOD" + l + ".asset");
                             child.AddComponent<MeshFilter>().sharedMesh = mesh;
                             var renderer = child.AddComponent<MeshRenderer>();
                             var slots = new Material[model.lods[l].parts.Length];
@@ -143,7 +145,7 @@ namespace SniperRidge.EditorTools
         }
 
         static Vector3 Convert(float[] a, int i) => new Vector3(a[i], a[i + 1], -a[i + 2]);
-        static Mesh MakeMesh(Level level, string name)
+        static Mesh MakeMesh(Level level, string name, MaterialInfo[] materialInfo)
         {
             var vertices = new List<Vector3>();
             var normals = new List<Vector3>();
@@ -154,7 +156,8 @@ namespace SniperRidge.EditorTools
                 if (part.p.Length % 9 != 0 || part.n.Length != part.p.Length || part.uv.Length * 3 != part.p.Length * 2)
                     throw new InvalidDataException("Invalid nature mesh: " + name);
                 int start = vertices.Count, count = part.p.Length / 3;
-                var indices = new int[count];
+                bool doubleSided = materialInfo[part.mat].doubleSided;
+                var indices = new int[doubleSided ? count * 2 : count];
                 for (int i = 0; i < count; i++)
                 {
                     vertices.Add(Convert(part.p, i * 3));
@@ -163,6 +166,13 @@ namespace SniperRidge.EditorTools
                     // Reflecting Z changes handedness: reverse each triangle with the transformed normals.
                     indices[i] = start + (i / 3) * 3 + (i % 3 == 1 ? 2 : i % 3 == 2 ? 1 : 0);
                 }
+                if (doubleSided)
+                    for (int i = 0; i < count; i += 3)
+                    {
+                        indices[count + i] = indices[i];
+                        indices[count + i + 1] = indices[i + 2];
+                        indices[count + i + 2] = indices[i + 1];
+                    }
                 triangles.Add(indices);
             }
             var mesh = new Mesh { name = name, indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
