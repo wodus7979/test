@@ -72,11 +72,12 @@ namespace SniperRidge
                     savedNormalScale = new float[layers.Length];
                     for (int i = 0; i < layers.Length; i++) savedNormalScale[i] = layers[i].normalScale;
                 }
-                for (int i = 0; i < layers.Length; i++) layers[i].normalScale = diagnostic == 2 ? 0f : savedNormalScale[i];
+                // 기본값이 이미 0 이므로 진단 2 는 반대로 노멀맵을 켜서 비교한다.
+                for (int i = 0; i < layers.Length; i++) layers[i].normalScale = diagnostic == 2 ? .5f : savedNormalScale[i];
                 terrain.drawTreesAndFoliage = diagnostic != 3;
                 terrain.Flush();
             }
-            string[] names = { "진단 0: 정상", "진단 1: 태양 그림자 끔", "진단 2: 지형 노멀맵 끔", "진단 3: 지형 풀/나무 끔" };
+            string[] names = { "진단 0: 정상", "진단 1: 태양 그림자 끔", "진단 2: 지형 노멀맵 켬 (비교용)", "진단 3: 지형 풀/나무 끔" };
             Notice(names[diagnostic]);
         }
 

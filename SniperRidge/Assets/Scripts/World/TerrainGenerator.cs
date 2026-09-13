@@ -97,10 +97,12 @@ namespace SniperRidge
                 tileSize = new Vector2(tile, tile),
                 smoothness = 0f, metallic = 0f, specular = Color.black,
             };
+            // 지형 노멀맵은 낮은 태양 아래서 반사광을 흩어 바닥 전체가 반짝이는 원인이었다 (진단 키 L 로 확인).
+            // 텍스처는 연결해 두되 강도 0 으로 평평하게 둔다. 필요하면 진단 키로 다시 비교할 수 있다.
             if (normal != null)
             {
                 layer.normalMapTexture = normal;
-                layer.normalScale = .4f;
+                layer.normalScale = 0f;
             }
             return layer;
         }

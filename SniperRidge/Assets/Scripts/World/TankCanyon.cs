@@ -141,7 +141,7 @@ namespace SniperRidge
         static TerrainLayer Layer(string name,Color tint,float tile)
         {
             return new TerrainLayer{diffuseTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_albedo"),
-                normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=.4f,
+                normalMapTexture=ProceduralAssets.LoadTex("Terrain/"+name+"_normal"),normalScale=0f, // 노멀맵 반짝임 방지
                 diffuseRemapMin=Vector4.zero,diffuseRemapMax=new Vector4(tint.r,tint.g,tint.b,1),
                 tileSize=Vector2.one*tile,metallic=0,smoothness=0,specular=Color.black};
         }
