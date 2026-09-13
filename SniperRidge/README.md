@@ -13,6 +13,14 @@
 
 ### 다른 PC에서 실행
 
+Unity 가 설치된 PC 에서 컴파일만 빠르게 확인하려면 (에디터를 닫은 상태에서):
+
+```bash
+SniperRidge/Tools/unity_compile_check.sh
+```
+
+Unity 를 배치 모드로 열어 C#·셰이더 컴파일 에러를 `SniperRidge/Logs/compile_check.log` 에 남기고 요약을 출력합니다. Unity 경로를 못 찾으면 `UNITY=/Applications/Unity/Hub/Editor/2022.3.62f3/Unity.app/Contents/MacOS/Unity` 처럼 지정하세요.
+
 Unity를 닫고 저장소에서:
 
 ```bash
