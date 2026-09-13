@@ -280,7 +280,7 @@ namespace SniperRidge
             launcherHelp.gameObject.SetActive(p.IsMounted || !p.InTank && !p.IsFreeRoam);
             windArrow.gameObject.SetActive(!p.IsFreeRoam);
             grenadeCount.gameObject.SetActive(!p.IsMounted && !p.InTank);
-            if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  Space 로켓 회피  |  우클릭 확대  |  R 탄띠 교체  |  헬기 자동 선회";
+            if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  Space 로켓 회피  |  우클릭 확대  |  R 탄띠 교체  |  옥상 확보 후 자동 착륙";
             grenadeCount.text = string.Format(p.IsFreeRoam?"[G] 수류탄 {0}개 · 누르고 조준":"[W] 수류탄 {0}개 · 누르고 조준", p.Grenades.Count);
             grenadeAim.text = p.Grenades.IsAiming ? p.Grenades.AimLabel : "";
             grenadeAim.color = p.Grenades.ValidTarget ? new Color(.55f, 1f, .65f) : new Color(1f, .55f, .3f);
@@ -289,8 +289,8 @@ namespace SniperRidge
             if(p.IsMounted&&gm.Flight!=null)
             {
                 launcherButton.interactable=gm.Flight.CanDodge;
-                launcherLabel.text=gm.Flight.IsEvading?"회피 기동 중":gm.Flight.DodgeCooldown>0?"회피 재사용 "+gm.Flight.DodgeCooldown.ToString("0.0")+"초":"[SPACE] 로켓 회피";
-                launcherHelp.text=gm.Flight.IncomingRocket?"로켓 접근! 지금 회피 버튼을 누르세요":"로켓 경고가 뜨면 Space 또는 버튼";
+                launcherLabel.text=gm.Flight.IsLandingOrBoarding?"옥상 착륙·탑승 중":gm.Flight.IsEvading?"회피 기동 중":gm.Flight.DodgeCooldown>0?"회피 재사용 "+gm.Flight.DodgeCooldown.ToString("0.0")+"초":"[SPACE] 로켓 회피";
+                launcherHelp.text=gm.Flight.IsLandingOrBoarding?"안전 확보된 옥상에서 구조 진행":gm.Flight.IncomingRocket?"로켓 접근! 지금 회피 버튼을 누르세요":"로켓 경고가 뜨면 Space 또는 버튼";
             }
             string posture = p.IsHidden ? "엄폐 중 · 키를 놓으면 일어섭니다" :
                 p.CanFireFromCover ? "노출 중 · C/Ctrl로 숨기 / A·D로 피하기" : "자세 전환 중";
@@ -300,7 +300,7 @@ namespace SniperRidge
                     : "위치 발각 · 적 반격 중")
                 : "적이 사격하며 접근합니다 · 엄폐 후 반격";
             coverText.text = p.IsMounted
-                ? string.Format("헬기 구조 선회 · 고도 {0:0}m / 속도 {1:0}km/h\n{2}",gm.Flight.Altitude,gm.Flight.Velocity.magnitude*3.6f,gm.Rescue!=null?gm.Rescue.Status:"구조 지점 탐색")
+                ? string.Format("도시 구조 비행 · 고도 {0:0}m / 속도 {1:0}km/h\n{2}",gm.Flight.Altitude,gm.Flight.Velocity.magnitude*3.6f,gm.Rescue!=null?gm.Rescue.Status:"옥상 구조 지점 탐색")
                 : posture + "\n" + contact;
             coverText.color = p.IsHidden ? new Color(.55f, 1f, .7f) : new Color(1f, .8f, .45f);
             if (gm.IsPlaying && Time.time < threatUntil)

@@ -127,6 +127,7 @@ namespace SniperRidge
             if(!weapon.IsTank&&!WeaponModels.IsReady)
             {Debug.LogError("[Sniper Ridge] V2 무기 생성이 필요합니다. Sniper Ridge → V2 무기 11종 생성 메뉴를 실행하세요.");return;}
             if (weapon.IsAssault) map = BattlefieldMap.City;
+            if (weapon.IsMounted) map = BattlefieldMap.City;
             if (weapon.IsTank)
             {
                 map = BattlefieldMap.Field;
@@ -171,7 +172,7 @@ namespace SniperRidge
             {
                 Health.Configure(5f, 6f);
                 Rescue=HelicopterRescueMission.Create(this);
-                Hud.OnMissionStart("헬기 구조 작전 · 동료 20명.\n4개 구조 지점의 경계병을 위에서 제거하세요.\n지점이 안전해지면 헬기가 접근해 5명씩 구조합니다.\n적 로켓 경고가 뜨면 Space 또는 회피 버튼을 누르세요.");
+                Hud.OnMissionStart("도시 헬기 구조 작전 · 동료 20명\n확장된 전투 구역의 옥상 4곳을 차례로 확보하세요.\n경계병 제거 후 옥상에 착륙하여 5명씩 태웁니다.\n연기 꼬리가 보이는 적 로켓은 Space로 회피하세요.");
             }
             else if (Mission == MissionType.Sniper)
             {

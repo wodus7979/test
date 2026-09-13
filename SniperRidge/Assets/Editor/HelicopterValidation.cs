@@ -23,8 +23,13 @@ namespace SniperRidge.EditorTools
                 "중기관총 탄띠 설정 오류");
             Check(HelicopterRescueMission.TotalSurvivors==20&&HelicopterRescueMission.SiteCount==4&&HelicopterRescueMission.SurvivorsPerSite==5,
                 "구조 인원/지점 설정 오류");
+            Check(HelicopterRescueMission.GuardsPerSite>=4&&LevelBuilder.HelicopterEnemyScale>=2.8f,
+                "헬기전 경계병 수 또는 가시 크기가 부족합니다.");
             Check(HelicopterFlight.DodgeDuration>=3.5f&&HelicopterFlight.DodgeCooldownSeconds>HelicopterFlight.DodgeDuration,
                 "로켓 도착 시점까지 유지되는 회피 기동 설정이 아닙니다.");
+            Check(HelicopterFlight.CityRadius>=140f&&HelicopterFlight.CityAltitude>=80f&&HelicopterFlight.ApproachSeconds>=7f,
+                "확장 도시 선회 또는 옥상 착륙 설정이 누락됐습니다.");
+            Check(InfantryRocket.FlightSpeed<=45f,"적 로켓이 육안으로 확인하기 전에 도착합니다.");
             foreach (var map in new[] { BattlefieldMap.Field, BattlefieldMap.City })
                 for (int frame = 0; frame < 520; frame++)
                 {
@@ -33,14 +38,15 @@ namespace SniperRidge.EditorTools
                     var inward = HelicopterFlight.Centre(map) - position; inward.y = 0f;
                     var rightDoor = HelicopterFlight.Heading(time) * Vector3.right;
                     Check(Vector3.Dot(rightDoor, inward.normalized) > .995f, "옆문이 선회 바깥쪽을 향합니다.");
-                    Check(Vector3.Distance(position, HelicopterFlight.Position(map, time + .1f)) < 1.2f,
+                    Check(Vector3.Distance(position, HelicopterFlight.Position(map, time + .1f)) < 1.3f,
                         "선회 중 순간 이동");
                 }
-            foreach(var map in new[]{BattlefieldMap.Field,BattlefieldMap.City})for(int i=0;i<HelicopterRescueMission.SiteCount;i++)
+            for(int i=0;i<HelicopterRescueMission.SiteCount;i++)
             {
-                var site=HelicopterRescueMission.Site(map,i);var centre=HelicopterFlight.Centre(map);site.y=centre.y;
-                float radial=Vector3.Distance(site,centre),orbit=map==BattlefieldMap.City?HelicopterFlight.CityRadius:HelicopterFlight.FieldRadius;
-                Check(Mathf.Abs(orbit-radial)<=HelicopterRescueMission.PickupRadius,"구조 지점에 헬기가 접근할 수 없습니다.");
+                var site=HelicopterRescueMission.Site(BattlefieldMap.City,i);
+                Check(site.y>CityLayout.BaseY+18f&&Mathf.Abs(site.x)>90f,"확장 도시의 실제 옥상 구조 지점이 아닙니다.");
+                for(int j=0;j<i;j++)Check(Vector3.Distance(site,HelicopterRescueMission.Site(BattlefieldMap.City,j))>100f,
+                    "옥상 구조 지점이 너무 가깝습니다.");
             }
             foreach (var name in new[] { "helicopter_rotor", "helicopter_engine", "shot_hmg", "shot_hmg_02", "shot_hmg_03", "shot_hmg_04" })
             {
@@ -56,6 +62,7 @@ namespace SniperRidge.EditorTools
             {
                 Check(game.Flight != null && game.Player.IsMounted, "헬기 사수 연결 누락");
                 Check(game.Rescue!=null&&game.Rescue.Rescued<=HelicopterRescueMission.TotalSurvivors,"헬기 구조 임무 연결 누락");
+                Check(game.Map==BattlefieldMap.City,"옥상 구조 임무가 도시 맵을 사용하지 않습니다.");
                 Check(game.Player.transform.parent == game.Flight.GunnerStation, "사수가 기체에 고정되지 않았습니다.");
                 var muzzle = game.Flight.GunnerStation.Find("Mounted Heavy Machine Gun/Base/YawMount/Weapon/Muzzle");
                 Check(muzzle != null, "중기관총 총구 누락");

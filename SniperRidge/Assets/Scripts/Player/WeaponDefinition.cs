@@ -151,7 +151,7 @@ namespace SniperRidge
             new WeaponDefinition
             {
                 Id = "hmg", Name = "헬기 중기관총", IsMounted = true,
-                Description = "헬기 옆문 중기관총 · 동료 20명 구조 · Space 로켓 회피",
+                Description = "확장 도시 헬기전 · 옥상 착륙으로 동료 20명 구조 · Space 로켓 회피",
                 Mission = MissionType.Helicopter, Fire = FireMode.Auto,
                 RoundsPerMinute = 600f, MagSize = 250, Reserve = 2000, ReloadTime = 4f,
                 MuzzleVelocity = 890f, DragK = .0006f, Damage = 125f,

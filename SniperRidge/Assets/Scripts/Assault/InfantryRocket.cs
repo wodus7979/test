@@ -4,10 +4,12 @@ namespace SniperRidge
 {
     public sealed class InfantryRocket:MonoBehaviour
     {
+        public const float FlightSpeed=42f;
         EnemySoldier shooter;
         Vector3 position,direction;
         float age;
         LineRenderer trail;
+        ParticleSystem smoke;
         public static void Launch(EnemySoldier owner,Vector3 from,Vector3 target)
         {
             foreach(var collider in Physics.OverlapSphere(from,.025f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))
@@ -15,8 +17,12 @@ namespace SniperRidge
             if(owner.Combat!=null)owner.Combat.RecordShot();
             var go=new GameObject("Infantry rocket");var rocket=go.AddComponent<InfantryRocket>();
             rocket.shooter=owner;rocket.position=from;rocket.direction=(target-from).normalized;go.transform.position=from;
+            go.transform.rotation=Quaternion.LookRotation(rocket.direction);
+            RocketEffects.BuildBody(go.transform);
+            var body=go.transform.Find("RocketVisual");if(body!=null)body.localScale*=2.4f;
+            rocket.smoke=RocketEffects.Trail(go.transform);
             rocket.trail=go.AddComponent<LineRenderer>();rocket.trail.positionCount=2;
-            rocket.trail.startWidth=.14f;rocket.trail.endWidth=.05f;rocket.trail.sharedMaterial=Effects.Unlit(new Color(1f,.55f,.15f));
+            rocket.trail.startWidth=.34f;rocket.trail.endWidth=.08f;rocket.trail.sharedMaterial=Effects.Unlit(new Color(1f,.55f,.12f));
             rocket.trail.SetPosition(0,from);rocket.trail.SetPosition(1,from);
         }
         void LateUpdate()
@@ -24,7 +30,7 @@ namespace SniperRidge
             var gm=GameManager.Instance;
             if(gm==null||!gm.IsPlaying){Destroy(gameObject);return;}
             age+=Time.deltaTime;if(age>6){Destroy(gameObject);return;}
-            var next=position+direction*55f*Time.deltaTime;
+            var next=position+direction*FlightSpeed*Time.deltaTime;
             bool wall=EnemyProjectile.WorldHit(position,next,shooter,out var hit);
             if(shooter!=null&&!shooter.IsAlly)
             {
@@ -34,7 +40,7 @@ namespace SniperRidge
                 {Explode(position+direction*distance);return;}
             }
             if(wall){Explode(hit.point+hit.normal*.1f);return;}
-            trail.SetPosition(0,next-direction*2f);trail.SetPosition(1,next);position=next;transform.position=position;
+            trail.SetPosition(0,next-direction*5f);trail.SetPosition(1,next);position=next;transform.position=position;
         }
         void Explode(Vector3 centre)
         {
@@ -46,6 +52,7 @@ namespace SniperRidge
             if(!friendly && distance<RocketProjectile.BlastRadius &&
                 !EnemyProjectile.WorldHit(centre,gm.Player.AimPoint,shooter,out _))
                 gm.Health.TakeDamage(RocketProjectile.BlastDamage(distance,55f));
+            if(smoke!=null){smoke.transform.SetParent(null,true);var emission=smoke.emission;emission.enabled=false;Destroy(smoke.gameObject,2f);}
             Destroy(gameObject);
         }
     }

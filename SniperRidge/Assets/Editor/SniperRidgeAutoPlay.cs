@@ -32,7 +32,7 @@ namespace SniperRidge.EditorTools
         static Dictionary<string, string> request;
         static readonly List<string> errors = new List<string>();
         static readonly List<string> results = new List<string>();
-        static bool logHooked;
+        static bool logHooked,scenarioPrepared,rocketPrepared;
 
         static SniperRidgeAutoPlay()
         {
@@ -107,12 +107,31 @@ namespace SniperRidge.EditorTools
             if (phase == "deployed")
             {
                 var gm = UnityEngine.Object.FindObjectOfType<GameManager>();
+                if(!scenarioPrepared&&Int("heli_clear",0)==1&&now-phaseStart>1.5)
+                {
+                    int cleared=0;
+                    foreach(var enemy in UnityEngine.Object.FindObjectsOfType<EnemySoldier>())
+                        if(enemy!=null&&!enemy.IsDead&&enemy.name.StartsWith("Rooftop_1_Guard_"))
+                        {enemy.Kill(false,Vector3.forward);gm.OnEnemyHit(enemy,false,0,true,false);cleared++;}
+                    results.Add("첫 옥상 경계병 제거: "+cleared);scenarioPrepared=true;
+                }
+                if(!rocketPrepared&&Int("heli_rocket",0)==1&&now-phaseStart>Mathf.Max(2,Int("wait",8)-1))
+                {
+                    foreach(var enemy in UnityEngine.Object.FindObjectsOfType<EnemySoldier>())
+                        if(enemy!=null&&!enemy.IsDead&&enemy.Role==EnemyRole.RocketTrooper)
+                        {InfantryRocket.Launch(enemy,enemy.Muzzle,gm.Player.AimPoint);results.Add("검증용 적 로켓 발사");break;}
+                    rocketPrepared=true;
+                }
                 if (step == 0)
                 {
                     if (gm != null && gm.IsSelecting && now - phaseStart > 3)
                     { Finish("출전이 거부됨 (에셋 미생성 등). 시작 메뉴 설명 문구와 Console 을 확인"); return; }
                     if (now - phaseStart < Int("wait", 8)) return;
                     step = 1; phaseStart = now;
+                    if(Int("heli_clear",0)==1&&gm!=null&&gm.Flight!=null&&gm.Rescue!=null)
+                        results.Add("옥상 구조 상태: 착륙="+gm.Flight.IsOnPad+", 접근="+gm.Flight.IsApproachingPad+
+                            ", 탑승="+Mathf.RoundToInt(gm.Rescue.BoardingProgress*100f)+"%, 고도="+gm.Flight.Altitude.ToString("0.0")+"m");
+                    if(Int("heli_rocket",0)==1)results.Add("화면 내 적 로켓: "+UnityEngine.Object.FindObjectsOfType<InfantryRocket>().Length);
                     if (Int("explosion", 0) == 1)
                     {
                         var cam = Camera.main;
@@ -186,7 +205,7 @@ namespace SniperRidge.EditorTools
             catch (Exception ex) { Debug.LogWarning("[Sniper Ridge AutoPlay] 결과 저장 실패: " + ex.Message); }
             Debug.Log("[Sniper Ridge AutoPlay] " + why);
             bool quit = request == null || Int("quit", 1) == 1;
-            Phase = ""; request = null; step = 0;
+            Phase = ""; request = null; step = 0;scenarioPrepared=false;rocketPrepared=false;
             if (logHooked) { Application.logMessageReceived -= OnLog; logHooked = false; }
             if (quit && EditorApplication.isPlaying) EditorApplication.ExitPlaymode();
         }

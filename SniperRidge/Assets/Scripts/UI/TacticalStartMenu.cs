@@ -300,10 +300,10 @@ namespace SniperRidge
             if (air)
             {
                 weaponType.text = "공중 화력  /  옆문 거치식 중기관총";
-                missionTitle.text = city ? "도시 공중 구조" : "들판 공중 구조";
-                objective.text = "4개 구조 지점의 경계병을 제거하고\n동료 20명을 5명씩 구조하세요.";
+                missionTitle.text = "도시 옥상 공중 구조";
+                objective.text = "확장 도시의 옥상 4곳을 확보하고\n착륙하여 동료 20명을 5명씩 태우세요.";
                 range.text = city ? "고도 66 m  /  선회 52초" : "고도 44 m  /  선회 52초";
-                rule.text = "적 로켓 경고 시 Space 회피\n안전해진 구조 지점 위로 접근하세요.";
+                rule.text = "연기 꼬리가 보이는 적 로켓은 Space 회피\n옥상 경계병 제거 후 자동 접근·착륙합니다.";
             }
             controls.text = air ? "마우스  조준     좌클릭  연사     Space  로켓 회피     우클릭  확대     R  탄띠 교체"
                 : "C / Ctrl  엄폐     A / D  좌우 이동     우클릭  조준     R  재장전";

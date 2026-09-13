@@ -78,6 +78,7 @@ namespace SniperRidge
 
             foreach (var building in CityLayout.Data.buildings)
                 Place(building.asset, building.Position, building.yaw);
+            if(gm.Mission==MissionType.Helicopter)BuildHelicopterDistrict();
             // Road slabs start beyond the dugout; props share the same data as the geometry checks.
             foreach (var prop in CityLayout.Data.props)
                 Place(prop.asset, new Vector3(prop.x, prop.y, prop.z), prop.yaw,
@@ -91,6 +92,24 @@ namespace SniperRidge
             // All building walls, roofs, parapets and props retain their original solid colliders.
             Physics.SyncTransforms();
             Debug.Log("[Sniper Ridge] 도시 전장 생성: 도로·상가·오피스, 옥상 사격 진지, 콘크리트 검문소.");
+        }
+        void BuildHelicopterDistrict()
+        {
+            // Four broad mid-rise roofs form the extraction route. Extra blocks extend the
+            // skyline so the aircraft flies through a full district instead of one small block.
+            var landingBlocks=new[]{
+                new Vector3(-104,CityLayout.BaseY,-104),new Vector3(100,CityLayout.BaseY,-75),
+                new Vector3(-105,CityLayout.BaseY,55),new Vector3(98,CityLayout.BaseY,92)};
+            foreach(var point in landingBlocks)Place("office_midrise",point,180f);
+            var outerBlocks=new[]{
+                new Vector3(-145,CityLayout.BaseY,-52),new Vector3(-146,CityLayout.BaseY,28),
+                new Vector3(-62,CityLayout.BaseY,-138),new Vector3(50,CityLayout.BaseY,-139),
+                new Vector3(148,CityLayout.BaseY,-22),new Vector3(145,CityLayout.BaseY,55),
+                new Vector3(-55,CityLayout.BaseY,137),new Vector3(47,CityLayout.BaseY,140)};
+            for(int i=0;i<outerBlocks.Length;i++)Place(i%3==0?"apartment_slab":"office_midrise",outerBlocks[i],i<4?180f:0f);
+            var warehouses=new[]{new Vector3(-142,CityLayout.BaseY,-118),new Vector3(143,CityLayout.BaseY,-112),
+                new Vector3(-143,CityLayout.BaseY,112),new Vector3(140,CityLayout.BaseY,137)};
+            foreach(var point in warehouses)Place("warehouse",point,90f);
         }
         void AddPostCover(EnemySpawn spawn)
         {

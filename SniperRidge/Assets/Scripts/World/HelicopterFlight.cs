@@ -2,39 +2,51 @@ using UnityEngine;
 
 namespace SniperRidge
 {
-    /// <summary>Automatic right-door orbit. The player aims locally within the open door.</summary>
+    /// <summary>Large automatic combat circuit with scripted rooftop approaches and departures.</summary>
     [DefaultExecutionOrder(-200)]
     public sealed class HelicopterFlight : MonoBehaviour
     {
-        public const float OrbitSeconds = 52f;
-        public const float CityRadius = 64f, FieldRadius = 62f;
-        public const float CityAltitude = 66f, FieldAltitude = 44f;
+        public const float OrbitSeconds = 82f;
+        public const float CityRadius = 148f, FieldRadius = 132f;
+        public const float CityAltitude = 88f, FieldAltitude = 64f;
         public const float Traverse = 50f, MinElevation = 5f, MaxDepression = 55f;
         public const float DodgeDuration=4f,DodgeCooldownSeconds=6.5f;
+        public const float ApproachSeconds=8f,DepartureSeconds=6f,LandingRootHeight=1.36f;
+        enum FlightMode { Circuit, Approach, OnPad, Departure }
+
         public Transform GunnerStation { get; private set; }
         public Vector3 Velocity { get; private set; }
-        public float Altitude => gm.Map == BattlefieldMap.City ? CityAltitude : FieldAltitude;
+        public float Altitude => Mathf.Max(0f,transform.position.y-TerrainGenerator.FieldElevation);
         public float Radius => gm.Map == BattlefieldMap.City ? CityRadius : FieldRadius;
         public float Laps => elapsed / OrbitSeconds;
-        public bool IsEvading=>Time.time-dodgeStarted<DodgeDuration;
+        public bool IsEvading=>mode==FlightMode.Circuit&&Time.time-dodgeStarted<DodgeDuration;
         public bool IncomingRocket=>Time.time<incomingUntil;
         public float DodgeCooldown=>Mathf.Max(0,nextDodge-Time.time);
-        public bool CanDodge=>gm!=null&&gm.IsPlaying&&DodgeCooldown<=0&&!IsEvading;
+        public bool CanDodge=>gm!=null&&gm.IsPlaying&&mode==FlightMode.Circuit&&DodgeCooldown<=0&&!IsEvading;
+        public bool IsApproachingPad=>mode==FlightMode.Approach;
+        public bool IsOnPad=>mode==FlightMode.OnPad;
+        public bool IsLandingOrBoarding=>mode==FlightMode.Approach||mode==FlightMode.OnPad;
+        public Vector3 LandingPad { get; private set; }
+        public float ApproachProgress=>mode==FlightMode.Approach?Mathf.Clamp01((Time.time-modeStarted)/ApproachSeconds):mode==FlightMode.OnPad?1f:0f;
+
         GameManager gm;
-        float elapsed,dodgeStarted=-99f,nextDodge,incomingUntil;int dodgeSide=1;
+        float elapsed,dodgeStarted=-99f,nextDodge,incomingUntil,modeStarted;int dodgeSide=1;
+        FlightMode mode;
+        Vector3 transitionStart,departureTarget;
+        Quaternion transitionRotation,padRotation;
         Transform rotor, tailRotor;
         AudioSource rotorSound, engineSound;
+
         public static Vector3 Centre(BattlefieldMap map) => new Vector3(0f, TerrainGenerator.FieldElevation,
-            map == BattlefieldMap.City ? -24f : -30f);
+            map == BattlefieldMap.City ? -6f : -24f);
         public static Vector3 Position(BattlefieldMap map, float seconds)
         {
             float theta = Mathf.PI + seconds * Mathf.PI * 2f / OrbitSeconds;
             float radius = map == BattlefieldMap.City ? CityRadius : FieldRadius;
             float height = map == BattlefieldMap.City ? CityAltitude : FieldAltitude;
             return Centre(map) + new Vector3(Mathf.Sin(theta) * radius,
-                height + Mathf.Sin(seconds * 1.3f) * .10f, Mathf.Cos(theta) * radius);
+                height + Mathf.Sin(seconds * .18f) * 1.2f, Mathf.Cos(theta) * radius);
         }
-        // Keep the view above the floor and sill even at the door's traverse limits.
         public static float DepressionLimit(float yaw) => Mathf.Min(MaxDepression,
             Mathf.Atan2(1.55f * Mathf.Cos(yaw * Mathf.Deg2Rad), 1.12f) * Mathf.Rad2Deg);
         public static Quaternion Heading(float seconds)
@@ -74,7 +86,19 @@ namespace SniperRidge
             if (gm == null || !gm.IsPlaying) return;
             if(Input.GetKeyDown(KeyCode.Space))TryDodge();
             Vector3 previous = transform.position;
-            elapsed += Time.deltaTime;
+            if(mode==FlightMode.Circuit) FlyCircuit();
+            else if(mode==FlightMode.Approach) FlyApproach();
+            else if(mode==FlightMode.Departure) FlyDeparture();
+            Velocity = (transform.position - previous) / Mathf.Max(Time.deltaTime, .0001f);
+            float rotorTime=Time.time;
+            rotor.localRotation = Quaternion.Euler(0f, rotorTime * 1620f, 0f);
+            tailRotor.localRotation = Quaternion.Euler(rotorTime * 2400f, 0f, 0f);
+            rotorSound.pitch = 1f + Mathf.Sin(rotorTime * .4f) * .008f+(mode==FlightMode.Approach?.025f:0f);
+            engineSound.pitch = 1f + Mathf.Sin(rotorTime * .3f) * .01f;
+        }
+        void FlyCircuit()
+        {
+            elapsed+=Time.deltaTime;
             Vector3 position=Position(gm.Map,elapsed);Quaternion heading=Heading(elapsed);
             if(IsEvading)
             {
@@ -85,12 +109,41 @@ namespace SniperRidge
                 heading*=Quaternion.Euler(0,0,dodgeSide*11f*amount);
             }
             transform.SetPositionAndRotation(position,heading);
-            Velocity = (transform.position - previous) / Mathf.Max(Time.deltaTime, .0001f);
-            rotor.localRotation = Quaternion.Euler(0f, elapsed * 1620f, 0f);
-            tailRotor.localRotation = Quaternion.Euler(elapsed * 2400f, 0f, 0f);
-            // Slow, small load modulation; the loop itself provides the blade-passage rhythm.
-            rotorSound.pitch = 1f + Mathf.Sin(elapsed * .4f) * .008f;
-            engineSound.pitch = 1f + Mathf.Sin(elapsed * .3f) * .01f;
+        }
+        void FlyApproach()
+        {
+            float t=Mathf.Clamp01((Time.time-modeStarted)/ApproachSeconds);
+            Vector3 overhead=LandingPad+Vector3.up*18f;
+            Vector3 position=t<.72f
+                ?Vector3.Lerp(transitionStart,overhead,Mathf.SmoothStep(0,1,t/.72f))
+                :Vector3.Lerp(overhead,LandingPad+Vector3.up*LandingRootHeight,Mathf.SmoothStep(0,1,(t-.72f)/.28f));
+            transform.SetPositionAndRotation(position,Quaternion.Slerp(transitionRotation,padRotation,Mathf.SmoothStep(0,1,t)));
+            if(t>=1f){mode=FlightMode.OnPad;modeStarted=Time.time;Velocity=Vector3.zero;}
+        }
+        void FlyDeparture()
+        {
+            float t=Mathf.Clamp01((Time.time-modeStarted)/DepartureSeconds);
+            Vector3 overhead=LandingPad+Vector3.up*18f;
+            Vector3 position=t<.35f
+                ?Vector3.Lerp(transitionStart,overhead,Mathf.SmoothStep(0,1,t/.35f))
+                :Vector3.Lerp(overhead,departureTarget,Mathf.SmoothStep(0,1,(t-.35f)/.65f));
+            transform.SetPositionAndRotation(position,Quaternion.Slerp(transitionRotation,Heading(elapsed),Mathf.SmoothStep(0,1,t)));
+            if(t>=1f){mode=FlightMode.Circuit;transform.SetPositionAndRotation(Position(gm.Map,elapsed),Heading(elapsed));}
+        }
+        public bool RequestLanding(Vector3 rooftop)
+        {
+            if(mode!=FlightMode.Circuit)return IsLandingOrBoarding&&Vector3.Distance(LandingPad,rooftop)<1f;
+            LandingPad=rooftop;transitionStart=transform.position;transitionRotation=transform.rotation;
+            Vector3 flat=Centre(gm.Map)-rooftop;flat.y=0;
+            padRotation=flat.sqrMagnitude>.01f?Quaternion.LookRotation(flat.normalized):transform.rotation;
+            mode=FlightMode.Approach;modeStarted=Time.time;incomingUntil=0;
+            gm.Hud.Announce("옥상 구조 지점 접근 · 경계 사격을 멈추고 착륙합니다");return true;
+        }
+        public bool DepartPad()
+        {
+            if(mode!=FlightMode.OnPad)return false;
+            transitionStart=transform.position;transitionRotation=transform.rotation;
+            departureTarget=Position(gm.Map,elapsed);mode=FlightMode.Departure;modeStarted=Time.time;return true;
         }
         public bool TryDodge()
         {
@@ -100,10 +153,11 @@ namespace SniperRidge
         }
         public Vector3 PredictPlayerAimPoint(float secondsAhead)
         {
+            if(mode!=FlightMode.Circuit)return gm.Player.AimPoint;
             Vector3 local=transform.InverseTransformPoint(gm.Player.AimPoint);
             return Position(gm.Map,elapsed+Mathf.Max(0,secondsAhead))+Heading(elapsed+Mathf.Max(0,secondsAhead))*local;
         }
-        public void NotifyRocket(float duration){incomingUntil=Mathf.Max(incomingUntil,Time.time+duration+.35f);}
+        public void NotifyRocket(float duration){if(mode==FlightMode.Circuit)incomingUntil=Mathf.Max(incomingUntil,Time.time+duration+.35f);}
         public void StopFlight()
         {
             Velocity = Vector3.zero;

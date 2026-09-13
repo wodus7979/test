@@ -319,12 +319,13 @@ namespace SniperRidge
             enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);return enemy;
         }
 
-        public static EnemySoldier SpawnHelicopterEnemy(GameManager gm,Vector3 position,string name,EnemyRole role)
+        public const float HelicopterEnemyScale=3f;
+        public static EnemySoldier SpawnHelicopterEnemy(GameManager gm,Vector3 position,string name,EnemyRole role,float surfaceY=float.NaN)
         {
             EnsureEnemyMaterials();
-            var spawn=new EnemySpawn(position.x,position.z,role==EnemyRole.RocketTrooper?EnemyKind.Cover:EnemyKind.Rusher,role:role);
-            float scale=gm.Map==BattlefieldMap.City?CityLayout.EnemyScale:EnemySoldier.DefenseModeScale;
-            var enemy=EnemySoldier.Create(name,gm.Terrain,spawn,gm.PlayerEye.position,scale,
+            var spawn=new EnemySpawn(position.x,position.z,role==EnemyRole.RocketTrooper?EnemyKind.Cover:EnemyKind.Rusher,
+                role:role,uniformVariant:(name.GetHashCode()&int.MaxValue)%EnemyCombatRoles.GunnerColors,surfaceY:surfaceY);
+            var enemy=EnemySoldier.Create(name,gm.Terrain,spawn,gm.PlayerEye.position,HelicopterEnemyScale,
                 enemyBody,enemySkin,enemyGear,enemyRock,new System.Random(name.GetHashCode()),false);
             enemy.transform.SetParent(EnemyRoot(),true);gm.RegisterEnemy(enemy);return enemy;
         }

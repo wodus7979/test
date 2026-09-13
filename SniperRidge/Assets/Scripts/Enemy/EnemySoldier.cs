@@ -669,6 +669,7 @@ namespace SniperRidge
         void TryShoot(float spreadRadius, float minInterval = 2.2f, float maxInterval = 4.2f)
         {
             if (preparingShot || Time.time < nextShotTime || !gm.PositionRevealed || staggerTimer > 0f) return;
+            if(!IsAlly&&gm.Mission==MissionType.Helicopter&&gm.Flight!=null&&gm.Flight.IsLandingOrBoarding)return;
             if (cover > .7f || (motion != null && !motion.CanFireFromPose) || !HasLineOfSight()) return;
             if (!IsAlly && !gm.TryBeginEnemyAttack()) return;
             bool sniper = Role == EnemyRole.Sniper || Role == EnemyRole.RocketTrooper;
@@ -681,11 +682,11 @@ namespace SniperRidge
             {
                 // Lead the normal orbit so simply sitting still is dangerous. A dodge after the
                 // warning moves the helicopter off this fixed intercept point.
-                float intercept=aimTimer+Vector3.Distance(rifleTip.position,target)/55f;
+                float intercept=aimTimer+Vector3.Distance(rifleTip.position,target)/InfantryRocket.FlightSpeed;
                 for(int i=0;i<3;i++)
                 {
                     target=gm.Flight.PredictPlayerAimPoint(intercept);
-                    intercept=aimTimer+Vector3.Distance(rifleTip.position,target)/55f;
+                    intercept=aimTimer+Vector3.Distance(rifleTip.position,target)/InfantryRocket.FlightSpeed;
                 }
             }
             Vector3 forward = (target - rifleTip.position).normalized;
@@ -694,7 +695,7 @@ namespace SniperRidge
             Vector2 spread = Random.insideUnitCircle * burstSpread;
             plannedTarget = target + right * spread.x + up * spread.y;
             preparingShot = true;
-            float warning=aimTimer+(roundsRemaining-1)*EnemyCombatRoles.BurstInterval+(Role==EnemyRole.RocketTrooper?Vector3.Distance(rifleTip.position,target)/55f:CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position,target)));
+            float warning=aimTimer+(roundsRemaining-1)*EnemyCombatRoles.BurstInterval+(Role==EnemyRole.RocketTrooper?Vector3.Distance(rifleTip.position,target)/InfantryRocket.FlightSpeed:CounterfireRules.FlightSeconds(Vector3.Distance(rifleTip.position,target)));
             if(!IsAlly && (Combat==null || Combat.TargetsPlayer))gm.Hud.WarnIncoming(transform.position,warning,RoleName);
             if(!IsAlly&&Role==EnemyRole.RocketTrooper&&gm.Mission==MissionType.Helicopter&&gm.Flight!=null)gm.Flight.NotifyRocket(warning);
         }
