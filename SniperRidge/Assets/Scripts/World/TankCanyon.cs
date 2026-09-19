@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 namespace SniperRidge
 {
-    /// <summary>Open alpine tank valley with forests, boulders and connected fallback roads.</summary>
+    /// <summary>Open winter tank valley with snow forest, boulders and connected fallback roads.</summary>
     public static class TankCanyon
     {
         public const float CombatBounds=100f, EnemyScale=1.3f;
@@ -128,19 +128,19 @@ namespace SniperRidge
             for(int z=0;z<resolution;z++)for(int x=0;x<resolution;x++)
                 heights[z,x]=Height(x/(float)(resolution-1)*600-300,z/(float)(resolution-1)*600-300)/TerrainGenerator.MaxHeight;
             data.SetHeights(0,0,heights);
-            data.terrainLayers=new[]{Layer("NaturePack/Textures/meadow",Color.white,5.5f),
-                Layer("NaturePack/Textures/rock",new Color(.96f,.95f,.93f),7f),
-                Layer("Terrain/dirt",new Color(.90f,.84f,.73f),5.2f),
-                Layer("NaturePack/Textures/meadow",new Color(.72f,.80f,.66f),9f)};
+            data.terrainLayers=new[]{SnowLayer(new Color(.91f,.94f,.98f),5.8f,41f),
+                Layer("NaturePack/Textures/rock",new Color(.54f,.58f,.60f),6.5f),
+                Layer("Terrain/dirt",new Color(.48f,.40f,.32f),4.8f),
+                SnowLayer(new Color(.69f,.74f,.78f),8.5f,73f)};
             data.alphamapResolution=alpha;var weights=new float[alpha,alpha,4];
             for(int z=0;z<alpha;z++)for(int x=0;x<alpha;x++)
             {
                 float nx=(x+.5f)/alpha,nz=(z+.5f)/alpha,wx=nx*600-300,wz=nz*600-300;
                 float road=RoadDistance(wx,wz),slope=data.GetSteepness(nx,nz);
-                float rock=Mathf.InverseLerp(12,34,slope)*.92f;
-                float dirt=(1-rock)*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(3.7f,10.5f,road)))*.88f;
+                float rock=Mathf.InverseLerp(14,36,slope)*.78f;
+                float dirt=(1-rock)*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(3.8f,10.8f,road)))*.72f;
                 float patch=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.42f,.72f,Mathf.PerlinNoise(wx*.035f+5,wz*.035f)));
-                float darkMeadow=(1-rock-dirt)*(.06f+patch*.24f);
+                float darkMeadow=(1-rock-dirt)*(.04f+patch*.13f);
                 weights[z,x,0]=1-rock-dirt-darkMeadow;weights[z,x,1]=rock;weights[z,x,2]=dirt;weights[z,x,3]=darkMeadow;
             }
             data.SetAlphamaps(0,0,weights);
@@ -148,15 +148,15 @@ namespace SniperRidge
             // replacement in a player build. Built-in Diffuse refreshes the splats
             // immediately and has no metallic or smooth specular road reflection.
             var terrainShader=Shader.Find("Nature/Terrain/Diffuse");
-            if(terrainShader!=null)terrain.materialTemplate=new Material(terrainShader){name="Alpine diffuse terrain"};
+            if(terrainShader!=null)terrain.materialTemplate=new Material(terrainShader){name="Winter diffuse terrain"};
             terrain.drawInstanced=false;terrain.drawHeightmap=true;terrain.basemapDistance=350f;
             var prototypes=data.detailPrototypes;
             if(prototypes.Length>0)
             {
-                prototypes[0].minHeight=.25f;prototypes[0].maxHeight=.65f;
-                prototypes[0].prototypeTexture=ProceduralAssets.GrassBladeTexture(bladeColor:new Color(.38f,.55f,.25f));
-                prototypes[0].healthyColor=new Color(.44f,.61f,.30f);prototypes[0].dryColor=new Color(.57f,.52f,.31f);
-                data.wavingGrassTint=new Color(.50f,.64f,.35f);
+                prototypes[0].minHeight=.16f;prototypes[0].maxHeight=.42f;
+                prototypes[0].prototypeTexture=ProceduralAssets.GrassBladeTexture(bladeColor:new Color(.42f,.36f,.28f));
+                prototypes[0].healthyColor=new Color(.48f,.43f,.35f);prototypes[0].dryColor=new Color(.61f,.57f,.50f);
+                data.wavingGrassTint=new Color(.52f,.49f,.44f);
                 data.detailPrototypes=prototypes;data.SetDetailResolution(detail,32);
                 var grass=new int[detail,detail];
                 for(int z=0;z<detail;z++)for(int x=0;x<detail;x++)
@@ -164,7 +164,7 @@ namespace SniperRidge
                     float nx=(x+.5f)/detail,nz=(z+.5f)/detail,wx=nx*600-300,wz=nz*600-300;
                     if(Mathf.Abs(wx)>190||Mathf.Abs(wz)>190||data.GetSteepness(nx,nz)>32)continue;
                     // 밀도를 낮춰 높은 곳에서 풀잎이 모래 위 반짝임처럼 보이지 않게 한다.
-                    grass[z,x]=Mathf.RoundToInt(2f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(5,12,RoadDistance(wx,wz))));
+                    grass[z,x]=Mathf.RoundToInt(.65f*Mathf.SmoothStep(0,1,Mathf.InverseLerp(6,15,RoadDistance(wx,wz))));
                 }
                 data.SetDetailLayer(0,0,0,grass);
             }
@@ -180,34 +180,46 @@ namespace SniperRidge
                 diffuseRemapMin=Vector4.zero,diffuseRemapMax=new Vector4(tint.r,tint.g,tint.b,1f),
                 tileSize=Vector2.one*tile,metallic=0,smoothness=0,specular=Color.black};
         }
+        static TerrainLayer SnowLayer(Color tint,float tile,float seed)
+        {
+            var texture=ProceduralAssets.NoiseTexture(128,new Color(.82f,.86f,.91f),Color.white,7f,seed);
+            texture.name="Wind packed snow";
+            return new TerrainLayer{diffuseTexture=texture,normalScale=.08f,
+                diffuseRemapMin=Vector4.zero,diffuseRemapMax=new Vector4(tint.r,tint.g,tint.b,1),
+                tileSize=Vector2.one*tile,metallic=0,smoothness=.06f,specular=new Color(.08f,.09f,.11f)};
+        }
         static void Lighting(GameManager gm)
         {
             var sun=RenderSettings.sun;
-            if(sun!=null){sun.transform.rotation=Quaternion.Euler(31,-52,0);sun.color=new Color(1f,.94f,.83f);sun.intensity=1.18f;sun.shadowStrength=.84f;}
-            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.00078f;
-            RenderSettings.fogColor=new Color(.68f,.78f,.87f);
-            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.55f,.65f,.77f);
-            RenderSettings.ambientEquatorColor=new Color(.45f,.49f,.54f);RenderSettings.ambientGroundColor=new Color(.28f,.27f,.23f);
-            RenderSettings.reflectionIntensity=.26f;
+            if(sun!=null){sun.transform.rotation=Quaternion.Euler(24,-48,0);sun.color=new Color(1f,.87f,.72f);sun.intensity=1.05f;sun.shadowStrength=.88f;}
+            RenderSettings.fog=true;RenderSettings.fogMode=FogMode.ExponentialSquared;RenderSettings.fogDensity=.00115f;
+            RenderSettings.fogColor=new Color(.62f,.69f,.78f);
+            RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientSkyColor=new Color(.46f,.56f,.70f);
+            RenderSettings.ambientEquatorColor=new Color(.38f,.42f,.48f);RenderSettings.ambientGroundColor=new Color(.22f,.24f,.27f);
+            RenderSettings.reflectionIntensity=.20f;
             var skyShader=Shader.Find("Skybox/Procedural");
             if(skyShader!=null)
             {
-                var sky=new Material(skyShader){name="Tank alpine sky"};
-                sky.SetColor("_SkyTint",new Color(.38f,.61f,.86f));
-                sky.SetColor("_GroundColor",new Color(.38f,.44f,.49f));
-                sky.SetFloat("_Exposure",.98f);sky.SetFloat("_AtmosphereThickness",.74f);sky.SetFloat("_SunSize",.045f);
+                var sky=new Material(skyShader){name="Tank winter sky"};
+                sky.SetColor("_SkyTint",new Color(.31f,.47f,.68f));
+                sky.SetColor("_GroundColor",new Color(.44f,.47f,.52f));
+                sky.SetFloat("_Exposure",.90f);sky.SetFloat("_AtmosphereThickness",.92f);sky.SetFloat("_SunSize",.055f);
                 RenderSettings.skybox=sky;
             }
             QualitySettings.shadowDistance=240;QualitySettings.lodBias=1.8f;
             var post=gm.PlayerEye.GetComponent<PostEffect>();
-            if(post!=null){post.Exposure=.96f;post.Saturation=1.04f;post.Contrast=1.06f;post.BloomIntensity=.055f;post.Vignette=.06f;}
+            if(post!=null){post.Exposure=.94f;post.Saturation=.88f;post.Contrast=1.10f;post.BloomIntensity=.045f;post.Vignette=.08f;}
             DynamicGI.UpdateEnvironment();
         }
         static void Dress(Terrain terrain)
         {
-            var root=new GameObject("Alpine forest valley").transform;var rng=new System.Random(9014);Obstacles.Clear();
-            var stone=ProceduralAssets.TexturedMaterial(new Color(.82f,.82f,.79f),
+            var root=new GameObject("Snow forest battlefield").transform;var rng=new System.Random(9014);Obstacles.Clear();
+            var stone=ProceduralAssets.TexturedMaterial(new Color(.49f,.51f,.49f),
                 Resources.Load<Texture2D>("NaturePack/Textures/rock_albedo"),Resources.Load<Texture2D>("NaturePack/Textures/rock_normal_unity"),.42f,.025f);
+            var snow=ProceduralAssets.TexturedMaterial(new Color(.88f,.93f,.99f),
+                ProceduralAssets.NoiseTexture(64,new Color(.78f,.84f,.91f),Color.white,6,27),null,1.5f,.07f);
+            var timber=ProceduralAssets.TexturedMaterial(new Color(.29f,.21f,.14f),
+                Resources.Load<Texture2D>("Nature/bark_albedo"),Resources.Load<Texture2D>("Nature/bark_normal"),1.2f,.01f);
             Pond(root);
             // Solid boulders create firing cover while staying clear of every road.
             for(int i=0;i<64;i++)
@@ -215,12 +227,12 @@ namespace SniperRidge
                 float x=(float)rng.NextDouble()*236-118,z=(float)rng.NextDouble()*236-118;
                 if(RoadDistance(x,z)<15f||Normal(terrain,new Vector3(x,0,z)).y<.9f)continue;
                 Vector3 p=TerrainGenerator.OnGround(terrain,x,z,.12f);
-                Boulder(root,p,new Vector3(1.7f+(float)rng.NextDouble()*2.3f,1.1f+(float)rng.NextDouble()*1.5f,1.5f+(float)rng.NextDouble()*2f),i,stone);
+                WinterBoulder(root,p,new Vector3(1.7f+(float)rng.NextDouble()*2.3f,1.1f+(float)rng.NextDouble()*1.5f,1.5f+(float)rng.NextDouble()*2f),i,stone,snow);
             }
             Physics.SyncTransforms();
-            // Dense enough to read as a forest, sparse enough for the two LODs and
-            // wide tank corridors. Trees inside the arena can be knocked down.
-            for(int i=0;i<1350;i++)
+            // Snow trees stay clear of the wide tank corridors. Trees inside the
+            // arena retain the collision-triggered falling action.
+            for(int i=0;i<1120;i++)
             {
                 float x=(float)rng.NextDouble()*410-205,z=(float)rng.NextDouble()*410-205;
                 float radius=Mathf.Max(Mathf.Abs(x),Mathf.Abs(z));
@@ -229,18 +241,22 @@ namespace SniperRidge
                 float grove=Mathf.PerlinNoise(x*.024f+7,z*.024f+13);
                 if(grove<(radius<112f?.38f:.24f))continue;
                 Vector3 p=TerrainGenerator.OnGround(terrain,x,z);
-                bool pine=i%7!=0;
-                var tree=Vegetation.Tree(root,p,.78f+(float)rng.NextDouble()*.72f,pine?Vegetation.TreeType.Pine:Vegetation.TreeType.Broadleaf,rng);
+                bool bare=i%9==0;
+                var tree=Vegetation.WinterTree(root,p,.76f+(float)rng.NextDouble()*.68f,bare,rng);
                 if(radius<112f){tree.name="Knock-down "+tree.name;tree.AddComponent<KnockdownTree>();}
                 else foreach(var collider in tree.GetComponentsInChildren<Collider>(true))collider.enabled=false;
             }
-            for(int i=0;i<180;i++)
+            // Cosmetic debris matches the supplied winter prop reference. These
+            // pieces do not collide, so a tank cannot become wedged between them.
+            for(int i=0;i<92;i++)
             {
                 float x=(float)rng.NextDouble()*250-125,z=(float)rng.NextDouble()*250-125;
-                if(RoadDistance(x,z)<7f)continue;
-                var bush=Vegetation.Bush(root,TerrainGenerator.OnGround(terrain,x,z),.28f+(float)rng.NextDouble()*.42f,rng);
-                foreach(var collider in bush.GetComponentsInChildren<Collider>(true))collider.enabled=false;
+                if(RoadDistance(x,z)<10f)continue;
+                var brush=Vegetation.WinterTree(root,TerrainGenerator.OnGround(terrain,x,z),.10f+(float)rng.NextDouble()*.07f,true,rng);
+                brush.name="Snowy dead brush";foreach(var collider in brush.GetComponentsInChildren<Collider>(true))collider.enabled=false;
             }
+            for(int i=0;i<24;i++)WinterStump(root,terrain,rng,snow,timber,i);
+            for(int i=0;i<20;i++)FallenLog(root,terrain,rng,snow,timber,i);
             Physics.SyncTransforms();
             foreach(var collider in root.GetComponentsInChildren<Collider>())
             {
@@ -249,20 +265,43 @@ namespace SniperRidge
                 Obstacles.Add(new Vector3(b.center.x,b.center.z,new Vector2(b.extents.x,b.extents.z).magnitude));
             }
         }
-        static GameObject Boulder(Transform root,Vector3 position,Vector3 scale,int index,Material stone)
+        static GameObject WinterBoulder(Transform root,Vector3 position,Vector3 scale,int index,Material stone,Material snow)
         {
-            var rock=GameObject.CreatePrimitive(PrimitiveType.Sphere);rock.name="Granite boulder";rock.transform.SetParent(root,true);
+            var rock=GameObject.CreatePrimitive(PrimitiveType.Sphere);rock.name="Mossy snow boulder";rock.transform.SetParent(root,true);
             rock.transform.position=position;rock.transform.localScale=scale;rock.transform.rotation=Quaternion.Euler(index*11f,index*67f,index*7f);
             rock.GetComponent<Renderer>().sharedMaterial=stone;
-            return NatureModels.Upgrade(rock,index%2==0?"boulder_1":"boulder_2");
+            var cap=GameObject.CreatePrimitive(PrimitiveType.Sphere);cap.name="Snow cap";cap.transform.SetParent(root,true);
+            cap.transform.position=position+Vector3.up*(scale.y*.70f);cap.transform.localScale=new Vector3(scale.x*.91f,scale.y*.20f,scale.z*.91f);
+            cap.transform.rotation=Quaternion.Euler(0,index*67f,0);cap.GetComponent<Renderer>().sharedMaterial=snow;cap.GetComponent<Collider>().enabled=false;
+            return rock;
+        }
+        static void WinterStump(Transform root,Terrain terrain,System.Random rng,Material snow,Material timber,int index)
+        {
+            float x=(float)rng.NextDouble()*232-116,z=(float)rng.NextDouble()*232-116;if(RoadDistance(x,z)<12f)return;
+            Vector3 p=TerrainGenerator.OnGround(terrain,x,z,.25f);float height=.7f+(float)rng.NextDouble()*.8f;
+            var stump=GameObject.CreatePrimitive(PrimitiveType.Cylinder);stump.name="Broken snowy stump";stump.transform.SetParent(root,true);
+            stump.transform.position=p+Vector3.up*height*.5f;stump.transform.localScale=new Vector3(.35f,height*.5f,.35f);stump.transform.rotation=Quaternion.Euler(index%3*3,index*41,0);
+            stump.GetComponent<Renderer>().sharedMaterial=timber;stump.GetComponent<Collider>().enabled=false;
+            var cap=GameObject.CreatePrimitive(PrimitiveType.Cylinder);cap.name="Stump snow";cap.transform.SetParent(root,true);
+            cap.transform.position=p+Vector3.up*(height+.035f);cap.transform.localScale=new Vector3(.38f,.035f,.38f);cap.GetComponent<Renderer>().sharedMaterial=snow;cap.GetComponent<Collider>().enabled=false;
+        }
+        static void FallenLog(Transform root,Terrain terrain,System.Random rng,Material snow,Material timber,int index)
+        {
+            float x=(float)rng.NextDouble()*226-113,z=(float)rng.NextDouble()*226-113;if(RoadDistance(x,z)<13f)return;
+            Vector3 p=TerrainGenerator.OnGround(terrain,x,z,.35f);float length=3.2f+(float)rng.NextDouble()*3.8f,yaw=(float)rng.NextDouble()*360;
+            Quaternion rotation=Quaternion.Euler(0,yaw,90);
+            var log=GameObject.CreatePrimitive(PrimitiveType.Cylinder);log.name="Fallen snow log";log.transform.SetParent(root,true);
+            log.transform.position=p;log.transform.rotation=rotation;log.transform.localScale=new Vector3(.34f,length*.5f,.34f);log.GetComponent<Renderer>().sharedMaterial=timber;log.GetComponent<Collider>().enabled=false;
+            var cover=GameObject.CreatePrimitive(PrimitiveType.Cylinder);cover.name="Log snow ridge";cover.transform.SetParent(root,true);
+            cover.transform.position=p+Vector3.up*.19f;cover.transform.rotation=rotation;cover.transform.localScale=new Vector3(.28f,length*.46f,.16f);cover.GetComponent<Renderer>().sharedMaterial=snow;cover.GetComponent<Collider>().enabled=false;
         }
         static void Pond(Transform root)
         {
-            var water=GameObject.CreatePrimitive(PrimitiveType.Cylinder);water.name="Mountain lake";water.transform.SetParent(root,true);
+            var water=GameObject.CreatePrimitive(PrimitiveType.Cylinder);water.name="Frozen mountain lake";water.transform.SetParent(root,true);
             water.transform.position=new Vector3(0,9.25f,145f);water.transform.localScale=new Vector3(61f,.035f,33f);
             var waterCollider=water.GetComponent<Collider>();waterCollider.enabled=false;Object.Destroy(waterCollider);
-            var shader=Shader.Find("Standard");var material=new Material(shader){name="Clear mountain water"};
-            material.color=new Color(.18f,.42f,.52f,.72f);material.SetFloat("_Metallic",.05f);material.SetFloat("_Glossiness",.72f);
+            var shader=Shader.Find("Standard");var material=new Material(shader){name="Clouded blue ice"};
+            material.color=new Color(.48f,.67f,.75f,.88f);material.SetFloat("_Metallic",.02f);material.SetFloat("_Glossiness",.42f);
             material.SetFloat("_Mode",3);material.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);material.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);
             material.SetInt("_ZWrite",0);material.EnableKeyword("_ALPHABLEND_ON");material.renderQueue=3000;
             water.GetComponent<Renderer>().sharedMaterial=material;

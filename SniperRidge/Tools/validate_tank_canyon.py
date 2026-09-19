@@ -22,10 +22,21 @@ def road_distance(x,z):
 def smooth(a,b,t):
     t=np.clip(t,0,1);return a+(b-a)*t*t*(3-2*t)
 def inverse(a,b,t):return np.clip((t-a)/(b-a),0,1)
-body=SOURCE.split('public static float Height(float x,float z)',1)[1].split('public static Vector3 Ground',1)[0]
+def perlin(x,y):
+    """Deterministic smooth value-noise approximation for Unity's PerlinNoise."""
+    x=np.asarray(x);y=np.asarray(y);xi=np.floor(x);yi=np.floor(y);xf=x-xi;yf=y-yi
+    def value(ix,iy):return np.mod(np.sin(ix*127.1+iy*311.7)*43758.5453,1)
+    sx=xf*xf*(3-2*xf);sy=yf*yf*(3-2*yf)
+    low=value(xi,yi)*(1-sx)+value(xi+1,yi)*sx
+    high=value(xi,yi+1)*(1-sx)+value(xi+1,yi+1)*sx
+    return low*(1-sy)+high*sy
+def lake_weight(x,z):
+    dx=np.asarray(x)/62;dz=(np.asarray(z)-145)/34
+    return smooth(0,1,np.clip(1-(dx*dx+dz*dz),0,1))
+body=SOURCE.split('public static float Height(float x,float z)',1)[1].split('static float LakeWeight',1)[0]
 statements=re.findall(r'(?:float (\w+)\s*=|return\s+)([^;]+);',body)
 def height(x,z):
-    env=dict(x=np.asarray(x),z=np.asarray(z),RoadDistance=road_distance,Sin=np.sin,Cos=np.cos,Abs=np.abs,
+    env=dict(x=np.asarray(x),z=np.asarray(z),RoadDistance=road_distance,LakeWeight=lake_weight,PerlinNoise=perlin,Sin=np.sin,Cos=np.cos,Abs=np.abs,
              Max=np.maximum,SmoothStep=smooth,InverseLerp=inverse)
     for name,expr in statements:
         expr=' '.join(re.sub(r'(?<=\d)f\b','',expr).replace('Mathf.','').split())
@@ -98,8 +109,8 @@ def validate():
         image=Image.new('RGB',(1400,980),'#18242b');draw=ImageDraw.Draw(image)
         font_path='/System/Library/Fonts/Helvetica.ttc'
         title=ImageFont.truetype(font_path,32);font=ImageFont.truetype(font_path,19)
-        draw.text((55,35),'AUTUMN LOW HILLS / TANK BATTLE',font=title,fill='white')
-        draw.text((55,83),'Terrain and route study - not a Unity screenshot',font=font,fill='#d6cbb4')
+        draw.text((55,35),'WINTER LOW HILLS / TANK BATTLE',font=title,fill='white')
+        draw.text((55,83),'Snow terrain and route study - not a Unity screenshot',font=font,fill='#d6cbb4')
         grid=np.linspace(-170,170,121);x,z=np.meshgrid(grid,grid);h=height(x,z)
         dz,dx=np.gradient(h,340/120);norm=np.sqrt(dx*dx+dz*dz+1)
         light=np.clip((-.4*dx+.5*dz+.77)/norm,.16,1)*.65+.35
@@ -107,7 +118,7 @@ def validate():
         cells=sorted(((i,j) for i in range(120) for j in range(120)),key=lambda ij:sum(ij))
         for i,j in cells:
             wx,wz=x[i,j],z[i,j];road=float(road_distance(wx,wz))
-            color=np.array([155,134,95]) if road<6 else np.array([142,113,76])
+            color=np.array([112,96,78]) if road<6 else np.array([208,217,228])
             rgb=tuple((color*light[i,j]).astype(int))
             points=[project(x[a,b],z[a,b],h[a,b]) for a,b in [(i,j),(i+1,j),(i+1,j+1),(i,j+1)]]
             draw.polygon(points,fill=rgb)

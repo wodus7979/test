@@ -38,8 +38,9 @@ namespace SniperRidge
             // Release the tank immediately; the visible trunk continues falling from
             // its rooted pivot while the heavy vehicle drives through the opening.
             foreach (var collider in GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+            bool winter=name.Contains("Snow")||name.Contains("Frosted");
             Effects.Puff(transform.position + Vector3.up * .25f, Vector3.up, 1.45f,
-                new Color(.34f, .29f, .20f, .78f), 1.25f);
+                winter?new Color(.82f,.88f,.96f,.82f):new Color(.34f, .29f, .20f, .78f), 1.25f);
             Effects.Dust(transform.position + direction * .35f + Vector3.up * .4f, -direction, .7f);
         }
 

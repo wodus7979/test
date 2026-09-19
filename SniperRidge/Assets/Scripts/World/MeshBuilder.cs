@@ -12,6 +12,7 @@ namespace SniperRidge
             public readonly List<Vector2> UV = new List<Vector2>();
             public readonly List<int> Trunk = new List<int>();
             public readonly List<int> Leaf = new List<int>();
+            public readonly List<int> Snow = new List<int>();
         }
 
         static float R(System.Random rng, float a, float b) => a + (float)rng.NextDouble() * (b - a);
@@ -111,6 +112,55 @@ namespace SniperRidge
                 AddCylinder(b,b.Trunk,tip,tip+Vector3.up*.6f,.018f,.004f,5,rng,.01f);
             }
             return Finish(b,"Weathered dead pine");
+        }
+
+        /// <summary>겨울 침엽수: 짙은 잎 가장자리와 층층이 쌓인 눈을 별도 재질로 만든다.</summary>
+        public static Mesh WinterPine(System.Random rng,float height)
+        {
+            var b=new Buf();float h=height;
+            AddCylinder(b,b.Trunk,Vector3.zero,Vector3.up*h*.93f,.034f*h,.012f*h,8,rng,.045f);
+            int layers=rng.Next(6,9);float y0=h*.19f;
+            for(int i=0;i<layers;i++)
+            {
+                float t=i/(float)(layers-1),yb=Mathf.Lerp(y0,h*.79f,t);
+                float radius=Mathf.Lerp(.35f,.095f,t)*h*R(rng,.9f,1.1f);
+                float coneH=Mathf.Lerp(.27f,.18f,t)*h;
+                Vector3 centre=new Vector3(R(rng,-.018f,.018f)*h,yb,R(rng,-.018f,.018f)*h);
+                AddCone(b,b.Leaf,centre,radius,coneH,10,3,.13f,.13f,rng);
+                // A shallow, slightly smaller cone exposes dark needles under the
+                // snow shelf instead of turning the whole tree into a white cone.
+                AddCone(b,b.Snow,centre+Vector3.up*(.018f*h),radius*.91f,coneH*.34f,10,2,.10f,.025f,rng);
+            }
+            AddCone(b,b.Leaf,Vector3.up*h*.80f,.075f*h,h*.20f,8,2,.1f,.03f,rng);
+            AddCone(b,b.Snow,Vector3.up*h*.82f,.064f*h,h*.16f,8,2,.08f,.01f,rng);
+            return Finish(b,"Snow laden pine");
+        }
+
+        /// <summary>눈이 가지 윗면에 붙은 겨울 활엽수.</summary>
+        public static Mesh WinterBareTree(System.Random rng,float height)
+        {
+            var b=new Buf();float h=height;
+            AddCylinder(b,b.Trunk,Vector3.zero,new Vector3(.015f*h,h*.58f,0),.055f*h,.028f*h,9,rng,.05f);
+            int branches=rng.Next(7,10);
+            for(int i=0;i<branches;i++)
+            {
+                float angle=i*Mathf.PI*2f/branches+R(rng,-.3f,.3f);
+                Vector3 start=new Vector3(0,h*R(rng,.31f,.57f),0);
+                Vector3 direction=new Vector3(Mathf.Cos(angle)*R(rng,.65f,1f),R(rng,.42f,.9f),Mathf.Sin(angle)*R(rng,.65f,1f)).normalized;
+                Vector3 tip=start+direction*h*R(rng,.24f,.38f);
+                AddCylinder(b,b.Trunk,start,tip,.019f*h,.006f*h,6,rng,.04f);
+                AddCylinder(b,b.Snow,start+Vector3.up*.012f*h,tip+Vector3.up*.012f*h,.010f*h,.0035f*h,5,rng,.025f);
+                for(int twig=0;twig<2;twig++)
+                {
+                    float sign=twig==0?-1f:1f;
+                    Vector3 side=Vector3.Cross(direction,Vector3.up).normalized*sign;
+                    Vector3 twigStart=Vector3.Lerp(start,tip,.56f+twig*.16f);
+                    Vector3 twigTip=twigStart+(direction*.48f+side*.72f+Vector3.up*.38f).normalized*h*R(rng,.09f,.16f);
+                    AddCylinder(b,b.Trunk,twigStart,twigTip,.007f*h,.0022f*h,5,rng,.025f);
+                    AddCylinder(b,b.Snow,twigStart+Vector3.up*.009f*h,twigTip+Vector3.up*.009f*h,.004f*h,.0015f*h,5,rng,.02f);
+                }
+            }
+            return Finish(b,"Frosted bare tree");
         }
 
         static void AddCylinder(Buf b, List<int> tris, Vector3 from, Vector3 to, float r0, float r1, int segs, System.Random rng, float jitter)
@@ -225,9 +275,10 @@ namespace SniperRidge
             if (b.V.Count > 65000) m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             m.SetVertices(b.V);
             m.SetUVs(0, b.UV);
-            m.subMeshCount = 2;
+            m.subMeshCount = b.Snow.Count>0?3:2;
             m.SetTriangles(b.Trunk, 0);
             m.SetTriangles(b.Leaf, 1);
+            if(b.Snow.Count>0)m.SetTriangles(b.Snow,2);
             m.RecalculateNormals();
             m.RecalculateBounds();
             return m;
