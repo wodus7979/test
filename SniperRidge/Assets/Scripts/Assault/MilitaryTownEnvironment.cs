@@ -47,15 +47,21 @@ namespace SniperRidge
                 Lamp(objective+new Vector3(4.2f,6.8f,0),objective,white,new Color(.67f,.79f,1),false);
                 Lamp(objective+new Vector3(-3f,1.2f,-6),objective,red,new Color(1,.10f,.04f),true);
             }
+            // Early evening: warm low sunlight and enough sky fill to read enemies in alleys.
             RenderSettings.ambientMode=AmbientMode.Trilight;RenderSettings.ambientIntensity=1;
-            RenderSettings.ambientSkyColor=new Color(.29f,.35f,.43f);RenderSettings.ambientEquatorColor=new Color(.22f,.26f,.29f);
-            RenderSettings.ambientGroundColor=new Color(.12f,.14f,.12f);
-            RenderSettings.fogColor=new Color(.24f,.31f,.37f);RenderSettings.fogDensity=.0028f;RenderSettings.reflectionIntensity=.14f;
-            if(RenderSettings.sun!=null){RenderSettings.sun.color=new Color(.66f,.77f,.91f);RenderSettings.sun.intensity=.72f;RenderSettings.sun.shadowStrength=.64f;}
+            RenderSettings.ambientSkyColor=new Color(.42f,.46f,.54f);RenderSettings.ambientEquatorColor=new Color(.34f,.36f,.40f);
+            RenderSettings.ambientGroundColor=new Color(.22f,.23f,.23f);
+            RenderSettings.fogColor=new Color(.44f,.46f,.51f);RenderSettings.fogDensity=.0018f;RenderSettings.reflectionIntensity=.14f;
+            if(RenderSettings.sun!=null)
+            {
+                RenderSettings.sun.transform.rotation=Quaternion.Euler(24f,-35f,0f);
+                RenderSettings.sun.color=new Color(1f,.84f,.68f);
+                RenderSettings.sun.intensity=.85f;RenderSettings.sun.shadowStrength=.58f;
+            }
             if(RenderSettings.skybox!=null)
             {
-                sky=new Material(RenderSettings.skybox);if(sky.HasProperty("_Exposure"))sky.SetFloat("_Exposure",.40f);
-                if(sky.HasProperty("_Tint"))sky.SetColor("_Tint",new Color(.40f,.46f,.53f));RenderSettings.skybox=sky;
+                sky=new Material(RenderSettings.skybox);if(sky.HasProperty("_Exposure"))sky.SetFloat("_Exposure",.65f);
+                if(sky.HasProperty("_Tint"))sky.SetColor("_Tint",new Color(.62f,.64f,.69f));RenderSettings.skybox=sky;
             }
             var post=game.PlayerEye.GetComponent<PostEffect>();if(post!=null)post.ApplyPreset(PostPreset.EveningTown);
         }

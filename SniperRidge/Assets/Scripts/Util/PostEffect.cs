@@ -162,16 +162,16 @@ namespace SniperRidge
                     Sharpen = .15f; Grain = .01f;
                     break;
                 case PostPreset.EveningTown:
-                    Exposure = 1.15f; BloomThreshold = 1.0f; BloomIntensity = .15f;
-                    Saturation = .82f; Contrast = 1.05f; Vignette = .12f;
-                    Temperature = -.05f; Tint = 0f;
+                    Exposure = 1.25f; BloomThreshold = 1.0f; BloomIntensity = .12f;
+                    Saturation = .82f; Contrast = 1.02f; Vignette = .08f;
+                    Temperature = .06f; Tint = 0f;
                     Lift = new Color(.02f, .025f, .035f, 0f);
                     Gamma = new Color(1f, 1f, .98f, 1f);
                     Gain = new Color(1.0f, 1.0f, 1.02f, 1f);
                     SplitShadows = new Color(.45f, .48f, .57f, 1f);
                     SplitHighlights = new Color(.56f, .52f, .45f, 1f);
                     SplitStrength = .35f; SplitBalance = -.08f;
-                    AoIntensity = .75f; AoRadius = .7f; AoBias = .06f; AoPower = 1.5f; AoMaxDistance = 60f;
+                    AoIntensity = .50f; AoRadius = .7f; AoBias = .06f; AoPower = 1.35f; AoMaxDistance = 60f;
                     Sharpen = .15f; Grain = .015f;
                     break;
             }
