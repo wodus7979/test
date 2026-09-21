@@ -47,11 +47,12 @@ namespace SniperRidge
             ground.transform.position=new Vector3(-AssaultLayout.Size*.5f,0,-AssaultLayout.Size*.5f);
             var old=gm.Terrain;old.gameObject.SetActive(false);Destroy(old.terrainData);Destroy(old.gameObject);
             gm.Terrain=ground.GetComponent<Terrain>();gm.Terrain.materialTemplate=Resources.Load<Material>("CityPack/Materials/DryTerrain");gm.Terrain.drawInstanced=true;gm.Terrain.basemapDistance=1500;
-            // Asset sizes stay life-size; the authored blocks now sit much closer together.
+            var architecture=MetroDistrictArchitecture.Create(transform);
+            // Reuse collision shells and portals; replace only the town building visuals.
             foreach(var item in AssaultLayout.Data.buildings)
             {
                 var block=Place(item.asset,transform,item.WorldPosition,item.yaw);blocks.Add(block);
-                UrbanStreetDetails.VaryFacade(block,blocks.Count);
+                architecture.Replace(block,item.asset,blocks.Count);
             }
             foreach(var item in AssaultLayout.Data.props)
             {
@@ -93,7 +94,7 @@ namespace SniperRidge
             Physics.SyncTransforms();BuildNavigation();
             var batch=new List<GameObject>();
             foreach(var renderer in GetComponentsInChildren<MeshRenderer>())
-                if(renderer.GetComponentInParent<LODGroup>()==null && renderer.GetComponent<MeshFilter>()!=null)batch.Add(renderer.gameObject);
+                if(!renderer.forceRenderingOff && renderer.GetComponentInParent<LODGroup>()==null && renderer.GetComponent<MeshFilter>()!=null)batch.Add(renderer.gameObject);
             StaticBatchingUtility.Combine(batch.ToArray(),gameObject);
         }
         void BuildNavigation()

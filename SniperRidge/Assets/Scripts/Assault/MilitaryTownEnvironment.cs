@@ -8,7 +8,7 @@ namespace SniperRidge
         readonly List<Light> lamps=new List<Light>();Material sky,forest,red,white;Transform player;float next;
         public static void Build(Transform parent,GameManager game)
         {
-            var root=new GameObject("Military town woodland and beacons");root.transform.SetParent(parent,false);
+            var root=new GameObject("City greenery and checkpoint lights");root.transform.SetParent(parent,false);
             var town=root.AddComponent<MilitaryTownEnvironment>();town.player=game.Player.transform;town.Construct(game);
         }
         void Construct(GameManager game)
@@ -19,7 +19,7 @@ namespace SniperRidge
                 Vegetation.Tree(transform,tree.Position,tree.scale,tree.pine?Vegetation.TreeType.Pine:Vegetation.TreeType.Broadleaf,rng);
                 Vegetation.Bush(transform,tree.Position+new Vector3(.65f,0,.2f),.32f,rng);
             }
-            // Beyond the solid district boundary: low-detail silhouettes do not enter the navigation bake.
+            // Low ground outside the boundary sits below the new distant city skyline.
             forest=ProceduralAssets.LitMaterial(new Color(.26f,.29f,.24f),0);forest.mainTexture=Resources.Load<Texture2D>("Terrain/forest_albedo");
             forest.mainTextureScale=new Vector2(24,24);
             for(int side=0;side<4;side++)
@@ -28,13 +28,6 @@ namespace SniperRidge
                 pad.transform.position=new Vector3(side<2?(side==0?-208:208):0,AssaultLayout.Ground-.03f,side>=2?(side==2?-208:208):0);
                 pad.transform.localScale=side<2?new Vector3(11.2f,1,52):new Vector3(30.4f,1,11.2f);pad.GetComponent<Renderer>().sharedMaterial=forest;
                 pad.GetComponent<Collider>().enabled=false;Destroy(pad.GetComponent<Collider>());
-                for(int i=0;i<30;i++)
-                {
-                    float along=(float)rng.NextDouble()*500-250,across=169+(float)rng.NextDouble()*75;
-                    var p=new Vector3(side<2?(side==0?-across:across):along,AssaultLayout.Ground,side>=2?(side==2?-across:across):along);
-                    var tree=Vegetation.Tree(transform,p,.8f+(float)rng.NextDouble()*.65f,Vegetation.TreeType.Pine,rng);
-                    var lod=tree.GetComponent<LODGroup>();if(lod!=null)lod.ForceLOD(2);
-                }
             }
             red=Effects.Unlit(new Color(1f,.12f,.07f));white=Effects.Unlit(new Color(.75f,.87f,1));
             foreach(var objective in AssaultLayout.Objectives)
@@ -58,10 +51,14 @@ namespace SniperRidge
                 RenderSettings.sun.color=new Color(1f,.84f,.68f);
                 RenderSettings.sun.intensity=.85f;RenderSettings.sun.shadowStrength=.58f;
             }
-            if(RenderSettings.skybox!=null)
+            var skyShader=Shader.Find("Skybox/Procedural");
+            if(skyShader!=null)
             {
-                sky=new Material(RenderSettings.skybox);if(sky.HasProperty("_Exposure"))sky.SetFloat("_Exposure",.65f);
-                if(sky.HasProperty("_Tint"))sky.SetColor("_Tint",new Color(.62f,.64f,.69f));RenderSettings.skybox=sky;
+                sky=new Material(skyShader);
+                sky.SetFloat("_SunSize",.035f);sky.SetFloat("_AtmosphereThickness",1.05f);
+                sky.SetColor("_SkyTint",new Color(.48f,.51f,.57f));
+                sky.SetColor("_GroundColor",new Color(.37f,.40f,.44f));sky.SetFloat("_Exposure",1.05f);
+                RenderSettings.skybox=sky;
             }
             var post=game.PlayerEye.GetComponent<PostEffect>();if(post!=null)post.ApplyPreset(PostPreset.EveningTown);
         }
