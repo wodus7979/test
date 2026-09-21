@@ -9,6 +9,7 @@ namespace SniperRidge
         Quaternion supportRotation=Quaternion.Euler(-90,0,0);
         bool rocket,pump,looseRound;
         FpsGlovedHand leftGlove,rightGlove;
+        FpsForearms forearms;
         public static FpsWeaponHands Attach(Transform weapon,WeaponDefinition definition)
         {
             var pose=weapon.gameObject.AddComponent<FpsWeaponHands>();pose.rocket=definition.IsRocket;
@@ -51,6 +52,7 @@ namespace SniperRidge
             // while ADS is active and draw the usable reticle in the HUD.
             pose.aimOccluder=WeaponModels.FindPart(weapon,"Optic");
             if(pose.aimOccluder==null)pose.aimOccluder=pose.lens;
+            pose.forearms=FpsForearms.Create(weapon,pose.leftGlove.transform,pose.rightGlove.transform);
             pose.Pose(-1,-1);return pose;
         }
         static Transform Grip(Transform parent,string name,Vector3 position,float side)
@@ -106,6 +108,7 @@ namespace SniperRidge
                 if(pump)left.localPosition=leftRest+Vector3.back*action*.07f;
                 else right.localPosition=Vector3.Lerp(rightRest,boltRest+Vector3.back*action*.07f+Vector3.right*.025f,action);
             }
+            if(forearms!=null)forearms.UpdatePose();
         }
     }
 }

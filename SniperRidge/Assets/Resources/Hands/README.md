@@ -1,6 +1,6 @@
 # Original FPS glove
 
-The glove in `fps_glove.json` was authored for this project on 2026-09-12. It uses a flattened palm, four fingers with different lengths, an opposing thumb, a short cuff, small rubber knuckle pads and 15 finger joints. It deliberately contains no forearm mesh.
+The glove in `fps_glove.json` was authored for this project on 2026-09-12. It uses a flattened palm, four fingers with different lengths, an opposing thumb, a short cuff, small rubber knuckle pads and 15 finger joints. The glove source contains no forearm mesh. `FpsForearms` now adds separate cloth sleeves at runtime, joining the animated cuffs to camera-relative elbows below the frame.
 
 The revised pose was informed by public first-person weapon and reload references, including Activision's description of physically continuous magazine changes, stronger reload motion, weight-specific handling and active idle. No commercial game mesh, texture or animation was copied. Source: <https://blog.activision.com/call-of-duty/2019-07/Modern-Warfare-Initial-Intel-Detailing-Advancements-in-Animation-and-Authenticity>
 
