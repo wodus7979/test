@@ -6,7 +6,7 @@
 //   mode=9        시작 메뉴 행 번호. 0 저격 1 지정사수 2 돌격 3 경기관총 4 기관단총 5 샷건 6 권총 7 헬기 8 K2 전차 9 도시 FPS
 //   wait=8        출전 후 첫 스크린샷까지 기다리는 초 (지형·에셋 생성 시간)
 //   explosion=1   스크린샷 직전 카메라 앞 15m 에 CombatVfx.Explosion 을 터뜨려 파티클 셰이더를 검사한다
-//   supersize=2   ScreenCapture 배율 (Game 뷰가 작을 때 2 이상)
+//   캡처는 Game 탭이 숨겨져 있어도 1600×1000으로 저장된다 (HUD 제외).
 //   tag=city      파일 이름에 붙는 이름표
 //   quit=1        끝나면 Play 를 끈다
 // 결과: Screenshots/auto_<tag>_on.png (후처리 켬), auto_<tag>_off.png (후처리 끔), Logs/autoplay_result.txt (에러 로그 포함).
@@ -175,8 +175,14 @@ namespace SniperRidge.EditorTools
             Directory.CreateDirectory(dir);
             string file = Path.Combine(dir, "auto_" + Get("tag", "shot") + "_" + suffix + ".png");
             if (File.Exists(file)) File.Delete(file);
-            ScreenCapture.CaptureScreenshot(file, Mathf.Clamp(Int("supersize", 2), 1, 4));
-            results.Add("스크린샷: " + file);
+            var camera = Camera.main;
+            if (camera == null) throw new InvalidOperationException("Capture camera missing.");
+            // Explicit camera rendering also works when the Game tab is hidden.
+            // ScreenCapture silently produced no files in that case on macOS.
+            TankAppearanceValidation.Capture(camera, "auto_" + Get("tag", "shot") + "_" + suffix);
+            if (!File.Exists(file) || new FileInfo(file).Length == 0)
+                throw new IOException("Screenshot was not written: " + file);
+            results.Add("씬 카메라 스크린샷 (HUD 제외): " + file);
         }
 
         static void SetBypass(bool value)
