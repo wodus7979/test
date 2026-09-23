@@ -261,6 +261,7 @@ namespace SniperRidge
         /// </summary>
         public static void Explosion(Vector3 point, float scale = 1f)
         {
+            SurfaceImpactMarks.Explosion(point,scale);
             var root = new GameObject("Explosion");
             root.transform.position = point;
             Color tint = SmokeTint();

@@ -112,6 +112,7 @@ namespace SniperRidge
             }
             else
             {
+                SurfaceImpactMarks.Bullet(hit,damage>=80f?.26f:.20f);
                 Effects.Dust(hit.point, hit.normal, 0.25f);
                 if (gm != null)
                 {

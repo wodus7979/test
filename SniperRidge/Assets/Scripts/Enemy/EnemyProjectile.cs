@@ -94,6 +94,7 @@ namespace SniperRidge
                     hitbox.Owner.TakeHit(damage,false,direction);
                     BloodImpact.Emit(obstacle.point,obstacle.normal,direction,false);
                 }
+                SurfaceImpactMarks.Bullet(obstacle,.17f);
                 Effects.Dust(obstacle.point, obstacle.normal, .14f);
                 Destroy(gameObject);
                 return;
