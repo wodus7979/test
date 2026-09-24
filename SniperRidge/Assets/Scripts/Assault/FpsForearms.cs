@@ -6,7 +6,7 @@ namespace SniperRidge
     /// The wrists follow animated grips, while the elbows stay relative to the camera.</summary>
     public sealed class FpsForearms : MonoBehaviour
     {
-        const int Rings=19, Sides=16, Stride=Sides+1;
+        const int Rings=49, Sides=24, Stride=Sides+1;
         Transform left,right,view;
         Mesh mesh;
         Material cloth,cuff;
@@ -22,16 +22,20 @@ namespace SniperRidge
         }
         void Build()
         {
-            cloth=SurfaceDetail.Make(Surface.Fabric,new Color(.27f,.29f,.19f),.055f);
-            cuff=SurfaceDetail.Make(Surface.Fabric,new Color(.33f,.30f,.22f),.035f);
+            cloth=SurfaceDetail.Make(Surface.Fabric,Color.white,.12f);
+            cloth.name="Weathered ripstop uniform";
+            cloth.mainTexture=Resources.Load<Texture2D>("Hands/sleeve_ripstop_albedo");
+            cloth.SetTextureScale("_BumpMap",Vector2.one*3);
+            cloth.SetFloat("_BumpScale",.20f);cloth.SetFloat("_DetailNormalMapScale",.22f);
+            cuff=SurfaceDetail.Make(Surface.Fabric,new Color(.30f,.29f,.23f),.10f);
             var bodyIndices=new System.Collections.Generic.List<int>();
             var cuffIndices=new System.Collections.Generic.List<int>();
             for(int arm=0;arm<2;arm++)for(int ring=0;ring<Rings;ring++)for(int side=0;side<=Sides;side++)
             {
                 int index=arm*Rings*Stride+ring*Stride+side;
-                uv[index]=new Vector2(side/(float)Sides*3,ring/(float)(Rings-1)*5);
+                uv[index]=new Vector2(side/(float)Sides,ring/(float)(Rings-1));
                 if(ring==0||side==Sides)continue;
-                var indices=ring<=3?cuffIndices:bodyIndices;
+                var indices=ring<=5?cuffIndices:bodyIndices;
                 indices.AddRange(new[]{index-Stride,index-Stride+1,index,index,index-Stride+1,index+1});
             }
             mesh=new Mesh{name="Deforming uniform sleeves"};mesh.MarkDynamic();mesh.vertices=vertices;mesh.uv=uv;
@@ -45,7 +49,7 @@ namespace SniperRidge
             for(int arm=0;arm<2;arm++)
             {
                 float side=arm==0?-1:1;var glove=arm==0?left:right;
-                Vector3 wrist=glove.TransformPoint(new Vector3(side*.044f,-.005f,-.073f));
+                Vector3 wrist=glove.TransformPoint(new Vector3(side*.044f,-.004f,-.080f));
                 // Camera-space endpoints are below the bottom edge at both hip and ADS FOV.
                 // Editor model checks without a camera use the weapon's axes instead.
                 Vector3 elbow=view!=null?view.TransformPoint(new Vector3(side*.43f,-.65f,.14f)):
@@ -62,19 +66,31 @@ namespace SniperRidge
                     Vector3 x=Vector3.ProjectOnPlane(previousRight,tangent).normalized;
                     if(x.sqrMagnitude<.1f)x=Vector3.Cross(tangent,Vector3.up).normalized;
                     previousRight=x;Vector3 y=Vector3.Cross(tangent,x).normalized;
-                    float width=Mathf.Lerp(.026f,.062f,Mathf.SmoothStep(0,1,t));
-                    float height=Mathf.Lerp(.035f,.058f,Mathf.SmoothStep(0,1,t));
-                    float fold=1+Mathf.Sin(t*38)*.032f*Mathf.Sin(t*Mathf.PI);
-                    if(ring==2||ring==3){width*=1.055f;height*=1.055f;}
+                    float width=Mathf.Lerp(.025f,.061f,Mathf.SmoothStep(0,1,t));
+                    float height=Mathf.Lerp(.034f,.055f,Mathf.SmoothStep(0,1,t));
+                    // Gathered cloth has oblique, uneven folds, strongest above the cuff.
+                    float envelope=Mathf.Sin(Mathf.PI*t)*(.55f+.45f*Mathf.Exp(-t*3));
+                    if(ring==4||ring==5){width*=1.045f;height*=1.045f;}
                     for(int n=0;n<=Sides;n++)
                     {
                         float angle=n*Mathf.PI*2/Sides;
-                        Vector3 world=centre+fold*(x*Mathf.Cos(angle)*width+y*Mathf.Sin(angle)*height);
+                        float folds=(Mathf.Sin(t*49+Mathf.Sin(angle*2)*3.3f)*.0033f+
+                            Mathf.Sin(t*83-angle*3)*.0012f)*envelope;
+                        float seam=.0009f*Mathf.Pow(Mathf.Max(0,Mathf.Cos(angle-.6f)),40)*Mathf.Sin(t*Mathf.PI);
+                        Vector3 world=centre+x*Mathf.Cos(angle)*(width+folds+seam)+y*Mathf.Sin(angle)*(height+folds+seam);
                         vertices[arm*Rings*Stride+ring*Stride+n]=transform.InverseTransformPoint(world);
                     }
                 }
             }
-            mesh.vertices=vertices;mesh.RecalculateNormals();mesh.RecalculateBounds();
+            mesh.vertices=vertices;mesh.RecalculateNormals();
+            // UV seam vertices occupy the same place and must share their shading normal.
+            var normals=mesh.normals;
+            for(int arm=0;arm<2;arm++)for(int ring=0;ring<Rings;ring++)
+            {
+                int a=arm*Rings*Stride+ring*Stride,b=a+Sides;
+                normals[a]=normals[b]=(normals[a]+normals[b]).normalized;
+            }
+            mesh.normals=normals;mesh.RecalculateTangents();mesh.RecalculateBounds();
         }
         void OnDestroy()
         {

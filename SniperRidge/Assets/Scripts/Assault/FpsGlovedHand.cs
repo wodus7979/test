@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace SniperRidge
 {
-    /// <summary>One skinned glove, flattened palm and 15 finger bones. Hands only, no forearms.</summary>
+    /// <summary>One skinned glove with 15 finger bones. Rounded palm, suede panels and sewn reinforcement; sleeves are supplied by FpsForearms.</summary>
     public sealed class FpsGlovedHand:MonoBehaviour
     {
         [Serializable] public class Part {public float[] p,n,uv,skin;public int mat;}
         [Serializable] public class Finger {public float[] closed,opened;}
         [Serializable] public class Source {public Part[] parts;public Finger[] fingers;}
-        static Source source;static Material fabric,rubber;static Texture2D weave;
+        static Source source;static Material fabric,rubber,thread;
         readonly List<Transform> bones=new List<Transform>();float side,openness=-1;bool triggerHand;Mesh mesh;
         static Vector3 Read(float[] a,int i)=>new Vector3(a[i],a[i+1],a[i+2]);
         Vector3 Mirror(Vector3 v)=>new Vector3(v.x*side,v.y,v.z);
@@ -29,12 +29,16 @@ namespace SniperRidge
             }
             if(fabric==null)
             {
-                weave=new Texture2D(64,64,TextureFormat.RGB24,true){name="Glove textile weave",wrapMode=TextureWrapMode.Repeat};
-                for(int y=0;y<64;y++)for(int x=0;x<64;x++)
-                {float v=.78f+((x/2+y/2)%2)*.08f+Mathf.PerlinNoise(x*.8f,y*.8f)*.08f;weave.SetPixel(x,y,new Color(v,v,v));}
-                weave.Apply();
-                fabric=ProceduralAssets.TexturedMaterial(new Color(.46f,.34f,.22f),weave,null,1f,.025f);
-                rubber=SurfaceDetail.Make(Surface.Rubber,new Color(.14f,.105f,.068f),.02f);
+                var suede=Resources.Load<Texture2D>("Hands/glove_suede_albedo");
+                fabric=SurfaceDetail.Make(Surface.Fabric,new Color(.62f,.60f,.55f),.17f);
+                fabric.name="Worn microfiber glove";fabric.mainTexture=suede;
+                fabric.SetTextureScale("_BumpMap",Vector2.one*2);
+                fabric.SetFloat("_BumpScale",.16f);fabric.SetFloat("_DetailNormalMapScale",.18f);
+                rubber=SurfaceDetail.Make(Surface.Rubber,new Color(.38f,.35f,.30f),.27f);
+                rubber.name="Flexible suede reinforcement";rubber.mainTexture=suede;
+                rubber.SetFloat("_BumpScale",.12f);rubber.SetFloat("_DetailNormalMapScale",.15f);
+                thread=ProceduralAssets.LitMaterial(new Color(.48f,.43f,.34f),.10f);
+                thread.name="Glove lock stitches";
             }
             bones.Add(transform);
             foreach(var finger in source.fingers)for(int s=0;s<3;s++)
@@ -43,7 +47,7 @@ namespace SniperRidge
                 bone.localPosition=Mirror(Read(finger.closed,s*3));bones.Add(bone);
             }
             var vertices=new List<Vector3>();var normals=new List<Vector3>();var uv=new List<Vector2>();var skin=new List<BoneWeight>();
-            var triangles=new[]{new List<int>(),new List<int>()};
+            var triangles=new[]{new List<int>(),new List<int>(),new List<int>()};
             foreach(var part in source.parts)
             {
                 int start=vertices.Count;
@@ -56,11 +60,11 @@ namespace SniperRidge
                 for(int i=0;i<part.p.Length/3;i+=3)
                 {triangles[part.mat].Add(start+i);triangles[part.mat].Add(start+i+(side<0?2:1));triangles[part.mat].Add(start+i+(side<0?1:2));}
             }
-            mesh=new Mesh{name="FPS glove skinned mesh"};mesh.SetVertices(vertices);mesh.SetNormals(normals);mesh.SetUVs(0,uv);mesh.subMeshCount=2;
-            for(int i=0;i<2;i++)mesh.SetTriangles(triangles[i],i);
+            mesh=new Mesh{name="FPS glove skinned mesh"};mesh.SetVertices(vertices);mesh.SetNormals(normals);mesh.SetUVs(0,uv);mesh.subMeshCount=3;
+            for(int i=0;i<3;i++)mesh.SetTriangles(triangles[i],i);
             var bind=new Matrix4x4[bones.Count];for(int i=0;i<bind.Length;i++)bind[i]=bones[i].worldToLocalMatrix*transform.localToWorldMatrix;
-            mesh.bindposes=bind;mesh.boneWeights=skin.ToArray();mesh.RecalculateBounds();
-            var renderer=gameObject.AddComponent<SkinnedMeshRenderer>();renderer.sharedMesh=mesh;renderer.sharedMaterials=new[]{fabric,rubber};
+            mesh.bindposes=bind;mesh.boneWeights=skin.ToArray();mesh.RecalculateBounds();mesh.RecalculateTangents();
+            var renderer=gameObject.AddComponent<SkinnedMeshRenderer>();renderer.sharedMesh=mesh;renderer.sharedMaterials=new[]{fabric,rubber,thread};
             renderer.bones=bones.ToArray();renderer.rootBone=transform;renderer.localBounds=new Bounds(Vector3.zero,Vector3.one*.35f);renderer.updateWhenOffscreen=false;
             SetOpen(0);
         }

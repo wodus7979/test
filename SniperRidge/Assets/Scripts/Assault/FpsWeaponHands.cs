@@ -16,12 +16,10 @@ namespace SniperRidge
             var rightMarker=WeaponModels.FindPart(weapon,"RightHand");var leftMarker=WeaponModels.FindPart(weapon,"LeftHand");
             Vector3 rightPosition=rightMarker!=null?weapon.InverseTransformPoint(rightMarker.position):new Vector3(0,-.047f,-.172f);
             Vector3 leftPosition=leftMarker!=null?weapon.InverseTransformPoint(leftMarker.position):new Vector3(0,.013f,.175f);
-            // Put the gloves just outside the receiver instead of burying them in it. The
-            // markers describe the mechanical grip centre; the palm itself sits outboard.
-            // The trigger hand is nearest to the camera and otherwise falls below the
-            // widescreen frame. Lift it onto the pistol grip so the fingers remain visible.
-            rightPosition+=new Vector3(.050f,.088f,-.020f);
-            leftPosition+=new Vector3(-.045f,.018f,.015f);
+            // The authored palm already sits outboard of its grip origin. Keep the
+            // origin at the mechanical marker so curved fingers wrap around the grip.
+            rightPosition+=new Vector3(-.007f,-.015f,.003f);
+            leftPosition+=new Vector3(.008f,-.008f,.005f);
             pose.right=Grip(weapon,"Trigger hand",rightPosition,1);
             pose.left=Grip(weapon,"Support and loading hand",leftPosition,-1);
             if(definition.Id=="pistol"||definition.ModelName=="03_assault_rifle")pose.supportRotation=Quaternion.Euler(-12,0,0);
