@@ -29,9 +29,11 @@ namespace SniperRidge
                 var go=new GameObject(part.name,typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(root,false);
                 go.GetComponent<MeshFilter>().sharedMesh=mesh;go.GetComponent<MeshRenderer>().sharedMaterial=MaterialFor(part.material,van);
                 go.AddComponent<UrbanMeshOwner>().Mesh=mesh;
+
             }
-            var collider=root.gameObject.AddComponent<BoxCollider>();
-            collider.center=new Vector3(0,van?1f:.78f,0);collider.size=new Vector3(2.1f,van?2f:1.55f,4.55f);
+
+            // UrbanProps.Combine assigns the final visible mesh after merging the parts.
+            root.gameObject.AddComponent<MeshCollider>();
         }
         static Material MaterialFor(string key,bool van)
         {

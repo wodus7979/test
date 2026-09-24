@@ -529,13 +529,11 @@ namespace SniperRidge
                 }
                 else if (IsFreeRoam)
                 {
+                    // FPS gameplay follows the reticle. The lowered view-model muzzle
+                    // is cosmetic: nearby bonnets must not intercept an otherwise clear sight.
+                    // Starting at the eye (without a forward offset) still hits real cover.
                     Physics.SyncTransforms();
-                    Vector3 muzzle=muzzleAnchor!=null?muzzleAnchor.position:cam.transform.position;
-                    Vector3 target=Physics.Raycast(cam.transform.position,dir,out var sight,1500f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore)
-                        ? sight.point : cam.transform.position+dir*1500f;
-                    if(Physics.Linecast(cam.transform.position,muzzle,out var blocked,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))
-                        Bullet.Fire(cam.transform.position,(blocked.point-cam.transform.position).normalized,gm.Wind.Wind,w.MuzzleVelocity,w.DragK,w.Damage);
-                    else Bullet.Fire(muzzle,(target-muzzle).normalized,gm.Wind.Wind,w.MuzzleVelocity,w.DragK,w.Damage);
+                    Bullet.Fire(cam.transform.position,dir,gm.Wind.Wind,w.MuzzleVelocity,w.DragK,w.Damage);
                 }
                 else Bullet.Fire(cam.transform.position + cam.transform.forward * 0.6f, dir, gm.Wind.Wind, w.MuzzleVelocity, w.DragK, w.Damage);
             }

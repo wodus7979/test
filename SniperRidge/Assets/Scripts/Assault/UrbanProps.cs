@@ -84,6 +84,9 @@ namespace SniperRidge
             for(int i=root.transform.childCount-1;i>=0;i--){var child=root.transform.GetChild(i);child.gameObject.SetActive(false);child.SetParent(null);Object.Destroy(child.gameObject);}
             var combined=new Mesh{name=root.name,indexFormat=IndexFormat.UInt32};combined.CombineMeshes(pieces.ToArray(),false,false);
             root.AddComponent<MeshFilter>().sharedMesh=combined;root.AddComponent<MeshRenderer>().sharedMaterials=materials.ToArray();
+            // Vehicles use their static render hull, including the sloped bonnet/cabin,
+            // instead of a roof-height box across the entire car length.
+            var hull=root.GetComponent<MeshCollider>();if(hull!=null)hull.sharedMesh=combined;
             foreach(var mesh in meshes)Object.Destroy(mesh);
             // Only the template owns the shared mesh; placed copies must not destroy it.
             root.AddComponent<UrbanMeshOwner>().Mesh=combined;
