@@ -208,4 +208,21 @@ test('소리 없이 박자로만 앞서가는 것은 확인 안 된 음 2개까�
   assert.ok(s.beat < sample.events[3].beat, String(s.beat));
 });
 
+console.log('앱 설치(PWA)');
+const ROOT = path.join(__dirname, '..');
+test('서비스 워커가 저장하는 파일이 모두 있음', () => {
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const list = JSON.parse(sw.match(/const PRECACHE = (\[[\s\S]*?\]);/)[1].replace(/'/g, '"').replace(/,\s*\]/, ']'));
+  for (const f of list) if (f !== './') assert.ok(fs.existsSync(path.join(ROOT, f)), '없는 파일: ' + f);
+  // index.html 이 불러오는 파일도 빠짐없이 저장 목록에 있어야 오프라인에서 열림
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  for (const [, ref] of html.matchAll(/(?:src|href)="([^"#:]+)"/g)) assert.ok(list.includes(ref), '저장 목록에 없음: ' + ref);
+});
+test('매니페스트 아이콘 파일이 있음', () => {
+  const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
+  assert.strictEqual(m.display, 'standalone');
+  assert.ok(m.icons.some((i) => i.sizes === '512x512' && i.purpose === 'maskable'));
+  for (const i of m.icons) assert.ok(fs.existsSync(path.join(ROOT, i.src)), i.src);
+});
+
 console.log(`\n${passed}개 통과`);

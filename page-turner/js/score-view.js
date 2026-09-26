@@ -46,6 +46,9 @@
     }
 
     render() {
+      // 폰처럼 좁은 화면에서는 큰 제목이 잘리고 자리를 많이 차지하므로 생략
+      const wide = this.viewport.clientWidth >= 600;
+      this.osmd.setOptions({ drawTitle: wide, drawComposer: wide });
       this.osmd.zoom = this.zoom;
       this.osmd.render();
       // OSMD가 그린 svg 뒤에 강조 표시가 오도록 다시 붙임

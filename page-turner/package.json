@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node tests/serve.js",
     "test": "node tests/run-tests.js",
-    "test:e2e": "node tests/e2e-demo.js",
+    "test:e2e": "node tests/e2e-demo.js && node tests/e2e-pwa.js",
     "make-sample": "node tools/make-sample.js"
   },
   "devDependencies": {

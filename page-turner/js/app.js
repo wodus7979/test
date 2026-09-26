@@ -5,7 +5,7 @@
   const $ = (id) => document.getElementById(id);
   const els = {
     file: $('file'), sample: $('sample'), start: $('start'), demo: $('demo'),
-    settingsBtn: $('settingsBtn'), settings: $('settings'),
+    settingsBtn: $('settingsBtn'), settings: $('settings'), install: $('install'), update: $('update'),
     mode: $('mode'), tempo: $('tempo'), lookahead: $('lookahead'), sensitivity: $('sensitivity'),
     zoom: $('zoom'), demoSpeed: $('demoSpeed'), rubato: $('rubato'), demoSound: $('demoSound'),
     viewport: $('viewport'), empty: $('empty'), prev: $('prev'), next: $('next'), toast: $('toast'),
@@ -287,7 +287,7 @@
     const r = state.running;
     els.start.textContent = r === 'listen' ? '■ 정지' : '▶ 듣기 시작';
     els.start.classList.toggle('active', r === 'listen');
-    els.demo.textContent = r === 'demo' ? '■ 데모 정지' : '🎵 데모 연주';
+    els.demo.innerHTML = r === 'demo' ? '■<span class="txt"> 데모 정지</span>' : '🎵<span class="txt"> 데모 연주</span>';
     els.demo.classList.toggle('active', r === 'demo');
   }
 
@@ -402,6 +402,66 @@
     });
   }
 
+  // ---------- 앱 설치(PWA) ----------
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  }
+
+  function setupPwa() {
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+
+    // 안드로이드 크롬·데스크톱 크롬/엣지: 설치 버튼을 직접 보여 줌
+    let installPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      installPrompt = e;
+      els.install.hidden = false;
+    });
+    els.install.addEventListener('click', async () => {
+      if (!installPrompt) return;
+      els.install.hidden = true;
+      installPrompt.prompt();
+      await installPrompt.userChoice.catch(() => null);
+      installPrompt = null;
+    });
+    window.addEventListener('appinstalled', () => {
+      els.install.hidden = true;
+      toast('설치했어요. 이제 홈 화면에서 열 수 있고 인터넷이 없어도 동작합니다.', 4000);
+    });
+
+    // 아이폰·아이패드 사파리는 설치 버튼 이벤트가 없어서 방법을 안내
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios && !isStandalone()) {
+      els.install.hidden = false;
+      els.install.addEventListener('click', () => toast('사파리 아래쪽 공유 버튼(□↑) → "홈 화면에 추가"를 누르세요.', 6000));
+    }
+
+    navigator.serviceWorker
+      .register('sw.js')
+      .then((reg) => {
+        const offerUpdate = (worker) => {
+          els.update.hidden = false;
+          els.update.onclick = () => worker.postMessage('skipWaiting');
+        };
+        if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+        reg.addEventListener('updatefound', () => {
+          const w = reg.installing;
+          w.addEventListener('statechange', () => {
+            // 이미 앱을 쓰던 중에 새 버전을 받았을 때만 알림 (첫 설치 때는 조용히)
+            if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w);
+          });
+        });
+      })
+      .catch((e) => console.warn('서비스 워커 등록 실패', e));
+
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading || !els.update.onclick) return; // 첫 설치 때는 새로고침하지 않음
+      reloading = true;
+      location.reload();
+    });
+  }
+
   let relayoutTimer = null;
   function relayoutSoon() {
     clearTimeout(relayoutTimer);
@@ -421,6 +481,7 @@
 
   loadPrefs();
   bind();
+  setupPwa();
   renderStatus();
   requestAnimationFrame(tick);
 })();

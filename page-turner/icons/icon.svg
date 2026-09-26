@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1f2430"/>
+  <!-- 악보 한 장 (오른쪽 위 모서리가 넘어가는 모양) -->
+  <path d="M136 104h176l64 64v240a16 16 0 0 1-16 16H136a16 16 0 0 1-16-16V120a16 16 0 0 1 16-16z" fill="#ffffff"/>
+  <path d="M312 104v48a16 16 0 0 0 16 16h48z" fill="#c9d4ff"/>
+  <!-- 오선 -->
+  <g stroke="#b8bfcc" stroke-width="6">
+    <line x1="152" y1="232" x2="344" y2="232"/><line x1="152" y1="256" x2="344" y2="256"/>
+    <line x1="152" y1="280" x2="344" y2="280"/><line x1="152" y1="304" x2="344" y2="304"/>
+    <line x1="152" y1="328" x2="344" y2="328"/>
+  </g>
+  <!-- 8분음표 두 개 -->
+  <g fill="#1f2430">
+    <ellipse cx="206" cy="328" rx="24" ry="18" transform="rotate(-20 206 328)"/>
+    <ellipse cx="290" cy="304" rx="24" ry="18" transform="rotate(-20 290 304)"/>
+    <rect x="224" y="196" width="10" height="130"/>
+    <rect x="308" y="172" width="10" height="130"/>
+    <path d="M224 196 L318 172 L318 200 L224 224z"/>
+  </g>
+  <!-- 넘김 화살표 -->
+  <path d="M300 392 q60 0 72-52" fill="none" stroke="#4f7cff" stroke-width="18" stroke-linecap="round"/>
+  <path d="M352 336 l24 -10 l8 26z" fill="#4f7cff" stroke="#4f7cff" stroke-width="10" stroke-linejoin="round"/>
+</svg>

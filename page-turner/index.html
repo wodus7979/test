@@ -4,7 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1f2430">
+  <meta name="description" content="피아노 소리와 박자를 함께 따라가며 악보를 자동으로 넘겨 주는 앱">
   <title>자동 악보 넘기기</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="악보 넘기기">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -12,17 +20,19 @@
     <div class="brand">🎹 자동 악보 넘기기</div>
 
     <div class="group">
-      <label class="btn" title="MusicXML(.musicxml, .xml, .mxl) 악보 불러오기">
-        📂 악보 불러오기
+      <label class="btn" title="MusicXML(.musicxml, .xml, .mxl) 악보 불러오기" aria-label="악보 불러오기">
+        📂<span class="txt"> 악보 불러오기</span>
         <input id="file" type="file" accept=".musicxml,.xml,.mxl,.pdf,image/*" hidden>
       </label>
-      <button id="sample" class="btn ghost" type="button">샘플 악보</button>
+      <button id="sample" class="btn ghost" type="button" aria-label="샘플 악보">🎼<span class="txt"> 샘플 악보</span></button>
     </div>
 
     <div class="group">
       <button id="start" class="btn primary" type="button" disabled>▶ 듣기 시작</button>
-      <button id="demo" class="btn" type="button" disabled title="피아노 없이 합성음으로 연주해 시험해 보기">🎵 데모 연주</button>
-      <button id="settingsBtn" class="btn ghost" type="button" aria-expanded="false" aria-controls="settings">⚙ 설정</button>
+      <button id="demo" class="btn" type="button" disabled title="피아노 없이 합성음으로 연주해 시험해 보기" aria-label="데모 연주">🎵<span class="txt"> 데모 연주</span></button>
+      <button id="settingsBtn" class="btn ghost" type="button" aria-expanded="false" aria-controls="settings" aria-label="설정">⚙<span class="txt"> 설정</span></button>
+      <button id="install" class="btn ghost" type="button" hidden title="홈 화면에 앱으로 설치" aria-label="앱 설치">📲<span class="txt"> 앱 설치</span></button>
+      <button id="update" class="btn primary" type="button" hidden title="새 버전으로 새로고침">🔄 새 버전</button>
     </div>
   </header>
 

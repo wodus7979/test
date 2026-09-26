@@ -12,6 +12,8 @@ const TYPES = {
   '.musicxml': 'application/xml',
   '.xml': 'application/xml',
   '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json',
 };
 
 function createServer() {

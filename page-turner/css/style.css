@@ -16,6 +16,7 @@
 
 html, body {
   height: 100%;
+  height: 100dvh; /* 모바일 주소 표시줄이 줄었다 늘어나도 화면에 딱 맞게 */
   margin: 0;
 }
 
@@ -35,9 +36,14 @@ body {
   align-items: center;
   gap: 8px 16px;
   padding: 8px 16px;
+  /* 홈 화면 앱(전체 화면)에서 노치·상태 표시줄을 피함 */
+  padding-top: max(8px, env(safe-area-inset-top));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   background: var(--bar);
   color: var(--bar-text);
 }
+.btn[hidden] { display: none; }
 .brand { font-weight: 700; margin-right: auto; white-space: nowrap; }
 .group { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -194,6 +200,9 @@ body {
   align-items: center;
   gap: 6px 18px;
   padding: 8px 16px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   background: var(--bar);
   color: var(--bar-muted);
   font-size: 14px;
@@ -228,8 +237,13 @@ body {
 .hint { margin-left: auto; font-size: 12px; }
 
 @media (max-width: 640px) {
-  .brand { width: 100%; }
+  /* 폰: 도구 막대를 한 줄로 — 보조 버튼은 아이콘만 */
+  .toolbar { gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
+  .brand { display: none; }
+  .group { flex-wrap: nowrap; gap: 6px; }
+  .btn .txt { display: none; }
+  .btn { padding: 0 10px; font-size: 16px; justify-content: center; min-width: 40px; }
+  #start { font-size: 14px; white-space: nowrap; }
   .hint { display: none; }
-  .btn { padding: 0 10px; font-size: 14px; }
   .nav { width: 36px; }
 }
