@@ -35,7 +35,7 @@ namespace SniperRidge
             if(shooter!=null&&!shooter.IsAlly)
             {
                 gm.Player.GetDamageCapsule(out var bottom,out var top);
-                float distance=CounterfireRules.CapsuleHit(position,next,bottom,top,CounterfireRules.PlayerRadius);
+                float distance=CounterfireRules.CapsuleHit(position,next,bottom,top,gm.Player.DamageRadius);
                 if(!float.IsPositiveInfinity(distance)&&(!wall||distance<hit.distance))
                 {Explode(position+direction*distance);return;}
             }

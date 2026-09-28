@@ -29,7 +29,10 @@ namespace SniperRidge
         public FpsMovement FreeMovement { get; private set; }
         public bool IsFreeRoam => FreeMovement != null;
         public bool InTank { get; private set; }
-        public bool CanSwitchWeapon => !InTank && !IsMounted && inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
+        public HulkController Hulk { get; private set; }
+        public bool IsHulk => Hulk != null && Hulk.Active;
+        public float DamageRadius => IsHulk ? HulkController.Radius : CounterfireRules.PlayerRadius;
+        public bool CanSwitchWeapon => !IsHulk && !InTank && !IsMounted && inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
         public bool IsScoped { get; private set; }
         public int AmmoInMag { get => loadout.Active?.Magazine ?? 0; private set => loadout.Active.Magazine = value; }
         public int Reserve { get => loadout.Active?.Reserve ?? 0; private set => loadout.Active.Reserve = value; }
@@ -43,9 +46,9 @@ namespace SniperRidge
         public float CurrentScopeFov => Weapon != null ? Weapon.ScopeFovs[zoomIndex] : BaseFov;
         public Transform Eye => cam.transform;
         public bool IsDesktop => desktop;
-        public bool IsHidden => IsFreeRoam ? FreeMovement.Crouching : !IsMounted && cam.transform.localPosition.y <= .78f;
+        public bool IsHidden => !IsHulk && (IsFreeRoam ? FreeMovement.Crouching : !IsMounted && cam.transform.localPosition.y <= .78f);
         public bool CanFireFromCover => IsFreeRoam ? !FreeMovement.Sprinting : IsMounted || (!coverHeld && cam.transform.localPosition.y >= 1.42f);
-        public Vector3 AimPoint => Eye.position - Vector3.up * .18f;
+        public Vector3 AimPoint => IsHulk ? transform.position + Vector3.up * 2f : Eye.position - Vector3.up * .18f;
         Vector3 nestOrigin;
         bool coverHeld, touchCover;
         float lateralOffset;
@@ -54,6 +57,7 @@ namespace SniperRidge
 
         public void GetDamageCapsule(out Vector3 bottom, out Vector3 top)
         {
+            if (IsHulk) { bottom=transform.position+Vector3.up*HulkController.Radius; top=transform.position+Vector3.up*(HulkController.Height-HulkController.Radius); return; }
             bottom = IsMounted ? Eye.position - Vector3.up * 1.35f : transform.position + Vector3.up * .30f;
             top = Eye.position - Vector3.up * .10f;
         }
@@ -64,6 +68,21 @@ namespace SniperRidge
             cam.transform.localPosition=Vector3.up*1.68f;
             MinPitch=-80f;MaxPitch=80f;yaw=pitch=0;
             FreeMovement=FpsMovement.Attach(this);
+            Hulk=HulkController.Attach(this);
+        }
+
+        public void SetHulkView(bool active)
+        {
+            Grenades.CancelAim(); Grenades.enabled=!active;
+            fireQueued=fireHeld=scopeToggleQueued=reloadQueued=zoomQueued=false;
+            lookInput=Vector2.zero;zeroDelta=0;IsScoped=false;HoldingBreath=false;
+            recoil=recoilYaw=0;fireTimer=.3f;
+            if(weaponModel!=null)weaponModel.SetActive(!active);
+            if(!active)
+            {
+                yaw=transform.eulerAngles.y;pitch=0;
+                cam.transform.localPosition=Vector3.up*1.68f;cam.transform.localRotation=Quaternion.identity;cam.fieldOfView=72;
+            }
         }
 
         public void AttachToTank(WeaponDefinition weapon)
@@ -272,6 +291,7 @@ namespace SniperRidge
         {
             if (gm == null) return;
             float dt = Time.deltaTime;
+            if(Hulk!=null){Hulk.Tick(dt);if(IsHulk)return;}
 
             if (desktop && inputEnabled) GatherDesktopInput();
             if (!inputEnabled)

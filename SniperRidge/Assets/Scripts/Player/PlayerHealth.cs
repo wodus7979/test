@@ -22,6 +22,7 @@ namespace SniperRidge
         {
             var gm = GameManager.Instance;
             if (gm == null || !gm.IsPlaying) return;
+            if(gm.Player != null && gm.Player.IsHulk)amount*=.35f;
             Current = Mathf.Max(0f, Current - amount);
             lastHitTime = Time.time;
             gm.Hud.FlashDamage();

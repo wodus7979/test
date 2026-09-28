@@ -79,7 +79,7 @@ namespace SniperRidge
             if(gm.Assault!=null && owner!=null)gm.Assault.NotifyIncoming(owner,position,blocked?obstacle.point:next);
             float wallDistance = blocked ? obstacle.distance : float.PositiveInfinity;
             gm.Player.GetDamageCapsule(out Vector3 bottom, out Vector3 top);
-            float playerDistance = CounterfireRules.CapsuleHit(position, next, bottom, top, CounterfireRules.PlayerRadius);
+            float playerDistance = CounterfireRules.CapsuleHit(position, next, bottom, top, gm.Player.DamageRadius);
             if ((owner==null||!owner.IsAlly) && !float.IsPositiveInfinity(playerDistance) && playerDistance < wallDistance)
             {
                 gm.Health.TakeDamage(damage);

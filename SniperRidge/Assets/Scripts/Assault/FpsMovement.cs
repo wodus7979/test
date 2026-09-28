@@ -28,6 +28,7 @@ namespace SniperRidge
             controller.radius=Radius;controller.height=StandingHeight;controller.center=Vector3.up*StandingHeight*.5f;
             controller.stepOffset=.28f;controller.slopeLimit=45f;controller.skinWidth=.025f;controller.minMoveDistance=0;
         }
+        public void ResetPose(){Crouching=Sprinting=false;vertical=-2f;bob=0;}
         public bool CanStand()
         {
             // Ignore the player's own controller (Ignore Raycast layer), but include ceilings.

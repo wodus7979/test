@@ -1,0 +1,213 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+namespace SniperRidge
+{
+    /// <summary>City-only transformation. The player, health and mission remain the same objects.</summary>
+    public sealed class HulkController : MonoBehaviour
+    {
+        public enum Attack { None, Punch, Clap, Slam }
+        public bool Active { get; private set; }
+        public Attack CurrentAttack { get; private set; }
+        public float AttackAge => Time.time-actionAt;
+        public float ClapCooldown => Mathf.Max(0,clapAt-Time.time);
+        public float SlamCooldown => Mathf.Max(0,slamAt-Time.time);
+        public const float Height=3.5f, Radius=.65f;
+        public bool Grounded => capsule.isGrounded;
+        public int DamageEvents { get; private set; }
+        public int Landings { get; private set; }
+        SniperController owner;
+        CharacterController capsule;
+        HulkVisual visual;
+        Canvas canvas;
+        Button transformButton;
+        readonly List<Button> skills=new List<Button>();
+        readonly HashSet<EnemySoldier> waveHit=new HashSet<EnemySoldier>();
+        float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,waveStart=-99,waveRadius,inputAfter,stepAt;
+        bool impactDone,airborne;
+        Vector3 waveOrigin,waveForward;
+        Attack waveAttack;
+        AudioSource audioSource;
+        AudioClip thump,clap;
+        GameManager Game => GameManager.Instance;
+        public static HulkController Attach(SniperController player)
+        {
+            var h=player.gameObject.AddComponent<HulkController>();h.owner=player;
+            h.capsule=player.GetComponent<CharacterController>();h.BuildUi();return h;
+        }
+        public bool Toggle()
+        {
+            if(Game==null || !Game.IsPlaying || !owner.IsFreeRoam || CurrentAttack!=Attack.None ||
+                owner.State!=SniperController.WeaponState.Ready || (!Grounded && Active))return false;
+            if(!Active && Physics.CheckCapsule(transform.position+Vector3.up*(Radius+.08f),
+                transform.position+Vector3.up*(Height-Radius),Radius,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))
+            {Game.Hud.ShowShotFeedback("변신할 공간이 부족합니다 · 넓은 곳으로 이동하세요");return false;}
+            Active=!Active;vertical=-2;waveStart=-99;waveHit.Clear();
+            if(Active)
+            {
+                if(visual==null)visual=HulkVisual.Create(transform);
+                visual.gameObject.SetActive(true);yaw=transform.eulerAngles.y;pitch=15;
+                capsule.height=Height;capsule.radius=Radius;capsule.center=Vector3.up*Height*.5f;capsule.stepOffset=.45f;
+            }
+            else {visual.gameObject.SetActive(false);FpsMovement.Configure(capsule);owner.FreeMovement.ResetPose();}
+            owner.SetHulkView(Active);LockInput();
+            Effects.Puff(transform.position+Vector3.up*.2f,Vector3.up,1.5f,new Color(.48f,.52f,.35f),.7f);
+            Game.Hud.Announce(Active?"헐크 변신 · 왕을 향해 돌파하세요":"FPS 모드로 복귀");
+            return true;
+        }
+        public bool BeginAttack(Attack attack)
+        {
+            if(!Active || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
+            if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt)return false;
+            CurrentAttack=attack;actionAt=Time.time;impactDone=false;
+            if(attack==Attack.Punch)punchAt=Time.time+.65f;
+            if(attack==Attack.Clap)clapAt=Time.time+4f;
+            if(attack==Attack.Slam){slamAt=Time.time+6f;vertical=13f;airborne=false;}
+            return true;
+        }
+        public void Tick(float dt)
+        {
+            bool playing=Game!=null && Game.IsPlaying;
+            canvas.gameObject.SetActive(playing);
+            if(!playing)return;
+            if(Input.GetKeyDown(KeyCode.H))Toggle();
+            transformButton.GetComponentInChildren<Text>().text=Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
+            foreach(var button in skills)button.gameObject.SetActive(Active);
+            if(!Active)return;
+            skills[0].interactable=CurrentAttack==Attack.None&&Grounded;
+            skills[1].interactable=CurrentAttack==Attack.None&&Grounded&&ClapCooldown<=0;
+            skills[2].interactable=CurrentAttack==Attack.None&&Grounded&&SlamCooldown<=0;
+            skills[1].GetComponentInChildren<Text>().text=ClapCooldown>0?"박수 충격파 "+ClapCooldown.ToString("0.0")+"초":"[우클릭] 박수 충격파";
+            skills[2].GetComponentInChildren<Text>().text=SlamCooldown>0?"점프 강타 "+SlamCooldown.ToString("0.0")+"초":"[Space] 점프 강타";
+            if(Input.GetKeyDown(KeyCode.Escape)){Cursor.lockState=CursorLockMode.None;Cursor.visible=true;}
+            bool keys=Cursor.lockState==CursorLockMode.Locked&&Time.time>=inputAfter;
+            if(!keys&&Input.GetMouseButtonDown(0)&&(EventSystem.current==null||!EventSystem.current.IsPointerOverGameObject()))LockInput();
+            if(keys)
+            {
+                yaw+=Input.GetAxis("Mouse X")*owner.MouseSensitivity;
+                pitch=Mathf.Clamp(pitch-Input.GetAxis("Mouse Y")*owner.MouseSensitivity,-12,55);
+                if(Input.GetMouseButton(0))BeginAttack(Attack.Punch);
+                if(Input.GetMouseButtonDown(1))BeginAttack(Attack.Clap);
+                if(Input.GetKeyDown(KeyCode.Space))BeginAttack(Attack.Slam);
+            }
+            Vector2 movement=keys?new Vector2((Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0),
+                (Input.GetKey(KeyCode.W)?1:0)-(Input.GetKey(KeyCode.S)?1:0)):Vector2.zero;
+            Move(movement,dt);
+            AdvanceAttack();AdvanceWave();
+            float speed=new Vector2(capsule.velocity.x,capsule.velocity.z).magnitude;
+            visual.Pose(speed,CurrentAttack,AttackAge,Grounded);
+            if(speed>1&&Grounded&&Time.time>stepAt){Sound(false,.22f);stepAt=Time.time+.42f;}
+        }
+        // Shared by keyboard input and editor play-mode validation.
+        public void Move(Vector2 input,float dt)
+        {
+            if(!Active || Game==null || !Game.IsPlaying)return;
+            transform.rotation=Quaternion.Euler(0,yaw,0);
+            input=Vector2.ClampMagnitude(input,1);
+            if(Grounded&&vertical<0)vertical=-2;
+            vertical=Mathf.Max(-30,vertical-26*dt);
+            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?4.5f:8f;
+            CollisionFlags flags=capsule.Move(((transform.forward*input.y+transform.right*input.x)*speed+Vector3.up*vertical)*dt);
+            if((flags&CollisionFlags.Above)!=0&&vertical>0)vertical=0;
+            if(CurrentAttack==Attack.Slam)
+            {
+                if(!Grounded)airborne=true;
+                if(airborne&&Grounded&&vertical<0&&!impactDone)
+                {impactDone=true;Landings++;StartWave(Attack.Slam);actionAt=Time.time;Sound(true,1f);}
+                // A low ceiling may prevent take-off. Never leave the attack locked forever.
+                if(!airborne&&AttackAge>1f){CurrentAttack=Attack.None;}
+            }
+        }
+        void AdvanceAttack()
+        {
+            float age=AttackAge;
+            if(CurrentAttack==Attack.Punch)
+            {
+                if(!impactDone&&age>=.23f)
+                {
+                    impactDone=true;HitTargets(transform.position+Vector3.up*1.6f,transform.forward,3.8f,60,145,null,2.8f);
+                    Effects.Puff(transform.TransformPoint(.5f,1.9f,1.3f),transform.forward,.35f,new Color(.7f,.75f,.55f),.2f);Sound(false,.8f);
+                }
+                if(age>.65f)CurrentAttack=Attack.None;
+            }
+            else if(CurrentAttack==Attack.Clap)
+            {
+                if(!impactDone&&age>=.43f){impactDone=true;StartWave(Attack.Clap);Sound(true,1f);}
+                if(age>.95f)CurrentAttack=Attack.None;
+            }
+            else if(CurrentAttack==Attack.Slam&&impactDone&&age>.6f)CurrentAttack=Attack.None;
+        }
+        void StartWave(Attack attack)
+        {
+            waveAttack=attack;waveStart=Time.time;waveRadius=attack==Attack.Clap?18:8;
+            waveOrigin=transform.position+Vector3.up*(attack==Attack.Clap?1.5f:.45f);waveForward=transform.forward;waveHit.Clear();
+            HulkWave.Create(waveOrigin,waveForward,waveRadius,attack==Attack.Clap);
+        }
+        void AdvanceWave()
+        {
+            float age=Time.time-waveStart;
+            if(age<0||age>1.05f)return;
+            HitTargets(waveOrigin,waveForward,Mathf.Min(waveRadius,age*waveRadius/.8f),waveAttack==Attack.Clap?65:180,
+                waveAttack==Attack.Clap?110:200,waveHit,waveAttack==Attack.Clap?4:5);
+        }
+        void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height)
+        {
+            if(Game.Assault==null)return;
+            foreach(var enemy in Game.Assault.Soldiers.ToArray())
+            {
+                if(enemy==null||enemy.IsDead||enemy.IsAlly||hit!=null&&hit.Contains(enemy))continue;
+                Vector3 point=enemy.AimPoint,delta=point-origin,flat=Vector3.ProjectOnPlane(delta,Vector3.up);
+                if(flat.magnitude>range||Mathf.Abs(delta.y)>height||Vector3.Angle(forward,flat)>degrees)continue;
+                bool blocked=false;
+                foreach(var wall in Physics.RaycastAll(origin,delta.normalized,delta.magnitude,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))
+                    if(wall.collider.GetComponentInParent<EnemySoldier>()==null){blocked=true;break;}
+                if(blocked)continue;
+                hit?.Add(enemy);DamageEvents++;
+                bool killed=enemy.TakeHit(damage,false,delta.normalized);
+                Game.OnEnemyHit(enemy,false,delta.magnitude,killed,false);
+                Effects.Dust(point,-delta.normalized,.45f);
+            }
+        }
+        void LateUpdate()
+        {
+            if(!Active)return;
+            Vector3 focus=transform.position+Vector3.up*2.45f;
+            Quaternion rotation=Quaternion.Euler(pitch,yaw,0);
+            Vector3 offset=rotation*new Vector3(.65f,.6f,-6.3f);
+            float distance=offset.magnitude;
+            if(Physics.SphereCast(focus,.23f,offset.normalized,out var hit,distance,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))distance=Mathf.Max(.25f,hit.distance-.12f);
+            owner.Eye.position=focus+offset.normalized*distance;
+            owner.Eye.rotation=Quaternion.LookRotation(focus+transform.forward*1.8f-owner.Eye.position);
+            owner.Eye.GetComponent<Camera>().fieldOfView=68;
+            // Don't fill the screen with the back of the head when a wall pushes the camera close.
+            visual.SetVisible(distance>1.5f);
+        }
+        void LockInput(){Cursor.lockState=CursorLockMode.Locked;Cursor.visible=false;inputAfter=Time.time+.2f;}
+        void BuildUi()
+        {
+            var go=new GameObject("Hulk abilities",typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster));go.transform.SetParent(transform,false);
+            canvas=go.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=10;
+            var scaler=go.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1920,1080);
+            transformButton=Button("Transform",0,"[H] 헐크 변신",()=>Toggle());
+            skills.Add(Button("Punch",1,"[좌클릭] 주먹 공격",()=>{if(BeginAttack(Attack.Punch))LockInput();}));
+            skills.Add(Button("Clap",2,"[우클릭] 박수 충격파",()=>{if(BeginAttack(Attack.Clap))LockInput();}));
+            skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
+            foreach(var b in skills)b.gameObject.SetActive(false);
+        }
+        Button Button(string name,int row,string label,UnityEngine.Events.UnityAction action)
+            =>UiKit.TextButton(canvas.transform,name,label,22,new Color(.08f,.23f,.12f,.92f),new Color(.8f,1f,.72f),
+                Vector2.one,Vector2.one,new Vector2(-28,-200-row*58),new Vector2(260,50),action);
+        void Sound(bool wave,float volume)
+        {
+            if(audioSource==null)
+            {
+                audioSource=gameObject.AddComponent<AudioSource>();audioSource.spatialBlend=0;
+                thump=HulkWave.MakeSound(false);clap=HulkWave.MakeSound(true);
+            }
+            audioSource.PlayOneShot(wave?clap:thump,volume);
+        }
+        void OnDestroy(){if(thump!=null)Destroy(thump);if(clap!=null)Destroy(clap);}
+    }
+}

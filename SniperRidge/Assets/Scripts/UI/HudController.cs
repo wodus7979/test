@@ -279,7 +279,7 @@ namespace SniperRidge
             launcherButton.gameObject.SetActive(p.IsMounted || !p.InTank && !p.IsFreeRoam);
             launcherHelp.gameObject.SetActive(p.IsMounted || !p.InTank && !p.IsFreeRoam);
             windArrow.gameObject.SetActive(!p.IsFreeRoam);
-            grenadeCount.gameObject.SetActive(!p.IsMounted && !p.InTank);
+            grenadeCount.gameObject.SetActive(!p.IsMounted && !p.InTank && !p.IsHulk);
             if (p.IsMounted) hintText.text = "마우스 조준  |  좌클릭 연사  |  Space 로켓 회피  |  우클릭 확대  |  R 탄띠 교체  |  옥상 확보 후 자동 착륙";
             grenadeCount.text = string.Format(p.IsFreeRoam?"[G] 수류탄 {0}개 · 누르고 조준":"[W] 수류탄 {0}개 · 누르고 조준", p.Grenades.Count);
             grenadeAim.text = p.Grenades.IsAiming ? p.Grenades.AimLabel : "";
@@ -380,6 +380,13 @@ namespace SniperRidge
                 grenadeCount.fontSize=20;grenadeCount.rectTransform.anchoredPosition=new Vector2(-30,-100);
                 hintText.text="WASD 이동 · Tab 지도 | 1 소총 · 2 기관총 · 3 저격 · 4 로켓 | R 장전 · G 수류탄";
                 if(Cursor.lockState!=CursorLockMode.Locked)hintText.text="게임 화면을 클릭해 조작을 시작하세요";
+            }
+            if(p.IsHulk)
+            {
+                weaponText.text="헐크";ammoText.text="주먹 / 충격파";stateText.text="받는 피해 65% 감소";
+                grenadeCount.gameObject.SetActive(false);crosshair.SetActive(false);
+                coverText.text="왕을 향해 돌파하세요 · "+gm.Assault.SquadStatus;
+                hintText.text="WASD 이동 · 마우스 시점 | 좌클릭 주먹 · 우클릭 박수 충격파 · Space 점프 강타 | H 인간 복귀 · Esc 버튼 선택";
             }
             if (p.InTank && gm.Armor != null)
             {

@@ -32,7 +32,7 @@ namespace SniperRidge
         public void BeginAim()
         {
             var gm = GameManager.Instance;
-            if (gm == null || !gm.IsPlaying || IsAiming || player.IsMounted || player.InTank) return;
+            if (gm == null || !gm.IsPlaying || IsAiming || player.IsMounted || player.InTank || player.IsHulk) return;
             if (Count <= 0) { gm.Hud.ShowShotFeedback("수류탄이 없습니다"); return; }
             if (Time.time < readyAt) return;
             if (!player.CanFireFromCover) { gm.Hud.ShowShotFeedback(player.IsFreeRoam?"달리기를 멈춘 뒤 G로 투척하세요":"일어선 뒤 W로 투척 위치를 지정하세요"); return; }
