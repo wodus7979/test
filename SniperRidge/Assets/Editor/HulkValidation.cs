@@ -16,7 +16,9 @@ namespace SniperRidge.EditorTools
     {
         const string Key="Hulk.Validation";
         static int stage,ammo,landings,lastFrame=-1;
-        static float at,peak,allyHealth;
+        static float at,peak,allyHealth,initialScale;
+        static bool transformCaptured,punchCaptured;
+        static Quaternion restingArm;
         static Vector3 cityPosition,origin=new Vector3(1500,40.05f,1500),beforeMove;
         static GameObject fixture,ceiling;
         static EnemySoldier front,far,protectedEnemy,ally;
@@ -66,10 +68,26 @@ namespace SniperRidge.EditorTools
                         h=p.Hulk;Check(h!=null,"missing city transformation");ammo=p.AmmoInMag;cityPosition=p.transform.position;
                         foreach(var e in gm.Assault.Soldiers)Freeze(e);gm.Assault.enabled=false;gm.Health.Max=10000;gm.Health.Configure(0,10000);
                         var button=h.GetComponentsInChildren<Button>().First(b=>b.name=="Transform");button.onClick.Invoke();
-                        Check(h.Active,"transformation button did not activate");Next();
+                        Check(h.Active,"transformation button did not activate");
+                        Check(h.Transforming && h.Audio.Ready,"transformation / audio assets missing");
+                        Check(h.Visual.UsesReferenceAsset,"supplied skinned model was not loaded");
+                        Check(h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.Length==43,"reference skeleton mismatch");
+                        initialScale=h.Visual.transform.localScale.x;Next();
                     }
-                    else if(stage==1&&age>.65f)
+                    else if(stage==1&&age<1.7f)
                     {
+                        Check(!h.BeginAttack(HulkController.Attack.Punch)&&!h.Toggle(),"transformation can be interrupted by attack/toggle");
+                        Vector3 before=p.transform.position;h.Move(Vector2.up,Time.deltaTime);
+                        Check(Vector2.Distance(new Vector2(before.x,before.z),new Vector2(p.transform.position.x,p.transform.position.z))<.001f,"moving during transformation");
+                        if(age>.5f&&!transformCaptured){Capture("hulk_reference_transform");transformCaptured=true;initialScale=h.Visual.transform.localScale.x;}
+                    }
+                    else if(stage==1&&age>1.95f)
+                    {
+                        var skins=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>();
+                        Check(skins[0].sharedMesh.triangles.Length/3==139559&&skins[1].sharedMesh.triangles.Length/3==49703,"reference mesh triangles changed");
+                        restingArm=skins[0].bones.First(b=>b.name=="RightUpperArm").localRotation;
+                        Check(!h.Transforming && h.Visual.transform.localScale.x>initialScale+.1f,"transformation did not grow/finish");
+                        Check(h.Audio.Count(HulkAudio.Cue.Transform)==1,"transform sound duplicate/missing");
                         Check(Vector3.Dot(p.Eye.position-p.transform.position,p.transform.forward)<-2,"camera not behind body");
                         Check(Vector3.Distance(p.AimPoint,p.transform.position)<3,"AI target follows chase camera");
                         p.GetDamageCapsule(out var bottom,out var top);Check(Mathf.Abs(top.y-p.transform.position.y-2.85f)<.1f,"damage capsule not Hulk-sized");
@@ -81,8 +99,15 @@ namespace SniperRidge.EditorTools
                         Physics.SyncTransforms();Next();
                     }
                     else if(stage==2&&age>.3f){Check(h.BeginAttack(HulkController.Attack.Punch),"punch rejected");Next();}
+                    else if(stage==3&&age>.34f&&age<.7f&&!punchCaptured)
+                    {
+                        Check(h.Visual.Motion=="Punch","pack punch animation not playing");
+                        var arm=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="RightUpperArm");
+                        Check(Quaternion.Angle(restingArm,arm.localRotation)>35,"reference rig did not deform for punch");Capture("hulk_reference_punch");punchCaptured=true;
+                    }
                     else if(stage==3&&age>.85f)
                     {
+                        Check(h.Audio.Count(HulkAudio.Cue.PunchSwing)==1&&h.Audio.Count(HulkAudio.Cue.PunchHit)==1,"punch audio events wrong");
                         Check(Mathf.Abs(front.Health-855)<.1f,"punch missed or repeated: "+front.Health);
                         Check(far.Health==1000&&protectedEnemy.Health==1000&&ally.Health==allyHealth,"punch hit distant/back/ally");
                         protectedEnemy.transform.position=origin+new Vector3(5,0,8);
@@ -91,6 +116,7 @@ namespace SniperRidge.EditorTools
                     }
                     else if(stage==4&&age>.64f)
                     {
+                        Check(h.Audio.Count(HulkAudio.Cue.Clap)==1,"clap audio missing/duplicate");
                         Check(far.Health==1000,"wave hit distant enemy before reaching it");Capture("hulk_clap");Next();
                     }
                     else if(stage==5&&age>1.2f)
@@ -109,6 +135,7 @@ namespace SniperRidge.EditorTools
                     }
                     else if(stage==7&&age>1.3f)
                     {
+                        Check(h.Audio.Count(HulkAudio.Cue.Jump)==1&&h.Audio.Count(HulkAudio.Cue.Slam)==1,"jump/landing sound not distinct single events");
                         Check(peak>2,"jump too low");Check(h.Landings==landings+1,"slam repeated");
                         Check(Mathf.Abs(front.Health-545)<.1f,"slam damage wrong: "+front.Health);
                         Check(far.Health==890&&ally.Health==allyHealth,"slam range / friendly fire");
@@ -118,7 +145,13 @@ namespace SniperRidge.EditorTools
                     else if(stage==8)
                     {
                         h.Move(Vector2.left,Time.deltaTime);
-                        if(age>.7f){Check(Vector3.Distance(p.transform.position,beforeMove)>2.5f,"movement failed");Check(p.AmmoInMag==ammo,"Hulk used bullets");Check(h.Toggle(),"human restore rejected");Next();}
+                        if(age>.7f){Check(Vector3.Distance(p.transform.position,beforeMove)>2.5f,"movement failed");Check(p.AmmoInMag==ammo,"Hulk used bullets");
+                            Check(h.BeginAttack(HulkController.Attack.Punch),"miss punch rejected");stage=80;at=Time.time;}
+                    }
+                    else if(stage==80&&age>.85f)
+                    {
+                        Check(h.Audio.Count(HulkAudio.Cue.PunchSwing)==2&&h.Audio.Count(HulkAudio.Cue.PunchHit)==1,"miss punch incorrectly played body impact");
+                        Check(h.Toggle(),"human restore rejected");stage=9;at=Time.time;
                     }
                     else if(stage==9&&age>.2f)
                     {
@@ -129,7 +162,7 @@ namespace SniperRidge.EditorTools
                         Check(!h.Toggle()&&!h.Active,"transformed through low ceiling");ceiling.SetActive(false);UnityEngine.Object.Destroy(ceiling);
                         Check(h.Toggle(),"second transformation failed");Next();
                     }
-                    else if(stage==10&&age>.2f)
+                    else if(stage==10&&age>1.95f)
                     {
                         Box("Camera wall",p.transform.position+new Vector3(0,2,-2.8f),new Vector3(8,5,.4f));Physics.SyncTransforms();Next();
                     }
@@ -145,10 +178,10 @@ namespace SniperRidge.EditorTools
                             var navigation=e.GetComponent<AssaultNavigation>();if(navigation!=null)navigation.enabled=true;
                         }
                         gm.Assault.enabled=true;
-                        Debug.Log("[Hulk validation] PASS: button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
+                        Debug.Log("[Hulk validation] PASS: reference skinned mesh, 43 bones, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
                         Check(h.Toggle(),"city return failed");Next();
                     }
-                    else if(stage==12&&age>.5f){Capture("hulk_city_final");stage=13;}
+                    else if(stage==12&&age>2f){Capture("hulk_city_final");stage=13;}
                 }
                 if(!File.Exists("Logs/autoplay_result.txt")||EditorApplication.isPlayingOrWillChangePlaymode)return;
                 string result=File.ReadAllText("Logs/autoplay_result.txt");Debug.Log("HULK_RUNTIME_RESULT\n"+result);

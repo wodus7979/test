@@ -1,0 +1,120 @@
+{
+  "materials": [
+    {
+      "name": "Green_Skin",
+      "color": [
+        0.055,
+        0.135,
+        0.028
+      ],
+      "metallic": 0,
+      "roughness": 0.46,
+      "albedo": "Textures/Skin_albedo.jpg",
+      "normal": "Textures/Skin_normal_unity.png",
+      "normalGltf": "Textures/Skin_normal_gltf.png"
+    },
+    {
+      "name": "Brown_Cloth",
+      "color": [
+        0.06,
+        0.039,
+        0.024
+      ],
+      "metallic": 0,
+      "roughness": 0.86,
+      "albedo": "Textures/Cloth_albedo.jpg",
+      "normal": "Textures/Cloth_normal_unity.png",
+      "normalGltf": "Textures/Cloth_normal_gltf.png"
+    },
+    {
+      "name": "Hair",
+      "color": [
+        0.009,
+        0.015,
+        0.008
+      ],
+      "metallic": 0,
+      "roughness": 0.82
+    },
+    {
+      "name": "Eyes",
+      "color": [
+        0.29,
+        0.32,
+        0.21
+      ],
+      "metallic": 0,
+      "roughness": 0.18
+    },
+    {
+      "name": "Pupil",
+      "color": [
+        0.005,
+        0.008,
+        0.004
+      ],
+      "metallic": 0,
+      "roughness": 0.17
+    },
+    {
+      "name": "Mouth",
+      "color": [
+        0.022,
+        0.033,
+        0.008
+      ],
+      "metallic": 0,
+      "roughness": 0.82
+    },
+    {
+      "name": "Teeth",
+      "color": [
+        0.47,
+        0.46,
+        0.32
+      ],
+      "metallic": 0,
+      "roughness": 0.38
+    },
+    {
+      "name": "Cloth_Seam",
+      "color": [
+        0.03,
+        0.02,
+        0.013
+      ],
+      "metallic": 0,
+      "roughness": 0.87
+    },
+    {
+      "name": "Dark_Green",
+      "color": [
+        0.034,
+        0.071,
+        0.019
+      ],
+      "metallic": 0,
+      "roughness": 0.59
+    },
+    {
+      "name": "Tan_Thread",
+      "color": [
+        0.14,
+        0.102,
+        0.065
+      ],
+      "metallic": 0,
+      "roughness": 0.84
+    },
+    {
+      "name": "Button",
+      "color": [
+        0.095,
+        0.082,
+        0.062
+      ],
+      "metallic": 0.65,
+      "roughness": 0.46
+    }
+  ]
+}

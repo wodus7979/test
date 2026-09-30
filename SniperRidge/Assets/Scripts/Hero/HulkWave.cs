@@ -30,17 +30,5 @@ namespace SniperRidge
                 line.SetPosition(i,p);
             }
         }
-        public static AudioClip MakeSound(bool wave)
-        {
-            const int rate=24000;float duration=wave?1.1f:.36f;var samples=new float[Mathf.CeilToInt(rate*duration)];var noise=new System.Random(wave?92:41);float low=0;
-            for(int i=0;i<samples.Length;i++)
-            {
-                float t=i/(float)rate,n=(float)noise.NextDouble()*2-1;low=Mathf.Lerp(low,n,.16f);
-                float body=Mathf.Sin(2*Mathf.PI*(wave?65:95)*t)*Mathf.Exp(-t*(wave?7:20));
-                float crack=n*Mathf.Exp(-t*95),air=low*Mathf.Exp(-t*(wave?4:17));
-                samples[i]=Mathf.Clamp((body*.48f+crack*.34f+air*.8f)*Mathf.Min(1,t*2500),-.95f,.95f);
-            }
-            var clip=AudioClip.Create(wave?"Hulk thunderclap":"Hulk fist impact",samples.Length,1,rate,false);clip.SetData(samples,0);return clip;
-        }
     }
 }

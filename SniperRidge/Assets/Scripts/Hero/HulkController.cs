@@ -10,6 +10,13 @@ namespace SniperRidge
     {
         public enum Attack { None, Punch, Clap, Slam }
         public bool Active { get; private set; }
+        public const float TransformDuration=1.8f;
+        public bool Transforming => Active && Time.time<transformedAt+TransformDuration;
+        public float TransformationProgress => Mathf.Clamp01((Time.time-transformedAt)/TransformDuration);
+        public HulkAudio Audio { get; private set; }
+        public HulkVisual Visual => visual;
+        float transformedAt=-99;
+        bool swingPlayed;
         public Attack CurrentAttack { get; private set; }
         public float AttackAge => Time.time-actionAt;
         public float ClapCooldown => Mathf.Max(0,clapAt-Time.time);
@@ -29,29 +36,33 @@ namespace SniperRidge
         bool impactDone,airborne;
         Vector3 waveOrigin,waveForward;
         Attack waveAttack;
-        AudioSource audioSource;
-        AudioClip thump,clap;
+
         GameManager Game => GameManager.Instance;
         public static HulkController Attach(SniperController player)
         {
             var h=player.gameObject.AddComponent<HulkController>();h.owner=player;
-            h.capsule=player.GetComponent<CharacterController>();h.BuildUi();return h;
+            h.capsule=player.GetComponent<CharacterController>();h.Audio=player.gameObject.AddComponent<HulkAudio>();h.BuildUi();return h;
         }
         public bool Toggle()
         {
-            if(Game==null || !Game.IsPlaying || !owner.IsFreeRoam || CurrentAttack!=Attack.None ||
+            if(Game==null || !Game.IsPlaying || !owner.IsFreeRoam || Transforming || CurrentAttack!=Attack.None ||
                 owner.State!=SniperController.WeaponState.Ready || (!Grounded && Active))return false;
             if(!Active && Physics.CheckCapsule(transform.position+Vector3.up*(Radius+.08f),
                 transform.position+Vector3.up*(Height-Radius),Radius,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))
             {Game.Hud.ShowShotFeedback("변신할 공간이 부족합니다 · 넓은 곳으로 이동하세요");return false;}
+            if(!Active && visual==null)
+            {
+                visual=HulkVisual.Create(transform);
+                if(visual==null){Game.Hud.ShowShotFeedback("헐크 에셋이 없습니다 · 에셋 재생성을 실행하세요");return false;}
+            }
             Active=!Active;vertical=-2;waveStart=-99;waveHit.Clear();
             if(Active)
             {
-                if(visual==null)visual=HulkVisual.Create(transform);
-                visual.gameObject.SetActive(true);yaw=transform.eulerAngles.y;pitch=15;
+                transformedAt=Time.time;Audio.Play(HulkAudio.Cue.Transform);
+                visual.gameObject.SetActive(true);visual.Pose(0,Attack.None,0,Grounded,false,0);yaw=transform.eulerAngles.y;pitch=15;
                 capsule.height=Height;capsule.radius=Radius;capsule.center=Vector3.up*Height*.5f;capsule.stepOffset=.45f;
             }
-            else {visual.gameObject.SetActive(false);FpsMovement.Configure(capsule);owner.FreeMovement.ResetPose();}
+            else {Audio.Stop();visual.gameObject.SetActive(false);FpsMovement.Configure(capsule);owner.FreeMovement.ResetPose();}
             owner.SetHulkView(Active);LockInput();
             Effects.Puff(transform.position+Vector3.up*.2f,Vector3.up,1.5f,new Color(.48f,.52f,.35f),.7f);
             Game.Hud.Announce(Active?"헐크 변신 · 왕을 향해 돌파하세요":"FPS 모드로 복귀");
@@ -59,30 +70,31 @@ namespace SniperRidge
         }
         public bool BeginAttack(Attack attack)
         {
-            if(!Active || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
+            if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
             if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt)return false;
-            CurrentAttack=attack;actionAt=Time.time;impactDone=false;
-            if(attack==Attack.Punch)punchAt=Time.time+.65f;
+            CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
+            if(attack==Attack.Punch)punchAt=Time.time+.72f;
             if(attack==Attack.Clap)clapAt=Time.time+4f;
-            if(attack==Attack.Slam){slamAt=Time.time+6f;vertical=13f;airborne=false;}
+            if(attack==Attack.Slam){slamAt=Time.time+6f;vertical=13f;airborne=false;Audio.Play(HulkAudio.Cue.Jump);}
             return true;
         }
         public void Tick(float dt)
         {
             bool playing=Game!=null && Game.IsPlaying;
             canvas.gameObject.SetActive(playing);
-            if(!playing)return;
+            if(!playing){Audio.Stop();return;}
             if(Input.GetKeyDown(KeyCode.H))Toggle();
-            transformButton.GetComponentInChildren<Text>().text=Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
+            transformButton.interactable=!Transforming && CurrentAttack==Attack.None;
+            transformButton.GetComponentInChildren<Text>().text=Transforming?"변신 중…":Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
             foreach(var button in skills)button.gameObject.SetActive(Active);
             if(!Active)return;
-            skills[0].interactable=CurrentAttack==Attack.None&&Grounded;
-            skills[1].interactable=CurrentAttack==Attack.None&&Grounded&&ClapCooldown<=0;
-            skills[2].interactable=CurrentAttack==Attack.None&&Grounded&&SlamCooldown<=0;
+            skills[0].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded;
+            skills[1].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&ClapCooldown<=0;
+            skills[2].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&SlamCooldown<=0;
             skills[1].GetComponentInChildren<Text>().text=ClapCooldown>0?"박수 충격파 "+ClapCooldown.ToString("0.0")+"초":"[우클릭] 박수 충격파";
             skills[2].GetComponentInChildren<Text>().text=SlamCooldown>0?"점프 강타 "+SlamCooldown.ToString("0.0")+"초":"[Space] 점프 강타";
             if(Input.GetKeyDown(KeyCode.Escape)){Cursor.lockState=CursorLockMode.None;Cursor.visible=true;}
-            bool keys=Cursor.lockState==CursorLockMode.Locked&&Time.time>=inputAfter;
+            bool keys=Cursor.lockState==CursorLockMode.Locked&&Time.time>=inputAfter&&!Transforming;
             if(!keys&&Input.GetMouseButtonDown(0)&&(EventSystem.current==null||!EventSystem.current.IsPointerOverGameObject()))LockInput();
             if(keys)
             {
@@ -97,15 +109,15 @@ namespace SniperRidge
             Move(movement,dt);
             AdvanceAttack();AdvanceWave();
             float speed=new Vector2(capsule.velocity.x,capsule.velocity.z).magnitude;
-            visual.Pose(speed,CurrentAttack,AttackAge,Grounded);
-            if(speed>1&&Grounded&&Time.time>stepAt){Sound(false,.22f);stepAt=Time.time+.42f;}
+            visual.Pose(speed,CurrentAttack,AttackAge,Grounded,impactDone,Transforming?TransformationProgress:-1);
+            if(speed>1&&Grounded&&Time.time>stepAt){Audio.Play(HulkAudio.Cue.Footstep,.38f);stepAt=Time.time+.42f;}
         }
         // Shared by keyboard input and editor play-mode validation.
         public void Move(Vector2 input,float dt)
         {
             if(!Active || Game==null || !Game.IsPlaying)return;
             transform.rotation=Quaternion.Euler(0,yaw,0);
-            input=Vector2.ClampMagnitude(input,1);
+            input=Transforming?Vector2.zero:Vector2.ClampMagnitude(input,1);
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-26*dt);
             float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?4.5f:8f;
@@ -115,7 +127,7 @@ namespace SniperRidge
             {
                 if(!Grounded)airborne=true;
                 if(airborne&&Grounded&&vertical<0&&!impactDone)
-                {impactDone=true;Landings++;StartWave(Attack.Slam);actionAt=Time.time;Sound(true,1f);}
+                {impactDone=true;Landings++;StartWave(Attack.Slam);actionAt=Time.time;Audio.Play(HulkAudio.Cue.Slam);}
                 // A low ceiling may prevent take-off. Never leave the attack locked forever.
                 if(!airborne&&AttackAge>1f){CurrentAttack=Attack.None;}
             }
@@ -125,16 +137,18 @@ namespace SniperRidge
             float age=AttackAge;
             if(CurrentAttack==Attack.Punch)
             {
-                if(!impactDone&&age>=.23f)
+                if(!swingPlayed&&age>=.12f){swingPlayed=true;Audio.Play(HulkAudio.Cue.PunchSwing,.8f);}
+                if(!impactDone&&age>=.28f)
                 {
+                    int before=DamageEvents;
                     impactDone=true;HitTargets(transform.position+Vector3.up*1.6f,transform.forward,3.8f,60,145,null,2.8f);
-                    Effects.Puff(transform.TransformPoint(.5f,1.9f,1.3f),transform.forward,.35f,new Color(.7f,.75f,.55f),.2f);Sound(false,.8f);
+                    Effects.Puff(transform.TransformPoint(.5f,1.9f,1.3f),transform.forward,.35f,new Color(.7f,.75f,.55f),.2f);if(DamageEvents>before)Audio.Play(HulkAudio.Cue.PunchHit);
                 }
-                if(age>.65f)CurrentAttack=Attack.None;
+                if(age>.72f)CurrentAttack=Attack.None;
             }
             else if(CurrentAttack==Attack.Clap)
             {
-                if(!impactDone&&age>=.43f){impactDone=true;StartWave(Attack.Clap);Sound(true,1f);}
+                if(!impactDone&&age>=.43f){impactDone=true;StartWave(Attack.Clap);Audio.Play(HulkAudio.Cue.Clap);}
                 if(age>.95f)CurrentAttack=Attack.None;
             }
             else if(CurrentAttack==Attack.Slam&&impactDone&&age>.6f)CurrentAttack=Attack.None;
@@ -173,9 +187,10 @@ namespace SniperRidge
         void LateUpdate()
         {
             if(!Active)return;
-            Vector3 focus=transform.position+Vector3.up*2.45f;
+            float growth=Transforming?Mathf.SmoothStep(0,1,TransformationProgress):1;
+            Vector3 focus=transform.position+Vector3.up*Mathf.Lerp(1.6f,2.45f,growth);
             Quaternion rotation=Quaternion.Euler(pitch,yaw,0);
-            Vector3 offset=rotation*new Vector3(.65f,.6f,-6.3f);
+            Vector3 offset=rotation*new Vector3(.65f,.6f,Mathf.Lerp(-3.8f,-6.3f,growth));
             float distance=offset.magnitude;
             if(Physics.SphereCast(focus,.23f,offset.normalized,out var hit,distance,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))distance=Mathf.Max(.25f,hit.distance-.12f);
             owner.Eye.position=focus+offset.normalized*distance;
@@ -199,15 +214,5 @@ namespace SniperRidge
         Button Button(string name,int row,string label,UnityEngine.Events.UnityAction action)
             =>UiKit.TextButton(canvas.transform,name,label,22,new Color(.08f,.23f,.12f,.92f),new Color(.8f,1f,.72f),
                 Vector2.one,Vector2.one,new Vector2(-28,-200-row*58),new Vector2(260,50),action);
-        void Sound(bool wave,float volume)
-        {
-            if(audioSource==null)
-            {
-                audioSource=gameObject.AddComponent<AudioSource>();audioSource.spatialBlend=0;
-                thump=HulkWave.MakeSound(false);clap=HulkWave.MakeSound(true);
-            }
-            audioSource.PlayOneShot(wave?clap:thump,volume);
-        }
-        void OnDestroy(){if(thump!=null)Destroy(thump);if(clap!=null)Destroy(clap);}
     }
 }
