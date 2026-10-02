@@ -18,6 +18,8 @@ namespace SniperRidge.EditorTools
         static int stage,ammo,landings,lastFrame=-1;
         static float at,peak,allyHealth,initialScale;
         static bool transformCaptured,punchCaptured;
+        static int idleFootsteps;
+        static Quaternion idleChest;
         static Quaternion restingArm;
         static Vector3 cityPosition,origin=new Vector3(1500,40.05f,1500),beforeMove;
         static GameObject fixture,ceiling;
@@ -28,7 +30,7 @@ namespace SniperRidge.EditorTools
         {
             EditorSceneManager.OpenScene("Assets/Scenes/SniperRidge.unity");
             Directory.CreateDirectory("Logs");File.Delete("Logs/autoplay_result.txt");
-            File.WriteAllText("Logs/autoplay.txt","mode=9\nwait=35\ntag=hulk\nquit=1\n");
+            File.WriteAllText("Logs/autoplay.txt","mode=9\nwait=45\ntag=hulk\nquit=1\n");
             SessionState.SetBool(Key,true);SessionState.SetFloat(Key+"start",(float)EditorApplication.timeSinceStartup);
         }
         static void Check(bool ok,string message){if(!ok)throw new Exception("Hulk regression: "+message);}
@@ -94,6 +96,17 @@ namespace SniperRidge.EditorTools
             eye.SetPositionAndRotation(previousPosition,previousRotation);
             visual.Pose(0,HulkController.Attack.None,0,true,false);
         }
+        static void MoveFixture(Vector2 direction,bool shift=false)
+        {
+            h.Move(direction,Time.deltaTime,shift);
+            // SniperController is suspended during this fixture. Drive the normal HUD,
+            // animation and sound path once, without a second physics movement step.
+            h.Tick(0);
+            var hips=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="Hips");
+            Check(Vector3.Dot(hips.up,Vector3.up)>.85f,"locomotion lean accumulated / body toppled");
+        }
+        static void RunButton()
+        {h.GetComponentsInChildren<Button>().First(b=>b.name=="Run").onClick.Invoke();}
         static void Poll()
         {
             if(!SessionState.GetBool(Key,false))return;
@@ -124,6 +137,7 @@ namespace SniperRidge.EditorTools
                     }
                     else if(stage==1&&age<1.7f)
                     {
+                        Check(!h.ToggleRun(),"run allowed during transformation");
                         Check(!h.BeginAttack(HulkController.Attack.Punch)&&!h.Toggle(),"transformation can be interrupted by attack/toggle");
                         Vector3 before=p.transform.position;h.Move(Vector2.up,Time.deltaTime);
                         Check(Vector2.Distance(new Vector2(before.x,before.z),new Vector2(p.transform.position.x,p.transform.position.z))<.001f,"moving during transformation");
@@ -188,13 +202,79 @@ namespace SniperRidge.EditorTools
                         Check(Mathf.Abs(front.Health-545)<.1f,"slam damage wrong: "+front.Health);
                         Check(far.Health==890&&ally.Health==allyHealth,"slam range / friendly fire");
                         Check(!h.BeginAttack(HulkController.Attack.Slam),"slam cooldown bypass");
-                        beforeMove=p.transform.position;Next();
+                        beforeMove=p.transform.position;p.enabled=false;Next();
                     }
                     else if(stage==8)
                     {
-                        h.Move(Vector2.left,Time.deltaTime);
-                        if(age>.7f){Check(Vector3.Distance(p.transform.position,beforeMove)>2.5f,"movement failed");Check(p.AmmoInMag==ammo,"Hulk used bullets");
-                            Check(h.BeginAttack(HulkController.Attack.Punch),"miss punch rejected");stage=80;at=Time.time;}
+                        MoveFixture(Vector2.left);
+                        if(age<.06f)Check(h.PlanarSpeed<3,"movement snapped immediately to full speed");
+                        if(age>1f)
+                        {
+                            Check(Vector3.Distance(p.transform.position,beforeMove)>3,"walking failed");
+                            Check(Mathf.Abs(h.PlanarSpeed-HulkController.WalkSpeed)<.2f&&h.Visual.Motion=="Walk","walk speed or blend wrong");
+                            Capture("hulk_walk");RunButton();Check(h.RunEnabled,"run UI button failed");stage=81;at=Time.time;
+                        }
+                    }
+                    else if(stage==81)
+                    {
+                        MoveFixture(Vector2.left);
+                        if(age>1f)
+                        {
+                            Check(h.Sprinting&&h.PlanarSpeed>10.5f&&h.Visual.Motion=="Run","sprint speed/animation not active");
+                            Check(Mathf.Abs(Mathf.DeltaAngle(0,h.Visual.transform.localEulerAngles.y))>45,"strafe body did not turn into travel direction");
+                            Check(h.Audio.Count(HulkAudio.Cue.Footstep)>2,"gait footsteps missing");Capture("hulk_run");
+                            beforeMove=p.transform.position;stage=82;at=Time.time;
+                        }
+                    }
+                    else if(stage==82)
+                    {
+                        MoveFixture(Vector2.right);
+                        if(age<.08f)Check(p.transform.position.x<=beforeMove.x+.05f,"direction reversed instantly without braking");
+                        if(age>1.1f)
+                        {
+                            Check(h.PlanarSpeed>10,"failed to accelerate after reversing");Capture("hulk_run_turn");
+                            Box("Sprint collision wall",p.transform.position+new Vector3(3,2,0),new Vector3(.5f,5,10));Physics.SyncTransforms();stage=83;at=Time.time;
+                        }
+                    }
+                    else if(stage==83)
+                    {
+                        MoveFixture(Vector2.right);
+                        if(age>.8f)
+                        {
+                            Check(h.PlanarSpeed<.3f,"sprint crossed wall or retained blocked velocity");
+                            RunButton();Check(!h.RunEnabled,"run UI button did not turn off");stage=84;at=Time.time;
+                        }
+                    }
+                    else if(stage==84)
+                    {
+                        MoveFixture(Vector2.zero);
+                        if(age>.8f)
+                        {
+                            Check(h.PlanarSpeed<.05f&&!h.Sprinting&&h.Visual.Motion=="Idle","idle not restored after stopping");
+                            idleFootsteps=h.Visual.FootstepSerial;
+                            idleChest=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="Chest").localRotation;
+                            stage=85;at=Time.time;
+                        }
+                    }
+                    else if(stage==85)
+                    {
+                        MoveFixture(Vector2.zero);
+                        if(age>1.3f)
+                        {
+                            var chest=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="Chest");
+                            Check(Quaternion.Angle(idleChest,chest.localRotation)>.1f,"idle body frozen without breathing");
+                            Check(idleFootsteps==h.Visual.FootstepSerial,"footsteps continued at rest");Capture("hulk_idle_breathing");stage=86;at=Time.time;
+                        }
+                    }
+                    else if(stage==86)
+                    {
+                        MoveFixture(Vector2.left,true);
+                        if(age>.8f)
+                        {
+                            Check(h.Sprinting&&!h.RunEnabled&&h.PlanarSpeed>10,"held Shift sprint path failed");
+                            Check(p.AmmoInMag==ammo,"Hulk used bullets");p.enabled=true;
+                            Check(h.BeginAttack(HulkController.Attack.Punch),"miss punch rejected");stage=80;at=Time.time;
+                        }
                     }
                     else if(stage==80&&age>.85f)
                     {
@@ -205,6 +285,7 @@ namespace SniperRidge.EditorTools
                     }
                     else if(stage==9&&age>.2f)
                     {
+                        Check(!h.RunEnabled&&!h.Sprinting&&!h.ToggleRun(),"sprint state leaked into human form");
                         Check(!p.IsHulk&&p.Grenades.enabled&&p.CanSwitchWeapon,"FPS controls not restored");
                         Check(Vector3.Distance(p.Eye.localPosition,Vector3.up*1.68f)<.05f,"FPS eye not restored");
                         Check(Mathf.Abs(p.GetComponent<CharacterController>().height-FpsMovement.StandingHeight)<.01f,"human capsule not restored");
@@ -231,7 +312,7 @@ namespace SniperRidge.EditorTools
                             var navigation=e.GetComponent<AssaultNavigation>();if(navigation!=null)navigation.enabled=true;
                         }
                         gm.Assault.enabled=true;gm.Health.Configure(0,10000);
-                        Debug.Log("[Hulk validation] PASS: double health / proportional restore / no toggle healing, punch wind-up / torso twist / extension / recovery / fixed bone lengths, reference skinned mesh, 43 bones, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
+                        Debug.Log("[Hulk validation] PASS: run button / Shift sprint / smooth acceleration and reversal / collision / gait blend / idle breathing / phase footsteps, double health / proportional restore / no toggle healing, punch wind-up / torso twist / extension / recovery / fixed bone lengths, reference skinned mesh, 43 bones, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
                         Check(h.Toggle(),"city return failed");Next();
                     }
                     else if(stage==12&&age>2f){Capture("hulk_city_final");stage=13;}

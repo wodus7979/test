@@ -16,8 +16,22 @@ namespace SniperRidge
         Vector3[] blendPositions;
         Transform hips,chest,head;
         Transform leftArm,leftElbow,leftHand,rightArm,rightElbow,rightHand;
+        readonly Dictionary<string,AnimationClip> clips=new Dictionary<string,AnimationClip>();
         readonly Dictionary<string,float> lengths=new Dictionary<string,float>();
-        float gaitTime,blendAt;
+        float gaitPhase,idleTime,blendAt,smoothedSpeed,lean,sideLean,modelYaw;
+        string sampledState;
+        Vector3 localVelocity;
+        float turnRate,acceleration;
+        Quaternion[] idleRotations,walkRotations;
+        Vector3[] idlePositions,walkPositions;
+        public int FootstepSerial { get; private set; }
+        public void SetMotion(Vector3 velocity,float turn,float accel)
+        {localVelocity=velocity;turnRate=turn;acceleration=accel;}
+        public void ResetLocomotion()
+        {
+            gaitPhase=smoothedSpeed=lean=sideLean=modelYaw=0;
+            localVelocity=Vector3.zero;turnRate=acceleration=0;transform.localRotation=Quaternion.identity;
+        }
         public static HulkVisual Create(Transform parent)
         {
             var prefab=Resources.Load<GameObject>(Resource);
@@ -31,7 +45,9 @@ namespace SniperRidge
             animator=GetComponent<Animator>();animator.enabled=false;animator.applyRootMotion=false;
             renderers=GetComponentsInChildren<SkinnedMeshRenderer>();bones=renderers[0].bones;
             blendRotations=new Quaternion[bones.Length];blendPositions=new Vector3[bones.Length];
-            foreach(var clip in animator.runtimeAnimatorController.animationClips)lengths[clip.name]=clip.length;
+            idleRotations=new Quaternion[bones.Length];walkRotations=new Quaternion[bones.Length];
+            idlePositions=new Vector3[bones.Length];walkPositions=new Vector3[bones.Length];
+            foreach(var clip in animator.runtimeAnimatorController.animationClips){lengths[clip.name]=clip.length;clips[clip.name]=clip;}
             foreach(var bone in bones)
             {
                 if(bone.name=="Hips")hips=bone;if(bone.name=="Chest")chest=bone;if(bone.name=="Head")head=bone;
@@ -43,6 +59,12 @@ namespace SniperRidge
         public void SetVisible(bool visible){foreach(var r in renderers)r.enabled=visible;}
         public void Pose(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation=-1)
         {
+            float dt=Time.deltaTime;
+            if(attack!=HulkController.Attack.None || transformation>=0)
+            {
+                modelYaw=Mathf.LerpAngle(modelYaw,0,1-Mathf.Exp(-25*dt));
+                transform.localRotation=Quaternion.Euler(0,modelYaw,0);
+            }
             if(transformation>=0)
             {
                 float grow=Mathf.SmoothStep(0,1,Mathf.Clamp01(transformation/.78f));
@@ -71,10 +93,56 @@ namespace SniperRidge
             }
             else
             {
-                string name=speed>5?"Run":speed>1?"Walk":"Idle";
-                gaitTime+=Time.deltaTime*(name=="Run"?Mathf.Clamp(speed/7,.7f,1.4f):name=="Walk"?speed/3:1);
-                Sample(name,gaitTime%lengths[name],.14f);
+                Locomotion(speed,grounded,dt);
             }
+        }
+        void ReadPose(string state,float phase,Quaternion[] rotations,Vector3[] positions)
+        {
+            // Sample every authored curve afresh so additive lean never feeds back into the next frame.
+            clips[state].SampleAnimation(gameObject,Mathf.Repeat(phase,1)*lengths[state]);
+            if(rotations==null)return;
+            for(int i=0;i<bones.Length;i++){rotations[i]=bones[i].localRotation;positions[i]=bones[i].localPosition;}
+        }
+        void Locomotion(float speed,bool grounded,float dt)
+        {
+            BeginBlend("Locomotion");
+            smoothedSpeed=Mathf.Lerp(smoothedSpeed,speed,1-Mathf.Exp(-14*dt));
+            float walk=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.1f,2,smoothedSpeed));
+            float run=Mathf.SmoothStep(0,1,Mathf.InverseLerp(4.7f,HulkController.RunSpeed,smoothedSpeed));
+            Motion=run>.5f?"Run":walk>.1f?"Walk":"Idle";
+            idleTime+=dt;
+            float previous=gaitPhase;
+            if(grounded)
+            {
+                gaitPhase+=speed*dt/Mathf.Lerp(4.4f,7.5f,run)*(localVelocity.z<-.2f?-1:1);
+                if(Mathf.FloorToInt(previous*2)!=Mathf.FloorToInt(gaitPhase*2))FootstepSerial++;
+            }
+            ReadPose("Idle",idleTime/lengths["Idle"],idleRotations,idlePositions);
+            ReadPose("Walk",gaitPhase,walkRotations,walkPositions);
+            ReadPose("Run",gaitPhase,null,null);
+            for(int i=0;i<bones.Length;i++)
+            {
+                var stride=Quaternion.Slerp(walkRotations[i],bones[i].localRotation,run);
+                var position=Vector3.Lerp(walkPositions[i],bones[i].localPosition,run);
+                bones[i].localRotation=Quaternion.Slerp(idleRotations[i],stride,walk);
+                bones[i].localPosition=Vector3.Lerp(idlePositions[i],position,walk);
+            }
+            float response=1-Mathf.Exp(-7*dt);
+            float direction=localVelocity.sqrMagnitude>.15f?Mathf.Atan2(localVelocity.x,Mathf.Abs(localVelocity.z))*Mathf.Rad2Deg:0;
+            modelYaw=Mathf.LerpAngle(modelYaw,Mathf.Clamp(direction,-70,70)*walk,response);
+            transform.localRotation=Quaternion.Euler(0,modelYaw,0);
+            lean=Mathf.Lerp(lean,Mathf.Clamp(run*7+acceleration*.22f,-6,12)*walk,response);
+            sideLean=Mathf.Lerp(sideLean,Mathf.Clamp(-turnRate*.025f-localVelocity.x*.45f,-9,9)*walk,response);
+            float strideWave=Mathf.Sin(gaitPhase*Mathf.PI*2);
+            float breath=Mathf.Sin(idleTime*1.65f),shift=Mathf.Sin(idleTime*.73f);
+            hips.localRotation*=Quaternion.Euler(lean*.3f,strideWave*3*walk,sideLean*.55f+shift*1.1f*(1-walk));
+            chest.localRotation*=Quaternion.Euler(lean+breath*.9f*(1-walk),-modelYaw*.45f-strideWave*4*walk,sideLean*.45f);
+            head.localRotation*=Quaternion.Euler(-lean*.7f, -modelYaw*.55f+Mathf.Sin(idleTime*.48f)*2.5f*(1-walk),-sideLean*.7f);
+            hips.localPosition+=new Vector3(shift*.012f*(1-walk),breath*.007f*(1-walk),0);
+            // Slightly different shoulder timing prevents a rigid mirrored march.
+            leftArm.localRotation*=Quaternion.Euler(Mathf.Sin(gaitPhase*Mathf.PI*2+.35f)*4*walk,0,breath*.7f);
+            rightArm.localRotation*=Quaternion.Euler(-Mathf.Sin(gaitPhase*Mathf.PI*2-.2f)*4*walk,0,-breath*.6f);
+            ApplyBlend(.2f);
         }
         static float Phase(float time,float start,float end)
         {return Mathf.SmoothStep(0,1,Mathf.InverseLerp(start,end,time));}
@@ -132,12 +200,18 @@ namespace SniperRidge
         }
         void Sample(string motion,float time,float blend)
         {
-            if(Motion!=motion)
-            {
-                for(int i=0;i<bones.Length;i++){blendRotations[i]=bones[i].localRotation;blendPositions[i]=bones[i].localPosition;}
-                Motion=motion;blendAt=Time.time;
-            }
-            animator.Play(motion,0,Mathf.Clamp01(time/lengths[motion]));animator.Update(0);
+            BeginBlend(motion);Motion=motion;
+            clips[motion].SampleAnimation(gameObject,Mathf.Clamp(time,0,lengths[motion]));
+            ApplyBlend(blend);
+        }
+        void BeginBlend(string state)
+        {
+            if(sampledState==state)return;
+            for(int i=0;i<bones.Length;i++){blendRotations[i]=bones[i].localRotation;blendPositions[i]=bones[i].localPosition;}
+            sampledState=state;blendAt=Time.time;
+        }
+        void ApplyBlend(float blend)
+        {
             float weight=blend<=0?1:Mathf.Clamp01((Time.time-blendAt)/blend);
             if(weight<1)for(int i=0;i<bones.Length;i++)
             {bones[i].localRotation=Quaternion.Slerp(blendRotations[i],bones[i].localRotation,weight);bones[i].localPosition=Vector3.Lerp(blendPositions[i],bones[i].localPosition,weight);}

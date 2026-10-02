@@ -387,7 +387,7 @@ namespace SniperRidge
                 weaponText.text="헐크";ammoText.text="주먹 / 충격파";stateText.text="받는 피해 65% 감소";
                 grenadeCount.gameObject.SetActive(false);crosshair.SetActive(false);
                 coverText.text="왕을 향해 돌파하세요 · "+gm.Assault.SquadStatus;
-                hintText.text="WASD 이동 · 마우스 시점 | 좌클릭 주먹 · 우클릭 박수 충격파 · Space 점프 강타 | H 인간 복귀 · Esc 버튼 선택";
+                hintText.text="WASD 이동 · Shift 달리기 · 마우스 시점 | 좌클릭 주먹 · 우클릭 박수 충격파 · Space 점프 강타 | H 인간 복귀 · Esc 버튼 선택";
             }
             if (p.InTank && gm.Armor != null)
             {

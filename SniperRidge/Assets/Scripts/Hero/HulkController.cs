@@ -11,6 +11,18 @@ namespace SniperRidge
         public enum Attack { None, Punch, Clap, Slam }
         public bool Active { get; private set; }
         public const float TransformDuration=1.8f;
+        public const float WalkSpeed=5.2f, RunSpeed=11f;
+        public bool RunEnabled { get; private set; }
+        public bool Sprinting { get; private set; }
+        public float PlanarSpeed { get; private set; }
+        Vector3 horizontalVelocity,actualVelocity;
+        float turnRate,acceleration;
+        int lastFootstep;
+        public bool ToggleRun()
+        {
+            if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None)return false;
+            RunEnabled=!RunEnabled;return true;
+        }
         public const float PunchDuration=.72f, PunchImpactTime=.28f;
         public bool Transforming => Active && Time.time<transformedAt+TransformDuration;
         public float TransformationProgress => Mathf.Clamp01((Time.time-transformedAt)/TransformDuration);
@@ -33,7 +45,7 @@ namespace SniperRidge
         Button transformButton;
         readonly List<Button> skills=new List<Button>();
         readonly HashSet<EnemySoldier> waveHit=new HashSet<EnemySoldier>();
-        float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,waveStart=-99,waveRadius,inputAfter,stepAt;
+        float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,waveStart=-99,waveRadius,inputAfter;
         bool impactDone,airborne;
         Vector3 waveOrigin,waveForward;
         Attack waveAttack;
@@ -56,9 +68,10 @@ namespace SniperRidge
                 visual=HulkVisual.Create(transform);
                 if(visual==null){Game.Hud.ShowShotFeedback("헐크 에셋이 없습니다 · 에셋 재생성을 실행하세요");return false;}
             }
-            Active=!Active;Game.Health.SetHulkForm(Active);vertical=-2;waveStart=-99;waveHit.Clear();
+            Active=!Active;Game.Health.SetHulkForm(Active);RunEnabled=false;Sprinting=false;horizontalVelocity=actualVelocity=Vector3.zero;PlanarSpeed=0;vertical=-2;waveStart=-99;waveHit.Clear();
             if(Active)
             {
+                visual.ResetLocomotion();lastFootstep=visual.FootstepSerial;
                 transformedAt=Time.time;Audio.Play(HulkAudio.Cue.Transform);
                 visual.gameObject.SetActive(true);visual.Pose(0,Attack.None,0,Grounded,false,0);yaw=transform.eulerAngles.y;pitch=15;
                 capsule.height=Height;capsule.radius=Radius;capsule.center=Vector3.up*Height*.5f;capsule.stepOffset=.45f;
@@ -83,7 +96,7 @@ namespace SniperRidge
         {
             bool playing=Game!=null && Game.IsPlaying;
             canvas.gameObject.SetActive(playing);
-            if(!playing){Audio.Stop();return;}
+            if(!playing){Audio.Stop();RunEnabled=false;Sprinting=false;horizontalVelocity=Vector3.zero;return;}
             if(Input.GetKeyDown(KeyCode.H))Toggle();
             transformButton.interactable=!Transforming && CurrentAttack==Attack.None;
             transformButton.GetComponentInChildren<Text>().text=Transforming?"변신 중…":Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
@@ -91,6 +104,8 @@ namespace SniperRidge
             if(!Active)return;
             skills[0].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded;
             skills[1].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&ClapCooldown<=0;
+            skills[3].interactable=!Transforming&&CurrentAttack==Attack.None;
+            skills[3].GetComponentInChildren<Text>().text=RunEnabled?"[Shift] 달리기 켜짐":"[Shift] 달리기";
             skills[2].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&SlamCooldown<=0;
             skills[1].GetComponentInChildren<Text>().text=ClapCooldown>0?"박수 충격파 "+ClapCooldown.ToString("0.0")+"초":"[우클릭] 박수 충격파";
             skills[2].GetComponentInChildren<Text>().text=SlamCooldown>0?"점프 강타 "+SlamCooldown.ToString("0.0")+"초":"[Space] 점프 강타";
@@ -107,22 +122,36 @@ namespace SniperRidge
             }
             Vector2 movement=keys?new Vector2((Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0),
                 (Input.GetKey(KeyCode.W)?1:0)-(Input.GetKey(KeyCode.S)?1:0)):Vector2.zero;
-            Move(movement,dt);
+            Move(movement,dt,keys&&(Input.GetKey(KeyCode.LeftShift)||Input.GetKey(KeyCode.RightShift)));
             AdvanceAttack();AdvanceWave();
-            float speed=new Vector2(capsule.velocity.x,capsule.velocity.z).magnitude;
+            float speed=PlanarSpeed;
+            visual.SetMotion(transform.InverseTransformDirection(actualVelocity),turnRate,acceleration);
             visual.Pose(speed,CurrentAttack,AttackAge,Grounded,impactDone,Transforming?TransformationProgress:-1);
-            if(speed>1&&Grounded&&Time.time>stepAt){Audio.Play(HulkAudio.Cue.Footstep,.38f);stepAt=Time.time+.42f;}
+            if(visual.FootstepSerial!=lastFootstep&&speed>.8f&&Grounded)Audio.Play(HulkAudio.Cue.Footstep,Sprinting?.48f:.32f);
+            lastFootstep=visual.FootstepSerial;
         }
         // Shared by keyboard input and editor play-mode validation.
-        public void Move(Vector2 input,float dt)
+        public void Move(Vector2 input,float dt,bool sprint=false)
         {
-            if(!Active || Game==null || !Game.IsPlaying)return;
-            transform.rotation=Quaternion.Euler(0,yaw,0);
+            if(!Active || Game==null || !Game.IsPlaying || dt<=0)return;
+            float previousYaw=transform.eulerAngles.y;
+            transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.Euler(0,yaw,0),420*dt);
+            turnRate=Mathf.DeltaAngle(previousYaw,transform.eulerAngles.y)/dt;
             input=Transforming?Vector2.zero:Vector2.ClampMagnitude(input,1);
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-26*dt);
-            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?4.5f:8f;
-            CollisionFlags flags=capsule.Move(((transform.forward*input.y+transform.right*input.x)*speed+Vector3.up*vertical)*dt);
+            Sprinting=!Transforming&&CurrentAttack==Attack.None&&(RunEnabled||sprint)&&input.sqrMagnitude>.01f;
+            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?4.5f:Sprinting?RunSpeed:WalkSpeed;
+            Vector3 desired=Quaternion.Euler(0,yaw,0)*new Vector3(input.x,0,input.y)*speed;
+            float rate=desired.sqrMagnitude<horizontalVelocity.sqrMagnitude?34:24;
+            horizontalVelocity=Vector3.MoveTowards(horizontalVelocity,desired,rate*dt);
+            Vector3 before=transform.position;float previousSpeed=PlanarSpeed;
+            CollisionFlags flags=capsule.Move((horizontalVelocity+Vector3.up*vertical)*dt);
+            actualVelocity=Vector3.ProjectOnPlane(transform.position-before,Vector3.up)/dt;
+            PlanarSpeed=actualVelocity.magnitude;
+            acceleration=Mathf.Lerp(acceleration,(PlanarSpeed-previousSpeed)/dt,1-Mathf.Exp(-10*dt));
+            // Keep momentum tangent to walls instead of storing speed into an obstacle.
+            if((flags&CollisionFlags.Sides)!=0)horizontalVelocity=actualVelocity;
             if((flags&CollisionFlags.Above)!=0&&vertical>0)vertical=0;
             if(CurrentAttack==Attack.Slam)
             {
@@ -196,7 +225,8 @@ namespace SniperRidge
             if(Physics.SphereCast(focus,.23f,offset.normalized,out var hit,distance,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))distance=Mathf.Max(.25f,hit.distance-.12f);
             owner.Eye.position=focus+offset.normalized*distance;
             owner.Eye.rotation=Quaternion.LookRotation(focus+transform.forward*1.8f-owner.Eye.position);
-            owner.Eye.GetComponent<Camera>().fieldOfView=68;
+            var camera=owner.Eye.GetComponent<Camera>();
+            camera.fieldOfView=Mathf.Lerp(camera.fieldOfView,68+5*Mathf.InverseLerp(WalkSpeed,RunSpeed,PlanarSpeed),1-Mathf.Exp(-5*Time.deltaTime));
             // Don't fill the screen with the back of the head when a wall pushes the camera close.
             visual.SetVisible(distance>1.5f);
         }
@@ -210,6 +240,7 @@ namespace SniperRidge
             skills.Add(Button("Punch",1,"[좌클릭] 주먹 공격",()=>{if(BeginAttack(Attack.Punch))LockInput();}));
             skills.Add(Button("Clap",2,"[우클릭] 박수 충격파",()=>{if(BeginAttack(Attack.Clap))LockInput();}));
             skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
+            skills.Add(Button("Run",4,"[Shift] 달리기",()=>{if(ToggleRun())LockInput();}));
             foreach(var b in skills)b.gameObject.SetActive(false);
         }
         Button Button(string name,int row,string label,UnityEngine.Events.UnityAction action)
