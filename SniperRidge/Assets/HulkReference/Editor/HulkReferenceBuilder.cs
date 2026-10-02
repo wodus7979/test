@@ -55,7 +55,7 @@ namespace HulkReferenceAssets
    }
    return result;
   }
-  // Rebuild from the untouched source: shorter arm segments and fuller muscle volumes.
+  // Rebuild from the untouched source: shorter arms and a balanced torso; preserve muscle shape without an oversized back.
   sealed class Physique
   {
    public readonly Vector3[] local;
@@ -69,8 +69,8 @@ namespace HulkReferenceAssets
      var bone=data.bones[i];ids[bone.name]=i;original[i]=V(bone.world);Vector3 p=V(bone.position);
      if(bone.name.EndsWith("Forearm")||bone.name.EndsWith("Hand"))p*=.84f;
      if(bone.name.EndsWith("Prox")||bone.name.EndsWith("Dist"))p*=.94f;
-     if(bone.name.EndsWith("Clavicle"))p.x*=1.10f;
-     if(bone.name.EndsWith("UpperArm"))p.x*=1.06f;
+     if(bone.name.EndsWith("Clavicle"))p.x*=.96f;
+     if(bone.name.EndsWith("UpperArm"))p.x*=1.0f;
      local[i]=p;world[i]=string.IsNullOrEmpty(bone.parent)?p:world[ids[bone.parent]]+p;
     }
     for(int i=0;i<count;i++)
@@ -80,13 +80,13 @@ namespace HulkReferenceAssets
      if(name.EndsWith("UpperArm")||name.EndsWith("Forearm"))
      {
       bool upper=name.EndsWith("UpperArm");int end=ids[side+(upper?"Forearm":"Hand")];
-      axis=Quaternion.FromToRotation(Vector3.up,original[end]-original[i]);float width=upper?1.20f:1.12f;
+      axis=Quaternion.FromToRotation(Vector3.up,original[end]-original[i]);float width=upper?1.10f:1.08f;
       scale=new Vector3(width,.84f,width);
      }
      else if(name.EndsWith("Hand")||name.EndsWith("Prox")||name.EndsWith("Dist"))
      {int hand=ids[side+"Hand"];oldOrigin=original[hand];newOrigin=world[hand];scale=Vector3.one*.94f;}
-     else if(name=="Chest")scale=new Vector3(1.10f,1,1.20f);
-     else if(name=="Spine")scale=new Vector3(1.05f,1,1.10f);
+     else if(name=="Chest")scale=new Vector3(.96f,1,.88f);
+     else if(name=="Spine")scale=new Vector3(.98f,1,.94f);
      else if(name.EndsWith("Thigh"))scale=new Vector3(1.07f,1,1.08f);
      point[i]=Matrix4x4.TRS(newOrigin,axis,scale)*Matrix4x4.TRS(oldOrigin,axis,Vector3.one).inverse;
      normal[i]=point[i].inverse.transpose;

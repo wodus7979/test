@@ -11,7 +11,7 @@ namespace SniperRidge
         public enum Attack { None, Punch, Clap, Slam }
         public bool Active { get; private set; }
         public const float TransformDuration=1.8f;
-        public const float WalkSpeed=2.8f, RunSpeed=11f;
+        public const float WalkSpeed=2.4f, RunSpeed=11f;
         public bool RunEnabled { get; private set; }
         public bool Sprinting { get; private set; }
         public float PlanarSpeed { get; private set; }

@@ -256,7 +256,7 @@ namespace SniperRidge.EditorTools
                         if(age<.06f)Check(h.PlanarSpeed<3,"movement snapped immediately to full speed");
                         if(age>1f)
                         {
-                            Check(Vector3.Distance(p.transform.position,beforeMove)>2.3f,"walking failed");
+                            Check(Vector3.Distance(p.transform.position,beforeMove)>2.0f,"walking failed");
                             Check(Mathf.Abs(h.PlanarSpeed-HulkController.WalkSpeed)<.2f&&h.Visual.Motion=="Walk","walk speed or blend wrong");
                             Capture("hulk_walk");RunButton();Check(h.RunEnabled,"run UI button failed");stage=81;at=Time.time;
                         }
