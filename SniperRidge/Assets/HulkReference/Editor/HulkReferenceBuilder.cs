@@ -50,10 +50,57 @@ namespace HulkReferenceAssets
     foreach(string prop in new[]{"_Color","_BaseColor"})if(m.HasProperty(prop))m.SetColor(prop,color);
     if(m.HasProperty("_Metallic"))m.SetFloat("_Metallic",d.metallic);foreach(string prop in new[]{"_Smoothness","_Glossiness"})if(m.HasProperty(prop))m.SetFloat(prop,d.name=="Green_Skin"?.30f:1-d.roughness);
     var tex=Texture(d.albedo,false);if(tex!=null)foreach(string prop in new[]{"_MainTex","_BaseMap","_BaseColorMap"})if(m.HasProperty(prop))m.SetTexture(prop,tex);
-    var normal=Texture(d.normal,true);if(normal!=null){foreach(string prop in new[]{"_BumpMap","_NormalMap"})if(m.HasProperty(prop))m.SetTexture(prop,normal);m.EnableKeyword("_NORMALMAP");m.EnableKeyword("_NORMALMAP_TANGENT_SPACE");}
+    var normal=Texture(d.normal,true);if(normal!=null){foreach(string prop in new[]{"_BumpMap","_NormalMap"})if(m.HasProperty(prop))m.SetTexture(prop,normal);if(d.name=="Green_Skin"&&m.HasProperty("_BumpScale"))m.SetFloat("_BumpScale",1.2f);m.EnableKeyword("_NORMALMAP");m.EnableKeyword("_NORMALMAP_TANGENT_SPACE");}
     Save(m,output+"/Materials/"+d.name+".mat");result[i]=AssetDatabase.LoadAssetAtPath<Material>(output+"/Materials/"+d.name+".mat");
    }
    return result;
+  }
+  // Rebuild from the untouched source: shorter arm segments and fuller muscle volumes.
+  sealed class Physique
+  {
+   public readonly Vector3[] local;
+   readonly Matrix4x4[] point,normal;
+   public Physique(Character data)
+   {
+    int count=data.bones.Length;local=new Vector3[count];point=new Matrix4x4[count];normal=new Matrix4x4[count];
+    var ids=new Dictionary<string,int>();var original=new Vector3[count];var world=new Vector3[count];
+    for(int i=0;i<count;i++)
+    {
+     var bone=data.bones[i];ids[bone.name]=i;original[i]=V(bone.world);Vector3 p=V(bone.position);
+     if(bone.name.EndsWith("Forearm")||bone.name.EndsWith("Hand"))p*=.84f;
+     if(bone.name.EndsWith("Prox")||bone.name.EndsWith("Dist"))p*=.94f;
+     if(bone.name.EndsWith("Clavicle"))p.x*=1.10f;
+     if(bone.name.EndsWith("UpperArm"))p.x*=1.06f;
+     local[i]=p;world[i]=string.IsNullOrEmpty(bone.parent)?p:world[ids[bone.parent]]+p;
+    }
+    for(int i=0;i<count;i++)
+    {
+     string name=data.bones[i].name,side=name.StartsWith("Left")?"Left":"Right";
+     Vector3 scale=Vector3.one,oldOrigin=original[i],newOrigin=world[i];Quaternion axis=Quaternion.identity;
+     if(name.EndsWith("UpperArm")||name.EndsWith("Forearm"))
+     {
+      bool upper=name.EndsWith("UpperArm");int end=ids[side+(upper?"Forearm":"Hand")];
+      axis=Quaternion.FromToRotation(Vector3.up,original[end]-original[i]);float width=upper?1.20f:1.12f;
+      scale=new Vector3(width,.84f,width);
+     }
+     else if(name.EndsWith("Hand")||name.EndsWith("Prox")||name.EndsWith("Dist"))
+     {int hand=ids[side+"Hand"];oldOrigin=original[hand];newOrigin=world[hand];scale=Vector3.one*.94f;}
+     else if(name=="Chest")scale=new Vector3(1.10f,1,1.20f);
+     else if(name=="Spine")scale=new Vector3(1.05f,1,1.10f);
+     else if(name.EndsWith("Thigh"))scale=new Vector3(1.07f,1,1.08f);
+     point[i]=Matrix4x4.TRS(newOrigin,axis,scale)*Matrix4x4.TRS(oldOrigin,axis,Vector3.one).inverse;
+     normal[i]=point[i].inverse.transpose;
+    }
+   }
+   public void Apply(ref VertexKey vertex)
+   {
+    Vector3 p=Vector3.zero,n=Vector3.zero;var w=vertex.w;
+    Add(w.boneIndex0,w.weight0,vertex.p,vertex.n,ref p,ref n);Add(w.boneIndex1,w.weight1,vertex.p,vertex.n,ref p,ref n);
+    Add(w.boneIndex2,w.weight2,vertex.p,vertex.n,ref p,ref n);Add(w.boneIndex3,w.weight3,vertex.p,vertex.n,ref p,ref n);
+    vertex.p=p;vertex.n=n.normalized;
+   }
+   void Add(int bone,float weight,Vector3 source,Vector3 sourceNormal,ref Vector3 p,ref Vector3 n)
+   {if(weight<=0)return;p+=point[bone].MultiplyPoint3x4(source)*weight;n+=normal[bone].MultiplyVector(sourceNormal)*weight;}
   }
   struct VertexKey : IEquatable<VertexKey>
   {
@@ -62,7 +109,7 @@ namespace HulkReferenceAssets
    public override bool Equals(object other)=>other is VertexKey key&&Equals(key);
    public override int GetHashCode(){unchecked{return (((p.GetHashCode()*397)^n.GetHashCode())*397^uv.GetHashCode())*397^w.GetHashCode();}}
   }
-  static Mesh MakeMesh(Level lod,Transform root,Transform[] bones,string name)
+  static Mesh MakeMesh(Level lod,Transform root,Transform[] bones,string name,Physique physique)
   {
    var v=new List<Vector3>();var n=new List<Vector3>();var uv=new List<Vector2>();var bw=new List<BoneWeight>();var faces=new List<int[]>();
    foreach(var p in lod.parts)
@@ -74,6 +121,7 @@ namespace HulkReferenceAssets
      int k=i*4;
      var key=new VertexKey{p=V(p.p,i*3),n=V(p.n,i*3).normalized,uv=new Vector2(p.uv[i*2],1-p.uv[i*2+1]),
       w=new BoneWeight{boneIndex0=p.j[k],boneIndex1=p.j[k+1],boneIndex2=p.j[k+2],boneIndex3=p.j[k+3],weight0=p.w[k],weight1=p.w[k+1],weight2=p.w[k+2],weight3=p.w[k+3]}};
+     physique.Apply(ref key);
      if(!unique.TryGetValue(key,out int index)){index=v.Count;unique.Add(key,index);v.Add(key.p);n.Add(key.n);uv.Add(key.uv);bw.Add(key.w);}
      tri[i]=index;
     }
@@ -118,16 +166,17 @@ namespace HulkReferenceAssets
    {
     Material[] materials=Materials(output);
     root=new GameObject("HulkReference");var rig=new GameObject("Rig");rig.transform.SetParent(root.transform,false);
+    var physique=new Physique(data);
     var bones=new Transform[data.bones.Length];var ids=new Dictionary<string,int>();var paths=new string[bones.Length];
     for(int i=0;i<bones.Length;i++)
     {
      var b=data.bones[i];var node=new GameObject(b.name);node.transform.SetParent(string.IsNullOrEmpty(b.parent)?rig.transform:bones[ids[b.parent]],false);
-     node.transform.localPosition=V(b.position);bones[i]=node.transform;ids.Add(b.name,i);paths[i]=AnimationUtility.CalculateTransformPath(node.transform,root.transform);
+     node.transform.localPosition=physique.local[i];bones[i]=node.transform;ids.Add(b.name,i);paths[i]=AnimationUtility.CalculateTransformPath(node.transform,root.transform);
     }
     var lods=new LOD[data.lods.Length];
     for(int i=0;i<data.lods.Length;i++)
     {
-     var go=new GameObject("LOD"+i);go.transform.SetParent(root.transform,false);var mesh=MakeMesh(data.lods[i],root.transform,bones,"HulkReference_LOD"+i);
+     var go=new GameObject("LOD"+i);go.transform.SetParent(root.transform,false);var mesh=MakeMesh(data.lods[i],root.transform,bones,"HulkReference_LOD"+i,physique);
      string path=output+"/Meshes/"+mesh.name+".asset";Save(mesh,path);
      var smr=go.AddComponent<SkinnedMeshRenderer>();smr.sharedMesh=AssetDatabase.LoadAssetAtPath<Mesh>(path);smr.bones=bones;smr.rootBone=bones[ids["Hips"]];
      smr.quality=SkinQuality.Bone4;smr.localBounds=new Bounds(new Vector3(0,1.7f,0),new Vector3(4.5f,4.5f,4.5f));

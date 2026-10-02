@@ -11,7 +11,7 @@ namespace SniperRidge
         public enum Attack { None, Punch, Clap, Slam }
         public bool Active { get; private set; }
         public const float TransformDuration=1.8f;
-        public const float WalkSpeed=5.2f, RunSpeed=11f;
+        public const float WalkSpeed=2.8f, RunSpeed=11f;
         public bool RunEnabled { get; private set; }
         public bool Sprinting { get; private set; }
         public float PlanarSpeed { get; private set; }
@@ -23,7 +23,11 @@ namespace SniperRidge
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None)return false;
             RunEnabled=!RunEnabled;return true;
         }
-        public const float PunchDuration=.72f, PunchImpactTime=.28f;
+        public const float PunchDuration=.72f, PunchImpactTime=.28f, JumpWindup=.22f;
+        public bool PunchLeft { get; private set; }
+        bool nextPunchLeft,slamLaunched;
+        public float JumpVelocity => vertical;
+        public bool JumpLaunched => slamLaunched;
         public bool Transforming => Active && Time.time<transformedAt+TransformDuration;
         public float TransformationProgress => Mathf.Clamp01((Time.time-transformedAt)/TransformDuration);
         public HulkAudio Audio { get; private set; }
@@ -71,6 +75,7 @@ namespace SniperRidge
             Active=!Active;Game.Health.SetHulkForm(Active);RunEnabled=false;Sprinting=false;horizontalVelocity=actualVelocity=Vector3.zero;PlanarSpeed=0;vertical=-2;waveStart=-99;waveHit.Clear();
             if(Active)
             {
+                nextPunchLeft=false;PunchLeft=false;
                 visual.ResetLocomotion();lastFootstep=visual.FootstepSerial;
                 transformedAt=Time.time;Audio.Play(HulkAudio.Cue.Transform);
                 visual.gameObject.SetActive(true);visual.Pose(0,Attack.None,0,Grounded,false,0);yaw=transform.eulerAngles.y;pitch=15;
@@ -87,9 +92,10 @@ namespace SniperRidge
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
             if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt)return false;
             CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
-            if(attack==Attack.Punch)punchAt=Time.time+PunchDuration;
+            if(attack==Attack.Punch)
+            {PunchLeft=nextPunchLeft;nextPunchLeft=!nextPunchLeft;visual.PunchLeft=PunchLeft;punchAt=Time.time+PunchDuration;}
             if(attack==Attack.Clap)clapAt=Time.time+4f;
-            if(attack==Attack.Slam){slamAt=Time.time+6f;vertical=13f;airborne=false;Audio.Play(HulkAudio.Cue.Jump);}
+            if(attack==Attack.Slam){slamAt=Time.time+6f;slamLaunched=false;airborne=false;}
             return true;
         }
         public void Tick(float dt)
@@ -126,6 +132,7 @@ namespace SniperRidge
             AdvanceAttack();AdvanceWave();
             float speed=PlanarSpeed;
             visual.SetMotion(transform.InverseTransformDirection(actualVelocity),turnRate,acceleration);
+            visual.SetJumpMotion(vertical,slamLaunched);
             visual.Pose(speed,CurrentAttack,AttackAge,Grounded,impactDone,Transforming?TransformationProgress:-1);
             if(visual.FootstepSerial!=lastFootstep&&speed>.8f&&Grounded)Audio.Play(HulkAudio.Cue.Footstep,Sprinting?.48f:.32f);
             lastFootstep=visual.FootstepSerial;
@@ -138,6 +145,11 @@ namespace SniperRidge
             transform.rotation=Quaternion.RotateTowards(transform.rotation,Quaternion.Euler(0,yaw,0),420*dt);
             turnRate=Mathf.DeltaAngle(previousYaw,transform.eulerAngles.y)/dt;
             input=Transforming?Vector2.zero:Vector2.ClampMagnitude(input,1);
+            if(CurrentAttack==Attack.Slam&&!slamLaunched)
+            {
+                input=Vector2.zero;horizontalVelocity=Vector3.zero;
+                if(AttackAge>=JumpWindup&&Grounded){vertical=13;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);}
+            }
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-26*dt);
             Sprinting=!Transforming&&CurrentAttack==Attack.None&&(RunEnabled||sprint)&&input.sqrMagnitude>.01f;
@@ -155,7 +167,7 @@ namespace SniperRidge
             if((flags&CollisionFlags.Above)!=0&&vertical>0)vertical=0;
             if(CurrentAttack==Attack.Slam)
             {
-                if(!Grounded)airborne=true;
+                if(slamLaunched&&!Grounded)airborne=true;
                 if(airborne&&Grounded&&vertical<0&&!impactDone)
                 {impactDone=true;Landings++;StartWave(Attack.Slam);actionAt=Time.time;Audio.Play(HulkAudio.Cue.Slam);}
                 // A low ceiling may prevent take-off. Never leave the attack locked forever.
@@ -172,7 +184,7 @@ namespace SniperRidge
                 {
                     int before=DamageEvents;
                     impactDone=true;HitTargets(transform.position+Vector3.up*1.6f,transform.forward,3.8f,60,145,null,2.8f);
-                    Effects.Puff(transform.TransformPoint(.5f,1.9f,1.3f),transform.forward,.35f,new Color(.7f,.75f,.55f),.2f);if(DamageEvents>before)Audio.Play(HulkAudio.Cue.PunchHit);
+                    Effects.Puff(transform.TransformPoint(PunchLeft?.5f:-.5f,1.9f,1.3f),transform.forward,.35f,new Color(.7f,.75f,.55f),.2f);if(DamageEvents>before)Audio.Play(HulkAudio.Cue.PunchHit);
                 }
                 if(age>PunchDuration)CurrentAttack=Attack.None;
             }

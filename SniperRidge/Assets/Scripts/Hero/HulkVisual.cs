@@ -15,6 +15,10 @@ namespace SniperRidge
         Quaternion[] blendRotations;
         Vector3[] blendPositions;
         Transform hips,chest,head;
+        Transform leftThigh,leftCalf,leftFoot,rightThigh,rightCalf,rightFoot;
+        public bool PunchLeft { get; set; }
+        float jumpVelocity;bool jumpLaunched;
+        public void SetJumpMotion(float velocity,bool launched){jumpVelocity=velocity;jumpLaunched=launched;}
         Transform leftArm,leftElbow,leftHand,rightArm,rightElbow,rightHand;
         readonly Dictionary<string,AnimationClip> clips=new Dictionary<string,AnimationClip>();
         readonly Dictionary<string,float> lengths=new Dictionary<string,float>();
@@ -51,6 +55,8 @@ namespace SniperRidge
             foreach(var bone in bones)
             {
                 if(bone.name=="Hips")hips=bone;if(bone.name=="Chest")chest=bone;if(bone.name=="Head")head=bone;
+                if(bone.name=="LeftThigh")leftThigh=bone;if(bone.name=="LeftCalf")leftCalf=bone;if(bone.name=="LeftFoot")leftFoot=bone;
+                if(bone.name=="RightThigh")rightThigh=bone;if(bone.name=="RightCalf")rightCalf=bone;if(bone.name=="RightFoot")rightFoot=bone;
                 if(bone.name=="LeftUpperArm")leftArm=bone;if(bone.name=="LeftForearm")leftElbow=bone;if(bone.name=="LeftHand")leftHand=bone;
                 if(bone.name=="RightUpperArm")rightArm=bone;if(bone.name=="RightForearm")rightElbow=bone;if(bone.name=="RightHand")rightHand=bone;
             }
@@ -87,9 +93,8 @@ namespace SniperRidge
             else if(attack==HulkController.Attack.Slam)
             {
                 // The controller supplies actual jump height; the pack's animated hip lift must not add a second jump.
-                if(landed)Sample("Land",age,.03f);
-                else Sample("Air",0,.10f);
-                Fists(1);
+                JumpPose(age,landed);
+                Fists(.7f);
             }
             else
             {
@@ -114,7 +119,7 @@ namespace SniperRidge
             float previous=gaitPhase;
             if(grounded)
             {
-                gaitPhase+=speed*dt/Mathf.Lerp(4.4f,7.5f,run)*(localVelocity.z<-.2f?-1:1);
+                gaitPhase+=speed*dt/Mathf.Lerp(2.3f,4.5f,run)*(localVelocity.z<-.2f?-1:1);
                 if(Mathf.FloorToInt(previous*2)!=Mathf.FloorToInt(gaitPhase*2))FootstepSerial++;
             }
             ReadPose("Idle",idleTime/lengths["Idle"],idleRotations,idlePositions);
@@ -142,7 +147,90 @@ namespace SniperRidge
             // Slightly different shoulder timing prevents a rigid mirrored march.
             leftArm.localRotation*=Quaternion.Euler(Mathf.Sin(gaitPhase*Mathf.PI*2+.35f)*4*walk,0,breath*.7f);
             rightArm.localRotation*=Quaternion.Euler(-Mathf.Sin(gaitPhase*Mathf.PI*2-.2f)*4*walk,0,-breath*.6f);
+            NaturalStride(walk,run,grounded);
             ApplyBlend(.2f);
+        }
+        void NaturalStride(float weight,float run,bool grounded)
+        {
+            if(!grounded||weight<=0)return;
+            float phase=Mathf.Repeat(gaitPhase,1),wave=Mathf.Cos(phase*Mathf.PI*2);
+            hips.localPosition+=new Vector3(Mathf.Sin(phase*Mathf.PI*2)*.025f,-(.16f+.06f*run)+Mathf.Cos(phase*Mathf.PI*4)*Mathf.Lerp(.015f,.045f,run),0)*weight;
+            leftArm.localRotation=Quaternion.Slerp(leftArm.localRotation,Quaternion.Euler(wave*Mathf.Lerp(21,39,run),0,4),weight);
+            rightArm.localRotation=Quaternion.Slerp(rightArm.localRotation,Quaternion.Euler(-wave*Mathf.Lerp(21,39,run),0,-4),weight);
+            leftElbow.localRotation=Quaternion.Slerp(leftElbow.localRotation,Quaternion.Euler(-18-42*run,0,0),weight);
+            rightElbow.localRotation=Quaternion.Slerp(rightElbow.localRotation,Quaternion.Euler(-18-42*run,0,0),weight);
+            Fists(.12f+.18f*run);
+            StrideFoot(leftThigh,leftCalf,leftFoot,phase,1,run,weight);
+            StrideFoot(rightThigh,rightCalf,rightFoot,Mathf.Repeat(phase+.5f,1),-1,run,weight);
+        }
+        void StrideFoot(Transform thigh,Transform calf,Transform foot,float phase,float side,float run,float weight)
+        {
+            float stance=Mathf.Lerp(.56f,.32f,run),stride=Mathf.Lerp(2.3f,4.5f,run);
+            float reach=stride*stance/(2*ModelScale),z,lift,pitch;
+            if(phase<stance)
+            {
+                float t=phase/stance;z=Mathf.Lerp(reach,-reach,t);
+                lift=.055f*Phase(t,.65f,1);pitch=Mathf.Lerp(-12,0,Phase(t,0,.2f))+24*Phase(t,.65f,1);
+            }
+            else
+            {
+                float t=(phase-stance)/(1-stance);z=Mathf.Lerp(-reach,reach,Mathf.SmoothStep(0,1,t));
+                lift=Mathf.Sin(t*Mathf.PI)*Mathf.Lerp(.15f,.38f,run);pitch=Mathf.Lerp(20,-12,t);
+            }
+            PlaceFoot(thigh,calf,foot,new Vector3(side*.30f,.185f+lift,z),pitch,weight);
+        }
+        void PlaceFoot(Transform thigh,Transform calf,Transform foot,Vector3 localTarget,float pitch,float weight)
+        {
+            Vector3 target=transform.TransformPoint(localTarget);
+            // Adapt the foot to small kerbs/slopes; the character controller owns body height.
+            if(Physics.Raycast(target+Vector3.up*.6f,Vector3.down,out var hit,1.1f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))
+            {
+                float groundOffset=hit.point.y-transform.position.y;
+                if(Mathf.Abs(groundOffset)<.3f)target.y+=groundOffset;
+            }
+            target=Vector3.Lerp(foot.position,target,weight);
+            SolveLimb(thigh,calf,foot,target,transform.forward);
+            foot.rotation=Quaternion.Slerp(foot.rotation,transform.rotation*Quaternion.Euler(pitch,0,0),weight);
+        }
+        static void SolveLimb(Transform upper,Transform joint,Transform end,Vector3 target,Vector3 pole)
+        {
+            float a=Vector3.Distance(upper.position,joint.position),b=Vector3.Distance(joint.position,end.position);
+            Vector3 direction=(target-upper.position).normalized;
+            float distance=Mathf.Clamp(Vector3.Distance(target,upper.position),Mathf.Abs(a-b)+.01f,a+b-.015f);
+            target=upper.position+direction*distance;pole=Vector3.ProjectOnPlane(pole,direction).normalized;
+            float along=(a*a-b*b+distance*distance)/(2*distance);
+            Vector3 bend=upper.position+direction*along+pole*Mathf.Sqrt(Mathf.Max(0,a*a-along*along));
+            upper.rotation=Quaternion.FromToRotation(joint.position-upper.position,bend-upper.position)*upper.rotation;
+            joint.rotation=Quaternion.FromToRotation(end.position-joint.position,target-joint.position)*joint.rotation;
+        }
+        void JumpPose(float age,bool landed)
+        {
+            if(landed)
+            {
+                Sample("Land",age,.03f);
+                PlaceFoot(leftThigh,leftCalf,leftFoot,new Vector3(.3f,.185f,.04f),0,1);
+                PlaceFoot(rightThigh,rightCalf,rightFoot,new Vector3(-.3f,.185f,.04f),0,1);return;
+            }
+            if(!jumpLaunched)
+            {
+                Sample("Idle",0,.04f);float load=Phase(age,0,HulkController.JumpWindup);
+                hips.localPosition=new Vector3(0,1.2259335f-.28f*load,0);
+                chest.localRotation=Quaternion.Euler(20*load,0,0);
+                leftArm.localRotation=rightArm.localRotation=Quaternion.Euler(38*load,0,0);
+                leftElbow.localRotation=rightElbow.localRotation=Quaternion.Euler(-25*load,0,0);
+                PlaceFoot(leftThigh,leftCalf,leftFoot,new Vector3(.3f,.185f,0),0,1);
+                PlaceFoot(rightThigh,rightCalf,rightFoot,new Vector3(-.3f,.185f,0),0,1);return;
+            }
+            Sample("Air",0,.06f);
+            float tuck=1-Mathf.Clamp01(Mathf.Abs(jumpVelocity)/12),fall=Mathf.Clamp01(-jumpVelocity/11);
+            float lift=Phase(age,HulkController.JumpWindup,HulkController.JumpWindup+.14f);
+            hips.localPosition=new Vector3(0,1.2259335f,0);
+            chest.localRotation=Quaternion.Euler(6+10*tuck,0,0);
+            leftArm.localRotation=rightArm.localRotation=Quaternion.Euler(Mathf.Lerp(20,-150,lift)+100*fall,0,0);
+            leftElbow.localRotation=rightElbow.localRotation=Quaternion.Euler(-20-25*tuck,0,0);
+            leftThigh.localRotation=rightThigh.localRotation=Quaternion.Euler(-12-48*tuck,0,0);
+            leftCalf.localRotation=rightCalf.localRotation=Quaternion.Euler(20+80*tuck,0,0);
+            leftFoot.localRotation=rightFoot.localRotation=Quaternion.Euler(-8-32*tuck,0,0);
         }
         static float Phase(float time,float start,float end)
         {return Mathf.SmoothStep(0,1,Mathf.InverseLerp(start,end,time));}
@@ -154,9 +242,10 @@ namespace SniperRidge
             float load=Phase(age,0,.12f),strike=Phase(age,.12f,HulkController.PunchImpactTime);
             float follow=Phase(age,HulkController.PunchImpactTime,.36f),recover=Phase(age,.36f,HulkController.PunchDuration);
             float weight=load*(1-recover);
-            float twist=(-24*load+54*strike)*(1-recover);
+            float side=PunchLeft?1:-1;
+            float twist=(-24*load+54*strike)*(1-recover)*-side;
             hips.localRotation=Quaternion.Euler(0,twist*.35f,0);
-            chest.localRotation=Quaternion.Euler(9*strike*(1-recover),twist,-5*weight);
+            chest.localRotation=Quaternion.Euler(9*strike*(1-recover),twist,5*side*weight);
             head.localRotation=Quaternion.Euler(-4*weight,-twist*1.35f,0);
 
             Vector3 guard=new Vector3(-.64f,1.85f,.27f);
@@ -168,9 +257,10 @@ namespace SniperRidge
             target=Vector3.Lerp(target,through,follow);
             target=Vector3.Lerp(target,guard,recover);
             float blend=Phase(age,0,.08f)*(1-Phase(age,.58f,HulkController.PunchDuration));
-            PunchHand(rightArm,rightElbow,rightHand,target,-1,blend);
+            target.x*= -side;
+            PunchHand(PunchLeft?leftArm:rightArm,PunchLeft?leftElbow:rightElbow,PunchLeft?leftHand:rightHand,target,side,blend);
             // The other hand protects the chin rather than hanging motionless.
-            PunchHand(leftArm,leftElbow,leftHand,new Vector3(.5f,2.18f,.48f),1,blend);
+            PunchHand(PunchLeft?rightArm:leftArm,PunchLeft?rightElbow:leftElbow,PunchLeft?rightHand:leftHand,new Vector3(-side*.5f,2.18f,.48f),-side,blend);
         }
         void PunchHand(Transform upper,Transform elbow,Transform hand,Vector3 localTarget,float side,float weight)
         {
