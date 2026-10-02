@@ -11,6 +11,7 @@ namespace SniperRidge
         public enum Attack { None, Punch, Clap, Slam }
         public bool Active { get; private set; }
         public const float TransformDuration=1.8f;
+        public const float PunchDuration=.72f, PunchImpactTime=.28f;
         public bool Transforming => Active && Time.time<transformedAt+TransformDuration;
         public float TransformationProgress => Mathf.Clamp01((Time.time-transformedAt)/TransformDuration);
         public HulkAudio Audio { get; private set; }
@@ -55,7 +56,7 @@ namespace SniperRidge
                 visual=HulkVisual.Create(transform);
                 if(visual==null){Game.Hud.ShowShotFeedback("헐크 에셋이 없습니다 · 에셋 재생성을 실행하세요");return false;}
             }
-            Active=!Active;vertical=-2;waveStart=-99;waveHit.Clear();
+            Active=!Active;Game.Health.SetHulkForm(Active);vertical=-2;waveStart=-99;waveHit.Clear();
             if(Active)
             {
                 transformedAt=Time.time;Audio.Play(HulkAudio.Cue.Transform);
@@ -73,7 +74,7 @@ namespace SniperRidge
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
             if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt)return false;
             CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
-            if(attack==Attack.Punch)punchAt=Time.time+.72f;
+            if(attack==Attack.Punch)punchAt=Time.time+PunchDuration;
             if(attack==Attack.Clap)clapAt=Time.time+4f;
             if(attack==Attack.Slam){slamAt=Time.time+6f;vertical=13f;airborne=false;Audio.Play(HulkAudio.Cue.Jump);}
             return true;
@@ -138,13 +139,13 @@ namespace SniperRidge
             if(CurrentAttack==Attack.Punch)
             {
                 if(!swingPlayed&&age>=.12f){swingPlayed=true;Audio.Play(HulkAudio.Cue.PunchSwing,.8f);}
-                if(!impactDone&&age>=.28f)
+                if(!impactDone&&age>=PunchImpactTime)
                 {
                     int before=DamageEvents;
                     impactDone=true;HitTargets(transform.position+Vector3.up*1.6f,transform.forward,3.8f,60,145,null,2.8f);
                     Effects.Puff(transform.TransformPoint(.5f,1.9f,1.3f),transform.forward,.35f,new Color(.7f,.75f,.55f),.2f);if(DamageEvents>before)Audio.Play(HulkAudio.Cue.PunchHit);
                 }
-                if(age>.72f)CurrentAttack=Attack.None;
+                if(age>PunchDuration)CurrentAttack=Attack.None;
             }
             else if(CurrentAttack==Attack.Clap)
             {

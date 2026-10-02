@@ -10,6 +10,19 @@ namespace SniperRidge
 
         float regenDelay = 5f, regenRate = 6f;
         float lastHitTime = -99f;
+        bool hulkForm;
+        float humanMax;
+
+        // Preserve the health fraction in both directions; toggling must never heal damage.
+        public void SetHulkForm(bool active)
+        {
+            if (hulkForm == active) return;
+            float fraction = Mathf.Clamp01(Fraction);
+            if (active) humanMax = Max;
+            Max = active ? humanMax * 2f : humanMax;
+            Current = Max * fraction;
+            hulkForm = active;
+        }
 
         public void Configure(float delay, float rate)
         {

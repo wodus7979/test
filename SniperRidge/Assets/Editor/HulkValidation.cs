@@ -51,6 +51,49 @@ namespace SniperRidge.EditorTools
         {var box=GameObject.CreatePrimitive(PrimitiveType.Cube);box.name=name;box.transform.SetParent(fixture.transform);box.transform.position=pos;box.transform.localScale=size;return box;}
         static void Teleport(SniperController p,Vector3 pos)
         {var c=p.GetComponent<CharacterController>();c.enabled=false;p.transform.position=pos;p.transform.rotation=Quaternion.identity;c.enabled=true;Physics.SyncTransforms();}
+        static void CapturePose(string name)
+        {
+            // Editor polling can sample several poses in one frame. Bake the current bones
+            // for the diagnostic render instead of reusing that frame's cached GPU skin.
+            var skins=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>();
+            var mesh=new Mesh();skins[0].BakeMesh(mesh);
+            var preview=new GameObject("Sampled pose",typeof(MeshFilter),typeof(MeshRenderer));
+            preview.transform.SetParent(skins[0].transform,false);
+            preview.GetComponent<MeshFilter>().sharedMesh=mesh;
+            preview.GetComponent<MeshRenderer>().sharedMaterials=skins[0].sharedMaterials;
+            bool[] enabled=skins.Select(r=>r.enabled).ToArray();
+            try{foreach(var skin in skins)skin.enabled=false;Capture(name);}
+            finally
+            {
+                for(int i=0;i<skins.Length;i++)skins[i].enabled=enabled[i];
+                UnityEngine.Object.DestroyImmediate(preview);UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+        static void ValidatePunch(SniperController player)
+        {
+            var visual=h.Visual;var bones=visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones;
+            var hand=bones.First(b=>b.name=="RightHand");var elbow=bones.First(b=>b.name=="RightForearm");
+            var arm=bones.First(b=>b.name=="RightUpperArm");var chest=bones.First(b=>b.name=="Chest");
+            float upperLength=Vector3.Distance(arm.position,elbow.position),lowerLength=Vector3.Distance(elbow.position,hand.position);
+            var eye=player.Eye;Vector3 previousPosition=eye.position;Quaternion previousRotation=eye.rotation;
+            eye.position=player.transform.TransformPoint(new Vector3(-4.5f,2.7f,4.5f));
+            eye.LookAt(player.transform.position+Vector3.up*1.8f);
+            visual.Pose(0,HulkController.Attack.Punch,.12f,true,false);
+            Vector3 wind=visual.transform.InverseTransformPoint(hand.position);Quaternion windChest=chest.localRotation;
+            CapturePose("hulk_punch_windup");
+            visual.Pose(0,HulkController.Attack.Punch,HulkController.PunchImpactTime,true,false);
+            Vector3 hit=visual.transform.InverseTransformPoint(hand.position);
+            Check(hit.z>wind.z+.6f,"fist not driven forward at impact");
+            Check(Vector3.Dot((elbow.position-arm.position).normalized,(hand.position-elbow.position).normalized)>.85f,"elbow not extended at impact");
+            Check(Quaternion.Angle(windChest,chest.localRotation)>30,"torso does not rotate through punch");
+            Check(Mathf.Abs(upperLength-Vector3.Distance(arm.position,elbow.position))<.001f&&Mathf.Abs(lowerLength-Vector3.Distance(elbow.position,hand.position))<.001f,"punch stretched rig bones");
+            CapturePose("hulk_punch_contact");
+            visual.Pose(0,HulkController.Attack.Punch,.6f,true,false);
+            Check(visual.transform.InverseTransformPoint(hand.position).z<hit.z-.35f,"fist not recovered after impact");
+            CapturePose("hulk_punch_recovery");
+            eye.SetPositionAndRotation(previousPosition,previousRotation);
+            visual.Pose(0,HulkController.Attack.None,0,true,false);
+        }
         static void Poll()
         {
             if(!SessionState.GetBool(Key,false))return;
@@ -66,9 +109,14 @@ namespace SniperRidge.EditorTools
                     if(stage==0&&p.State==SniperController.WeaponState.Ready)
                     {
                         h=p.Hulk;Check(h!=null,"missing city transformation");ammo=p.AmmoInMag;cityPosition=p.transform.position;
-                        foreach(var e in gm.Assault.Soldiers)Freeze(e);gm.Assault.enabled=false;gm.Health.Max=10000;gm.Health.Configure(0,10000);
+                        foreach(var e in gm.Assault.Soldiers)Freeze(e);gm.Assault.enabled=false;gm.Health.Max=10000;gm.Health.Configure(999,0);
+                        gm.Health.SetHulkForm(true);Check(gm.Health.Max==20000&&gm.Health.Current==20000,"full health not doubled");
+                        gm.Health.SetHulkForm(true);Check(gm.Health.Max==20000,"health multiplier stacked");
+                        gm.Health.SetHulkForm(false);gm.Health.TakeDamage(5000);
+                        Check(gm.Health.Current==5000,"health fixture damage failed");
                         var button=h.GetComponentsInChildren<Button>().First(b=>b.name=="Transform");button.onClick.Invoke();
                         Check(h.Active,"transformation button did not activate");
+                        Check(gm.Health.Max==20000&&gm.Health.Current==10000,"injured transformation must preserve fraction and double health");
                         Check(h.Transforming && h.Audio.Ready,"transformation / audio assets missing");
                         Check(h.Visual.UsesReferenceAsset,"supplied skinned model was not loaded");
                         Check(h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.Length==43,"reference skeleton mismatch");
@@ -92,7 +140,7 @@ namespace SniperRidge.EditorTools
                         Check(Vector3.Distance(p.AimPoint,p.transform.position)<3,"AI target follows chase camera");
                         p.GetDamageCapsule(out var bottom,out var top);Check(Mathf.Abs(top.y-p.transform.position.y-2.85f)<.1f,"damage capsule not Hulk-sized");
                         Check(!p.CanSwitchWeapon&&!p.Grenades.enabled,"weapons still enabled");
-                        float hp=gm.Health.Current;gm.Health.TakeDamage(10);Check(Mathf.Abs(hp-gm.Health.Current-3.5f)<.01f,"damage resistance wrong");Capture("hulk_city_rear");
+                        float hp=gm.Health.Current;gm.Health.TakeDamage(10);Check(Mathf.Abs(hp-gm.Health.Current-3.5f)<.01f,"damage resistance wrong");Capture("hulk_city_rear");ValidatePunch(p);
                         fixture=new GameObject("Hulk validation arena");Box("Ground",origin+Vector3.down*.55f,new Vector3(100,1,100));Teleport(p,origin);
                         front=Target(gm,1,origin+new Vector3(0,0,2.9f));far=Target(gm,2,origin+new Vector3(0,0,11));
                         protectedEnemy=Target(gm,3,origin+new Vector3(0,0,-3));ally=Target(gm,4,origin+new Vector3(-1.5f,0,2.8f),true);allyHealth=ally.Health;
@@ -151,7 +199,9 @@ namespace SniperRidge.EditorTools
                     else if(stage==80&&age>.85f)
                     {
                         Check(h.Audio.Count(HulkAudio.Cue.PunchSwing)==2&&h.Audio.Count(HulkAudio.Cue.PunchHit)==1,"miss punch incorrectly played body impact");
-                        Check(h.Toggle(),"human restore rejected");stage=9;at=Time.time;
+                        float healthBefore=gm.Health.Current;
+                        Check(h.Toggle(),"human restore rejected");
+                        Check(gm.Health.Max==10000&&Mathf.Abs(gm.Health.Current-healthBefore*.5f)<.01f,"human health not restored proportionally");stage=9;at=Time.time;
                     }
                     else if(stage==9&&age>.2f)
                     {
@@ -159,8 +209,11 @@ namespace SniperRidge.EditorTools
                         Check(Vector3.Distance(p.Eye.localPosition,Vector3.up*1.68f)<.05f,"FPS eye not restored");
                         Check(Mathf.Abs(p.GetComponent<CharacterController>().height-FpsMovement.StandingHeight)<.01f,"human capsule not restored");
                         ceiling=Box("Low ceiling",p.transform.position+Vector3.up*2.6f,new Vector3(5,.3f,5));Physics.SyncTransforms();
-                        Check(!h.Toggle()&&!h.Active,"transformed through low ceiling");ceiling.SetActive(false);UnityEngine.Object.Destroy(ceiling);
-                        Check(h.Toggle(),"second transformation failed");Next();
+                        float hpBefore=gm.Health.Current;
+                        Check(!h.Toggle()&&!h.Active,"transformed through low ceiling");
+                        Check(gm.Health.Max==10000&&gm.Health.Current==hpBefore,"failed transformation changed health");ceiling.SetActive(false);UnityEngine.Object.Destroy(ceiling);
+                        Check(h.Toggle(),"second transformation failed");
+                        Check(gm.Health.Max==20000&&Mathf.Abs(gm.Health.Current-hpBefore*2)<.01f,"repeat transformation healed or stacked max health");Next();
                     }
                     else if(stage==10&&age>1.95f)
                     {
@@ -177,8 +230,8 @@ namespace SniperRidge.EditorTools
                             var agent=e.GetComponent<NavMeshAgent>();if(agent!=null)agent.enabled=true;
                             var navigation=e.GetComponent<AssaultNavigation>();if(navigation!=null)navigation.enabled=true;
                         }
-                        gm.Assault.enabled=true;
-                        Debug.Log("[Hulk validation] PASS: reference skinned mesh, 43 bones, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
+                        gm.Assault.enabled=true;gm.Health.Configure(0,10000);
+                        Debug.Log("[Hulk validation] PASS: double health / proportional restore / no toggle healing, punch wind-up / torso twist / extension / recovery / fixed bone lengths, reference skinned mesh, 43 bones, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
                         Check(h.Toggle(),"city return failed");Next();
                     }
                     else if(stage==12&&age>2f){Capture("hulk_city_final");stage=13;}

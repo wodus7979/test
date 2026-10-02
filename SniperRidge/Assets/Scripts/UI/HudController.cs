@@ -15,7 +15,7 @@ namespace SniperRidge
         RectTransform windArrow, hpFill, breathFill, hitMarker, scopeImage, barLeft, barRight, barTop, barBottom;
         Image damageFlash;
         Texture2D damageMask;Sprite damageSprite;
-        Text launcherHelp, coverText, threatText, shotFeedback, launcherLabel, grenadeCount, grenadeAim;
+        Text healthLabel, launcherHelp, coverText, threatText, shotFeedback, launcherLabel, grenadeCount, grenadeAim;
         Button launcherButton;
         float shotFeedbackTimer;
         float threatUntil;
@@ -155,7 +155,7 @@ namespace SniperRidge
             rangeText = UiKit.Label(g, "Range", "", 30, TextAnchor.MiddleCenter, white, center, center, new Vector2(0f, -150f), new Vector2(300f, 40f), true);
 
             // 좌하단
-            UiKit.Label(g, "HpLabel", "체력", 20, TextAnchor.LowerLeft, dim, bottomLeft, bottomLeft, new Vector2(30f, 56f), new Vector2(200f, 26f));
+            healthLabel = UiKit.Label(g, "HpLabel", "체력", 20, TextAnchor.LowerLeft, dim, bottomLeft, bottomLeft, new Vector2(30f, 56f), new Vector2(360f, 26f));
             var hpBg = UiKit.Panel(g, "HpBg", new Color(0f, 0f, 0f, 0.55f), bottomLeft, bottomLeft, bottomLeft, new Vector2(30f, 30f), new Vector2(320f, 22f));
             hpFill = UiKit.Panel(hpBg, "HpFill", new Color(0.85f, 0.2f, 0.2f), new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(2f, 0f), new Vector2(316f, -4f));
             UiKit.Label(g, "BreathLabel", "호흡", 20, TextAnchor.LowerLeft, dim, bottomLeft, bottomLeft, new Vector2(30f, 108f), new Vector2(200f, 26f));
@@ -344,6 +344,7 @@ namespace SniperRidge
             stateText.text = p.StateLabel;
             weaponText.text = p.Weapon != null ? p.Weapon.Name : "";
 
+            healthLabel.text = (gm.Player.IsHulk ? "헐크 체력 " : "체력 ") + Mathf.CeilToInt(gm.Health.Current) + " / " + Mathf.CeilToInt(gm.Health.Max);
             hpFill.localScale = new Vector3(Mathf.Clamp01(gm.Health.Fraction), 1f, 1f);
             breathFill.localScale = new Vector3(Mathf.Clamp01(p.Breath), 1f, 1f);
 
@@ -393,6 +394,7 @@ namespace SniperRidge
                 var tank = gm.Armor.PlayerTank;
                 enemyText.text = string.Format("전차전 {0}/5 · 적 전차 {1} · K2 {2} / 주력전차 {3}",gm.Armor.Stage,gm.Armor.AliveTanks,gm.Armor.AliveK2,gm.Armor.AliveOpposition);
                 coverText.text = string.Format("속도 {0:0} km/h · 장갑 {1:0}% · 고도 {2:0}m\n숲길과 초지를 이동 · 나무 충돌로 돌파",tank.Speed*3.6f,tank.Fraction*100f,tank.transform.position.y);
+                healthLabel.text = "장갑 " + Mathf.CeilToInt(tank.Fraction*100f) + "%";
                 hpFill.localScale = new Vector3(tank.Fraction,1,1);
                 ammoText.text = "포탄 " + tank.Shells;
                 stateText.text = tank.ReloadRemaining>0 ? string.Format("재장전 {0:0.0}초",tank.ReloadRemaining) : tank.HasAim ? "포격 준비" : "포탑 정렬 중";
