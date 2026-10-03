@@ -54,6 +54,12 @@ namespace OliveTitanAsset
    material.SetTexture("_OcclusionMap",Tex("AO"));material.SetFloat("_OcclusionStrength",.8f);
    string matPath=Root+"/Materials/OliveTitan_PBR.mat";var old=AssetDatabase.LoadAssetAtPath<Material>(matPath);
    if(old){EditorUtility.CopySerialized(material,old);UnityEngine.Object.DestroyImmediate(material);material=old;}else AssetDatabase.CreateAsset(material,matPath);
+   var skinMaterial=new Material(material){name="OliveTitan_GreenSkin",shader=Shader.Find("OliveTitan/Green Skin")};
+   skinMaterial.shaderKeywords=new string[0];
+   skinMaterial.SetVector("_SkinGain",new Vector4(1.32f,2.35f,1.16f,1));
+   skinMaterial.SetFloat("_GlossMapScale",.68f);
+   string skinPath=Root+"/Materials/OliveTitan_GreenSkin.mat";var previousSkin=AssetDatabase.LoadAssetAtPath<Material>(skinPath);
+   if(previousSkin){EditorUtility.CopySerialized(skinMaterial,previousSkin);UnityEngine.Object.DestroyImmediate(skinMaterial);skinMaterial=previousSkin;}else AssetDatabase.CreateAsset(skinMaterial,skinPath);
    EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
    var root=UnityEngine.Object.Instantiate(model);root.name="OliveTitan";
    var animator=root.GetComponent<Animator>();if(!animator)animator=root.AddComponent<Animator>();animator.avatar=avatar;
@@ -65,7 +71,7 @@ namespace OliveTitanAsset
     var skins=instance.GetComponentsInChildren<SkinnedMeshRenderer>();Check(skins.Length==4,"Expected body, pants, hair, eyes");int triangles=0;
     foreach(var skin in skins)
     {
-     triangles+=skin.sharedMesh.triangles.Length/3;skin.sharedMaterial=material;
+     triangles+=skin.sharedMesh.triangles.Length/3;skin.sharedMaterial=skin.name.StartsWith("Body")?skinMaterial:material;
      if(level>0){skin.bones=skin.bones.Select(b=>bones[b.name]).ToArray();skin.rootBone=bones[skin.rootBone.name];skin.transform.SetParent(root.transform,true);}
      skin.quality=SkinQuality.Bone4;
      foreach(var w in skin.sharedMesh.boneWeights)Check(Mathf.Abs(w.weight0+w.weight1+w.weight2+w.weight3-1)<.002f,"Unnormalized skin weights");

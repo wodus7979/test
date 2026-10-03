@@ -22,7 +22,7 @@ namespace SniperRidge.EditorTools
             var mat=new Material(Shader.Find("Standard")){color=new Color(.115f,.13f,.15f)};mat.SetFloat("_Glossiness",.12f);floor.GetComponent<Renderer>().sharedMaterial=mat;
             for(int i=0;i<2;i++)
             {
-                var root=new GameObject(i==0?"Front":"Back");root.transform.position=new Vector3(i==0?-1.30f:1.30f,0,0);
+                var root=new GameObject(i==0?"Rear view":"Front view");root.transform.position=new Vector3(i==0?-.85f:.85f,0,0);
                 root.transform.rotation=Quaternion.Euler(0,i==0?-12:165,0);var visual=HulkVisual.Create(root.transform);
                 for(int frame=0;frame<60;frame++)visual.Pose(0,HulkController.Attack.None,0,true,false,-1,1f/60);
                 foreach(var skin in visual.GetComponentsInChildren<SkinnedMeshRenderer>())
@@ -32,16 +32,18 @@ namespace SniperRidge.EditorTools
                         if(skin.sharedMesh.uv.Length!=skin.sharedMesh.vertexCount)throw new Exception("Missing package UVs");
                         foreach(var material in skin.sharedMaterials)
                             if(!material || !material.mainTexture || !material.shader.isSupported || ShaderUtil.ShaderHasError(material.shader))throw new Exception("Package material/texture failure");
+                        bool body=skin.name.StartsWith("Body");
+                        if((skin.sharedMaterial.shader.name=="OliveTitan/Green Skin")!=body)throw new Exception("Green skin must be assigned to body only, on every LOD");
                     }
                 }
             }
             var camera=new GameObject("Appearance camera").AddComponent<Camera>();camera.clearFlags=CameraClearFlags.SolidColor;
             camera.backgroundColor=new Color(.08f,.095f,.115f);camera.fieldOfView=34;camera.allowHDR=true;
-            camera.transform.position=new Vector3(0,1.95f,9.2f);camera.transform.LookAt(new Vector3(0,1.66f,0));
+            camera.transform.position=new Vector3(0,1.5f,4.6f);camera.transform.LookAt(new Vector3(0,1.1f,0));
             Save(camera,name,1920,1280);
             if(validate)
             {
-                camera.transform.position=new Vector3(-.45f,2.75f,3.6f);camera.transform.LookAt(new Vector3(-1.30f,2.28f,0));camera.fieldOfView=33;
+                camera.transform.position=new Vector3(1.25f,2.15f,2.0f);camera.transform.LookAt(new Vector3(.85f,1.92f,0));camera.fieldOfView=33;
                 Save(camera,"hulk_surface_detail",1440,1440);
                 Debug.Log("[Hulk appearance] PASS: package meshes carry UVs; textured materials and shaders validated; gameplay prefab renders saved.");
             }
