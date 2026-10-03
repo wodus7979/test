@@ -1,0 +1,12 @@
+{
+  "appId": "io.github.wodus7979.pageturner",
+  "appName": "악보 넘기기",
+  "webDir": "www",
+  "backgroundColor": "#1f2430",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never"
+  }
+}

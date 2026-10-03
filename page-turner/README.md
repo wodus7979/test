@@ -22,7 +22,33 @@ npm start            # → http://localhost:8000
 피아노가 없다면 **샘플 악보** → **🎵 데모 연주**로 체험할 수 있습니다. 데모는 일부러 악보 템포와 다르게,
 템포를 흔들어 가며 연주하기 때문에 앱이 연주자의 속도를 따라가는 모습을 볼 수 있습니다.
 
-### 📱 스마트폰·태블릿에 앱으로 설치하기 (PWA)
+### 🤖 안드로이드 앱 (APK)
+
+`page-turner/` 를 고쳐 GitHub 에 올리면 GitHub Actions 가 자동으로 APK 를 만들어
+**[android-latest 릴리스](../../releases/tag/android-latest)** 에 올립니다.
+
+1. 폰에서 `https://github.com/wodus7979/test/releases/tag/android-latest` 를 열고 **page-turner.apk** 를 내려받습니다.
+2. 내려받은 파일을 열고, 처음이면 “출처를 알 수 없는 앱 설치”를 허용한 뒤 **설치**합니다.
+3. 앱 **악보 넘기기** 를 열고 ▶ 듣기 시작 → 마이크 권한 **허용**.
+
+- 앱 안에 모든 파일이 들어 있어 인터넷 없이 동작하고, 연주 중에는 화면이 꺼지지 않습니다.
+- 새 빌드를 설치하면 기존 앱 위에 그대로 업데이트됩니다. (저장소의 테스트용 서명 키
+  `android/app/debug.keystore` 로 서명하기 때문입니다. 플레이 스토어에 올릴 때는 별도의 출시용 키를 만들어야 합니다.)
+- 직접 빌드하려면 Android Studio(또는 Android SDK)를 설치한 뒤 `npm install && npm run android:apk`
+  → `android/app/build/outputs/apk/debug/app-debug.apk`. Android Studio 로 열려면 `npx cap open android`.
+
+### 🍎 아이폰·아이패드 앱 (iOS)
+
+`ios/` 에 Xcode 프로젝트가 들어 있습니다. iOS 앱은 **맥 + Xcode** 가 있어야 만들 수 있습니다.
+
+```bash
+npm install && npm run cap:sync && npx cap open ios   # Xcode 가 열리면 Signing 에서 팀을 고르고 ▶ 실행
+```
+
+자기 아이폰에 설치하는 것은 무료 Apple 계정으로도 되지만(7일마다 다시 설치), 앱스토어·TestFlight 배포에는
+Apple 개발자 프로그램(연 $99)이 필요합니다. 맥이 없다면 아래 PWA 방식(사파리 → 홈 화면에 추가)을 쓰세요.
+
+### 📱 스마트폰·태블릿에 웹 앱으로 설치하기 (PWA)
 
 마이크를 쓰려면 `https` 주소가 필요하므로 먼저 GitHub Pages 같은 곳에 올립니다.
 (저장소 **Settings → Pages → Deploy from a branch** 에서 이 브랜치와 `/ (root)` 를 고르면
@@ -110,6 +136,10 @@ npm start            # → http://localhost:8000
 
 ```
 page-turner/
+├── android/                안드로이드 앱 프로젝트 (Capacitor)
+├── ios/                    iOS 앱 프로젝트 (Capacitor, Xcode)
+├── capacitor.config.json   앱 이름·아이디 설정
+├── assets/                 앱 아이콘·시작 화면 원본
 ├── index.html              화면
 ├── manifest.webmanifest    앱 설치 정보 (이름, 아이콘, 전체 화면)
 ├── sw.js                   서비스 워커 (오프라인 동작, 새 버전 알림)
@@ -124,6 +154,7 @@ page-turner/
 │   └── app.js              화면·버튼·자동 넘김 연결
 ├── samples/                샘플 악보 (환희의 송가 주제와 변주, 64마디)
 ├── tools/make-sample.js    샘플 악보 생성기
+├── tools/build-web.js      앱에 넣을 웹 파일을 www/ 로 모음 (npm run build:web)
 ├── tests/                  단위 테스트, 브라우저 종단 테스트, 개발용 서버
 └── vendor/                 OpenSheetMusicDisplay(BSD-3), JSZip(MIT) — 오프라인에서도 동작하도록 포함
 ```

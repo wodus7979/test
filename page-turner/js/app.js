@@ -211,9 +211,17 @@
     renderStatus();
   }
 
+  // 안드로이드·iOS 앱(Capacitor)으로 실행 중인지
+  const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const keepAwake = native && window.Capacitor.Plugins && window.Capacitor.Plugins.KeepAwake;
+
+  // 연주 중에는 화면이 꺼지지 않게 (앱: 네이티브 플러그인, 브라우저: Wake Lock API)
   async function requestWakeLock() {
     try {
-      if ('wakeLock' in navigator && !state.wakeLock) {
+      if (keepAwake) {
+        await keepAwake.keepAwake();
+        state.wakeLock = true;
+      } else if ('wakeLock' in navigator && !state.wakeLock) {
         state.wakeLock = await navigator.wakeLock.request('screen');
         state.wakeLock.addEventListener('release', () => (state.wakeLock = null));
       }
@@ -222,7 +230,8 @@
     }
   }
   function releaseWakeLock() {
-    if (state.wakeLock) state.wakeLock.release().catch(() => {});
+    if (keepAwake) keepAwake.allowSleep().catch(() => {});
+    else if (state.wakeLock) state.wakeLock.release().catch(() => {});
     state.wakeLock = null;
   }
 
@@ -408,7 +417,8 @@
   }
 
   function setupPwa() {
-    if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+    // 앱으로 설치된 경우에는 파일이 이미 앱 안에 있으므로 서비스 워커·설치 버튼이 필요 없음
+    if (native || !('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
 
     // 안드로이드 크롬·데스크톱 크롬/엣지: 설치 버튼을 직접 보여 줌
     let installPrompt = null;
@@ -480,6 +490,10 @@
   }
 
   loadPrefs();
+  if (native) {
+    // 안드로이드 파일 선택 창은 .mxl 같은 확장자를 몰라 회색으로 막아 버리므로 모든 파일을 보여 줌
+    els.file.removeAttribute('accept');
+  }
   bind();
   setupPwa();
   renderStatus();

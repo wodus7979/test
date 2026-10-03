@@ -1,0 +1,75 @@
+# 자동 악보 넘기기 안드로이드 앱(APK) 빌드
+# page-turner/ 가 바뀌면 APK 를 만들어 "android-latest" 릴리스에 올립니다.
+# 폰에서 https://github.com/<저장소>/releases/tag/android-latest 를 열어 APK 를 내려받아 설치하면 됩니다.
+name: Android 앱 빌드
+
+on:
+  push:
+    paths:
+      - 'page-turner/**'
+      - '.github/workflows/android-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: page-turner
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: page-turner/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 의존성 설치
+        run: npm ci --omit=optional
+
+      - name: 단위 테스트
+        run: npm test
+
+      - name: 웹 파일을 앱 프로젝트로 복사
+        run: npm run build:web && npx cap sync android
+
+      - name: APK 빌드
+        working-directory: page-turner/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: APK 이름 정리
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk page-turner.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: page-turner-apk
+          path: page-turner/page-turner.apk
+
+      - name: 릴리스(android-latest)에 APK 올리기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest page-turner.apk \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "악보 넘기기 안드로이드 앱 (최신 빌드 #${{ github.run_number }})" \
+            --notes "브랜치 ${GITHUB_REF_NAME} · 커밋 ${GITHUB_SHA::7}
+
+          **설치 방법**: 폰에서 아래 page-turner.apk 를 눌러 내려받은 뒤 열기 → '출처를 알 수 없는 앱 설치'를 허용 → 설치.
+          새 빌드를 설치하면 기존 앱 위에 업데이트됩니다."

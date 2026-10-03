@@ -1,6 +1,6 @@
 // 서비스 워커: 앱 파일을 기기에 저장해 두어 인터넷이 없는 연습실에서도 열리게 합니다.
 // 앱 파일을 바꾸면 VERSION 을 올려 주세요. (tests/run-tests.js 가 PRECACHE 목록의 파일이 모두 있는지 확인합니다)
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `page-turner-${VERSION}`;
 const PRECACHE = [
   './',
