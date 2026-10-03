@@ -10,7 +10,7 @@ namespace SniperRidge
     {
         public enum Attack { None, Punch, Clap, Slam, Kick }
         public bool Active { get; private set; }
-        public const float TransformDuration=1.8f;
+        public const float TransformDuration=2.833333f;
         public const float WalkSpeed=3.2f, RunSpeed=6.4f;
         public bool RunEnabled { get; private set; }
         public bool Sprinting { get; private set; }
@@ -23,10 +23,11 @@ namespace SniperRidge
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None)return false;
             RunEnabled=!RunEnabled;return true;
         }
-        public const float PunchDuration=.72f, PunchImpactTime=.28f, JumpWindup=.22f;
+        public const float PunchDuration=3.833333f, PunchImpactTime=1.40f, JumpWindup=1.20f, JumpLaunchSpeed=6.5f, JumpRecovery=1.266667f;
         public const float KickDuration=1.5f, KickImpactTime=.65f;
         public bool PunchLeft { get; private set; }
-        bool nextPunchLeft,slamLaunched;
+        bool slamLaunched;
+        bool FourActionsOnly => visual!=null && visual.Definition && visual.Definition.FourActionsOnly;
         public float JumpVelocity => vertical;
         public bool JumpLaunched => slamLaunched;
         public bool Transforming => Active && Time.time<transformedAt+TransformDuration;
@@ -77,7 +78,7 @@ namespace SniperRidge
             Active=!Active;Game.Health.SetHulkForm(Active);RunEnabled=false;Sprinting=false;horizontalVelocity=actualVelocity=Vector3.zero;PlanarSpeed=0;vertical=-2;waveStart=-99;waveHit.Clear();
             if(Active)
             {
-                nextPunchLeft=false;PunchLeft=false;
+                PunchLeft=false;
                 visual.ResetLocomotion();lastFootstep=visual.FootstepSerial;
                 transformedAt=Time.time;Audio.Play(HulkAudio.Cue.Transform);
                 visual.gameObject.SetActive(true);visual.Pose(0,Attack.None,0,Grounded,false,0);yaw=transform.eulerAngles.y;pitch=15;
@@ -92,10 +93,11 @@ namespace SniperRidge
         public bool BeginAttack(Attack attack)
         {
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
+            if(FourActionsOnly&&(attack==Attack.Clap||attack==Attack.Kick))return false;
             if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt || attack==Attack.Kick&&Time.time<kickAt)return false;
             CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
             if(attack==Attack.Punch)
-            {PunchLeft=nextPunchLeft;nextPunchLeft=!nextPunchLeft;visual.PunchLeft=PunchLeft;punchAt=Time.time+PunchDuration;}
+            {PunchLeft=false;visual.PunchLeft=false;punchAt=Time.time+PunchDuration;}
             if(attack==Attack.Clap)clapAt=Time.time+4f;
             if(attack==Attack.Kick)kickAt=Time.time+2.2f;
             if(attack==Attack.Slam){slamAt=Time.time+6f;slamLaunched=false;airborne=false;}
@@ -109,7 +111,7 @@ namespace SniperRidge
             if(Input.GetKeyDown(KeyCode.H))Toggle();
             transformButton.interactable=!Transforming && CurrentAttack==Attack.None;
             transformButton.GetComponentInChildren<Text>().text=Transforming?"변신 중…":Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
-            foreach(var button in skills)button.gameObject.SetActive(Active);
+            for(int i=0;i<skills.Count;i++)skills[i].gameObject.SetActive(Active&&(!FourActionsOnly||(i!=1&&i!=4)));
             if(!Active)return;
             skills[0].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded;
             skills[1].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&ClapCooldown<=0;
@@ -154,7 +156,7 @@ namespace SniperRidge
             if(CurrentAttack==Attack.Slam&&!slamLaunched)
             {
                 input=Vector2.zero;horizontalVelocity=Vector3.zero;
-                if(AttackAge>=JumpWindup&&Grounded){vertical=13;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);}
+                if(AttackAge>=JumpWindup&&Grounded){vertical=JumpLaunchSpeed;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);}
             }
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-26*dt);
@@ -177,7 +179,7 @@ namespace SniperRidge
                 if(airborne&&Grounded&&vertical<0&&!impactDone)
                 {impactDone=true;Landings++;StartWave(Attack.Slam);actionAt=Time.time;Audio.Play(HulkAudio.Cue.Slam);}
                 // A low ceiling may prevent take-off. Never leave the attack locked forever.
-                if(!airborne&&AttackAge>1f){CurrentAttack=Attack.None;}
+                if(!airborne&&AttackAge>JumpWindup+.8f){CurrentAttack=Attack.None;}
             }
         }
         void AdvanceAttack()
@@ -211,7 +213,7 @@ namespace SniperRidge
                 }
                 if(age>KickDuration)CurrentAttack=Attack.None;
             }
-            else if(CurrentAttack==Attack.Slam&&impactDone&&age>.6f)CurrentAttack=Attack.None;
+            else if(CurrentAttack==Attack.Slam&&impactDone&&age>JumpRecovery)CurrentAttack=Attack.None;
         }
         void StartWave(Attack attack)
         {
@@ -269,8 +271,8 @@ namespace SniperRidge
             transformButton=Button("Transform",0,"[H] 헐크 변신",()=>Toggle());
             skills.Add(Button("Punch",1,"[좌클릭] 주먹 공격",()=>{if(BeginAttack(Attack.Punch))LockInput();}));
             skills.Add(Button("Clap",2,"[우클릭] 박수 충격파",()=>{if(BeginAttack(Attack.Clap))LockInput();}));
-            skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
-            skills.Add(Button("Run",4,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
+            skills.Add(Button("Slam",2,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
+            skills.Add(Button("Run",3,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
             skills.Add(Button("Kick",5,"[F] 날아차기",()=>{if(BeginAttack(Attack.Kick))LockInput();}));
             foreach(var b in skills)b.gameObject.SetActive(false);
         }
