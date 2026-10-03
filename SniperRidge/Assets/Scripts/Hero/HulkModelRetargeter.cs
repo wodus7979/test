@@ -69,8 +69,9 @@ namespace SniperRidge
                     for(int j=0;j<3;j++)
                     {
                         var bone=Target(Id(digit+joints[j]));
-                        Vector3 axis=Quaternion.Inverse(bone.rotation)*Vector3.Cross(fingerDirection,palm).normalized;
-                        fingers.Add(new Finger{bone=bone,rest=bone.localRotation,axis=axis,degrees=digit=="Thumb"?new[]{35f,50f,35f}[j]:new[]{75f,90f,60f}[j]});
+                        // Curl into the palm; the old cross-product order bent fingers outward.
+                        Vector3 axis=Quaternion.Inverse(bone.rotation)*Vector3.Cross(palm,fingerDirection).normalized;
+                        fingers.Add(new Finger{bone=bone,rest=bone.localRotation,axis=axis,degrees=digit=="Thumb"?new[]{55f,65f,40f}[j]:new[]{145f,90f,50f}[j]});
                     }
                 }
             }

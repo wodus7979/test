@@ -16,6 +16,7 @@ namespace SniperRidge
         public bool EnableBlenderMotion { get; set; } = true;
         public bool UsesBlenderMotion => blenderMotion!=null && blenderMotion.Ready;
         public bool UsesFullBodyRun => EnableBlenderMotion && blenderMotion!=null && blenderMotion.FullBodyRun;
+        public bool UsesAuthoredCombat => EnableBlenderMotion && blenderMotion!=null && blenderMotion.AuthoredCombat;
         public AnimationClip ActiveBlenderClip => blenderMotion?.ActiveClip;
         Animator animator;
         SkinnedMeshRenderer[] renderers;
@@ -93,8 +94,11 @@ namespace SniperRidge
             float clap=attack==HulkController.Attack.Clap?Phase(age,.2f,.43f)*(1-Phase(age,.62f,.92f)):0;
             retargeter.PoseHands(fist,clap);
             if(EnableBlenderMotion)blenderMotion.Apply(smoothedSpeed,gaitPhase,idleTime,attack,age,PunchLeft,jumpLaunched,jumpVelocity,landed,transformation,deltaTime<0?Time.deltaTime:deltaTime);
-            if(attack!=HulkController.Attack.None)retargeter.PoseHands(attack==HulkController.Attack.Punch?Mathf.Max(fist,.9f):fist,clap);
-            FootstepSerial+=combatFootwork.Apply(localVelocity,attack,age,PunchLeft,grounded,landed,transformation,deltaTime<0?Time.deltaTime:deltaTime);
+            // Animation-only FBXs leave many finger channels at the open bind pose.
+            // Close the fists after sampling without changing the authored wrists/arms.
+            retargeter.PoseHands(attack==HulkController.Attack.Punch?Mathf.Max(fist,.95f):attack==HulkController.Attack.Kick?.55f:fist,clap);
+            if(EnableBlenderMotion&&blenderMotion.FullBodyPose)combatFootwork.YieldToAuthoredPose();
+            else FootstepSerial+=combatFootwork.Apply(localVelocity,attack,age,PunchLeft,grounded,landed,transformation,deltaTime<0?Time.deltaTime:deltaTime);
         }
         void PoseDriver(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation,float deltaTime)
         {
@@ -127,6 +131,10 @@ namespace SniperRidge
                 Sample("Punch",age/HulkController.PunchDuration*lengths["Punch"],.07f);
                 PunchPose(age);
                 Fists(Mathf.SmoothStep(0,1,age/.16f)*(1-Mathf.SmoothStep(0,1,Mathf.Clamp01((age-.5f)/.22f))));
+            }
+            else if(attack==HulkController.Attack.Kick)
+            {
+                Sample("Idle",0,.08f);Motion="Kick";
             }
             else if(attack==HulkController.Attack.Clap)
             {
@@ -326,7 +334,7 @@ namespace SniperRidge
             // Weight shifts through the hips before the shoulder drives the fist.
             // Wind-up -> fast extension -> follow-through -> slower recovery.
             float load=Phase(age,0,.12f),strike=Phase(age,.12f,HulkController.PunchImpactTime);
-            float follow=Phase(age,HulkController.PunchImpactTime,.36f),recover=Phase(age,.36f,HulkController.PunchDuration);
+            float follow=Phase(age,HulkController.PunchImpactTime,HulkController.PunchImpactTime+.05f),recover=Phase(age,HulkController.PunchImpactTime+.05f,HulkController.PunchDuration);
             float weight=load*(1-recover);
             float side=driverLeft?1:-1;
             float twist=(-24*load+54*strike)*(1-recover)*-side;

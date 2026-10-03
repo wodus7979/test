@@ -18,8 +18,8 @@ namespace SniperRidge.EditorTools
             var player=new GameObject("Run validation player");var visual=HulkVisual.Create(player.transform);
             var data=Resources.Load<BlenderMotionSet>("Hero/OliveTitanMotion");
             Check(visual.UsesFullBodyRun && data.Run,"full-body clip not wired");
-            Check(AssetDatabase.GetAssetPath(data.Run).EndsWith("Titan_GameRun.fbx"),"wrong Blender revision");
-            Check(Mathf.Abs(data.Run.length-.8f)<.04f,"authored cycle duration changed");
+            Check(AssetDatabase.GetAssetPath(data.Run).EndsWith("DownloadedRun.anim"),"downloaded Running FBX not wired");
+            Check(Mathf.Abs(data.Run.length-.7f)<.04f,"downloaded run cycle duration changed");
             var character=visual.GetComponent<HulkModelRetargeter>().Character;
             var targets=character.GetComponentsInChildren<Transform>().Where(t=>!t.IsChildOf(character.transform.Find("Blender motion sampler"))).ToDictionary(t=>t.name);
             var sampler=UnityEngine.Object.Instantiate(data.SamplingRig);

@@ -48,6 +48,10 @@ namespace SniperRidge
             previousAttack=HulkController.Attack.None;
             foreach(var leg in legs){leg.planted=false;leg.phase=-1;leg.release=Vector3.zero;}
         }
+        public void YieldToAuthoredPose()
+        {
+            Reset();Remember();exitAge=.16f;
+        }
         static float Ease(float t,float a,float b)=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(a,b,t));
         void Remember()
         {
@@ -99,7 +103,7 @@ namespace SniperRidge
             {
                 bool punch=attack==HulkController.Attack.Punch;
                 load=Ease(age,0,punch?.12f:.22f);strike=Ease(age,punch?.12f:.22f,punch?HulkController.PunchImpactTime:.43f);
-                recover=Ease(age,punch?.39f:.54f,punch?HulkController.PunchDuration:.95f);
+                recover=Ease(age,punch?HulkController.PunchImpactTime+.05f:.54f,punch?HulkController.PunchDuration:.95f);
                 twist=punch?side*(-10*load+22*strike)*(1-recover):3*Mathf.Sin(age*6)*(1-recover);
                 lowering=(punch?.085f:.15f)*load*(1-recover)-(punch?.035f:.07f)*strike*(1-recover);
                 forward=(-.045f*load+.14f*strike)*(1-recover);

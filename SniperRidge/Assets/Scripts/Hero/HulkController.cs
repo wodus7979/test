@@ -8,7 +8,7 @@ namespace SniperRidge
     /// <summary>City-only transformation. The player, health and mission remain the same objects.</summary>
     public sealed class HulkController : MonoBehaviour
     {
-        public enum Attack { None, Punch, Clap, Slam }
+        public enum Attack { None, Punch, Clap, Slam, Kick }
         public bool Active { get; private set; }
         public const float TransformDuration=1.8f;
         public const float WalkSpeed=3.2f, RunSpeed=6.4f;
@@ -23,7 +23,8 @@ namespace SniperRidge
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None)return false;
             RunEnabled=!RunEnabled;return true;
         }
-        public const float PunchDuration=.72f, PunchImpactTime=.28f, JumpWindup=.22f;
+        public const float PunchDuration=.72f, PunchImpactTime=.49f, JumpWindup=.22f;
+        public const float KickDuration=1.5f, KickImpactTime=.65f;
         public bool PunchLeft { get; private set; }
         bool nextPunchLeft,slamLaunched;
         public float JumpVelocity => vertical;
@@ -38,6 +39,7 @@ namespace SniperRidge
         public float AttackAge => Time.time-actionAt;
         public float ClapCooldown => Mathf.Max(0,clapAt-Time.time);
         public float SlamCooldown => Mathf.Max(0,slamAt-Time.time);
+        public float KickCooldown => Mathf.Max(0,kickAt-Time.time);
         public const float Height=2.3f, Radius=.65f;
         public bool Grounded => capsule.isGrounded;
         public int DamageEvents { get; private set; }
@@ -49,7 +51,7 @@ namespace SniperRidge
         Button transformButton;
         readonly List<Button> skills=new List<Button>();
         readonly HashSet<EnemySoldier> waveHit=new HashSet<EnemySoldier>();
-        float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,waveStart=-99,waveRadius,inputAfter;
+        float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,kickAt,waveStart=-99,waveRadius,inputAfter;
         bool impactDone,airborne;
         Vector3 waveOrigin,waveForward;
         Attack waveAttack;
@@ -90,11 +92,12 @@ namespace SniperRidge
         public bool BeginAttack(Attack attack)
         {
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
-            if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt)return false;
+            if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt || attack==Attack.Kick&&Time.time<kickAt)return false;
             CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
             if(attack==Attack.Punch)
             {PunchLeft=nextPunchLeft;nextPunchLeft=!nextPunchLeft;visual.PunchLeft=PunchLeft;punchAt=Time.time+PunchDuration;}
             if(attack==Attack.Clap)clapAt=Time.time+4f;
+            if(attack==Attack.Kick)kickAt=Time.time+2.2f;
             if(attack==Attack.Slam){slamAt=Time.time+6f;slamLaunched=false;airborne=false;}
             return true;
         }
@@ -115,6 +118,8 @@ namespace SniperRidge
             skills[2].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&SlamCooldown<=0;
             skills[1].GetComponentInChildren<Text>().text=ClapCooldown>0?"박수 충격파 "+ClapCooldown.ToString("0.0")+"초":"[우클릭] 박수 충격파";
             skills[2].GetComponentInChildren<Text>().text=SlamCooldown>0?"점프 강타 "+SlamCooldown.ToString("0.0")+"초":"[Space] 점프 강타";
+            skills[4].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&KickCooldown<=0;
+            skills[4].GetComponentInChildren<Text>().text=KickCooldown>0?"날아차기 "+KickCooldown.ToString("0.0")+"초":"[F] 날아차기";
             if(Input.GetKeyDown(KeyCode.Escape)){Cursor.lockState=CursorLockMode.None;Cursor.visible=true;}
             bool keys=Cursor.lockState==CursorLockMode.Locked&&Time.time>=inputAfter&&!Transforming;
             if(!keys&&Input.GetMouseButtonDown(0)&&(EventSystem.current==null||!EventSystem.current.IsPointerOverGameObject()))LockInput();
@@ -125,6 +130,7 @@ namespace SniperRidge
                 if(Input.GetMouseButton(0))BeginAttack(Attack.Punch);
                 if(Input.GetMouseButtonDown(1))BeginAttack(Attack.Clap);
                 if(Input.GetKeyDown(KeyCode.Space))BeginAttack(Attack.Slam);
+                if(Input.GetKeyDown(KeyCode.F))BeginAttack(Attack.Kick);
             }
             Vector2 movement=keys?new Vector2((Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0),
                 (Input.GetKey(KeyCode.W)?1:0)-(Input.GetKey(KeyCode.S)?1:0)):Vector2.zero;
@@ -153,7 +159,7 @@ namespace SniperRidge
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-26*dt);
             Sprinting=!Transforming&&CurrentAttack==Attack.None&&(RunEnabled||sprint)&&input.sqrMagnitude>.01f;
-            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?2.7f:Sprinting?RunSpeed:WalkSpeed;
+            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?2.7f:CurrentAttack==Attack.Kick?1.4f:Sprinting?RunSpeed:WalkSpeed;
             Vector3 desired=Quaternion.Euler(0,yaw,0)*new Vector3(input.x,0,input.y)*speed;
             float rate=desired.sqrMagnitude<horizontalVelocity.sqrMagnitude?34:24;
             horizontalVelocity=Vector3.MoveTowards(horizontalVelocity,desired,rate*dt);
@@ -179,7 +185,7 @@ namespace SniperRidge
             float age=AttackAge;
             if(CurrentAttack==Attack.Punch)
             {
-                if(!swingPlayed&&age>=.12f){swingPlayed=true;Audio.Play(HulkAudio.Cue.PunchSwing,.8f);}
+                if(!swingPlayed&&age>=PunchImpactTime-.13f){swingPlayed=true;Audio.Play(HulkAudio.Cue.PunchSwing,.8f);}
                 if(!impactDone&&age>=PunchImpactTime)
                 {
                     int before=DamageEvents;
@@ -192,6 +198,18 @@ namespace SniperRidge
             {
                 if(!impactDone&&age>=.43f){impactDone=true;StartWave(Attack.Clap);Audio.Play(HulkAudio.Cue.Clap);}
                 if(age>.95f)CurrentAttack=Attack.None;
+            }
+            else if(CurrentAttack==Attack.Kick)
+            {
+                if(!swingPlayed&&age>=.25f){swingPlayed=true;Audio.Play(HulkAudio.Cue.PunchSwing,1);}
+                if(!impactDone&&age>=KickImpactTime)
+                {
+                    int before=DamageEvents;impactDone=true;
+                    HitTargets(transform.position+Vector3.up*1.5f,transform.forward,3.8f,48,190,null,2.5f);
+                    Effects.Puff(transform.TransformPoint(0,1.4f,1.6f),transform.forward,.45f,new Color(.7f,.75f,.55f),.25f);
+                    if(DamageEvents>before)Audio.Play(HulkAudio.Cue.PunchHit,1);
+                }
+                if(age>KickDuration)CurrentAttack=Attack.None;
             }
             else if(CurrentAttack==Attack.Slam&&impactDone&&age>.6f)CurrentAttack=Attack.None;
         }
@@ -253,6 +271,7 @@ namespace SniperRidge
             skills.Add(Button("Clap",2,"[우클릭] 박수 충격파",()=>{if(BeginAttack(Attack.Clap))LockInput();}));
             skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
             skills.Add(Button("Run",4,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
+            skills.Add(Button("Kick",5,"[F] 날아차기",()=>{if(BeginAttack(Attack.Kick))LockInput();}));
             foreach(var b in skills)b.gameObject.SetActive(false);
         }
         Button Button(string name,int row,string label,UnityEngine.Events.UnityAction action)

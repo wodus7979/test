@@ -25,7 +25,9 @@ namespace SniperRidge.EditorTools
                 Debug.Log("[Blender clip] "+name+" length="+clip.length+" curves="+AnimationUtility.GetCurveBindings(clip).Length);
             }
             data.FullBodyRun=true;data.FullBodyRunStride=.86f/.38f;
+            data.FullBodyCombat=false;data.Kick=null;
             EditorUtility.SetDirty(data);AssetDatabase.SaveAssets();
+            if(File.Exists("Assets/OliveTitan/Animations/Downloaded/Running.fbx"))DownloadedHulkMotionImport.Run();
             OliveTitanIntegration.BuildAndValidate();
         }
     }

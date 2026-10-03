@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SniperRidge
 {
-    /// <summary>Samples the authored run on the whole character; combat keeps its gameplay pose driver.</summary>
+    /// <summary>Samples retargeted user FBX motion, with procedural fallback for the other abilities.</summary>
     public sealed class BlenderMotionLayer
     {
         readonly BlenderMotionSet set;
@@ -20,6 +20,9 @@ namespace SniperRidge
         AnimationClip previous;
         float blendAge;
         bool outgoingFullBody;
+        bool lastFullBody;
+        public bool FullBodyPose { get; private set; }
+        public bool AuthoredCombat => Ready && set.FullBodyCombat;
         public bool Ready => set && ghost && joints.Count > 0;
         public bool FullBodyRun => Ready && set.FullBodyRun && set.Run;
         public float RunStride => Mathf.Max(.1f, set.FullBodyRunStride);
@@ -57,11 +60,19 @@ namespace SniperRidge
             bool left, bool launched, float velocity, bool landed, float transformation, float dt)
         {
             if (!Ready) return;
-            if (transformation >= 0) { previous = null; outgoingFullBody = false; return; }
+            FullBodyPose=false;
+            if (transformation >= 0) { previous = null; outgoingFullBody = lastFullBody = false; return; }
             AnimationClip clip;
             float phase;
             bool fullBody = FullBodyRun && attack == HulkController.Attack.None && speed > .15f;
-            if (attack == HulkController.Attack.Punch) { clip = left ? set.PunchLeft : set.PunchRight; phase = age / HulkController.PunchDuration; }
+            if (attack == HulkController.Attack.Punch)
+            {
+                clip=left?set.PunchLeft:set.PunchRight;
+                // Keep the FBX stance at rest. Moving attacks retain the contact-aware
+                // walking legs, so WASD never drags planted feet across the ground.
+                phase=age/HulkController.PunchDuration;fullBody=AuthoredCombat&&speed<.45f;
+            }
+            else if (attack == HulkController.Attack.Kick) { clip=set.Kick;phase=age/HulkController.KickDuration;fullBody=AuthoredCombat; }
             else if (attack == HulkController.Attack.Clap) { clip = set.Clap; phase = age / 1.1f; }
             else if (attack == HulkController.Attack.Slam)
             {
@@ -75,6 +86,7 @@ namespace SniperRidge
                 phase = speed > .15f ? Mathf.Repeat(gaitPhase, 1) : Mathf.Repeat(idleTime / 3.8f, 1);
             }
             if (!clip) return;
+            if(lastFullBody&&!fullBody)outgoingFullBody=true;
             if (lastPose == null)
             {
                 lastPose = new Quaternion[joints.Count]; outgoing = new Quaternion[joints.Count];
@@ -84,12 +96,13 @@ namespace SniperRidge
             }
             if (previous != clip)
             {
-                outgoingFullBody = FullBodyRun && previous == set.Run;
+                outgoingFullBody = lastFullBody;
                 System.Array.Copy(lastPose, outgoing, joints.Count);
                 System.Array.Copy(lastPosition, outgoingPosition, joints.Count);
                 blendAge = 0; previous = clip;
             }
             blendAge += Mathf.Max(0, dt);
+            FullBodyPose=fullBody;lastFullBody=fullBody;
             float transition = Mathf.SmoothStep(0, 1, Mathf.Clamp01(blendAge / .12f));
             clip.SampleAnimation(ghost, Mathf.Clamp01(phase) * clip.length);
             float weight = attack == HulkController.Attack.None ? Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.08f, 1.1f, speed)) : 1;

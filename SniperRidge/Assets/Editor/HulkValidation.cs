@@ -85,7 +85,7 @@ namespace SniperRidge.EditorTools
             Check(Quaternion.Angle(windChest,chest.localRotation)>30,"torso does not rotate through punch");
             Check(Mathf.Abs(upperLength-Vector3.Distance(arm.position,elbow.position))<.001f&&Mathf.Abs(lowerLength-Vector3.Distance(elbow.position,hand.position))<.001f,"punch stretched rig bones");
             CapturePose("hulk_punch_contact");
-            visual.Pose(0,HulkController.Attack.Punch,.6f,true,false);
+            visual.Pose(0,HulkController.Attack.Punch,.71f,true,false);
             Check(visual.transform.InverseTransformPoint(hand.position).z<hit.z-.35f,"fist not recovered after impact");
             CapturePose("hulk_punch_recovery");
             visual.PunchLeft=true;
@@ -329,6 +329,31 @@ namespace SniperRidge.EditorTools
                         if(age<=.85f)return;
                         p.enabled=true;
                         Check(h.Audio.Count(HulkAudio.Cue.PunchSwing)==3,"third swing missing");
+                        Teleport(p,origin+Vector3.right*20);
+                        front.transform.position=p.transform.position+Vector3.forward*2.9f;
+                        protectedEnemy.transform.position=p.transform.position+new Vector3(-2,0,3);
+                        ally.transform.position=p.transform.position+new Vector3(.8f,0,2.8f);
+                        typeof(EnemySoldier).GetProperty("Health").SetValue(front,1000f);
+                        typeof(EnemySoldier).GetProperty("Health").SetValue(protectedEnemy,1000f);
+                        Box("Kick cover",p.transform.position+new Vector3(-1.5f,1.5f,2.2f),new Vector3(1,3,.3f));
+                        Physics.SyncTransforms();stage=88;at=Time.time;
+                    }
+                    else if(stage==88&&age>.25f)
+                    {
+                        h.GetComponentsInChildren<Button>().First(b=>b.name=="Kick").onClick.Invoke();
+                        Check(h.CurrentAttack==HulkController.Attack.Kick,"kick UI did not start attack");
+                        Check(!h.BeginAttack(HulkController.Attack.Punch)&&!h.Toggle(),"kick could be interrupted");
+                        stage=89;at=Time.time;
+                    }
+                    else if(stage==89)
+                    {
+                        if(age<HulkController.KickImpactTime-.08f)Check(front.Health==1000,"kick damage before contact frame");
+                        if(age>.7f&&age<.8f)Capture("hulk_downloaded_kick");
+                        if(age<1.65f)return;
+                        Check(Mathf.Abs(front.Health-810)<.1f,"kick missed or hit repeatedly: "+front.Health);
+                        Check(protectedEnemy.Health==1000&&ally.Health==allyHealth,"kick crossed cover or damaged ally");
+                        Check(h.CurrentAttack==HulkController.Attack.None&&!h.BeginAttack(HulkController.Attack.Kick),"kick recovery/cooldown failed");
+                        Check(p.AmmoInMag==ammo,"kick consumed bullets");
                         float healthBefore=gm.Health.Current;
                         Check(h.Toggle(),"human restore rejected");
                         Check(gm.Health.Max==10000&&Mathf.Abs(gm.Health.Current-healthBefore*.5f)<.01f,"human health not restored proportionally");stage=9;at=Time.time;
@@ -362,7 +387,7 @@ namespace SniperRidge.EditorTools
                             var navigation=e.GetComponent<AssaultNavigation>();if(navigation!=null)navigation.enabled=true;
                         }
                         gm.Assault.enabled=true;gm.Health.Configure(0,10000);
-                        Debug.Log("[Hulk validation] PASS: right-left-right punches / shorter arms / planted gait feet / crouch-takeoff-tuck-extension-landing, run button / Shift sprint / smooth acceleration and reversal / collision / gait blend / idle breathing / phase footsteps, double health / proportional restore / no toggle healing, punch wind-up / torso twist / extension / recovery / fixed bone lengths, Blender-corrected skinned mesh and authored clips, 43-bone motion driver, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
+                        Debug.Log("[Hulk validation] PASS: imported run/punch/kick, kick button/contact timing/one damage/cover/ally/cooldown/recovery; alternating punches, full-body motion, sprint, movement/collision, transformation, health, audio, clap, jump height="+peak.ToString("0.00")+", ammo, FPS restore and camera.");
                         Check(h.Toggle(),"city return failed");Next();
                     }
                     else if(stage==12&&age>2f){Capture("hulk_city_final");stage=13;}
