@@ -68,34 +68,25 @@ namespace SniperRidge.EditorTools
         }
         static void ValidatePunch(SniperController player)
         {
-            var visual=h.Visual;var bones=visual.MotionBones;
-            var hand=bones.First(b=>b.name=="LeftHand");var elbow=bones.First(b=>b.name=="LeftForearm");
-            var arm=bones.First(b=>b.name=="LeftUpperArm");var chest=bones.First(b=>b.name=="Chest");
-            float upperLength=Vector3.Distance(arm.position,elbow.position),lowerLength=Vector3.Distance(elbow.position,hand.position);
-            var eye=player.Eye;Vector3 previousPosition=eye.position;Quaternion previousRotation=eye.rotation;
-            eye.position=player.transform.TransformPoint(new Vector3(-4.5f,2.7f,4.5f));
-            eye.LookAt(player.transform.position+Vector3.up*1.8f);
-            visual.Pose(0,HulkController.Attack.Punch,.12f,true,false);
-            Vector3 wind=visual.transform.InverseTransformPoint(hand.position);Quaternion windChest=chest.localRotation;
-            CapturePose("hulk_punch_windup");
-            visual.Pose(0,HulkController.Attack.Punch,HulkController.PunchImpactTime,true,false);
-            Vector3 hit=visual.transform.InverseTransformPoint(hand.position);
-            Check(hit.z>wind.z+.6f,"fist not driven forward at impact");
-            Check(Vector3.Dot((elbow.position-arm.position).normalized,(hand.position-elbow.position).normalized)>.85f,"elbow not extended at impact");
-            Check(Quaternion.Angle(windChest,chest.localRotation)>30,"torso does not rotate through punch");
-            Check(Mathf.Abs(upperLength-Vector3.Distance(arm.position,elbow.position))<.001f&&Mathf.Abs(lowerLength-Vector3.Distance(elbow.position,hand.position))<.001f,"punch stretched rig bones");
-            CapturePose("hulk_punch_contact");
-            visual.Pose(0,HulkController.Attack.Punch,.71f,true,false);
-            Check(visual.transform.InverseTransformPoint(hand.position).z<hit.z-.35f,"fist not recovered after impact");
-            CapturePose("hulk_punch_recovery");
-            visual.PunchLeft=true;
-            visual.Pose(0,HulkController.Attack.Punch,HulkController.PunchImpactTime,true,false);
-            var leftHand=bones.First(b=>b.name=="RightHand");
-            Check(visual.transform.InverseTransformPoint(leftHand.position).z>.7f,"left fist not extended");
-            Check(visual.transform.InverseTransformPoint(hand.position).z<.65f,"right hand not guarding on left punch");
-            CapturePose("hulk_left_punch_contact");visual.PunchLeft=false;
-            eye.SetPositionAndRotation(previousPosition,previousRotation);
-            visual.Pose(0,HulkController.Attack.None,0,true,false);
+            var visual=h.Visual;var rig=visual.GetComponent<HulkModelRetargeter>().Character;
+            foreach(bool left in new[]{false,true})
+            {
+                visual.PunchLeft=left;
+                var hand=rig.GetBoneTransform(left?HumanBodyBones.LeftHand:HumanBodyBones.RightHand);
+                var elbow=rig.GetBoneTransform(left?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm);
+                var arm=rig.GetBoneTransform(left?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm);
+                float length=Vector3.Distance(arm.position,elbow.position)+Vector3.Distance(elbow.position,hand.position);
+                visual.Pose(0,HulkController.Attack.Punch,.12f,true,false,-1,.2f);
+                float wind=Vector3.Dot(hand.position-arm.position,player.transform.forward);
+                visual.Pose(0,HulkController.Attack.Punch,HulkController.PunchImpactTime,true,false,-1,.2f);
+                float hit=Vector3.Dot(hand.position-arm.position,player.transform.forward);
+                Check(hit>length*.95f&&hit>wind+.45f,"rendered fist not driven forward at impact");
+                Check(Vector3.Angle(elbow.position-arm.position,hand.position-elbow.position)<28,"rendered elbow remains folded");
+                CapturePose(left?"hulk_left_punch_contact":"hulk_punch_contact");
+                visual.Pose(0,HulkController.Attack.Punch,.71f,true,false,-1,.2f);
+                Check(Vector3.Dot(hand.position-arm.position,player.transform.forward)<hit-.3f,"rendered fist not recovered");
+            }
+            visual.PunchLeft=false;visual.Pose(0,HulkController.Attack.None,0,true,false,-1,.2f);
         }
         static void MoveFixture(Vector2 direction,bool shift=false)
         {

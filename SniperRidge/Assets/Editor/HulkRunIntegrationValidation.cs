@@ -38,7 +38,7 @@ namespace SniperRidge.EditorTools
                     visual.SetMotion(Vector3.forward*speed,0,0);visual.Pose(speed,HulkController.Attack.None,0,true,false,-1,1f/60);
                     float phase=Mathf.Repeat((float)phaseField.GetValue(visual),1);data.Run.SampleAnimation(sampler,phase*data.Run.length);
                     Check(visual.ActiveBlenderClip==data.Run && visual.Motion=="Run","moving did not use latest run");
-                    foreach(string name in new[]{"Hips","Spine","Chest","UpperChest","LeftShoulder","RightShoulder","LeftUpperArm","RightUpperArm","LeftLowerArm","RightLowerArm","LeftHand","RightHand","LeftUpperLeg","RightUpperLeg","LeftLowerLeg","RightLowerLeg","LeftFoot","RightFoot"})
+                    foreach(string name in new[]{"Spine","Chest","UpperChest","LeftShoulder","RightShoulder"})
                     {
                         maxAngle=Mathf.Max(maxAngle,Quaternion.Angle(targets[name].localRotation,reference[name].localRotation));
                         maxPosition=Mathf.Max(maxPosition,Vector3.Distance(targets[name].localPosition,reference[name].localPosition));
@@ -47,7 +47,7 @@ namespace SniperRidge.EditorTools
                 }
                 float cycles=(float)phaseField.GetValue(visual)-start;
                 if(speed==HulkController.WalkSpeed)normalCycles=cycles;else sprintCycles=cycles;
-                Check(maxAngle<.15f && maxPosition<.001f,"whole-body pose differs from authored clip: "+maxAngle+"deg / "+maxPosition+"m");
+                Check(maxAngle<.15f && maxPosition<.001f,"uncorrected torso differs from authored clip: "+maxAngle+"deg / "+maxPosition+"m");
                 Check(minFoot>-.03f,"feet below player ground");
                 Check(visual.FootstepSerial>steps,"authored contact phases did not produce footsteps");
                 report+=$"speed={speed:F2}m/s cycles={cycles:F3}/s rotationError={maxAngle:F4}deg positionError={maxPosition:F5}m minAnkle={minFoot:F3}m\n";
@@ -67,6 +67,7 @@ namespace SniperRidge.EditorTools
             UnityEngine.Object.DestroyImmediate(sampler);
             Directory.CreateDirectory("Logs");File.WriteAllText("Logs/hulk-authored-run.txt","PASS\n"+report);
             Debug.Log("[Authored Hulk run] PASS\n"+report);
+            HulkRenderedMotionValidation.Run();
         }
     }
 }

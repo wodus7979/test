@@ -13,6 +13,7 @@ namespace SniperRidge
         HulkModelRetargeter retargeter;
         BlenderMotionLayer blenderMotion;
         HulkCombatFootwork combatFootwork;
+        HulkPoseCorrection poseCorrection;
         public bool EnableBlenderMotion { get; set; } = true;
         public bool UsesBlenderMotion => blenderMotion!=null && blenderMotion.Ready;
         public bool UsesFullBodyRun => EnableBlenderMotion && blenderMotion!=null && blenderMotion.FullBodyRun;
@@ -83,6 +84,7 @@ namespace SniperRidge
             }
             transform.localScale=Vector3.one*ModelScale;Sample("Idle",0,0);retargeter.SyncPose();
             combatFootwork=new HulkCombatFootwork(transform,retargeter.Character);
+            poseCorrection=new HulkPoseCorrection(transform,retargeter);
         }
         public void SetVisible(bool visible){foreach(var r in renderers)r.enabled=visible;}
         public void Pose(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation=-1,float deltaTime=-1)
@@ -97,8 +99,9 @@ namespace SniperRidge
             // Animation-only FBXs leave many finger channels at the open bind pose.
             // Close the fists after sampling without changing the authored wrists/arms.
             retargeter.PoseHands(attack==HulkController.Attack.Punch?Mathf.Max(fist,.95f):attack==HulkController.Attack.Kick?.55f:fist,clap);
-            if(EnableBlenderMotion&&blenderMotion.FullBodyPose)combatFootwork.YieldToAuthoredPose();
+            if(EnableBlenderMotion&&blenderMotion.FullBodyPose&&attack!=HulkController.Attack.Punch)combatFootwork.YieldToAuthoredPose();
             else FootstepSerial+=combatFootwork.Apply(localVelocity,attack,age,PunchLeft,grounded,landed,transformation,deltaTime<0?Time.deltaTime:deltaTime);
+            if(UsesAuthoredCombat)poseCorrection.Apply(smoothedSpeed,attack,age,PunchLeft,grounded,transformation);
         }
         void PoseDriver(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation,float deltaTime)
         {

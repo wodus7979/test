@@ -70,7 +70,8 @@ namespace SniperRidge
                 clip=left?set.PunchLeft:set.PunchRight;
                 // Keep the FBX stance at rest. Moving attacks retain the contact-aware
                 // walking legs, so WASD never drags planted feet across the ground.
-                phase=age/HulkController.PunchDuration;fullBody=AuthoredCombat&&speed<.45f;
+                phase=age<.13f?Mathf.Lerp(0,.10f,age/.13f):age<HulkController.PunchImpactTime?Mathf.Lerp(.10f,.30f,Mathf.InverseLerp(.13f,HulkController.PunchImpactTime,age)):Mathf.Lerp(.30f,1,Mathf.InverseLerp(HulkController.PunchImpactTime,HulkController.PunchDuration,age));
+                fullBody=AuthoredCombat&&speed<.45f;
             }
             else if (attack == HulkController.Attack.Kick) { clip=set.Kick;phase=age/HulkController.KickDuration;fullBody=AuthoredCombat; }
             else if (attack == HulkController.Attack.Clap) { clip = set.Clap; phase = age / 1.1f; }

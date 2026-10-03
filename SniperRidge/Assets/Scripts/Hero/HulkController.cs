@@ -23,7 +23,7 @@ namespace SniperRidge
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None)return false;
             RunEnabled=!RunEnabled;return true;
         }
-        public const float PunchDuration=.72f, PunchImpactTime=.49f, JumpWindup=.22f;
+        public const float PunchDuration=.72f, PunchImpactTime=.28f, JumpWindup=.22f;
         public const float KickDuration=1.5f, KickImpactTime=.65f;
         public bool PunchLeft { get; private set; }
         bool nextPunchLeft,slamLaunched;

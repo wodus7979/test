@@ -16,7 +16,10 @@ namespace SniperRidge
         readonly List<Link> links=new List<Link>();
         sealed class Finger { public Transform bone;public Quaternion rest;public Vector3 axis;public float degrees; }
         readonly List<Finger> fingers=new List<Finger>();
-        Transform[] hands=new Transform[2];Quaternion[] handOffsets=new Quaternion[2];
+        Transform[] hands=new Transform[2];Quaternion[] handOffsets=new Quaternion[2], wristOffsets=new Quaternion[2];
+        readonly Transform[,] thumbs=new Transform[2,3];
+        readonly Transform[,] knuckles=new Transform[2,2];
+        readonly Vector3[] palmLocal=new Vector3[2];
         Transform sourceHips,targetHips;
         Vector3 sourceBindPosition,targetBindPosition;
         float proportion;
@@ -61,17 +64,26 @@ namespace SniperRidge
                 Add(from+"Toes",Id("Toes"));
                 int handIndex=side=="Left"?0:1;var hand=Target(Id("Hand"));hands[handIndex]=hand;
                 Vector3 fingerDirection=(Target(Id("MiddleProximal")).position-hand.position).normalized;
-                Vector3 palm=Vector3.ProjectOnPlane(Character.transform.forward,fingerDirection).normalized;
+                Vector3 across=(Target(Id("IndexProximal")).position-Target(Id("LittleProximal")).position).normalized;
+                Vector3 palm=Vector3.Cross(fingerDirection,across).normalized;
+                if(side=="Left")palm=-palm; // Anatomical handedness, not world-facing direction.
+                palmLocal[handIndex]=hand.InverseTransformDirection(palm);
+                knuckles[handIndex,0]=Target(Id("IndexIntermediate"));
+                knuckles[handIndex,1]=Target(Id("MiddleIntermediate"));
+                thumbs[handIndex,0]=Target(Id("ThumbProximal"));
+                thumbs[handIndex,1]=Target(Id("ThumbIntermediate"));
+                thumbs[handIndex,2]=Target(Id("ThumbDistal"));
                 handOffsets[handIndex]=Quaternion.Inverse(Quaternion.LookRotation(palm,fingerDirection))*hand.rotation;
+                wristOffsets[handIndex]=Quaternion.Inverse(Quaternion.LookRotation(fingerDirection,palm))*hand.rotation;
                 foreach(string digit in new[]{"Thumb","Index","Middle","Ring","Little"})
                 {
                     string[] joints={"Proximal","Intermediate","Distal"};
                     for(int j=0;j<3;j++)
                     {
                         var bone=Target(Id(digit+joints[j]));
-                        // Curl into the palm; the old cross-product order bent fingers outward.
-                        Vector3 axis=Quaternion.Inverse(bone.rotation)*Vector3.Cross(palm,fingerDirection).normalized;
-                        fingers.Add(new Finger{bone=bone,rest=bone.localRotation,axis=axis,degrees=digit=="Thumb"?new[]{55f,65f,40f}[j]:new[]{145f,90f,50f}[j]});
+                        // A consistent palm-space hinge avoids accumulating bone-roll errors.
+                        Vector3 axis=Quaternion.Inverse(bone.rotation)*Vector3.Cross(bone.up,palm).normalized;
+                        fingers.Add(new Finger{bone=bone,rest=bone.localRotation,axis=axis,degrees=digit=="Thumb"?new[]{35f,50f,40f}[j]:new[]{80f,90f,55f}[j]});
                     }
                 }
             }
@@ -80,10 +92,16 @@ namespace SniperRidge
             targetBindPosition=Character.transform.InverseTransformPoint(targetHips.position);
             proportion=targetBindPosition.y/sourceBindPosition.y;
         }
+        public void AlignWrist(bool left,Vector3 forward,Vector3 palm)
+        {
+            int i=left?0:1;
+            hands[i].rotation=Quaternion.LookRotation(forward,Vector3.ProjectOnPlane(palm,forward).normalized)*wristOffsets[i];
+        }
         public void PoseHands(float fist,float clap)
         {
             if(!Ready)return;
             foreach(var finger in fingers)finger.bone.localRotation=finger.rest*Quaternion.AngleAxis(finger.degrees*Mathf.Clamp01(fist),finger.axis);
+            for(int i=0;i<2;i++)OpposeThumb(i,Mathf.Clamp01(fist));
             if(clap<=0)return;
             Vector3 toward=(hands[1].position-hands[0].position).normalized;
             for(int i=0;i<2;i++)
@@ -91,6 +109,27 @@ namespace SniperRidge
                 Quaternion rotation=Quaternion.LookRotation(i==0?toward:-toward,transform.up)*handOffsets[i];
                 hands[i].rotation=Quaternion.Slerp(hands[i].rotation,rotation,clap);
             }
+        }
+        void OpposeThumb(int side,float weight)
+        {
+            if(weight<=0)return;
+            var a=thumbs[side,0];var b=thumbs[side,1];var c=thumbs[side,2];
+            Quaternion ar=a.localRotation,br=b.localRotation,cr=c.localRotation;
+            Vector3 palm=hands[side].TransformDirection(palmLocal[side]);
+            Vector3 across=(knuckles[side,1].position-knuckles[side,0].position).normalized;
+            Vector3 target=knuckles[side,0].position+palm*.018f;
+            float upper=Vector3.Distance(a.position,b.position),lower=Vector3.Distance(b.position,c.position);
+            Vector3 delta=target-a.position;float distance=Mathf.Clamp(delta.magnitude,.015f,upper+lower-.003f);
+            Vector3 forward=delta.normalized;
+            Vector3 bend=Vector3.ProjectOnPlane(palm-across*.4f,forward).normalized;
+            float along=(upper*upper-lower*lower+distance*distance)/(2*distance);
+            Vector3 elbow=a.position+forward*along+bend*Mathf.Sqrt(Mathf.Max(0,upper*upper-along*along));
+            a.rotation=Quaternion.FromToRotation(b.position-a.position,elbow-a.position)*a.rotation;
+            b.rotation=Quaternion.FromToRotation(c.position-b.position,a.position+forward*distance-b.position)*b.rotation;
+            c.rotation=Quaternion.FromToRotation(c.up,across)*c.rotation;
+            a.localRotation=Quaternion.Slerp(ar,a.localRotation,weight);
+            b.localRotation=Quaternion.Slerp(br,b.localRotation,weight);
+            c.localRotation=Quaternion.Slerp(cr,c.localRotation,weight);
         }
         public void SyncPose()
         {

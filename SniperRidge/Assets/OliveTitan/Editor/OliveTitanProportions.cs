@@ -7,7 +7,7 @@ namespace OliveTitanAsset
     // retain their joint positions, lengths and weights. Applied once per import.
     public sealed class OliveTitanProportions : AssetPostprocessor
     {
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         void OnPostprocessModel(GameObject root)
         {
@@ -57,13 +57,16 @@ namespace OliveTitanAsset
             float center = 1 - Ease(.18f, .32f, Mathf.Abs(p.x));
             result.x *= 1 + .10f * neck * center;
             // Reduce the overpowering shoulder/back silhouette without thinning the waist.
-            float torso = Ease(1.45f, 1.76f, p.y) * (1 - Ease(1.94f, 2.09f, p.y));
+            float torso = Ease(1.45f, 1.76f, p.y) * (1 - Ease(1.94f, 2.09f, p.y))
+                * (1 - Ease(.48f, .68f, Mathf.Abs(p.x)));
             float outer = Ease(.16f, .36f, Mathf.Abs(p.x));
             result.x *= 1 - .055f * torso * outer;
             if (p.z < .015f) result.z = Mathf.Lerp(result.z, .015f + (result.z - .015f) * .94f, torso);
             // Keep the heavy waist, but taper the excessively flared upper thighs
             // and waistband together so the clothed silhouette remains V-shaped.
-            float hips = Ease(.78f, 1.06f, p.y) * (1 - Ease(1.27f, 1.40f, p.y));
+            // A-pose hands share the pelvis height: never sculpt them with the waist.
+            float hips = Ease(.78f, 1.06f, p.y) * (1 - Ease(1.27f, 1.40f, p.y))
+                * (1 - Ease(.45f, .65f, Mathf.Abs(p.x)));
             result.x *= 1 - .10f * hips;
             return result;
         }
