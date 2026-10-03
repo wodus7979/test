@@ -11,7 +11,7 @@ namespace SniperRidge
         public enum Attack { None, Punch, Clap, Slam }
         public bool Active { get; private set; }
         public const float TransformDuration=1.8f;
-        public const float WalkSpeed=2.4f, RunSpeed=11f;
+        public const float WalkSpeed=3.2f, RunSpeed=6.4f;
         public bool RunEnabled { get; private set; }
         public bool Sprinting { get; private set; }
         public float PlanarSpeed { get; private set; }
@@ -38,7 +38,7 @@ namespace SniperRidge
         public float AttackAge => Time.time-actionAt;
         public float ClapCooldown => Mathf.Max(0,clapAt-Time.time);
         public float SlamCooldown => Mathf.Max(0,slamAt-Time.time);
-        public const float Height=3.5f, Radius=.65f;
+        public const float Height=2.3f, Radius=.65f;
         public bool Grounded => capsule.isGrounded;
         public int DamageEvents { get; private set; }
         public int Landings { get; private set; }
@@ -111,7 +111,7 @@ namespace SniperRidge
             skills[0].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded;
             skills[1].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&ClapCooldown<=0;
             skills[3].interactable=!Transforming&&CurrentAttack==Attack.None;
-            skills[3].GetComponentInChildren<Text>().text=RunEnabled?"[Shift] 달리기 켜짐":"[Shift] 달리기";
+            skills[3].GetComponentInChildren<Text>().text=RunEnabled?"[Shift] 빠른 달리기 켜짐":"[Shift] 빠른 달리기";
             skills[2].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&SlamCooldown<=0;
             skills[1].GetComponentInChildren<Text>().text=ClapCooldown>0?"박수 충격파 "+ClapCooldown.ToString("0.0")+"초":"[우클릭] 박수 충격파";
             skills[2].GetComponentInChildren<Text>().text=SlamCooldown>0?"점프 강타 "+SlamCooldown.ToString("0.0")+"초":"[Space] 점프 강타";
@@ -230,9 +230,9 @@ namespace SniperRidge
         {
             if(!Active)return;
             float growth=Transforming?Mathf.SmoothStep(0,1,TransformationProgress):1;
-            Vector3 focus=transform.position+Vector3.up*Mathf.Lerp(1.6f,2.45f,growth);
+            Vector3 focus=transform.position+Vector3.up*Mathf.Lerp(1.6f,1.75f,growth);
             Quaternion rotation=Quaternion.Euler(pitch,yaw,0);
-            Vector3 offset=rotation*new Vector3(.65f,.6f,Mathf.Lerp(-3.8f,-6.3f,growth));
+            Vector3 offset=rotation*new Vector3(.65f,.6f,Mathf.Lerp(-3.8f,-4.8f,growth));
             float distance=offset.magnitude;
             if(Physics.SphereCast(focus,.23f,offset.normalized,out var hit,distance,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))distance=Mathf.Max(.25f,hit.distance-.12f);
             owner.Eye.position=focus+offset.normalized*distance;
@@ -252,7 +252,7 @@ namespace SniperRidge
             skills.Add(Button("Punch",1,"[좌클릭] 주먹 공격",()=>{if(BeginAttack(Attack.Punch))LockInput();}));
             skills.Add(Button("Clap",2,"[우클릭] 박수 충격파",()=>{if(BeginAttack(Attack.Clap))LockInput();}));
             skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
-            skills.Add(Button("Run",4,"[Shift] 달리기",()=>{if(ToggleRun())LockInput();}));
+            skills.Add(Button("Run",4,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
             foreach(var b in skills)b.gameObject.SetActive(false);
         }
         Button Button(string name,int row,string label,UnityEngine.Events.UnityAction action)

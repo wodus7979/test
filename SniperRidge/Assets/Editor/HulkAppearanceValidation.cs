@@ -29,11 +29,9 @@ namespace SniperRidge.EditorTools
                 {
                     if(validate)
                     {
-                        if(skin.sharedMesh.colors.Length!=skin.sharedMesh.vertexCount)throw new Exception("Missing baked cavity");
-                        var rest=new System.Collections.Generic.List<Vector3>();skin.sharedMesh.GetUVs(2,rest);
-                        if(rest.Count!=skin.sharedMesh.vertexCount)throw new Exception("Missing bind-pose surface coordinates");
+                        if(skin.sharedMesh.uv.Length!=skin.sharedMesh.vertexCount)throw new Exception("Missing package UVs");
                         foreach(var material in skin.sharedMaterials)
-                            if(material.name=="Green_Skin"&&(material.shader.name!="SniperRidge/Hulk Skin"||!material.shader.isSupported||ShaderUtil.ShaderHasError(material.shader)))throw new Exception("Skin shader failure");
+                            if(!material || !material.mainTexture || !material.shader.isSupported || ShaderUtil.ShaderHasError(material.shader))throw new Exception("Package material/texture failure");
                     }
                 }
             }
@@ -45,7 +43,7 @@ namespace SniperRidge.EditorTools
             {
                 camera.transform.position=new Vector3(-.45f,2.75f,3.6f);camera.transform.LookAt(new Vector3(-1.30f,2.28f,0));camera.fieldOfView=33;
                 Save(camera,"hulk_surface_detail",1440,1440);
-                Debug.Log("[Hulk appearance] PASS: both LODs carry rest coordinates / cavity colors; skin shader compiled; actual prefab renders saved.");
+                Debug.Log("[Hulk appearance] PASS: package meshes carry UVs; textured materials and shaders validated; gameplay prefab renders saved.");
             }
         }
         static void Key(string name,Vector3 rotation,Color color,float intensity)

@@ -1,0 +1,131 @@
+[
+  {
+    "file": "OliveTitan_base.blend",
+    "packedImages": [
+      "brown_eye.png"
+    ],
+    "missingImages": [],
+    "faceTopology": {
+      "Body": {
+        "quads": 13378,
+        "triangles": 0,
+        "ngons": 0
+      },
+      "Eyes": {
+        "quads": 86,
+        "triangles": 0,
+        "ngons": 0
+      },
+      "Hair": {
+        "quads": 1839,
+        "triangles": 0,
+        "ngons": 0
+      },
+      "Pants": {
+        "quads": 2028,
+        "triangles": 0,
+        "ngons": 0
+      }
+    }
+  },
+  {
+    "file": "OliveTitan_quad_master.blend",
+    "packedImages": [
+      "brown_eye.png"
+    ],
+    "missingImages": [],
+    "faceTopology": {
+      "Body": {
+        "quads": 13378,
+        "triangles": 0,
+        "ngons": 0
+      },
+      "Eyes": {
+        "quads": 86,
+        "triangles": 0,
+        "ngons": 2
+      },
+      "Hair": {
+        "quads": 408,
+        "triangles": 0,
+        "ngons": 0
+      },
+      "Pants": {
+        "quads": 2028,
+        "triangles": 0,
+        "ngons": 0
+      }
+    }
+  },
+  {
+    "file": "OliveTitan_game_ready.blend",
+    "packedImages": [
+      "OliveTitan_BaseColor",
+      "OliveTitan_Normal",
+      "OliveTitan_Roughness"
+    ],
+    "missingImages": [],
+    "faceTopology": {
+      "Body_LOD0": {
+        "quads": 0,
+        "triangles": 69000,
+        "ngons": 0
+      },
+      "Body_LOD1": {
+        "quads": 0,
+        "triangles": 29238,
+        "ngons": 0
+      },
+      "Body_LOD2": {
+        "quads": 0,
+        "triangles": 4238,
+        "ngons": 0
+      },
+      "Eyes_LOD0": {
+        "quads": 0,
+        "triangles": 498,
+        "ngons": 0
+      },
+      "Eyes_LOD1": {
+        "quads": 0,
+        "triangles": 498,
+        "ngons": 0
+      },
+      "Eyes_LOD2": {
+        "quads": 0,
+        "triangles": 498,
+        "ngons": 0
+      },
+      "Hair_LOD0": {
+        "quads": 0,
+        "triangles": 3264,
+        "ngons": 0
+      },
+      "Hair_LOD1": {
+        "quads": 0,
+        "triangles": 3264,
+        "ngons": 0
+      },
+      "Hair_LOD2": {
+        "quads": 0,
+        "triangles": 3264,
+        "ngons": 0
+      },
+      "Pants_LOD0": {
+        "quads": 0,
+        "triangles": 7000,
+        "ngons": 0
+      },
+      "Pants_LOD1": {
+        "quads": 0,
+        "triangles": 7000,
+        "ngons": 0
+      },
+      "Pants_LOD2": {
+        "quads": 0,
+        "triangles": 7000,
+        "ngons": 0
+      }
+    }
+  }
+]

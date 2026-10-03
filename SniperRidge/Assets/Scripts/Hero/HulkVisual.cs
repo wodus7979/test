@@ -2,13 +2,20 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace SniperRidge
 {
-    /// <summary>Animates the user's 43-bone reference pack with synchronized gameplay clocks.</summary>
+    /// <summary>Drives the Olive Titan model through the existing motion rig and gameplay clocks.</summary>
     public sealed class HulkVisual : MonoBehaviour
     {
-        public const string Resource="Hero/HulkReference";
+        public const string Resource="Hero/OliveTitanPlayer";
         public const float ModelScale=1.16f;
         public string Motion { get; private set; }
-        public bool UsesReferenceAsset => animator!=null && renderers.Length==2;
+        public bool UsesReferenceAsset => retargeter!=null && retargeter.Ready;
+        public Transform[] MotionBones => bones;
+        HulkModelRetargeter retargeter;
+        BlenderMotionLayer blenderMotion;
+        public bool EnableBlenderMotion { get; set; } = true;
+        public bool UsesBlenderMotion => blenderMotion!=null && blenderMotion.Ready;
+        public bool UsesFullBodyRun => EnableBlenderMotion && blenderMotion!=null && blenderMotion.FullBodyRun;
+        public AnimationClip ActiveBlenderClip => blenderMotion?.ActiveClip;
         Animator animator;
         SkinnedMeshRenderer[] renderers;
         Transform[] bones;
@@ -49,15 +56,18 @@ namespace SniperRidge
         public static HulkVisual Create(Transform parent)
         {
             var prefab=Resources.Load<GameObject>(Resource);
-            if(prefab==null){Debug.LogError("[Hulk] Missing reference prefab: "+Resource);return null;}
-            var instance=Instantiate(prefab,parent,false);instance.name="Hulk reference pack player";
+            if(prefab==null){Debug.LogError("[Hulk] Missing gameplay prefab: "+Resource);return null;}
+            var instance=Instantiate(prefab,parent,false);instance.name="Olive Titan player";
             foreach(var child in instance.GetComponentsInChildren<Transform>())child.gameObject.layer=2;
             var h=instance.AddComponent<HulkVisual>();h.Initialize();return h;
         }
         void Initialize()
         {
             animator=GetComponent<Animator>();animator.enabled=false;animator.applyRootMotion=false;
-            renderers=GetComponentsInChildren<SkinnedMeshRenderer>();bones=renderers[0].bones;
+            retargeter=GetComponent<HulkModelRetargeter>();
+            renderers=retargeter.VisibleRenderers;bones=retargeter.MotionBones;
+            retargeter.Initialize();
+            blenderMotion=new BlenderMotionLayer(retargeter.Character);
             blendRotations=new Quaternion[bones.Length];blendPositions=new Vector3[bones.Length];
             foreach(var clip in animator.runtimeAnimatorController.animationClips){lengths[clip.name]=clip.length;clips[clip.name]=clip;}
             foreach(var bone in bones)
@@ -68,10 +78,20 @@ namespace SniperRidge
                 if(bone.name=="LeftUpperArm")leftArm=bone;if(bone.name=="LeftForearm")leftElbow=bone;if(bone.name=="LeftHand")leftHand=bone;
                 if(bone.name=="RightUpperArm")rightArm=bone;if(bone.name=="RightForearm")rightElbow=bone;if(bone.name=="RightHand")rightHand=bone;
             }
-            transform.localScale=Vector3.one*ModelScale;Sample("Idle",0,0);
+            transform.localScale=Vector3.one*ModelScale;Sample("Idle",0,0);retargeter.SyncPose();
         }
         public void SetVisible(bool visible){foreach(var r in renderers)r.enabled=visible;}
         public void Pose(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation=-1,float deltaTime=-1)
+        {
+            PoseDriver(speed,attack,age,grounded,landed,transformation,deltaTime);
+            blenderMotion.RestorePositions();
+            retargeter.SyncPose();
+            float fist=attack==HulkController.Attack.Punch?Phase(age,0,.16f)*(1-Phase(age,.5f,.72f)):attack==HulkController.Attack.Slam?.7f:.1f;
+            float clap=attack==HulkController.Attack.Clap?Phase(age,.2f,.43f)*(1-Phase(age,.62f,.92f)):0;
+            retargeter.PoseHands(fist,clap);
+            if(EnableBlenderMotion)blenderMotion.Apply(smoothedSpeed,gaitPhase,idleTime,attack,age,PunchLeft,jumpLaunched,jumpVelocity,landed,transformation,deltaTime<0?Time.deltaTime:deltaTime);
+        }
+        void PoseDriver(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation,float deltaTime)
         {
             float dt=deltaTime<0?Time.deltaTime:deltaTime;poseTime+=dt;
             if(attack!=HulkController.Attack.None || transformation>=0)
@@ -122,6 +142,21 @@ namespace SniperRidge
             BeginBlend("Locomotion");
             smoothedSpeed=Mathf.Lerp(smoothedSpeed,speed,1-Mathf.Exp(-12*dt));
             float walk=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,1.1f,smoothedSpeed));
+            if(UsesFullBodyRun)
+            {
+                Motion=walk>.1f?"Run":"Idle";
+                idleTime+=dt;
+                int previousStep=Mathf.FloorToInt(gaitPhase*2);
+                if(grounded && speed>.15f)gaitPhase+=speed*dt/blenderMotion.RunStride;
+                if(grounded && speed>.8f)FootstepSerial+=Mathf.Max(0,Mathf.FloorToInt(gaitPhase*2)-previousStep);
+                // Turn the authored forward run toward all movement directions, including backwards.
+                float heading=localVelocity.sqrMagnitude>.04f?Mathf.Atan2(localVelocity.x,localVelocity.z)*Mathf.Rad2Deg:modelYaw;
+                modelYaw=Mathf.LerpAngle(modelYaw,heading,1-Mathf.Exp(-12*dt));
+                transform.localRotation=Quaternion.Euler(0,modelYaw,0);
+                ReadPose("Idle",idleTime/lengths["Idle"],null,null);
+                leftContact.Reset();rightContact.Reset();
+                return;
+            }
             float run=Mathf.SmoothStep(0,1,Mathf.InverseLerp(4.7f,HulkController.RunSpeed,smoothedSpeed));
             Motion=run>.5f?"Run":walk>.1f?"Walk":"Idle";
             idleTime+=dt;
@@ -272,12 +307,13 @@ namespace SniperRidge
 
         void PunchPose(float age)
         {
+            bool driverLeft=!PunchLeft;
             // Weight shifts through the hips before the shoulder drives the fist.
             // Wind-up -> fast extension -> follow-through -> slower recovery.
             float load=Phase(age,0,.12f),strike=Phase(age,.12f,HulkController.PunchImpactTime);
             float follow=Phase(age,HulkController.PunchImpactTime,.36f),recover=Phase(age,.36f,HulkController.PunchDuration);
             float weight=load*(1-recover);
-            float side=PunchLeft?1:-1;
+            float side=driverLeft?1:-1;
             float twist=(-24*load+54*strike)*(1-recover)*-side;
             hips.localRotation=Quaternion.Euler(0,twist*.35f,0);
             chest.localRotation=Quaternion.Euler(9*strike*(1-recover),twist,5*side*weight);
@@ -293,9 +329,9 @@ namespace SniperRidge
             target=Vector3.Lerp(target,guard,recover);
             float blend=Phase(age,0,.08f)*(1-Phase(age,.58f,HulkController.PunchDuration));
             target.x*= -side;
-            PunchHand(PunchLeft?leftArm:rightArm,PunchLeft?leftElbow:rightElbow,PunchLeft?leftHand:rightHand,target,side,blend);
+            PunchHand(driverLeft?leftArm:rightArm,driverLeft?leftElbow:rightElbow,driverLeft?leftHand:rightHand,target,side,blend);
             // The other hand protects the chin rather than hanging motionless.
-            PunchHand(PunchLeft?rightArm:leftArm,PunchLeft?rightElbow:leftElbow,PunchLeft?rightHand:leftHand,new Vector3(-side*.5f,2.18f,.48f),-side,blend);
+            PunchHand(driverLeft?rightArm:leftArm,driverLeft?rightElbow:leftElbow,driverLeft?rightHand:leftHand,new Vector3(-side*.5f,2.18f,.48f),-side,blend);
         }
         void PunchHand(Transform upper,Transform elbow,Transform hand,Vector3 localTarget,float side,float weight)
         {

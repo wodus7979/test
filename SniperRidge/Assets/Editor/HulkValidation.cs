@@ -20,6 +20,8 @@ namespace SniperRidge.EditorTools
         static bool transformCaptured,punchCaptured;
         static int idleFootsteps;
         static Quaternion idleChest;
+        static float idleChestTravel;
+        static Transform RenderedChest()=>h.Visual.GetComponent<HulkModelRetargeter>().Character.GetBoneTransform(HumanBodyBones.Chest);
         static bool jumpPrepCaptured,jumpApexCaptured,jumpFallCaptured,jumpLandCaptured;
         static float takeoffHeight;
         static Quaternion restingArm;
@@ -55,24 +57,7 @@ namespace SniperRidge.EditorTools
         {var box=GameObject.CreatePrimitive(PrimitiveType.Cube);box.name=name;box.transform.SetParent(fixture.transform);box.transform.position=pos;box.transform.localScale=size;return box;}
         static void Teleport(SniperController p,Vector3 pos)
         {var c=p.GetComponent<CharacterController>();c.enabled=false;p.transform.position=pos;p.transform.rotation=Quaternion.identity;c.enabled=true;Physics.SyncTransforms();}
-        static void CapturePose(string name)
-        {
-            // Editor polling can sample several poses in one frame. Bake the current bones
-            // for the diagnostic render instead of reusing that frame's cached GPU skin.
-            var skins=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>();
-            var mesh=new Mesh();skins[0].BakeMesh(mesh);
-            var preview=new GameObject("Sampled pose",typeof(MeshFilter),typeof(MeshRenderer));
-            preview.transform.SetParent(skins[0].transform,false);
-            preview.GetComponent<MeshFilter>().sharedMesh=mesh;
-            preview.GetComponent<MeshRenderer>().sharedMaterials=skins[0].sharedMaterials;
-            bool[] enabled=skins.Select(r=>r.enabled).ToArray();
-            try{foreach(var skin in skins)skin.enabled=false;Capture(name);}
-            finally
-            {
-                for(int i=0;i<skins.Length;i++)skins[i].enabled=enabled[i];
-                UnityEngine.Object.DestroyImmediate(preview);UnityEngine.Object.DestroyImmediate(mesh);
-            }
-        }
+        static void CapturePose(string name){OliveTitanGameplayValidation.Capture(h.Visual,name,false);}
         static void CaptureSidePose(string name)
         {
             var p=GameManager.Instance.Player;var eye=p.Eye;Vector3 before=eye.position;Quaternion rotation=eye.rotation;
@@ -81,9 +66,9 @@ namespace SniperRidge.EditorTools
         }
         static void ValidatePunch(SniperController player)
         {
-            var visual=h.Visual;var bones=visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones;
-            var hand=bones.First(b=>b.name=="RightHand");var elbow=bones.First(b=>b.name=="RightForearm");
-            var arm=bones.First(b=>b.name=="RightUpperArm");var chest=bones.First(b=>b.name=="Chest");
+            var visual=h.Visual;var bones=visual.MotionBones;
+            var hand=bones.First(b=>b.name=="LeftHand");var elbow=bones.First(b=>b.name=="LeftForearm");
+            var arm=bones.First(b=>b.name=="LeftUpperArm");var chest=bones.First(b=>b.name=="Chest");
             float upperLength=Vector3.Distance(arm.position,elbow.position),lowerLength=Vector3.Distance(elbow.position,hand.position);
             var eye=player.Eye;Vector3 previousPosition=eye.position;Quaternion previousRotation=eye.rotation;
             eye.position=player.transform.TransformPoint(new Vector3(-4.5f,2.7f,4.5f));
@@ -103,7 +88,7 @@ namespace SniperRidge.EditorTools
             CapturePose("hulk_punch_recovery");
             visual.PunchLeft=true;
             visual.Pose(0,HulkController.Attack.Punch,HulkController.PunchImpactTime,true,false);
-            var leftHand=bones.First(b=>b.name=="LeftHand");
+            var leftHand=bones.First(b=>b.name=="RightHand");
             Check(visual.transform.InverseTransformPoint(leftHand.position).z>.7f,"left fist not extended");
             Check(visual.transform.InverseTransformPoint(hand.position).z<.65f,"right hand not guarding on left punch");
             CapturePose("hulk_left_punch_contact");visual.PunchLeft=false;
@@ -116,9 +101,9 @@ namespace SniperRidge.EditorTools
             // SniperController is suspended during this fixture. Drive the normal HUD,
             // animation and sound path once, without a second physics movement step.
             h.Tick(0);
-            var hips=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="Hips");
+            var hips=h.Visual.MotionBones.First(b=>b.name=="Hips");
             Check(Vector3.Dot(hips.up,Vector3.up)>.85f,"locomotion lean accumulated / body toppled");
-            var bones=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones;
+            var bones=h.Visual.MotionBones;
             float lowFoot=Mathf.Min(bones.First(b=>b.name=="LeftFoot").position.y,bones.First(b=>b.name=="RightFoot").position.y);
             Check(lowFoot>origin.y+.02f&&lowFoot<origin.y+(h.Visual.Motion=="Run"?.8f:.40f),"stance foot is floating or penetrating flat ground: "+(lowFoot-origin.y));
         }
@@ -149,8 +134,9 @@ namespace SniperRidge.EditorTools
                         Check(gm.Health.Max==20000&&gm.Health.Current==10000,"injured transformation must preserve fraction and double health");
                         Check(h.Transforming && h.Audio.Ready,"transformation / audio assets missing");
                         Check(h.Visual.UsesReferenceAsset,"supplied skinned model was not loaded");
-                        Check(h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.Length==43,"reference skeleton mismatch");
-                        var armBones=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones;
+                        Check(h.Visual.UsesBlenderMotion,"Blender corrected clips were not loaded");
+                        Check(h.Visual.MotionBones.Length==43,"reference skeleton mismatch");
+                        var armBones=h.Visual.MotionBones;
                         Check(Mathf.Abs(armBones.First(b=>b.name=="RightForearm").localPosition.magnitude-new Vector3(.216f,-.468f,0).magnitude*.84f)<.002f,"upper arm not shortened");
                         Check(Mathf.Abs(armBones.First(b=>b.name=="RightHand").localPosition.magnitude-new Vector3(.104f,-.563f,.021f).magnitude*.84f)<.002f,"forearm not shortened");
                         initialScale=h.Visual.transform.localScale.x;Next();
@@ -166,13 +152,14 @@ namespace SniperRidge.EditorTools
                     else if(stage==1&&age>1.95f)
                     {
                         var skins=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>();
-                        Check(skins[0].sharedMesh.triangles.Length/3==139559&&skins[1].sharedMesh.triangles.Length/3==49703,"reference mesh triangles changed");
-                        restingArm=skins[0].bones.First(b=>b.name=="RightUpperArm").localRotation;
+                        var lods=h.Visual.GetComponent<HulkModelRetargeter>().Character.GetComponent<LODGroup>().GetLODs();
+                        Check(lods.Select(l=>l.renderers.Cast<SkinnedMeshRenderer>().Sum(r=>r.sharedMesh.triangles.Length/3)).SequenceEqual(new[]{79762,40000,15000}),"Olive Titan LOD triangle counts changed");
+                        restingArm=h.Visual.MotionBones.First(b=>b.name=="LeftUpperArm").localRotation;
                         Check(!h.Transforming && h.Visual.transform.localScale.x>initialScale+.1f,"transformation did not grow/finish");
                         Check(h.Audio.Count(HulkAudio.Cue.Transform)==1,"transform sound duplicate/missing");
                         Check(Vector3.Dot(p.Eye.position-p.transform.position,p.transform.forward)<-2,"camera not behind body");
                         Check(Vector3.Distance(p.AimPoint,p.transform.position)<3,"AI target follows chase camera");
-                        p.GetDamageCapsule(out var bottom,out var top);Check(Mathf.Abs(top.y-p.transform.position.y-2.85f)<.1f,"damage capsule not Hulk-sized");
+                        p.GetDamageCapsule(out var bottom,out var top);Check(Mathf.Abs(top.y-p.transform.position.y-(HulkController.Height-HulkController.Radius))<.1f,"damage capsule not Hulk-sized");
                         Check(!p.CanSwitchWeapon&&!p.Grenades.enabled,"weapons still enabled");
                         float hp=gm.Health.Current;gm.Health.TakeDamage(10);Check(Mathf.Abs(hp-gm.Health.Current-3.5f)<.01f,"damage resistance wrong");Capture("hulk_city_rear");ValidatePunch(p);
                         fixture=new GameObject("Hulk validation arena");Box("Ground",origin+Vector3.down*.55f,new Vector3(100,1,100));Teleport(p,origin);
@@ -186,7 +173,7 @@ namespace SniperRidge.EditorTools
                     {
                         Check(!h.BeginAttack(HulkController.Attack.Punch)&&!h.PunchLeft,"rejected punch advanced hand sequence");
                         Check(h.Visual.Motion=="Punch","pack punch animation not playing");
-                        var arm=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="RightUpperArm");
+                        var arm=h.Visual.MotionBones.First(b=>b.name=="LeftUpperArm");
                         Check(Quaternion.Angle(restingArm,arm.localRotation)>35,"reference rig did not deform for punch");Capture("hulk_reference_punch");punchCaptured=true;
                     }
                     else if(stage==3&&age>.85f)
@@ -221,13 +208,13 @@ namespace SniperRidge.EditorTools
                         }
                         if(h.JumpLaunched&&Mathf.Abs(h.JumpVelocity)<2&&!jumpApexCaptured)
                         {
-                            var knee=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="LeftCalf");
+                            var knee=h.Visual.MotionBones.First(b=>b.name=="LeftCalf");
                             Check(Quaternion.Angle(knee.localRotation,Quaternion.identity)>70,"knees not tucked at apex");
                             CaptureSidePose("hulk_jump_apex");jumpApexCaptured=true;
                         }
                         if(h.JumpLaunched&&h.JumpVelocity<-8&&!jumpFallCaptured)
                         {
-                            var knee=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="LeftCalf");
+                            var knee=h.Visual.MotionBones.First(b=>b.name=="LeftCalf");
                             Check(Quaternion.Angle(knee.localRotation,Quaternion.identity)<60,"legs not extended for landing");
                             CaptureSidePose("hulk_jump_descend");jumpFallCaptured=true;
                         }
@@ -236,7 +223,7 @@ namespace SniperRidge.EditorTools
                     }
                     else if(stage==7&&age>.1f&&age<.45f&&!jumpLandCaptured)
                     {
-                        var knee=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="LeftCalf");
+                        var knee=h.Visual.MotionBones.First(b=>b.name=="LeftCalf");
                         Check(Quaternion.Angle(knee.localRotation,Quaternion.identity)>25,"landing failed to absorb impact with knees");
                         CaptureSidePose("hulk_slam");jumpLandCaptured=true;
                     }
@@ -257,7 +244,7 @@ namespace SniperRidge.EditorTools
                         if(age>1f)
                         {
                             Check(Vector3.Distance(p.transform.position,beforeMove)>2.0f,"walking failed");
-                            Check(Mathf.Abs(h.PlanarSpeed-HulkController.WalkSpeed)<.2f&&h.Visual.Motion=="Walk","walk speed or blend wrong");
+                            Check(Mathf.Abs(h.PlanarSpeed-HulkController.WalkSpeed)<.2f&&h.Visual.Motion==(h.Visual.UsesFullBodyRun?"Run":"Walk"),"normal movement speed or animation wrong");
                             Capture("hulk_walk");RunButton();Check(h.RunEnabled,"run UI button failed");stage=81;at=Time.time;
                         }
                     }
@@ -266,7 +253,7 @@ namespace SniperRidge.EditorTools
                         MoveFixture(Vector2.left);
                         if(age>1f)
                         {
-                            Check(h.Sprinting&&h.PlanarSpeed>10.5f&&h.Visual.Motion=="Run","sprint speed/animation not active");
+                            Check(h.Sprinting&&h.PlanarSpeed>HulkController.RunSpeed-.2f&&h.Visual.Motion=="Run","sprint speed/animation not active");
                             Check(Mathf.Abs(Mathf.DeltaAngle(0,h.Visual.transform.localEulerAngles.y))>45,"strafe body did not turn into travel direction");
                             Check(h.Audio.Count(HulkAudio.Cue.Footstep)>2,"gait footsteps missing");Capture("hulk_run");
                             beforeMove=p.transform.position;stage=82;at=Time.time;
@@ -278,7 +265,7 @@ namespace SniperRidge.EditorTools
                         if(age<.08f)Check(p.transform.position.x<=beforeMove.x+.05f,"direction reversed instantly without braking");
                         if(age>1.1f)
                         {
-                            Check(h.PlanarSpeed>10,"failed to accelerate after reversing");Capture("hulk_run_turn");
+                            Check(h.PlanarSpeed>HulkController.RunSpeed-.5f,"failed to accelerate after reversing");Capture("hulk_run_turn");
                             Box("Sprint collision wall",p.transform.position+new Vector3(3,2,0),new Vector3(.5f,5,10));Physics.SyncTransforms();stage=83;at=Time.time;
                         }
                     }
@@ -298,17 +285,17 @@ namespace SniperRidge.EditorTools
                         {
                             Check(h.PlanarSpeed<.05f&&!h.Sprinting&&h.Visual.Motion=="Idle","idle not restored after stopping");
                             idleFootsteps=h.Visual.FootstepSerial;
-                            idleChest=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="Chest").localRotation;
+                            idleChest=RenderedChest().localRotation;idleChestTravel=0;
                             stage=85;at=Time.time;
                         }
                     }
                     else if(stage==85)
                     {
                         MoveFixture(Vector2.zero);
+                        idleChestTravel=Mathf.Max(idleChestTravel,Quaternion.Angle(idleChest,RenderedChest().localRotation));
                         if(age>1.3f)
                         {
-                            var chest=h.Visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones.First(b=>b.name=="Chest");
-                            Check(Quaternion.Angle(idleChest,chest.localRotation)>.1f,"idle body frozen without breathing");
+                            Check(idleChestTravel>.1f,"rendered idle body frozen without breathing: "+idleChestTravel);
                             Check(idleFootsteps==h.Visual.FootstepSerial,"footsteps continued at rest");Capture("hulk_idle_breathing");stage=86;at=Time.time;
                         }
                     }
@@ -317,7 +304,7 @@ namespace SniperRidge.EditorTools
                         MoveFixture(Vector2.left,true);
                         if(age>.8f)
                         {
-                            Check(h.Sprinting&&!h.RunEnabled&&h.PlanarSpeed>10,"held Shift sprint path failed");
+                            Check(h.Sprinting&&!h.RunEnabled&&h.PlanarSpeed>HulkController.RunSpeed-.5f,"held Shift sprint path failed");
                             Check(p.AmmoInMag==ammo,"Hulk used bullets");p.enabled=true;
                             Check(h.BeginAttack(HulkController.Attack.Punch),"miss punch rejected");Check(h.PunchLeft,"second punch not left handed");stage=80;at=Time.time;
                         }
@@ -340,7 +327,7 @@ namespace SniperRidge.EditorTools
                         Check(!p.IsHulk&&p.Grenades.enabled&&p.CanSwitchWeapon,"FPS controls not restored");
                         Check(Vector3.Distance(p.Eye.localPosition,Vector3.up*1.68f)<.05f,"FPS eye not restored");
                         Check(Mathf.Abs(p.GetComponent<CharacterController>().height-FpsMovement.StandingHeight)<.01f,"human capsule not restored");
-                        ceiling=Box("Low ceiling",p.transform.position+Vector3.up*2.6f,new Vector3(5,.3f,5));Physics.SyncTransforms();
+                        ceiling=Box("Low ceiling",p.transform.position+Vector3.up*(HulkController.Height-.15f),new Vector3(5,.3f,5));Physics.SyncTransforms();
                         float hpBefore=gm.Health.Current;
                         Check(!h.Toggle()&&!h.Active,"transformed through low ceiling");
                         Check(gm.Health.Max==10000&&gm.Health.Current==hpBefore,"failed transformation changed health");ceiling.SetActive(false);UnityEngine.Object.Destroy(ceiling);
@@ -363,7 +350,7 @@ namespace SniperRidge.EditorTools
                             var navigation=e.GetComponent<AssaultNavigation>();if(navigation!=null)navigation.enabled=true;
                         }
                         gm.Assault.enabled=true;gm.Health.Configure(0,10000);
-                        Debug.Log("[Hulk validation] PASS: right-left-right punches / shorter arms / planted gait feet / crouch-takeoff-tuck-extension-landing, run button / Shift sprint / smooth acceleration and reversal / collision / gait blend / idle breathing / phase footsteps, double health / proportional restore / no toggle healing, punch wind-up / torso twist / extension / recovery / fixed bone lengths, reference skinned mesh, 43 bones, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
+                        Debug.Log("[Hulk validation] PASS: right-left-right punches / shorter arms / planted gait feet / crouch-takeoff-tuck-extension-landing, run button / Shift sprint / smooth acceleration and reversal / collision / gait blend / idle breathing / phase footsteps, double health / proportional restore / no toggle healing, punch wind-up / torso twist / extension / recovery / fixed bone lengths, Blender-corrected skinned mesh and authored clips, 43-bone motion driver, transformation growth/lockout/audio, attack-specific audio, button, rear camera, physical movement, punch cone, wave travel/cover/ally protection, cooldowns, jump height="+peak.ToString("0.00")+", one landing, ammo preserved, FPS restore, headroom, camera collision.");
                         Check(h.Toggle(),"city return failed");Next();
                     }
                     else if(stage==12&&age>2f){Capture("hulk_city_final");stage=13;}

@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bccbee6d09244e9abf2a883ba03584a, type: 3}
+  m_Name: OliveTitanMotion
+  m_EditorClassIdentifier: 
+  SamplingRig: {fileID: 919132149155446097, guid: e5691033926ad4002bf1db17127912db, type: 3}
+  Idle: {fileID: -623603649343465320, guid: e5691033926ad4002bf1db17127912db, type: 3}
+  Walk: {fileID: -623603649343465320, guid: f15ca1520c3924ed3a6389e075f3ca9f, type: 3}
+  Run: {fileID: -623603649343465320, guid: ebb2b0eea68d44d6d889e8e4099329f5, type: 3}
+  PunchRight: {fileID: -623603649343465320, guid: aa3274764105c4a61a2f0c43123c1b21, type: 3}
+  PunchLeft: {fileID: -623603649343465320, guid: b57ccc153ee514fadabe9c38800613b6, type: 3}
+  Clap: {fileID: -623603649343465320, guid: 2b012eee57e29442f92294ffa082aa30, type: 3}
+  JumpLoad: {fileID: -623603649343465320, guid: 44eb4a2dbef3341abb245cf0b39c8223, type: 3}
+  JumpAir: {fileID: -623603649343465320, guid: 00854a0804264418ab1297d389e8d3df, type: 3}
+  Land: {fileID: -623603649343465320, guid: ac61a0cd37377447a8c29f492ee96c7c, type: 3}
+  FullBodyRun: 1
+  FullBodyRunStride: 2.2631578

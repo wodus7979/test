@@ -1,0 +1,88 @@
+{
+  "weights": {
+    "Body_LOD0": {
+      "verticesChanged": 7694,
+      "meanEdgeDeltaBefore": 0.07644597853258023,
+      "meanEdgeDeltaAfter": 0.06636548524801018,
+      "maxInfluences": 4
+    },
+    "Body_LOD1": {
+      "verticesChanged": 4975,
+      "meanEdgeDeltaBefore": 0.1046451520091902,
+      "meanEdgeDeltaAfter": 0.09873261177590355,
+      "maxInfluences": 4
+    },
+    "Body_LOD2": {
+      "verticesChanged": 953,
+      "meanEdgeDeltaBefore": 0.2637987312643192,
+      "meanEdgeDeltaAfter": 0.2466194463006059,
+      "maxInfluences": 4
+    },
+    "Pants_LOD0": {
+      "verticesChanged": 2603,
+      "meanEdgeDeltaBefore": 0.12634649485235122,
+      "meanEdgeDeltaAfter": 0.09617803739600628,
+      "maxInfluences": 4
+    },
+    "Pants_LOD1": {
+      "verticesChanged": 2603,
+      "meanEdgeDeltaBefore": 0.12634649485235122,
+      "meanEdgeDeltaAfter": 0.09617803739600628,
+      "maxInfluences": 4
+    },
+    "Pants_LOD2": {
+      "verticesChanged": 2603,
+      "meanEdgeDeltaBefore": 0.12634649485235122,
+      "meanEdgeDeltaAfter": 0.09617803739600628,
+      "maxInfluences": 4
+    }
+  },
+  "actions": [
+    {
+      "name": "Titan_Idle",
+      "frames": 115,
+      "duration": 3.8
+    },
+    {
+      "name": "Titan_Walk",
+      "frames": 26,
+      "duration": 0.8333333333333334
+    },
+    {
+      "name": "Titan_Run",
+      "frames": 14,
+      "duration": 0.43333333333333335
+    },
+    {
+      "name": "Titan_PunchRight",
+      "frames": 23,
+      "duration": 0.7333333333333333
+    },
+    {
+      "name": "Titan_PunchLeft",
+      "frames": 23,
+      "duration": 0.7333333333333333
+    },
+    {
+      "name": "Titan_Clap",
+      "frames": 34,
+      "duration": 1.1
+    },
+    {
+      "name": "Titan_JumpLoad",
+      "frames": 8,
+      "duration": 0.23333333333333334
+    },
+    {
+      "name": "Titan_JumpAir",
+      "frames": 31,
+      "duration": 1.0
+    },
+    {
+      "name": "Titan_Land",
+      "frames": 18,
+      "duration": 0.5666666666666667
+    }
+  ],
+  "source": "Blender direct bone keyframes and vertex-group edits"
+}

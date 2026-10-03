@@ -17,6 +17,8 @@ namespace SniperRidge.EditorTools
             =>Vector3.Angle(knee.position-hip.position,ankle.position-knee.position);
         public static void Run()
         {
+            var authored=Resources.Load<BlenderMotionSet>("Hero/OliveTitanMotion");
+            if(authored && authored.FullBodyRun){HulkRunIntegrationValidation.Run();return;}
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
             RenderSettings.ambientMode=AmbientMode.Flat;RenderSettings.ambientLight=new Color(.62f,.66f,.72f);
             var light=new GameObject("Soft key").AddComponent<Light>();light.type=LightType.Directional;
@@ -25,7 +27,7 @@ namespace SniperRidge.EditorTools
             floor.transform.position=Vector3.down*.1f;floor.transform.localScale=new Vector3(200,.2f,200);
             floor.GetComponent<Renderer>().sharedMaterial=new Material(Shader.Find("Standard")){color=new Color(.29f,.32f,.36f)};
             var root=new GameObject("Gait subject");var visual=HulkVisual.Create(root.transform);
-            var bones=visual.GetComponentsInChildren<SkinnedMeshRenderer>()[0].bones;
+            var bones=visual.MotionBones;
             Transform Bone(string name)=>bones.First(b=>b.name==name);
             var hip=Bone("Hips");var thigh=Bone("LeftThigh");var calf=Bone("LeftCalf");var foot=Bone("LeftFoot");
             var phaseField=typeof(HulkVisual).GetField("gaitPhase",BindingFlags.Instance|BindingFlags.NonPublic);
@@ -74,35 +76,7 @@ namespace SniperRidge.EditorTools
         }
         static void Capture(Camera camera,HulkVisual visual,Transform root,string name,bool rear)
         {
-            camera.transform.position=root.position+(rear?new Vector3(3.8f,2.3f,-6):new Vector3(5.5f,2.4f,5.5f));
-            camera.transform.LookAt(root.position+Vector3.up*1.55f);
-            var skins=visual.GetComponentsInChildren<SkinnedMeshRenderer>();var mesh=new Mesh();skins[0].BakeMesh(mesh);
-            // BakeMesh(false) returns renderer-local vertices. Check the actual sole as
-            // well as the bones: a bad skin binding can pass joint-only assertions.
-            var weights=skins[0].sharedMesh.boneWeights;var vertices=mesh.vertices;
-            float sole=float.PositiveInfinity;
-            for(int i=0;i<vertices.Length;i++)
-                if(weights[i].weight0>.8f&&skins[0].bones[weights[i].boneIndex0].name.EndsWith("Foot"))
-                    sole=Mathf.Min(sole,skins[0].transform.TransformPoint(vertices[i]).y-root.position.y);
-            Check(sole>-.04f&&sole<.06f,"rendered sole not grounded: "+sole);
-            Debug.Log(name+" rendered sole height="+sole.ToString("F3"));
-            var baked=new GameObject("Pose render",typeof(MeshFilter),typeof(MeshRenderer));baked.transform.SetParent(skins[0].transform,false);
-            baked.GetComponent<MeshFilter>().sharedMesh=mesh;baked.GetComponent<MeshRenderer>().sharedMaterials=skins[0].sharedMaterials;
-            bool[] enabled=skins.Select(r=>r.enabled).ToArray();var target=new RenderTexture(960,960,24);var texture=new Texture2D(960,960,TextureFormat.RGB24,false);
-            var active=RenderTexture.active;
-            try
-            {
-                foreach(var skin in skins)skin.enabled=false;
-                camera.targetTexture=target;camera.Render();RenderTexture.active=target;
-                texture.ReadPixels(new Rect(0,0,960,960),0,0);texture.Apply();File.WriteAllBytes("Screenshots/"+name+".png",texture.EncodeToPNG());
-            }
-            finally
-            {
-                camera.targetTexture=null;RenderTexture.active=active;
-                for(int i=0;i<skins.Length;i++)skins[i].enabled=enabled[i];
-                UnityEngine.Object.DestroyImmediate(baked);UnityEngine.Object.DestroyImmediate(mesh);
-                UnityEngine.Object.DestroyImmediate(texture);UnityEngine.Object.DestroyImmediate(target);
-            }
+            OliveTitanGameplayValidation.Capture(visual,name,rear);
         }
     }
 }

@@ -1,0 +1,98 @@
+[
+  {
+    "file": "OliveTitan_quad_master.blend",
+    "mesh": "Body",
+    "waistBefore": {
+      "width": 0.6083026230335236,
+      "depth": 0.295910581946373
+    },
+    "waistAfter": {
+      "width": 0.7398715615272522,
+      "depth": 0.3314109668135643
+    }
+  },
+  {
+    "file": "OliveTitan_quad_master.blend",
+    "mesh": "Pants",
+    "waistBefore": {
+      "width": 0.0,
+      "depth": 0.0
+    },
+    "waistAfter": {
+      "width": 0.0,
+      "depth": 0.0
+    }
+  },
+  {
+    "file": "OliveTitan_game_ready.blend",
+    "mesh": "Body_LOD0",
+    "waistBefore": {
+      "width": 0.6229200065135956,
+      "depth": 0.31777147203683853
+    },
+    "waistAfter": {
+      "width": 0.7570501267910004,
+      "depth": 0.3558259606361389
+    }
+  },
+  {
+    "file": "OliveTitan_game_ready.blend",
+    "mesh": "Body_LOD1",
+    "waistBefore": {
+      "width": 0.6302146315574646,
+      "depth": 0.31803035736083984
+    },
+    "waistAfter": {
+      "width": 0.7653889060020447,
+      "depth": 0.35611458122730255
+    }
+  },
+  {
+    "file": "OliveTitan_game_ready.blend",
+    "mesh": "Body_LOD2",
+    "waistBefore": {
+      "width": 0.6180471777915955,
+      "depth": 0.30696259438991547
+    },
+    "waistAfter": {
+      "width": 0.7512882053852081,
+      "depth": 0.34364505112171173
+    }
+  },
+  {
+    "file": "OliveTitan_game_ready.blend",
+    "mesh": "Pants_LOD0",
+    "waistBefore": {
+      "width": 0.6898157596588135,
+      "depth": 0.10846307873725891
+    },
+    "waistAfter": {
+      "width": 0.8407049179077148,
+      "depth": 0.12141041457653046
+    }
+  },
+  {
+    "file": "OliveTitan_game_ready.blend",
+    "mesh": "Pants_LOD1",
+    "waistBefore": {
+      "width": 0.6898157596588135,
+      "depth": 0.10846307873725891
+    },
+    "waistAfter": {
+      "width": 0.8407049179077148,
+      "depth": 0.12141041457653046
+    }
+  },
+  {
+    "file": "OliveTitan_game_ready.blend",
+    "mesh": "Pants_LOD2",
+    "waistBefore": {
+      "width": 0.6898157596588135,
+      "depth": 0.10846307873725891
+    },
+    "waistAfter": {
+      "width": 0.8407049179077148,
+      "depth": 0.12141041457653046
+    }
+  }
+]

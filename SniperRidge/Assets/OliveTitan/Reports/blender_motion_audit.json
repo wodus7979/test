@@ -1,0 +1,227 @@
+{
+  "Body_LOD0": {
+    "maxInfluences": 4,
+    "unweighted": 0,
+    "maxNormalizationError": 1.430511474609375e-06
+  },
+  "Body_LOD1": {
+    "maxInfluences": 4,
+    "unweighted": 0,
+    "maxNormalizationError": 1.6391277313232422e-06
+  },
+  "Body_LOD2": {
+    "maxInfluences": 4,
+    "unweighted": 0,
+    "maxNormalizationError": 1.7434358596801758e-06
+  },
+  "Eyes_LOD0": {
+    "maxInfluences": 3,
+    "unweighted": 0,
+    "maxNormalizationError": 1.0291114449501038e-07
+  },
+  "Eyes_LOD1": {
+    "maxInfluences": 3,
+    "unweighted": 0,
+    "maxNormalizationError": 1.0291114449501038e-07
+  },
+  "Eyes_LOD2": {
+    "maxInfluences": 3,
+    "unweighted": 0,
+    "maxNormalizationError": 1.0291114449501038e-07
+  },
+  "Hair_LOD0": {
+    "maxInfluences": 1,
+    "unweighted": 0,
+    "maxNormalizationError": 5.960464477539063e-08
+  },
+  "Hair_LOD1": {
+    "maxInfluences": 1,
+    "unweighted": 0,
+    "maxNormalizationError": 5.960464477539063e-08
+  },
+  "Hair_LOD2": {
+    "maxInfluences": 1,
+    "unweighted": 0,
+    "maxNormalizationError": 5.960464477539063e-08
+  },
+  "Pants_LOD0": {
+    "maxInfluences": 4,
+    "unweighted": 0,
+    "maxNormalizationError": 1.4156103134155273e-06
+  },
+  "Pants_LOD1": {
+    "maxInfluences": 4,
+    "unweighted": 0,
+    "maxNormalizationError": 1.4156103134155273e-06
+  },
+  "Pants_LOD2": {
+    "maxInfluences": 4,
+    "unweighted": 0,
+    "maxNormalizationError": 1.4156103134155273e-06
+  },
+  "poses": [
+    {
+      "action": "Titan_Walk",
+      "phase": 0,
+      "bounds": [
+        1.4547321796417236,
+        1.2183944880962372,
+        2.1504302956163883
+      ]
+    },
+    {
+      "action": "Titan_Walk",
+      "phase": 0.5,
+      "bounds": [
+        1.4409806728363037,
+        0.964099645614624,
+        2.1593126822263002
+      ]
+    },
+    {
+      "action": "Titan_Walk",
+      "phase": 1,
+      "bounds": [
+        1.4547321796417236,
+        1.2183944880962372,
+        2.1504302956163883
+      ]
+    },
+    {
+      "action": "Titan_PunchRight",
+      "phase": 0,
+      "bounds": [
+        1.3938511610031128,
+        0.5556528568267822,
+        2.3114783111959696
+      ]
+    },
+    {
+      "action": "Titan_PunchRight",
+      "phase": 0.5,
+      "bounds": [
+        1.0586107075214386,
+        1.510485678911209,
+        2.294803885743022
+      ]
+    },
+    {
+      "action": "Titan_PunchRight",
+      "phase": 1,
+      "bounds": [
+        1.4135000705718994,
+        0.5557285845279694,
+        2.3089141957461834
+      ]
+    },
+    {
+      "action": "Titan_PunchLeft",
+      "phase": 0,
+      "bounds": [
+        1.3938511610031128,
+        0.5556528568267822,
+        2.3114783111959696
+      ]
+    },
+    {
+      "action": "Titan_PunchLeft",
+      "phase": 0.5,
+      "bounds": [
+        1.0602200627326965,
+        1.5124989748001099,
+        2.2941448967903852
+      ]
+    },
+    {
+      "action": "Titan_PunchLeft",
+      "phase": 1,
+      "bounds": [
+        1.4135000705718994,
+        0.5557285845279694,
+        2.3089141957461834
+      ]
+    },
+    {
+      "action": "Titan_Clap",
+      "phase": 0,
+      "bounds": [
+        1.3938507437705994,
+        0.5544346421957016,
+        2.310172015801072
+      ]
+    },
+    {
+      "action": "Titan_Clap",
+      "phase": 0.5,
+      "bounds": [
+        1.0362287163734436,
+        1.039009228348732,
+        2.295938264578581
+      ]
+    },
+    {
+      "action": "Titan_Clap",
+      "phase": 1,
+      "bounds": [
+        1.4135000705718994,
+        0.5557285845279694,
+        2.3089141957461834
+      ]
+    },
+    {
+      "action": "Titan_JumpAir",
+      "phase": 0,
+      "bounds": [
+        1.5164806842803955,
+        0.5918175876140594,
+        2.2806894285604358
+      ]
+    },
+    {
+      "action": "Titan_JumpAir",
+      "phase": 0.5,
+      "bounds": [
+        1.5169126987457275,
+        0.7771002054214478,
+        2.3540466725826263
+      ]
+    },
+    {
+      "action": "Titan_JumpAir",
+      "phase": 1,
+      "bounds": [
+        1.5164809226989746,
+        1.1345475912094116,
+        2.280652473680675
+      ]
+    },
+    {
+      "action": "Titan_Land",
+      "phase": 0,
+      "bounds": [
+        1.480743169784546,
+        0.5544346421957016,
+        2.294220561045222
+      ]
+    },
+    {
+      "action": "Titan_Land",
+      "phase": 0.5,
+      "bounds": [
+        1.516588568687439,
+        0.6790294349193573,
+        2.1058440869674087
+      ]
+    },
+    {
+      "action": "Titan_Land",
+      "phase": 1,
+      "bounds": [
+        1.516481876373291,
+        0.5549749135971069,
+        2.2940077912062407
+      ]
+    }
+  ],
+  "failures": []
+}

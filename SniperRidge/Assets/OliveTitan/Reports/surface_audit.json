@@ -1,0 +1,160 @@
+{
+  "method": "Geometric checks in bind pose; UV overlaps sampled at 1024px with strict triangle interiors.",
+  "meshes": [
+    {
+      "mesh": "Body_LOD0",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Body_LOD1",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Body_LOD2",
+      "selfIntersectionPairs": 19,
+      "sampleLocations": [
+        [
+          0.011,
+          -0.197,
+          2.069
+        ],
+        [
+          0.027,
+          -0.186,
+          2.067
+        ],
+        [
+          0.027,
+          -0.186,
+          2.067
+        ],
+        [
+          0.015,
+          -0.192,
+          2.068
+        ],
+        [
+          0.015,
+          -0.192,
+          2.068
+        ],
+        [
+          0.015,
+          -0.192,
+          2.068
+        ],
+        [
+          -0.018,
+          -0.19,
+          2.068
+        ],
+        [
+          -0.018,
+          -0.19,
+          2.068
+        ],
+        [
+          -0.021,
+          -0.195,
+          2.069
+        ],
+        [
+          -0.021,
+          -0.195,
+          2.069
+        ],
+        [
+          0.0,
+          -0.194,
+          2.062
+        ],
+        [
+          -0.007,
+          -0.191,
+          2.058
+        ],
+        [
+          -0.007,
+          -0.191,
+          2.058
+        ],
+        [
+          -0.007,
+          -0.194,
+          2.073
+        ],
+        [
+          -0.008,
+          -0.202,
+          2.071
+        ]
+      ],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Eyes_LOD0",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Eyes_LOD1",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Eyes_LOD2",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Hair_LOD0",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Hair_LOD1",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Hair_LOD2",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Pants_LOD0",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Pants_LOD1",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    },
+    {
+      "mesh": "Pants_LOD2",
+      "selfIntersectionPairs": 0,
+      "sampleLocations": [],
+      "nonManifoldEdges": 0
+    }
+  ],
+  "interMeshPairs": {
+    "Body_LOD0 / Pants_LOD0": 155,
+    "Body_LOD0 / Hair_LOD0": 0,
+    "Body_LOD0 / Eyes_LOD0": 459
+  },
+  "uvInteriorOverlapPixels1024": 65,
+  "uvCoveredPixels1024": 417592
+}

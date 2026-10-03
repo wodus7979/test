@@ -1,0 +1,6 @@
+Unity 2022.3.62f3
+Avatar valid / humanoid: True / True
+Height: 2.299999 m
+Feet Y: 0
+LOD triangles: 79762, 40000, 15000
+4 meshes per LOD; normalized four-bone skinning; Mecanim pose deformation: PASS

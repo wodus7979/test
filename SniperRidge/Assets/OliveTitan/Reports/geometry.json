@@ -1,0 +1,182 @@
+{
+  "name": "Olive Titan",
+  "targetUnity": "2022.3",
+  "source": "CC0 MakeHuman topology, original authored morph/material/garment",
+  "lods": [
+    {
+      "level": 0,
+      "triangles": 79762,
+      "parts": {
+        "Body_LOD0": 69000,
+        "Pants_LOD0": 7000,
+        "Hair_LOD0": 3264,
+        "Eyes_LOD0": 498
+      },
+      "topology": [
+        {
+          "mesh": "Body_LOD0",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Pants_LOD0",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Hair_LOD0",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Eyes_LOD0",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "triangles": 40000,
+      "parts": {
+        "Body_LOD1": 29238,
+        "Pants_LOD1": 7000,
+        "Hair_LOD1": 3264,
+        "Eyes_LOD1": 498
+      },
+      "topology": [
+        {
+          "mesh": "Body_LOD1",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Pants_LOD1",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Hair_LOD1",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Eyes_LOD1",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "triangles": 15000,
+      "parts": {
+        "Body_LOD2": 4238,
+        "Pants_LOD2": 7000,
+        "Hair_LOD2": 3264,
+        "Eyes_LOD2": 498
+      },
+      "topology": [
+        {
+          "mesh": "Body_LOD2",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Pants_LOD2",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Hair_LOD2",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        },
+        {
+          "mesh": "Eyes_LOD2",
+          "boundaryEdges": 0,
+          "nonManifoldEdges": 0,
+          "looseVertices": 0
+        }
+      ]
+    }
+  ],
+  "bones": [
+    "Root",
+    "Hips",
+    "Spine",
+    "Chest",
+    "LeftBreast",
+    "RightBreast",
+    "UpperChest",
+    "LeftShoulder",
+    "LeftUpperArm",
+    "LeftLowerArm",
+    "LeftHand",
+    "LeftHandIndex1",
+    "LeftHandIndex2",
+    "LeftHandIndex3",
+    "LeftHandMiddle1",
+    "LeftHandMiddle2",
+    "LeftHandMiddle3",
+    "LeftHandPinky1",
+    "LeftHandPinky2",
+    "LeftHandPinky3",
+    "LeftHandRing1",
+    "LeftHandRing2",
+    "LeftHandRing3",
+    "LeftHandThumb1",
+    "LeftHandThumb2",
+    "LeftHandThumb3",
+    "RightShoulder",
+    "RightUpperArm",
+    "RightLowerArm",
+    "RightHand",
+    "RightHandIndex1",
+    "RightHandIndex2",
+    "RightHandIndex3",
+    "RightHandMiddle1",
+    "RightHandMiddle2",
+    "RightHandMiddle3",
+    "RightHandPinky1",
+    "RightHandPinky2",
+    "RightHandPinky3",
+    "RightHandRing1",
+    "RightHandRing2",
+    "RightHandRing3",
+    "RightHandThumb1",
+    "RightHandThumb2",
+    "RightHandThumb3",
+    "Neck",
+    "Head",
+    "Jaw",
+    "LeftEye",
+    "RightEye",
+    "LeftOrbicularisTop",
+    "RightOrbicularisTop",
+    "LeftOrbicularisBottom",
+    "RightOrbicularisBottom",
+    "LeftUpperLeg",
+    "LeftButtock",
+    "LeftLowerLeg",
+    "LeftFoot",
+    "LeftToes",
+    "RightUpperLeg",
+    "RightButtock",
+    "RightLowerLeg",
+    "RightFoot",
+    "RightToes"
+  ],
+  "heightMeters": 2.299999952316284
+}
