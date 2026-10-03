@@ -12,6 +12,7 @@ namespace SniperRidge
         public Transform[] MotionBones => bones;
         HulkModelRetargeter retargeter;
         BlenderMotionLayer blenderMotion;
+        HulkCombatFootwork combatFootwork;
         public bool EnableBlenderMotion { get; set; } = true;
         public bool UsesBlenderMotion => blenderMotion!=null && blenderMotion.Ready;
         public bool UsesFullBodyRun => EnableBlenderMotion && blenderMotion!=null && blenderMotion.FullBodyRun;
@@ -52,6 +53,7 @@ namespace SniperRidge
             gaitPhase=smoothedSpeed=lean=sideLean=modelYaw=0;
             localVelocity=Vector3.zero;turnRate=acceleration=0;transform.localRotation=Quaternion.identity;
             leftContact.Reset();rightContact.Reset();travelDirection=transform.forward;
+            combatFootwork?.Reset();
         }
         public static HulkVisual Create(Transform parent)
         {
@@ -79,6 +81,7 @@ namespace SniperRidge
                 if(bone.name=="RightUpperArm")rightArm=bone;if(bone.name=="RightForearm")rightElbow=bone;if(bone.name=="RightHand")rightHand=bone;
             }
             transform.localScale=Vector3.one*ModelScale;Sample("Idle",0,0);retargeter.SyncPose();
+            combatFootwork=new HulkCombatFootwork(transform,retargeter.Character);
         }
         public void SetVisible(bool visible){foreach(var r in renderers)r.enabled=visible;}
         public void Pose(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation=-1,float deltaTime=-1)
@@ -90,10 +93,14 @@ namespace SniperRidge
             float clap=attack==HulkController.Attack.Clap?Phase(age,.2f,.43f)*(1-Phase(age,.62f,.92f)):0;
             retargeter.PoseHands(fist,clap);
             if(EnableBlenderMotion)blenderMotion.Apply(smoothedSpeed,gaitPhase,idleTime,attack,age,PunchLeft,jumpLaunched,jumpVelocity,landed,transformation,deltaTime<0?Time.deltaTime:deltaTime);
+            if(attack!=HulkController.Attack.None)retargeter.PoseHands(attack==HulkController.Attack.Punch?Mathf.Max(fist,.9f):fist,clap);
+            FootstepSerial+=combatFootwork.Apply(localVelocity,attack,age,PunchLeft,grounded,landed,transformation,deltaTime<0?Time.deltaTime:deltaTime);
         }
         void PoseDriver(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation,float deltaTime)
         {
             float dt=deltaTime<0?Time.deltaTime:deltaTime;poseTime+=dt;
+            // Keep the motion clock current during attacks, too.
+            if(attack!=HulkController.Attack.None)smoothedSpeed=Mathf.Lerp(smoothedSpeed,speed,1-Mathf.Exp(-12*dt));
             if(attack!=HulkController.Attack.None || transformation>=0)
             {
                 leftContact.Reset();rightContact.Reset();
@@ -104,7 +111,15 @@ namespace SniperRidge
             {
                 float grow=Mathf.SmoothStep(0,1,Mathf.Clamp01(transformation/.78f));
                 transform.localScale=Vector3.one*ModelScale*Mathf.Lerp(.56f,1,grow);
-                Sample("Transform",transformation*lengths["Transform"],.06f);return;
+                Sample("Transform",transformation*lengths["Transform"],.06f);
+                // Build tension before opening the shoulders, then settle into a combat stance.
+                float coil=Phase(transformation,0,.28f)*(1-Phase(transformation,.4f,.85f));
+                float open=Phase(transformation,.22f,.60f)*(1-Phase(transformation,.75f,1));
+                chest.localRotation*=Quaternion.Euler(10*coil-6*open,-9*coil,3*coil);
+                head.localRotation*=Quaternion.Euler(-7*open,12*coil,0);
+                leftArm.localRotation*=Quaternion.Euler(0,-8*open,-6*open);
+                rightArm.localRotation*=Quaternion.Euler(0,8*open,6*open);
+                return;
             }
             transform.localScale=Vector3.one*ModelScale;
             if(attack==HulkController.Attack.Punch)

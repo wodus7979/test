@@ -20,7 +20,9 @@ namespace SniperRidge.EditorTools
         static bool transformCaptured,punchCaptured;
         static int idleFootsteps;
         static Quaternion idleChest;
-        static float idleChestTravel;
+        static float idleChestTravel,combatKneeTravel;
+        static Quaternion combatKneeStart;
+        static Transform RenderedKnee()=>h.Visual.GetComponent<HulkModelRetargeter>().Character.GetBoneTransform(HumanBodyBones.LeftLowerLeg);
         static Transform RenderedChest()=>h.Visual.GetComponent<HulkModelRetargeter>().Character.GetBoneTransform(HumanBodyBones.Chest);
         static bool jumpPrepCaptured,jumpApexCaptured,jumpFallCaptured,jumpLandCaptured;
         static float takeoffHeight;
@@ -305,17 +307,27 @@ namespace SniperRidge.EditorTools
                         if(age>.8f)
                         {
                             Check(h.Sprinting&&!h.RunEnabled&&h.PlanarSpeed>HulkController.RunSpeed-.5f,"held Shift sprint path failed");
-                            Check(p.AmmoInMag==ammo,"Hulk used bullets");p.enabled=true;
+                            Check(p.AmmoInMag==ammo,"Hulk used bullets");
+                            beforeMove=p.transform.position;combatKneeStart=RenderedKnee().localRotation;combatKneeTravel=0;
                             Check(h.BeginAttack(HulkController.Attack.Punch),"miss punch rejected");Check(h.PunchLeft,"second punch not left handed");stage=80;at=Time.time;
                         }
                     }
-                    else if(stage==80&&age>.85f)
+                    else if(stage==80)
                     {
+                        MoveFixture(Vector2.up);
+                        combatKneeTravel=Mathf.Max(combatKneeTravel,Quaternion.Angle(combatKneeStart,RenderedKnee().localRotation));
+                        if(age<=.85f)return;
+                        Check(Vector3.Distance(p.transform.position,beforeMove)>1.0f,"moving punch stopped player");
+                        Check(combatKneeTravel>12,"rendered legs frozen during moving punch");
+                        Capture("hulk_moving_punch");
                         Check(h.Audio.Count(HulkAudio.Cue.PunchSwing)==2&&h.Audio.Count(HulkAudio.Cue.PunchHit)==1,"miss punch incorrectly played body impact");
                         Check(h.BeginAttack(HulkController.Attack.Punch)&&!h.PunchLeft,"third punch did not return to right hand");stage=87;at=Time.time;
                     }
-                    else if(stage==87&&age>.85f)
+                    else if(stage==87)
                     {
+                        MoveFixture(Vector2.left);
+                        if(age<=.85f)return;
+                        p.enabled=true;
                         Check(h.Audio.Count(HulkAudio.Cue.PunchSwing)==3,"third swing missing");
                         float healthBefore=gm.Health.Current;
                         Check(h.Toggle(),"human restore rejected");

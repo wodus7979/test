@@ -153,7 +153,7 @@ namespace SniperRidge
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-26*dt);
             Sprinting=!Transforming&&CurrentAttack==Attack.None&&(RunEnabled||sprint)&&input.sqrMagnitude>.01f;
-            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?4.5f:Sprinting?RunSpeed:WalkSpeed;
+            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?2.7f:Sprinting?RunSpeed:WalkSpeed;
             Vector3 desired=Quaternion.Euler(0,yaw,0)*new Vector3(input.x,0,input.y)*speed;
             float rate=desired.sqrMagnitude<horizontalVelocity.sqrMagnitude?34:24;
             horizontalVelocity=Vector3.MoveTowards(horizontalVelocity,desired,rate*dt);
