@@ -46,11 +46,17 @@ namespace HulkReferenceAssets
    var result=new Material[info.materials.Length];
    for(int i=0;i<result.Length;i++)
    {
-    var d=info.materials[i];var m=new Material(shader){name=d.name};Color color=new Color(d.color[0],d.color[1],d.color[2]).gamma;color.a=1;
+    var d=info.materials[i];var skinShader=d.name=="Green_Skin"&&pipeline==null?Shader.Find("SniperRidge/Hulk Skin"):shader;
+    if(skinShader==null)throw new Exception("Hulk skin shader missing");
+    var m=new Material(skinShader){name=d.name};Color color=new Color(d.color[0],d.color[1],d.color[2]).gamma;color.a=1;
+    if(d.name=="Green_Skin")color=new Color(.31f,.43f,.25f,1);
+    if(d.name=="Hair")color=new Color(.028f,.033f,.027f,1);
+    if(d.name=="Brown_Cloth")color=new Color(.17f,.19f,.20f,1);
+    if(d.name=="Tan_Thread")color=new Color(.25f,.26f,.25f,1);
     foreach(string prop in new[]{"_Color","_BaseColor"})if(m.HasProperty(prop))m.SetColor(prop,color);
-    if(m.HasProperty("_Metallic"))m.SetFloat("_Metallic",d.metallic);foreach(string prop in new[]{"_Smoothness","_Glossiness"})if(m.HasProperty(prop))m.SetFloat(prop,d.name=="Green_Skin"?.30f:1-d.roughness);
+    if(m.HasProperty("_Metallic"))m.SetFloat("_Metallic",d.metallic);foreach(string prop in new[]{"_Smoothness","_Glossiness"})if(m.HasProperty(prop))m.SetFloat(prop,d.name=="Green_Skin"?.38f:1-d.roughness);
     var tex=Texture(d.albedo,false);if(tex!=null)foreach(string prop in new[]{"_MainTex","_BaseMap","_BaseColorMap"})if(m.HasProperty(prop))m.SetTexture(prop,tex);
-    var normal=Texture(d.normal,true);if(normal!=null){foreach(string prop in new[]{"_BumpMap","_NormalMap"})if(m.HasProperty(prop))m.SetTexture(prop,normal);if(d.name=="Green_Skin"&&m.HasProperty("_BumpScale"))m.SetFloat("_BumpScale",1.2f);m.EnableKeyword("_NORMALMAP");m.EnableKeyword("_NORMALMAP_TANGENT_SPACE");}
+    var normal=Texture(d.normal,true);if(normal!=null){foreach(string prop in new[]{"_BumpMap","_NormalMap"})if(m.HasProperty(prop))m.SetTexture(prop,normal);if(d.name=="Green_Skin"&&m.HasProperty("_BumpScale"))m.SetFloat("_BumpScale",.35f);m.EnableKeyword("_NORMALMAP");m.EnableKeyword("_NORMALMAP_TANGENT_SPACE");}
     Save(m,output+"/Materials/"+d.name+".mat");result[i]=AssetDatabase.LoadAssetAtPath<Material>(output+"/Materials/"+d.name+".mat");
    }
    return result;
@@ -111,7 +117,7 @@ namespace HulkReferenceAssets
   }
   static Mesh MakeMesh(Level lod,Transform root,Transform[] bones,string name,Physique physique)
   {
-   var v=new List<Vector3>();var n=new List<Vector3>();var uv=new List<Vector2>();var bw=new List<BoneWeight>();var faces=new List<int[]>();
+   var v=new List<Vector3>();var n=new List<Vector3>();var uv=new List<Vector2>();var rest=new List<Vector3>();var bw=new List<BoneWeight>();var faces=new List<int[]>();
    foreach(var p in lod.parts)
    {
     int count=p.p.Length/3;var tri=new int[count];var unique=new Dictionary<VertexKey,int>();
@@ -122,15 +128,16 @@ namespace HulkReferenceAssets
      var key=new VertexKey{p=V(p.p,i*3),n=V(p.n,i*3).normalized,uv=new Vector2(p.uv[i*2],1-p.uv[i*2+1]),
       w=new BoneWeight{boneIndex0=p.j[k],boneIndex1=p.j[k+1],boneIndex2=p.j[k+2],boneIndex3=p.j[k+3],weight0=p.w[k],weight1=p.w[k+1],weight2=p.w[k+2],weight3=p.w[k+3]}};
      physique.Apply(ref key);
-     if(!unique.TryGetValue(key,out int index)){index=v.Count;unique.Add(key,index);v.Add(key.p);n.Add(key.n);uv.Add(key.uv);bw.Add(key.w);}
+     if(p.name=="Green_Skin")HulkSurfaceSculpt.Apply(ref key.p,ref key.n);
+     if(!unique.TryGetValue(key,out int index)){index=v.Count;unique.Add(key,index);v.Add(key.p);n.Add(key.n);uv.Add(key.uv);rest.Add(key.p);bw.Add(key.w);}
      tri[i]=index;
     }
     // Z reflection changes handedness: restore outward triangle winding.
     for(int i=0;i<tri.Length;i+=3){int tmp=tri[i+1];tri[i+1]=tri[i+2];tri[i+2]=tmp;}
     faces.Add(tri);
    }
-   var mesh=new Mesh{name=name,indexFormat=v.Count>65535?IndexFormat.UInt32:IndexFormat.UInt16};mesh.SetVertices(v);mesh.SetNormals(n);mesh.SetUVs(0,uv);mesh.boneWeights=bw.ToArray();var bind=new Matrix4x4[bones.Length];for(int i=0;i<bones.Length;i++)bind[i]=bones[i].worldToLocalMatrix*root.localToWorldMatrix;mesh.bindposes=bind;
-   mesh.subMeshCount=faces.Count;for(int i=0;i<faces.Count;i++)mesh.SetTriangles(faces[i],i);mesh.RecalculateBounds();mesh.RecalculateTangents();return mesh;
+   var mesh=new Mesh{name=name,indexFormat=v.Count>65535?IndexFormat.UInt32:IndexFormat.UInt16};mesh.SetVertices(v);mesh.SetNormals(n);mesh.SetUVs(0,uv);mesh.SetUVs(2,rest);mesh.boneWeights=bw.ToArray();var bind=new Matrix4x4[bones.Length];for(int i=0;i<bones.Length;i++)bind[i]=bones[i].worldToLocalMatrix*root.localToWorldMatrix;mesh.bindposes=bind;
+   mesh.subMeshCount=faces.Count;for(int i=0;i<faces.Count;i++)mesh.SetTriangles(faces[i],i);mesh.RecalculateBounds();mesh.RecalculateTangents();HulkSurfaceSculpt.BakeOcclusion(mesh);return mesh;
   }
   static AnimationCurve Curve(float[] times,float[] values,int stride,int channel,float sign)
   {
