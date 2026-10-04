@@ -109,7 +109,7 @@ namespace SniperRidge.EditorTools
                         if(age<HulkController.JumpWindup-.04f)Check(!h.JumpLaunched&&Mathf.Abs(p.transform.position.y-start.y)<.05f,"jump launches before source wind-up");
                         if(h.JumpLaunched&&!jumpShot&&Mathf.Abs(h.JumpVelocity)<1.5f){Record("jump_apex");jumpShot=true;}
                         if(h.CurrentAttack!=HulkController.Attack.None){Check(age<1.4f,"jump too slow or stuck");return;}
-                        Check(h.Landings==landings+1&&peak>.4f&&peak<1.1f,"jump physics or single landing wrong: "+peak);Check(Mathf.Abs(enemy.Health-800)<.1f,"landing damage missing/repeated");
+                        Check(h.Landings==landings+1&&peak>2.2f&&peak<2.8f,"jump physics or single landing wrong: "+peak);Check(Mathf.Abs(enemy.Health-800)<.1f,"landing damage missing/repeated");
                         Check(h.Audio.Count(HulkAudio.Cue.Jump)==1&&h.Audio.Count(HulkAudio.Cue.Slam)==1,"jump/landing audio wrong");Record("landing");
                         Check(h.Toggle()&&!p.IsHulk&&gm.Health.Max==10000,"FPS/health restore failed");
                         gm.Assault.Soldiers.Remove(enemy);UnityEngine.Object.Destroy(enemy.gameObject);floor.SetActive(false);UnityEngine.Object.Destroy(floor);Teleport(p,city);Next();

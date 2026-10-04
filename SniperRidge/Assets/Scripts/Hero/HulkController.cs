@@ -26,12 +26,17 @@ namespace SniperRidge
         // Source contact stays at 1.40s; playback and gameplay share the same rate.
         public const float PunchPlaybackRate=3f;
         public const float PunchDuration=3.833333f/PunchPlaybackRate, PunchImpactTime=1.40f/PunchPlaybackRate;
-        public const float JumpWindup=.28f, JumpLaunchSpeed=8f, JumpGravity=36f, JumpRecovery=.28f, JumpCooldown=2f;
+        public const float JumpWindup=.28f, JumpLaunchSpeed=13.8f, JumpGravity=36f, JumpRecovery=.28f, JumpCooldown=2f;
         public const float ClapDuration=1f, ClapImpactTime=.43f;
         bool HasClap => visual!=null && visual.Definition && visual.Definition.Clap;
         public const float KickDuration=1.5f, KickImpactTime=.65f;
         public bool PunchLeft { get; private set; }
         bool slamLaunched;
+        float slamTakeoffY;
+        public float LastSlamPower { get; private set; }=1;
+        public float LastSlamRadius { get; private set; }=8;
+        public float LastSlamDamage { get; private set; }=200;
+        public static float SlamPowerForDrop(float drop)=>1+Mathf.Clamp(drop,0,3)*.5f;
         bool FourActionsOnly => visual!=null && visual.Definition && visual.Definition.FourActionsOnly;
         public float JumpVelocity => vertical;
         public bool JumpLaunched => slamLaunched;
@@ -59,7 +64,7 @@ namespace SniperRidge
         Button transformButton;
         readonly List<Button> skills=new List<Button>();
         readonly HashSet<EnemySoldier> waveHit=new HashSet<EnemySoldier>();
-        float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,kickAt,waveStart=-99,waveRadius,inputAfter;
+        float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,kickAt,waveStart=-99,waveRadius,waveDamage,inputAfter;
         bool impactDone,airborne;
         Vector3 waveOrigin,waveForward;
         Attack waveAttack;
@@ -172,7 +177,7 @@ namespace SniperRidge
             if(CurrentAttack==Attack.Slam&&!slamLaunched)
             {
                 input=Vector2.zero;horizontalVelocity=Vector3.zero;
-                if(AttackAge>=JumpWindup&&Grounded){vertical=JumpLaunchSpeed;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);}
+                if(AttackAge>=JumpWindup&&Grounded){slamTakeoffY=transform.position.y;vertical=JumpLaunchSpeed;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);}
             }
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-JumpGravity*dt);
@@ -193,7 +198,10 @@ namespace SniperRidge
             {
                 if(slamLaunched&&!Grounded)airborne=true;
                 if(airborne&&Grounded&&vertical<0&&!impactDone)
-                {impactDone=true;Landings++;StartWave(Attack.Slam);actionAt=Time.time;Audio.Play(HulkAudio.Cue.Slam);}
+                {impactDone=true;Landings++;
+                    LastSlamPower=SlamPowerForDrop(slamTakeoffY-transform.position.y);
+                    StartWave(Attack.Slam);actionAt=Time.time;Audio.Play(HulkAudio.Cue.Slam);
+                    if(LastSlamPower>1.1f)Game.Hud.ShowShotFeedback("고공 강타 · 피해 "+LastSlamPower.ToString("0.0")+"배");}
                 // A low ceiling may prevent take-off. Never leave the attack locked forever.
                 if(!airborne&&AttackAge>JumpWindup+.8f){CurrentAttack=Attack.None;}
             }
@@ -234,16 +242,20 @@ namespace SniperRidge
         }
         void StartWave(Attack attack)
         {
-            waveAttack=attack;waveStart=Time.time;waveRadius=attack==Attack.Clap?18:8;
+            waveAttack=attack;waveStart=Time.time;
+            float power=attack==Attack.Slam?LastSlamPower:1;
+            waveRadius=attack==Attack.Clap?18:8*Mathf.Sqrt(power);
+            waveDamage=attack==Attack.Clap?110:200*power;
+            if(attack==Attack.Slam){LastSlamRadius=waveRadius;LastSlamDamage=waveDamage;}
             waveOrigin=transform.position+Vector3.up*(attack==Attack.Clap?2.05f:.45f);waveForward=transform.forward;waveHit.Clear();
-            HulkWave.Create(waveOrigin,waveForward,waveRadius,attack==Attack.Clap);
+            HulkWave.Create(waveOrigin,waveForward,waveRadius,attack==Attack.Clap,power);
         }
         void AdvanceWave()
         {
             float age=Time.time-waveStart;
             if(age<0||age>1.05f)return;
             HitTargets(waveOrigin,waveForward,HulkWave.RadiusAt(age,waveRadius),waveAttack==Attack.Clap?65:180,
-                waveAttack==Attack.Clap?110:200,waveHit,waveAttack==Attack.Clap?4:5);
+                waveDamage,waveHit,waveAttack==Attack.Clap?4:5);
         }
         void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height)
         {

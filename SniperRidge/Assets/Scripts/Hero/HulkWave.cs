@@ -22,19 +22,20 @@ namespace SniperRidge
         readonly Vector3[] vertices=new Vector3[(Segments+1)*2],normals=new Vector3[(Segments+1)*2];
         readonly Color[] colors=new Color[(Segments+1)*2];
         Vector3 origin,forward,right;
-        float radius,age;
+        float radius,age,power=1;
+        public float Power => power;
         int dustStep;
         bool cone;
         Mesh mesh;
         MeshRenderer pressure;
         ParticleSystem dust,chips;
         public float LimitAt(int index)=>stops[Mathf.Clamp(index,0,Segments)];
-        public static HulkWave Create(Vector3 point,Vector3 direction,float range,bool directional)
+        public static HulkWave Create(Vector3 point,Vector3 direction,float range,bool directional,float strength=1)
         {
             var wave=new GameObject(directional?"Thunderclap pressure wave":"Ground slam shockwave").AddComponent<HulkWave>();
             wave.origin=point;wave.forward=Vector3.ProjectOnPlane(direction,Vector3.up).normalized;
             if(wave.forward.sqrMagnitude<.1f)wave.forward=Vector3.forward;
-            wave.right=Vector3.Cross(Vector3.up,wave.forward);wave.radius=range;wave.cone=directional;
+            wave.right=Vector3.Cross(Vector3.up,wave.forward);wave.radius=range;wave.cone=directional;wave.power=Mathf.Clamp(strength,1,2.5f);
             wave.Build();return wave;
         }
         void Build()
@@ -62,7 +63,7 @@ namespace SniperRidge
             dust=MakeParticles("Rolling ground dust",DustMaterial(),400,false);
             chips=MakeParticles("Loose stone fragments",CombatVfx.DebrisMaterial,80,true);
             EmitInitial();RenderFront();
-            CameraShake.Impulse(origin,cone?24:18,cone?.55f:.72f);
+            CameraShake.Impulse(origin,cone?24:18*Mathf.Sqrt(power),(cone?.55f:.72f)*Mathf.Sqrt(power));
             PlayRumble();
         }
         static bool IsSurface(Collider c)=>c&&c.GetComponentInParent<SniperController>()==null&&c.GetComponentInParent<EnemySoldier>()==null;
@@ -97,7 +98,7 @@ namespace SniperRidge
                 int j=Mathf.RoundToInt(i/(float)47*Segments);Vector3 direction=rays[j];
                 float distance=Random.Range(.12f,.7f);
                 if(distance>stops[j]||!Ground(origin+direction*distance,out var p,out var n))continue;
-                var e=new ParticleSystem.EmitParams{position=p+n*.09f,velocity=direction*Random.Range(3,7)+Vector3.up*Random.Range(2,5),startSize=Random.Range(.045f,.13f),startLifetime=Random.Range(.65f,1.5f),startColor=new Color(.35f,.32f,.27f),rotation=Random.Range(0,360)};
+                var e=new ParticleSystem.EmitParams{position=p+n*.09f,velocity=(direction*Random.Range(3,7)+Vector3.up*Random.Range(2,5))*Mathf.Sqrt(power),startSize=Random.Range(.045f,.13f)*Mathf.Sqrt(power),startLifetime=Random.Range(.65f,1.5f),startColor=new Color(.35f,.32f,.27f),rotation=Random.Range(0,360)};
                 chips.Emit(e,1);DebrisEmitted++;
             }
         }
@@ -147,7 +148,7 @@ namespace SniperRidge
                 var e=new ParticleSystem.EmitParams{
                     position=p+n*Mathf.Lerp(.08f,.35f,noise),
                     velocity=direction*Mathf.Lerp(3.8f,.7f,progress)+tangent*(noise-.5f)+n*Mathf.Lerp(.2f,.8f,spin),
-                    startSize=Mathf.Lerp(1.1f,2.5f,progress)*Mathf.Lerp(.75f,1.35f,noise),
+                    startSize=Mathf.Lerp(1.1f,2.5f,progress)*Mathf.Lerp(.75f,1.35f,noise)*Mathf.Sqrt(power),
                     startLifetime=Mathf.Lerp(1.2f,1.85f,spin),startColor=new Color(.57f,.54f,.48f,Mathf.Lerp(.65f,.38f,progress)),rotation=spin*360};
                 dust.Emit(e,1);DustEmitted++;
             }
@@ -155,7 +156,7 @@ namespace SniperRidge
         void RenderFront()
         {
             if(age>PropagationDuration+.1f){pressure.enabled=false;return;}
-            float r=CurrentRadius,width=Mathf.Lerp(.28f,.95f,r/radius),fade=Mathf.SmoothStep(1,0,age/(PropagationDuration+.1f));
+            float r=CurrentRadius,width=Mathf.Lerp(.28f,.95f,r/radius)*Mathf.Sqrt(power),fade=Mathf.SmoothStep(1,0,age/(PropagationDuration+.1f));
             for(int i=0;i<=Segments;i++)
             {
                 float reach=Mathf.Min(r,stops[i]);Vector3 center=origin+rays[i]*reach;
@@ -193,7 +194,7 @@ namespace SniperRidge
                 rumble=AudioClip.Create("Pressure low rumble",samples.Length,1,rate,false);rumble.SetData(samples,0);
             }
             var audioObject=new GameObject("Pressure rumble");audioObject.transform.SetParent(transform);audioObject.transform.position=origin;
-            var sound=audioObject.AddComponent<AudioSource>();sound.playOnAwake=false;sound.spatialBlend=.65f;sound.rolloffMode=AudioRolloffMode.Linear;sound.minDistance=3;sound.maxDistance=30;sound.volume=.5f;sound.clip=rumble;sound.Play();
+            var sound=audioObject.AddComponent<AudioSource>();sound.playOnAwake=false;sound.spatialBlend=.65f;sound.rolloffMode=AudioRolloffMode.Linear;sound.minDistance=3;sound.maxDistance=30;sound.volume=.5f*Mathf.Sqrt(power);sound.pitch=1-.12f*(power-1);sound.clip=rumble;sound.Play();
         }
         void OnDestroy(){if(mesh)Destroy(mesh);}
     }
