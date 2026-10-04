@@ -13,7 +13,7 @@ namespace SniperRidge.EditorTools
     [InitializeOnLoad]
     public static class FPSWeaponsV2Setup
     {
-        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-2";
+        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-3";
         [Serializable] public class Part { public string name; public int mat; public float[] p,n,uv; }
         [Serializable] public class Level { public Part[] parts; }
         [Serializable] public class ComponentData { public string name,parent; public float[] position; public Level[] lods; }
@@ -146,11 +146,15 @@ namespace SniperRidge.EditorTools
                     {
                         var child=new GameObject("LOD"+l,typeof(MeshFilter),typeof(MeshRenderer));child.transform.SetParent(pivot,false);
                         string name=model.name+"_"+c.name+"_LOD"+l;
-                        child.GetComponent<MeshFilter>().sharedMesh=Save(MakeMesh(c.lods[l],name),Output+"/Meshes/"+name+".asset");
-                        var slots=new Material[c.lods[l].parts.Length];
+                        // The rifle optic's Polymer submesh consists only of its two open lens caps.
+                        var level=c.lods[l];
+                        if(model.name=="03_assault_rifle"&&c.name=="Optic")
+                            level=new Level{parts=Array.FindAll(level.parts,part=>part.mat!=2)};
+                        child.GetComponent<MeshFilter>().sharedMesh=Save(MakeMesh(level,name),Output+"/Meshes/"+name+".asset");
+                        var slots=new Material[level.parts.Length];
                         for(int s=0;s<slots.Length;s++)
                         {
-                            int material=c.lods[l].parts[s].mat;
+                            int material=level.parts[s].mat;
                             // The optical housing is anodized black, not exposed silver steel.
                             if(model.name=="03_assault_rifle"&&c.name=="Optic"&&material==1)material=0;
                             slots[s]=materials[material];
@@ -162,7 +166,7 @@ namespace SniperRidge.EditorTools
                 if(model.name=="03_assault_rifle")
                 {
                     // Compact optical housing anchored to the receiver rail; the lens and
-                    // ADS marker follow the same transform, including the moving cap geometry.
+                    // ADS marker follow the same transform.
                     var optic=pivots["Optic"];Vector3 rail=new Vector3(optic.localPosition.x,.073f,optic.localPosition.z);
                     const float opticScale=.72f;
                     optic.localPosition=rail+(optic.localPosition-rail)*opticScale;optic.localScale=Vector3.one*opticScale;

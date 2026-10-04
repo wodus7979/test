@@ -3,7 +3,7 @@ using UnityEngine;
 namespace SniperRidge
 {
     /// <summary>Cloth forearms join the glove cuffs to elbows below the view.
-    /// The wrists follow animated grips, while the elbows stay relative to the camera.</summary>
+    /// The support arm follows the wrist axis; the trigger elbow stays below the camera.</summary>
     public sealed class FpsForearms : MonoBehaviour
     {
         const int Rings=49, Sides=24, Stride=Sides+1;
@@ -55,8 +55,12 @@ namespace SniperRidge
                 Vector3 elbow=view!=null?view.TransformPoint(new Vector3(side*.43f,-.65f,.14f)):
                     transform.parent.TransformPoint(new Vector3(side*.34f,-.42f,-.35f));
                 Vector3 direction=glove.TransformDirection(Vector3.back);
-                Vector3 p1=wrist+direction*.075f;
+                // The support forearm continues the glove's wrist axis. Anchoring it to the
+                // left edge of the camera bent the wrist and flared the whole arm sideways.
+                if(arm==0)elbow=wrist+direction*.72f;
+                Vector3 p1=arm==0?Vector3.Lerp(wrist,elbow,1f/3f):wrist+direction*.075f;
                 Vector3 p2=elbow+(view!=null?view.TransformDirection(new Vector3(0,.06f,.13f)):transform.parent.TransformDirection(new Vector3(0,.06f,.13f)));
+                if(arm==0)p2=Vector3.Lerp(wrist,elbow,2f/3f);
                 Vector3 previousRight=glove.right;
                 for(int ring=0;ring<Rings;ring++)
                 {

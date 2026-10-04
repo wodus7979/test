@@ -20,10 +20,17 @@ namespace SniperRidge
             // origin at the mechanical marker so curved fingers wrap around the grip.
             rightPosition+=new Vector3(-.007f,-.015f,.003f);
             leftPosition+=new Vector3(.008f,-.008f,.005f);
+            if(definition.ModelName=="03_assault_rifle")
+            {
+                // Cup the underside of the handguard instead of squeezing an imaginary vertical grip.
+                leftPosition=new Vector3(.017f,-.004f,.175f);
+                pose.supportRotation=Quaternion.Euler(-70,0,35);
+            }
             pose.right=Grip(weapon,"Trigger hand",rightPosition,1);
             pose.left=Grip(weapon,"Support and loading hand",leftPosition,-1);
-            if(definition.Id=="pistol"||definition.ModelName=="03_assault_rifle")pose.supportRotation=Quaternion.Euler(-12,0,0);
+            if(definition.Id=="pistol")pose.supportRotation=Quaternion.Euler(-12,0,0);
             pose.leftGlove=pose.left.GetComponentInChildren<FpsGlovedHand>();pose.rightGlove=pose.right.GetComponentInChildren<FpsGlovedHand>();
+            if(definition.ModelName=="03_assault_rifle")pose.leftGlove.transform.localScale*=.9f;
             pose.leftRest=pose.left.localPosition;pose.rightRest=pose.right.localPosition;
             pose.magazine=WeaponModels.FindPart(weapon,"Magazine");if(pose.magazine==null)pose.magazine=WeaponModels.FindPart(weapon,"AmmoBox");
             pose.looseRound=pose.rocket||definition.Pellets>1;
