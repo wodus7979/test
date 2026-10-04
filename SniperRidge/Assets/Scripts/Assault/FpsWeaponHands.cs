@@ -23,9 +23,9 @@ namespace SniperRidge
             leftPosition+=new Vector3(.008f,-.008f,.005f);
             if(definition.ModelName=="03_assault_rifle")
             {
-                // Cup the underside of the handguard instead of squeezing an imaginary vertical grip.
-                leftPosition=new Vector3(.017f,-.004f,.175f);
-                pose.supportRotation=Quaternion.Euler(-55,-8,18);
+                // Wrap the handguard from below; the forearm follows the same wrist axis.
+                leftPosition=new Vector3(.017f,.006f,.215f);
+                pose.supportRotation=Quaternion.Euler(-30,35,8);
             }
             pose.right=Grip(weapon,"Trigger hand",rightPosition,1);
             pose.left=Grip(weapon,"Support and loading hand",leftPosition,-1);
@@ -57,7 +57,7 @@ namespace SniperRidge
             // The rebuilt rifle optic has an open bore and stays in view during ADS.
             pose.aimOccluder=WeaponModels.FindPart(weapon,"Optic");
             if(pose.aimOccluder==null)pose.aimOccluder=pose.lens;
-            if(pose.rifle)pose.aimOccluder=null; // Open tube remains visible through the whole ADS transition.
+            if(pose.rifle)pose.aimOccluder=null; // Open holographic window remains visible through the whole ADS transition.
             pose.forearms=FpsForearms.Create(weapon,pose.leftGlove.transform,pose.rightGlove.transform);
             pose.Pose(-1,-1);return pose;
         }

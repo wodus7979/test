@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace SniperRidge
 {
-    /// <summary>One skinned glove with 15 finger bones. Rounded palm, suede panels and sewn reinforcement; sleeves are supplied by FpsForearms.</summary>
+    /// <summary>One skinned glove with 15 finger bones. Rounded palm, suede panels and sewn reinforcement; bare forearms are supplied by FpsForearms.</summary>
     public sealed class FpsGlovedHand:MonoBehaviour
     {
         [Serializable] public class Part {public float[] p,n,uv,skin;public int mat;}
@@ -30,11 +30,11 @@ namespace SniperRidge
             if(fabric==null)
             {
                 var suede=Resources.Load<Texture2D>("Hands/glove_suede_albedo");
-                fabric=SurfaceDetail.Make(Surface.Fabric,new Color(.62f,.60f,.55f),.17f);
+                fabric=SurfaceDetail.Make(Surface.Fabric,new Color(.14f,.15f,.145f),.17f);
                 fabric.name="Worn microfiber glove";fabric.mainTexture=suede;
                 fabric.SetTextureScale("_BumpMap",Vector2.one*2);
                 fabric.SetFloat("_BumpScale",.16f);fabric.SetFloat("_DetailNormalMapScale",.18f);
-                rubber=SurfaceDetail.Make(Surface.Rubber,new Color(.38f,.35f,.30f),.27f);
+                rubber=SurfaceDetail.Make(Surface.Rubber,new Color(.23f,.21f,.17f),.27f);
                 rubber.name="Flexible suede reinforcement";rubber.mainTexture=suede;
                 rubber.SetFloat("_BumpScale",.12f);rubber.SetFloat("_DetailNormalMapScale",.15f);
                 thread=ProceduralAssets.LitMaterial(new Color(.48f,.43f,.34f),.10f);

@@ -10,7 +10,7 @@ namespace SniperRidge.EditorTools
         public static void Validate()
         {
             if(EditorApplication.isPlayingOrWillChangePlaymode)throw new InvalidOperationException("Stop Play before validation.");
-            foreach(string path in new[]{"Hands/sleeve_ripstop_albedo","Hands/glove_suede_albedo"})
+            foreach(string path in new[]{"Hands/glove_suede_albedo"})
             {
                 var texture=Resources.Load<Texture2D>(path);
                 Check(texture!=null&&texture.mipmapCount>1&&texture.width>=1024,"Missing mipmapped fabric: "+path);
@@ -32,9 +32,9 @@ namespace SniperRidge.EditorTools
                         for(int frame=0;frame<=20;frame++)
                         {
                             hands.Pose(frame==0?-1:(frame-1)/19f,-1);
-                            var sleeve=model.GetComponentInChildren<FpsForearms>().GetComponent<MeshFilter>().sharedMesh;
-                            Check(sleeve.vertexCount>2000&&sleeve.tangents.Length==sleeve.vertexCount,"Missing sleeve detail/tangents");
-                            foreach(var v in sleeve.vertices)Check(Finite(v)&&v.sqrMagnitude<9,"Unstable sleeve deformation: "+definition.Id);
+                            var forearm=model.GetComponentInChildren<FpsForearms>().GetComponent<MeshFilter>().sharedMesh;
+                            Check(forearm.vertexCount>2000&&forearm.tangents.Length==forearm.vertexCount,"Missing forearm detail/tangents");
+                            foreach(var v in forearm.vertices)Check(Finite(v)&&v.sqrMagnitude<9,"Unstable forearm deformation: "+definition.Id);
                             foreach(var glove in model.GetComponentsInChildren<SkinnedMeshRenderer>())
                             {
                                 var baked=new Mesh();
@@ -50,7 +50,7 @@ namespace SniperRidge.EditorTools
                     }
                     UnityEngine.Object.DestroyImmediate(model);model=null;
                 }
-                Debug.Log("[FPS arm validation] PASS: fabric imports, glove skinning, sleeve deformation, hip/ADS/reload poses for all handheld weapons.");
+                Debug.Log("[FPS arm validation] PASS: glove fabric import, glove skinning, forearm deformation, hip/ADS/reload poses for all handheld weapons.");
             }
             finally{if(model!=null)UnityEngine.Object.DestroyImmediate(model);UnityEngine.Object.DestroyImmediate(camera.gameObject);}
         }

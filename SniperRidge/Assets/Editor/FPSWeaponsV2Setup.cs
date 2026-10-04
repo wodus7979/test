@@ -13,7 +13,7 @@ namespace SniperRidge.EditorTools
     [InitializeOnLoad]
     public static class FPSWeaponsV2Setup
     {
-        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-4";
+        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-7";
         [Serializable] public class Part { public string name; public int mat; public float[] p,n,uv; }
         [Serializable] public class Level { public Part[] parts; }
         [Serializable] public class ComponentData { public string name,parent; public float[] position; public Level[] lods; }
@@ -131,11 +131,57 @@ namespace SniperRidge.EditorTools
             for(int i=0;i<indices.Count;i++)mesh.SetTriangles(indices[i],i);
             mesh.RecalculateBounds();mesh.RecalculateTangents();return mesh;
         }
+        static Level RifleBody(Level source)
+        {
+            // Retain dark rail/barrel surfaces while coating the receiver and handguard.
+            var parts=new List<Part>();
+            foreach(var part in source.parts)
+            {
+                if(part.mat==2)
+                {
+                    // Remove the separate vertical foregrip: this rifle uses a handguard grip.
+                    var p=new List<float>();var n=new List<float>();var uv=new List<float>();
+                    for(int i=0;i<part.p.Length;i+=9)
+                    {
+                        bool foregrip=true;
+                        for(int j=0;j<9;j+=3)foregrip&=part.p[i+j+2]>=-.194f&&part.p[i+j+2]<=-.156f&&part.p[i+j+1]<=-.002f;
+                        if(foregrip)continue;
+                        for(int j=0;j<9;j++){p.Add(part.p[i+j]);n.Add(part.n[i+j]);}
+                        for(int j=0;j<6;j++)uv.Add(part.uv[i/3*2+j]);
+                    }
+                    parts.Add(new Part{name=part.name,mat=part.mat,p=p.ToArray(),n=n.ToArray(),uv=uv.ToArray()});continue;
+                }
+                if(part.mat!=0){parts.Add(part);continue;}
+                for(int finish=0;finish<2;finish++)
+                {
+                    var p=new List<float>();var n=new List<float>();var uv=new List<float>();
+                    for(int i=0;i<part.p.Length;i+=9)
+                    {
+                        float y=(part.p[i+1]+part.p[i+4]+part.p[i+7])/3;
+                        float z=-(part.p[i+2]+part.p[i+5]+part.p[i+8])/3;
+                        float x=(part.p[i]+part.p[i+3]+part.p[i+6])/3;
+                        bool dark=y>.082f||z>.31f||x<-.037f;
+                        if(dark!=(finish==0))continue;
+                        for(int j=0;j<9;j++){p.Add(part.p[i+j]);n.Add(part.n[i+j]);}
+                        for(int j=0;j<6;j++)uv.Add(part.uv[i/3*2+j]);
+                    }
+                    if(p.Count>0)parts.Add(new Part{name=finish==0?"Dark rail":"Sand receiver",mat=finish==0?0:4,p=p.ToArray(),n=n.ToArray(),uv=uv.ToArray()});
+                }
+            }
+            return new Level{parts=parts.ToArray()};
+        }
         static void MakePrefab(Model model,Material[] materials)
         {
             var root=new GameObject(model.name);
             try
             {
+                var rifleSand=materials[4];
+                if(model.name=="03_assault_rifle")
+                {
+                    var sand=new Material(materials[4]){name="Rifle sand ceramic finish"};
+                    Float(sand,"_BumpScale",.10f);Float(sand,"_GlossMapScale",.65f);
+                    rifleSand=Save(sand,Output+"/Materials/RifleSand.mat");
+                }
                 var pivots=new Dictionary<string,Transform>();var renderers=new[]{new List<Renderer>(),new List<Renderer>()};
                 foreach(var c in model.components){var t=new GameObject(c.name).transform;t.SetParent(root.transform,false);pivots.Add(c.name,t);}
                 foreach(var c in model.components)
@@ -147,21 +193,17 @@ namespace SniperRidge.EditorTools
                         if(model.name=="03_assault_rifle"&&c.name=="Lens")continue;
                         var child=new GameObject("LOD"+l,typeof(MeshFilter),typeof(MeshRenderer));child.transform.SetParent(pivot,false);
                         string name=model.name+"_"+c.name+"_LOD"+l;
-                        // The rifle optic's Polymer submesh consists only of its two open lens caps.
                         var level=c.lods[l];
-                        if(model.name=="03_assault_rifle"&&c.name=="Optic")
-                            level=new Level{parts=Array.FindAll(level.parts,part=>part.mat!=2)};
+                        if(model.name=="03_assault_rifle"&&c.name=="Body")level=RifleBody(level);
                         bool clearOptic=model.name=="03_assault_rifle"&&c.name=="Optic";
                         child.GetComponent<MeshFilter>().sharedMesh=Save(clearOptic?FpsRifleOptic.Build(l):MakeMesh(level,name),Output+"/Meshes/"+name+".asset");
                         var slots=new Material[level.parts.Length];
                         for(int s=0;s<slots.Length;s++)
                         {
                             int material=level.parts[s].mat;
-                            // The optical housing is anodized black, not exposed silver steel.
-                            if(model.name=="03_assault_rifle"&&c.name=="Optic"&&material==1)material=0;
-                            slots[s]=materials[material];
+                            slots[s]=model.name=="03_assault_rifle"&&material==4?rifleSand:materials[material];
                         }
-                        var renderer=child.GetComponent<MeshRenderer>();renderer.sharedMaterials=clearOptic?new[]{materials[0]}:slots;renderers[l].Add(renderer);
+                        var renderer=child.GetComponent<MeshRenderer>();renderer.sharedMaterials=clearOptic?new[]{rifleSand,materials[0],materials[1]}:slots;renderers[l].Add(renderer);
                     }
                 }
                 foreach(var marker in model.markers)Point(pivots[marker.parent],marker.name,V(marker.position));
