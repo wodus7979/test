@@ -63,7 +63,7 @@ namespace SniperRidge.EditorTools
                         gm.Assault.StopAllCoroutines();foreach(var soldier in gm.Assault.Soldiers)Freeze(soldier);gm.Assault.enabled=false;gm.Health.Max=10000;gm.Health.Configure(0,10000);
                         h.GetComponentsInChildren<Button>().First(b=>b.name=="Transform").onClick.Invoke();
                         Check(h.Active&&h.Transforming,"H/transform UI did not start");Check(gm.Health.Max==20000,"health not doubled");
-                        Check(h.Visual.Definition.Appearance&&h.Visual.Model.GetComponent<KairosRig>().Ready,"Kairos appearance not loaded");Next();
+                        Check(h.Visual.Definition&&h.Visual.Model.GetComponentInChildren<SkinnedMeshRenderer>().sharedMesh.name=="PumpkinHulk","old model still loaded");Next();
                     }
                     else if(stage==1)
                     {

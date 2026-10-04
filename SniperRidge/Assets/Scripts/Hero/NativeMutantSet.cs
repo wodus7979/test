@@ -3,11 +3,10 @@ using UnityEngine;
 namespace SniperRidge
 {
     // The four supplied FBXs share one mesh, bind skeleton and texture set.
-    // Optional appearance keeps the native clips while replacing the visible skin.
+    // No Humanoid retargeting, body sculpting or runtime joint correction is applied.
     public sealed class NativeMutantSet : ScriptableObject
     {
         public GameObject Model;
-        public GameObject Appearance;
         public AnimationClip Transform, Punch, Jump, Run;
         public AnimationClip Idle, Hit, Block, Clap, JumpDown;
         public Vector3 IdleStart, IdleEnd;

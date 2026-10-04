@@ -13,7 +13,6 @@ MonoBehaviour:
   m_Name: NativeMutant
   m_EditorClassIdentifier:
   Model: {fileID: 2591073287182695126, guid: 4abba1d200b1040a38213d76ad9c23d4, type: 3}
-  Appearance: {fileID: 8568936341555394044, guid: 9f4ae9e3241014c71b3aea2107a53bf2, type: 3}
   Transform: {fileID: 7400000, guid: 5f9b826c73aa7496985479a387e09565, type: 2}
   Punch: {fileID: 7400000, guid: 317a97393d8db472898296a0e1e37372, type: 2}
   Jump: {fileID: 7400000, guid: 2c9b1e2927e634231bddbefdace3b6c0, type: 2}

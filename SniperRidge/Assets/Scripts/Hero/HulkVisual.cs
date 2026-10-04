@@ -21,7 +21,6 @@ namespace SniperRidge
         public int FootstepSerial { get; private set; }
         public GameObject Model => model;
         GameObject model;
-        KairosRig appearanceRig;
         SkinnedMeshRenderer[] renderers;
         Transform[] bones;
         Transform hips;
@@ -53,24 +52,12 @@ namespace SniperRidge
         void Initialize(NativeMutantSet data)
         {
             Definition=data;model=Instantiate(data.Model,transform,false);
-            model.name=data.Appearance?"Kairos · native motion rig":"PumpkinHulk · original FBX";model.transform.localScale=Vector3.one*data.Scale;
+            model.name="PumpkinHulk · original FBX";model.transform.localScale=Vector3.one*data.Scale;
             model.transform.localPosition=Vector3.up*data.GroundOffset;
             foreach(var a in model.GetComponentsInChildren<Animator>())a.enabled=false;
             foreach(var a in model.GetComponentsInChildren<Animation>())a.enabled=false;
             foreach(var t in GetComponentsInChildren<Transform>())t.gameObject.layer=2;
-            if(data.Appearance)
-            {
-                var original=model.GetComponentInChildren<SkinnedMeshRenderer>();
-                var character=Instantiate(data.Appearance,model.transform,false);character.name="Kairos";
-                // The appearance FBX is 2.30 m; the controller still owns gameplay height.
-                character.transform.localScale=Vector3.one*(HulkController.Height/(2.30f*data.Scale));
-                foreach(var animator in character.GetComponentsInChildren<Animator>())animator.enabled=false;
-                appearanceRig=model.AddComponent<KairosRig>();appearanceRig.Initialize(character,original);
-                foreach(var old in model.GetComponentsInChildren<SkinnedMeshRenderer>().Where(r=>!r.transform.IsChildOf(character.transform)).ToArray())
-                {old.enabled=false;if(Application.isPlaying)Destroy(old);else DestroyImmediate(old);}
-                foreach(var t in character.GetComponentsInChildren<Transform>())t.gameObject.layer=2;
-            }
-            renderers=model.GetComponentsInChildren<SkinnedMeshRenderer>().Where(r=>r.enabled).ToArray();
+            renderers=model.GetComponentsInChildren<SkinnedMeshRenderer>();
             foreach(var skin in renderers)skin.updateWhenOffscreen=true;
             bones=model.GetComponentsInChildren<Transform>().Where(t=>t.name.StartsWith("mixamorig:")).ToArray();
             hips=bones.First(b=>b.name=="mixamorig:Hips");
@@ -200,7 +187,6 @@ namespace SniperRidge
                 lastPositions[i]=bones[i].localPosition;lastRotations[i]=bones[i].localRotation;
             }
             hasPose=true;
-            if(appearanceRig)appearanceRig.ApplyPose();
         }
     }
 }
