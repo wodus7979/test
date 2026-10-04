@@ -91,7 +91,7 @@ namespace SniperRidge
             scopeRoot.SetActive(false);
 
             // Low-power ADS keeps the weapon visible and adds a clear reflex sight picture.
-            adsRoot = new GameObject("LowPowerADS", typeof(RectTransform));
+            adsRoot = new GameObject("LowPowerADS", typeof(RectTransform),typeof(CanvasGroup));
             adsRoot.transform.SetParent(g, false);
             UiKit.Place(adsRoot.GetComponent<RectTransform>(), center, center, center, Vector2.zero, new Vector2(300f, 300f));
             var adsImage = UiKit.Panel(adsRoot.transform, "Reflex reticle", white, center, center, center, Vector2.zero, new Vector2(300f, 300f));
@@ -352,6 +352,7 @@ namespace SniperRidge
             bool lowPowerAds = p.IsScoped && !scoped && p.Weapon != null && !p.Weapon.IsRocket;
             if (scopeRoot.activeSelf != scoped) scopeRoot.SetActive(scoped);
             if (adsRoot.activeSelf != lowPowerAds) adsRoot.SetActive(lowPowerAds);
+            adsRoot.GetComponent<CanvasGroup>().alpha=Mathf.InverseLerp(.72f,1,p.AimWeight);
             bool showCross = !scoped && !lowPowerAds;
             if (crosshair.activeSelf != showCross) crosshair.SetActive(showCross);
             if (scoped) LayoutScope();

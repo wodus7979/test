@@ -59,7 +59,23 @@ namespace SniperRidge.EditorTools
                 var hands=FpsWeaponHands.Attach(instance.transform,definition);
                 var parts=instance.GetComponentsInChildren<Transform>(true);var rest=new Vector3[parts.Length];
                 for(int i=0;i<parts.Length;i++)rest[i]=parts[i].localPosition;
-                for(int frame=0;frame<=100;frame++)hands.Pose(frame/100f,-1);
+                if(definition.ModelName=="03_assault_rifle")
+                {
+                    var previous=new Vector3[parts.Length];var rotations=new Quaternion[parts.Length];
+                    for(int i=0;i<parts.Length;i++){previous[i]=parts[i].localPosition;rotations[i]=parts[i].localRotation;}
+                    // Fine sampling catches discontinuities between authored reload phases.
+                    for(int frame=0;frame<=1000;frame++)
+                    {
+                        hands.Pose(frame/1000f,-1);
+                        for(int i=0;i<parts.Length;i++)
+                        {
+                            Check(Vector3.Distance(previous[i],parts[i].localPosition)<.015f&&Quaternion.Angle(rotations[i],parts[i].localRotation)<8f,
+                                "재장전 단계 사이 손/부품이 순간 이동합니다: "+definition.Id+"/"+parts[i].name+"/"+frame);
+                            previous[i]=parts[i].localPosition;rotations[i]=parts[i].localRotation;
+                        }
+                    }
+                }
+                else for(int frame=0;frame<=100;frame++)hands.Pose(frame/100f,-1);
                 for(int frame=0;frame<=100;frame++)hands.Pose(-1,frame/100f);
                 hands.Pose(-1,-1);
                 for(int i=0;i<parts.Length;i++)Check(Vector3.Distance(rest[i],parts[i].localPosition)<.001f,"재장전 후 원위치 복귀 실패: "+definition.Id+"/"+parts[i].name);
@@ -73,7 +89,7 @@ namespace SniperRidge.EditorTools
                     hands.SetAiming(true);
                     var occluder=WeaponModels.FindPart(instance.transform,"Optic");
                     if(occluder==null)occluder=WeaponModels.FindPart(instance.transform,"Lens");
-                    if(occluder!=null)Check(!occluder.gameObject.activeSelf,"조준 시 시야 가림 메시가 남습니다: "+definition.Id);
+                    if(occluder!=null)Check(occluder.gameObject.activeSelf==(definition.ModelName=="03_assault_rifle"),"조준 시 광학장비 표시 오류: "+definition.Id);
                     if(definition.ScopeFovs[definition.DefaultZoomIndex]>=20f)
                     {
                         instance.transform.SetPositionAndRotation(FpsWeaponView.Offset(definition,true,instance.transform),Quaternion.identity);

@@ -10,7 +10,7 @@ namespace SniperRidge
         [Serializable] public class Finger {public float[] closed,opened;}
         [Serializable] public class Source {public Part[] parts;public Finger[] fingers;}
         static Source source;static Material fabric,rubber,thread;
-        readonly List<Transform> bones=new List<Transform>();float side,openness=-1;bool triggerHand;Mesh mesh;
+        readonly List<Transform> bones=new List<Transform>();float side,openness=-1,thumbOpenness=-1;bool triggerHand;Mesh mesh;
         static Vector3 Read(float[] a,int i)=>new Vector3(a[i],a[i+1],a[i+2]);
         Vector3 Mirror(Vector3 v)=>new Vector3(v.x*side,v.y,v.z);
         public static FpsGlovedHand Create(Transform grip,float side)
@@ -68,12 +68,14 @@ namespace SniperRidge
             renderer.bones=bones.ToArray();renderer.rootBone=transform;renderer.localBounds=new Bounds(Vector3.zero,Vector3.one*.35f);renderer.updateWhenOffscreen=false;
             SetOpen(0);
         }
-        public void SetOpen(float value)
+        public void SetOpen(float value)=>SetGrip(value,value);
+        public void SetGrip(float value,float thumb)
         {
-            value=Mathf.Clamp01(value);if(Mathf.Abs(openness-value)<.005f)return;openness=value;
+            value=Mathf.Clamp01(value);thumb=Mathf.Clamp01(thumb);
+            if(Mathf.Abs(openness-value)<.005f&&Mathf.Abs(thumbOpenness-thumb)<.005f)return;openness=value;thumbOpenness=thumb;
             for(int f=0;f<source.fingers.Length;f++)for(int s=0;s<3;s++)
             {
-                float fingerOpen=triggerHand&&f==0?Mathf.Max(.28f,value):value;
+                float fingerOpen=f==4?Mathf.Max(thumb,value):triggerHand&&f==0?Mathf.Max(.28f,value):value;
                 var finger=source.fingers[f];Vector3 a=Mirror(Read(finger.closed,s*3)),b=Mirror(Read(finger.closed,(s+1)*3));
                 Vector3 toA=Vector3.Lerp(a,Mirror(Read(finger.opened,s*3)),fingerOpen),toB=Vector3.Lerp(b,Mirror(Read(finger.opened,(s+1)*3)),fingerOpen);
                 var bone=bones[1+f*3+s];bone.localPosition=toA;bone.localRotation=Quaternion.FromToRotation(b-a,toB-toA);

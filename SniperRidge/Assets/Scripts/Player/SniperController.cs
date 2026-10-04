@@ -34,6 +34,8 @@ namespace SniperRidge
         public float DamageRadius => IsHulk ? HulkController.Radius : CounterfireRules.PlayerRadius;
         public bool CanSwitchWeapon => !IsHulk && !InTank && !IsMounted && inputEnabled && State != WeaponState.Switching && !Grenades.BlocksWeapons;
         public bool IsScoped { get; private set; }
+        public float AimWeight { get; private set; }
+        float aimAmount;
         public int AmmoInMag { get => loadout.Active?.Magazine ?? 0; private set => loadout.Active.Magazine = value; }
         public int Reserve { get => loadout.Active?.Reserve ?? 0; private set => loadout.Active.Reserve = value; }
         public int ZeroRange { get; private set; } = 100;
@@ -75,7 +77,7 @@ namespace SniperRidge
         {
             Grenades.CancelAim(); Grenades.enabled=!active;
             fireQueued=fireHeld=scopeToggleQueued=reloadQueued=zoomQueued=false;
-            lookInput=Vector2.zero;zeroDelta=0;IsScoped=false;HoldingBreath=false;
+            lookInput=Vector2.zero;zeroDelta=0;IsScoped=false;HoldingBreath=false;aimAmount=AimWeight=0;
             recoil=recoilYaw=0;fireTimer=.3f;
             if(weaponModel!=null)weaponModel.SetActive(!active);
             if(!active)
@@ -206,7 +208,7 @@ namespace SniperRidge
             touchBreath = HoldingBreath = false;
             zeroDelta = 0;
             recoil = recoilYaw = 0f;
-            IsScoped = false;
+            IsScoped = false;aimAmount=AimWeight=0;
             if (weaponModel != null) { weaponModel.SetActive(false); Destroy(weaponModel); }
             weaponModel = WeaponModels.Build(IsMounted ? flight.GunnerStation : cam.transform, weapon);
             hands=!IsMounted && weaponModel!=null?FpsWeaponHands.Attach(weaponModel.transform,weapon):null;
@@ -377,8 +379,12 @@ namespace SniperRidge
                     zeroDelta = 0;
                 }
             }
-            float targetFov = (IsScoped && Weapon != null) ? Weapon.ScopeFovs[zoomIndex] : IsFreeRoam ? 72f : BaseFov;
-            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, dt * 14f);
+            if(State==WeaponState.Reloading)IsScoped=false;
+            aimAmount=Mathf.MoveTowards(aimAmount,IsScoped?1:0,dt/(IsScoped?.24f:.18f));
+            AimWeight=Mathf.SmoothStep(0,1,aimAmount);
+            float hipFov=IsFreeRoam?72f:BaseFov;
+            float targetFov=Weapon!=null?Mathf.Lerp(hipFov,Weapon.ScopeFovs[zoomIndex],AimWeight):hipFov;
+            cam.fieldOfView=targetFov;
             bool showModel = !Grenades.BlocksWeapons && (IsFreeRoam || !IsHidden) && (!IsScoped || (Weapon != null && Weapon.ScopeFovs[zoomIndex] >= 20f));   // 저배율 광학은 총이 보인다
             if (weaponModel != null)
             {
@@ -391,10 +397,18 @@ namespace SniperRidge
                 }
                 else
                 {
-                    Vector3 offset=FpsWeaponView.Offset(Weapon,IsScoped,weaponModel.transform);
-                    Vector3 resting=offset + Vector3.down * lower * (IsFreeRoam?.055f:.42f);
-                    weaponModel.transform.localPosition = IsFreeRoam ? Vector3.Lerp(weaponModel.transform.localPosition,resting,dt*16f) : resting;
-                    weaponModel.transform.localRotation = IsFreeRoam?FpsWeaponView.Rotation(IsScoped,lower):Quaternion.Euler(lower * 30f, 0f, lower * -12f);
+                    if(IsFreeRoam)
+                    {
+                        float progress=State==WeaponState.Reloading?1f-stateTimer/Weapon.ReloadTime:-1f;
+                        float switching=Weapon.ModelName=="03_assault_rifle"&&State==WeaponState.Reloading?0:lower;
+                        FpsWeaponView.Pose(Weapon,weaponModel.transform,AimWeight,progress,switching,out var viewPosition,out var viewRotation);
+                        weaponModel.transform.SetLocalPositionAndRotation(viewPosition,viewRotation);
+                    }
+                    else
+                    {
+                        weaponModel.transform.localPosition=FpsWeaponView.Offset(Weapon,IsScoped,weaponModel.transform)+Vector3.down*lower*.42f;
+                        weaponModel.transform.localRotation=Quaternion.Euler(lower*30f,0,lower*-12f);
+                    }
                     if(hands!=null)
                     {
                         hands.SetAiming(IsScoped);

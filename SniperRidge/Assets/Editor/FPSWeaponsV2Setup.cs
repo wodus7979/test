@@ -13,7 +13,7 @@ namespace SniperRidge.EditorTools
     [InitializeOnLoad]
     public static class FPSWeaponsV2Setup
     {
-        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-3";
+        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-4";
         [Serializable] public class Part { public string name; public int mat; public float[] p,n,uv; }
         [Serializable] public class Level { public Part[] parts; }
         [Serializable] public class ComponentData { public string name,parent; public float[] position; public Level[] lods; }
@@ -144,13 +144,15 @@ namespace SniperRidge.EditorTools
                     if(c.lods.Length!=2)throw new InvalidDataException("Two LODs required: "+model.name);
                     for(int l=0;l<2;l++)
                     {
+                        if(model.name=="03_assault_rifle"&&c.name=="Lens")continue;
                         var child=new GameObject("LOD"+l,typeof(MeshFilter),typeof(MeshRenderer));child.transform.SetParent(pivot,false);
                         string name=model.name+"_"+c.name+"_LOD"+l;
                         // The rifle optic's Polymer submesh consists only of its two open lens caps.
                         var level=c.lods[l];
                         if(model.name=="03_assault_rifle"&&c.name=="Optic")
                             level=new Level{parts=Array.FindAll(level.parts,part=>part.mat!=2)};
-                        child.GetComponent<MeshFilter>().sharedMesh=Save(MakeMesh(level,name),Output+"/Meshes/"+name+".asset");
+                        bool clearOptic=model.name=="03_assault_rifle"&&c.name=="Optic";
+                        child.GetComponent<MeshFilter>().sharedMesh=Save(clearOptic?FpsRifleOptic.Build(l):MakeMesh(level,name),Output+"/Meshes/"+name+".asset");
                         var slots=new Material[level.parts.Length];
                         for(int s=0;s<slots.Length;s++)
                         {
@@ -159,7 +161,7 @@ namespace SniperRidge.EditorTools
                             if(model.name=="03_assault_rifle"&&c.name=="Optic"&&material==1)material=0;
                             slots[s]=materials[material];
                         }
-                        var renderer=child.GetComponent<MeshRenderer>();renderer.sharedMaterials=slots;renderers[l].Add(renderer);
+                        var renderer=child.GetComponent<MeshRenderer>();renderer.sharedMaterials=clearOptic?new[]{materials[0]}:slots;renderers[l].Add(renderer);
                     }
                 }
                 foreach(var marker in model.markers)Point(pivots[marker.parent],marker.name,V(marker.position));
