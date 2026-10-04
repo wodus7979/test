@@ -21,7 +21,7 @@ namespace SniperRidge.EditorTools
             Check(Mathf.Abs(data.Transform.length-HulkController.TransformDuration)<.002f&&Mathf.Abs(data.Punch.length/HulkController.PunchPlaybackRate-HulkController.PunchDuration)<.002f,"controller cuts off the original clip");
             var actor=new GameObject("Native test");var visual=HulkVisual.Create(actor.transform);
             Check(visual.GetComponent<HulkModelRetargeter>()==null,"old rig adapter still attached");
-            Check(visual.Model.GetComponentInChildren<SkinnedMeshRenderer>().sharedMesh.name=="PumpkinHulk","old character still active");
+            Check(data.Appearance&&visual.Model.GetComponent<KairosRig>().Ready,"Kairos appearance not active");
             var native=UnityEngine.Object.Instantiate(data.Model);
             var reference=native.GetComponentsInChildren<Transform>().Where(t=>t.name.StartsWith("mixamorig:")).ToDictionary(t=>t.name);
             float maxAngle=0,maxOffset=0;

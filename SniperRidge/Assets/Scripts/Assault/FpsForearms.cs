@@ -22,10 +22,14 @@ namespace SniperRidge
         }
         void Build()
         {
-            skin=SurfaceDetail.Make(Surface.Skin,new Color(.62f,.40f,.27f),.30f,0);
-            skin.name="Warm skin with fine pores";
-            skin.SetTextureScale("_BumpMap",Vector2.one*2);
-            skin.SetFloat("_BumpScale",.12f);skin.SetFloat("_DetailNormalMapScale",.12f);
+            skin=SurfaceDetail.Make(Surface.Skin,Color.white,.30f,0);
+            skin.name="Weathered skin with pores and healed scars";
+            skin.mainTexture=Resources.Load<Texture2D>("Hands/forearm_skin_albedo");
+            skin.SetTexture("_BumpMap",Resources.Load<Texture2D>("Hands/forearm_skin_normal"));
+            skin.SetTexture("_MetallicGlossMap",Resources.Load<Texture2D>("Hands/forearm_skin_metallicSmoothness"));
+            skin.EnableKeyword("_METALLICGLOSSMAP");
+            skin.SetTextureScale("_BumpMap",Vector2.one);
+            skin.SetFloat("_BumpScale",.7f);skin.SetFloat("_DetailNormalMapScale",.12f);
             cuff=SurfaceDetail.Make(Surface.Fabric,new Color(.38f,.29f,.18f),.10f);
             var bodyIndices=new System.Collections.Generic.List<int>();
             var cuffIndices=new System.Collections.Generic.List<int>();
@@ -71,14 +75,17 @@ namespace SniperRidge
                     previousRight=x;Vector3 y=Vector3.Cross(tangent,x).normalized;
                     float width=Mathf.Lerp(.025f,.061f,Mathf.SmoothStep(0,1,t));
                     float height=Mathf.Lerp(.034f,.055f,Mathf.SmoothStep(0,1,t));
+                    // Keep a believable wrist taper while adding volume through the forearm belly.
+                    float bulk=1.08f+.25f*Mathf.SmoothStep(0,1,Mathf.Clamp01(t*3));
+                    width*=bulk;height*=bulk;
                     // Low tendons blend into the forearm muscle; no cloth folds on exposed skin.
                     float envelope=Mathf.Sin(Mathf.PI*t)*(.55f+.45f*Mathf.Exp(-t*3));
                     if(ring==2||ring==3){width*=1.045f;height*=1.045f;}
                     for(int n=0;n<=Sides;n++)
                     {
                         float angle=n*Mathf.PI*2/Sides;
-                        float muscle=Mathf.Cos(angle*2+.3f)*.002f*envelope;
-                        float tendon=.0007f*Mathf.Pow(Mathf.Max(0,Mathf.Cos(angle-.6f-t*.3f)),30)*Mathf.Sin(t*Mathf.PI);
+                        float muscle=Mathf.Cos(angle*2+.3f)*.004f*envelope;
+                        float tendon=.0014f*Mathf.Pow(Mathf.Max(0,Mathf.Cos(angle-.6f-t*.3f)),30)*Mathf.Sin(t*Mathf.PI);
                         Vector3 world=centre+x*Mathf.Cos(angle)*(width+muscle+tendon)+y*Mathf.Sin(angle)*(height+muscle+tendon);
                         vertices[arm*Rings*Stride+ring*Stride+n]=transform.InverseTransformPoint(world);
                     }
