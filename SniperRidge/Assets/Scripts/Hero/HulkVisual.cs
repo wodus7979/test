@@ -94,6 +94,7 @@ namespace SniperRidge
             AnimationClip clip;float time;string state;
             if(transformation>=0){clip=Definition.Transform;time=transformation*clip.length;state="Transform";}
             else if(attack==HulkController.Attack.Punch){clip=Definition.Punch;time=age*HulkController.PunchPlaybackRate;state="Punch";}
+            else if(attack==HulkController.Attack.Clap&&Definition.Clap){clip=Definition.Clap;time=age;state="Clap";}
             else if(attack==HulkController.Attack.Slam)
             {
                 clip=Definition.Jump;state=landed?"Land":"Jump";
@@ -126,7 +127,7 @@ namespace SniperRidge
                 Vector3 travel=Vector3.Lerp(Definition.IdleStart,Definition.IdleEnd,time/clip.length);travel.y=0;
                 hips.localPosition-=travel;
             }
-            if(attack==HulkController.Attack.Punch&&speed>.15f)
+            if((attack==HulkController.Attack.Punch||attack==HulkController.Attack.Clap)&&speed>.15f)
             {
                 float runTime=Mathf.Repeat(gait,1)*Definition.Run.length;
                 Definition.Run.SampleAnimation(locomotionSampler,runTime);

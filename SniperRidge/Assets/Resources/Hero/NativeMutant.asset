@@ -20,6 +20,7 @@ MonoBehaviour:
   Idle: {fileID: 7400000, guid: f547c379fd7474deab2ab2e7725783a7, type: 2}
   Hit: {fileID: 7400000, guid: 35f8382e1e8f74fda961442195100be0, type: 2}
   Block: {fileID: 7400000, guid: 1f677335394004dc1a8cc5660919529b, type: 2}
+  Clap: {fileID: 7400000, guid: 04a49fc55e834444ea89578cf4320bac, type: 2}
   IdleStart: {x: 0.01381459, y: 0.993656, z: -0.009763812}
   IdleEnd: {x: 0.01381459, y: 0.993656, z: -0.009763812}
   Scale: 1.635882

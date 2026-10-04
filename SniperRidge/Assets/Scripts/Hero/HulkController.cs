@@ -27,6 +27,8 @@ namespace SniperRidge
         public const float PunchPlaybackRate=3f;
         public const float PunchDuration=3.833333f/PunchPlaybackRate, PunchImpactTime=1.40f/PunchPlaybackRate;
         public const float JumpWindup=.28f, JumpLaunchSpeed=8f, JumpGravity=36f, JumpRecovery=.28f, JumpCooldown=2f;
+        public const float ClapDuration=1f, ClapImpactTime=.43f;
+        bool HasClap => visual!=null && visual.Definition && visual.Definition.Clap;
         public const float KickDuration=1.5f, KickImpactTime=.65f;
         public bool PunchLeft { get; private set; }
         bool slamLaunched;
@@ -106,7 +108,7 @@ namespace SniperRidge
         public bool BeginAttack(Attack attack)
         {
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
-            if(FourActionsOnly&&(attack==Attack.Clap||attack==Attack.Kick))return false;
+            if(attack==Attack.Clap&&!HasClap||FourActionsOnly&&attack==Attack.Kick)return false;
             if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt || attack==Attack.Kick&&Time.time<kickAt)return false;
             guardUntil=-99;incomingBurst=0;
             CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
@@ -125,7 +127,7 @@ namespace SniperRidge
             if(Input.GetKeyDown(KeyCode.H))Toggle();
             transformButton.interactable=!Transforming && CurrentAttack==Attack.None;
             transformButton.GetComponentInChildren<Text>().text=Transforming?"변신 중…":Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
-            for(int i=0;i<skills.Count;i++)skills[i].gameObject.SetActive(Active&&(!FourActionsOnly||(i!=1&&i!=4)));
+            for(int i=0;i<skills.Count;i++)skills[i].gameObject.SetActive(Active&&(i!=1||HasClap)&&(!FourActionsOnly||i!=4));
             if(!Active)return;
             skills[0].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded;
             skills[1].interactable=!Transforming&&CurrentAttack==Attack.None&&Grounded&&ClapCooldown<=0;
@@ -213,8 +215,8 @@ namespace SniperRidge
             }
             else if(CurrentAttack==Attack.Clap)
             {
-                if(!impactDone&&age>=.43f){impactDone=true;StartWave(Attack.Clap);Audio.Play(HulkAudio.Cue.Clap);}
-                if(age>.95f)CurrentAttack=Attack.None;
+                if(!impactDone&&age>=ClapImpactTime){impactDone=true;StartWave(Attack.Clap);Audio.Play(HulkAudio.Cue.Clap);}
+                if(age>ClapDuration)CurrentAttack=Attack.None;
             }
             else if(CurrentAttack==Attack.Kick)
             {
@@ -233,14 +235,14 @@ namespace SniperRidge
         void StartWave(Attack attack)
         {
             waveAttack=attack;waveStart=Time.time;waveRadius=attack==Attack.Clap?18:8;
-            waveOrigin=transform.position+Vector3.up*(attack==Attack.Clap?1.5f:.45f);waveForward=transform.forward;waveHit.Clear();
+            waveOrigin=transform.position+Vector3.up*(attack==Attack.Clap?2.05f:.45f);waveForward=transform.forward;waveHit.Clear();
             HulkWave.Create(waveOrigin,waveForward,waveRadius,attack==Attack.Clap);
         }
         void AdvanceWave()
         {
             float age=Time.time-waveStart;
             if(age<0||age>1.05f)return;
-            HitTargets(waveOrigin,waveForward,Mathf.Min(waveRadius,age*waveRadius/.8f),waveAttack==Attack.Clap?65:180,
+            HitTargets(waveOrigin,waveForward,HulkWave.RadiusAt(age,waveRadius),waveAttack==Attack.Clap?65:180,
                 waveAttack==Attack.Clap?110:200,waveHit,waveAttack==Attack.Clap?4:5);
         }
         void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height)
@@ -286,8 +288,8 @@ namespace SniperRidge
             transformButton=Button("Transform",0,"[H] 헐크 변신",()=>Toggle());
             skills.Add(Button("Punch",1,"[좌클릭] 주먹 공격",()=>{if(BeginAttack(Attack.Punch))LockInput();}));
             skills.Add(Button("Clap",2,"[우클릭] 박수 충격파",()=>{if(BeginAttack(Attack.Clap))LockInput();}));
-            skills.Add(Button("Slam",2,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
-            skills.Add(Button("Run",3,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
+            skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
+            skills.Add(Button("Run",4,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
             skills.Add(Button("Kick",5,"[F] 날아차기",()=>{if(BeginAttack(Attack.Kick))LockInput();}));
             foreach(var b in skills)b.gameObject.SetActive(false);
         }

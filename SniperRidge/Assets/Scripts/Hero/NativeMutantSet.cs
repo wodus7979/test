@@ -8,7 +8,7 @@ namespace SniperRidge
     {
         public GameObject Model;
         public AnimationClip Transform, Punch, Jump, Run;
-        public AnimationClip Idle, Hit, Block;
+        public AnimationClip Idle, Hit, Block, Clap;
         public Vector3 IdleStart, IdleEnd;
         public float Scale=1, GroundOffset, RunStride;
         public Vector3 RunStart,RunEnd;
