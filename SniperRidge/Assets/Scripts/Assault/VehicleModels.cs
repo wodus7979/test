@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -9,10 +8,9 @@ namespace SniperRidge
     {
         [Serializable] class Part { public string name,material;public float[] positions,normals;public int[] triangles; }
         [Serializable] class Model { public Part[] parts; }
-        static readonly Dictionary<string,Material> materials=new Dictionary<string,Material>();
-        public static void Build(Transform root,bool van)
+        public static void Build(Transform root,string modelName)
         {
-            var source=Resources.Load<TextAsset>("Vehicles/"+(van?"van":"sedan"));
+            var source=Resources.Load<TextAsset>("Vehicles/"+modelName);
             if(source==null)throw new InvalidOperationException("차량 메시 데이터 누락: Vehicles");
             var model=JsonUtility.FromJson<Model>(source.text);
             foreach(var part in model.parts)
@@ -25,34 +23,21 @@ namespace SniperRidge
                     normals[i]=new Vector3(part.normals[i*3],part.normals[i*3+1],part.normals[i*3+2]);
                 }
                 var mesh=new Mesh{name=part.name,indexFormat=IndexFormat.UInt32};
-                mesh.vertices=vertices;mesh.normals=normals;mesh.triangles=part.triangles;mesh.RecalculateBounds();
+                var uv=new Vector2[count];
+                for(int i=0;i<count;i++)
+                {
+                    var n=normals[i];var v=vertices[i];
+                    uv[i]=Mathf.Abs(n.y)>.6f?new Vector2(v.x,v.z):Mathf.Abs(n.x)>.6f?new Vector2(v.z,v.y):new Vector2(v.x,v.y);
+                }
+                mesh.vertices=vertices;mesh.normals=normals;mesh.uv=uv;mesh.triangles=part.triangles;mesh.RecalculateTangents();mesh.RecalculateBounds();
                 var go=new GameObject(part.name,typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(root,false);
-                go.GetComponent<MeshFilter>().sharedMesh=mesh;go.GetComponent<MeshRenderer>().sharedMaterial=MaterialFor(part.material,van);
+                go.GetComponent<MeshFilter>().sharedMesh=mesh;go.GetComponent<MeshRenderer>().sharedMaterial=VehicleFinish.MaterialFor(part.material,modelName);
                 go.AddComponent<UrbanMeshOwner>().Mesh=mesh;
 
             }
 
             // UrbanProps.Combine assigns the final visible mesh after merging the parts.
             root.gameObject.AddComponent<MeshCollider>();
-        }
-        static Material MaterialFor(string key,bool van)
-        {
-            string id=key+(van?"_van":"_sedan");
-            if(materials.TryGetValue(id,out var found)&&found!=null)return found;
-            // Opaque tinted glazing gives a solid cabin and controlled highlights without sorting artifacts.
-            Color color;float smooth=.22f,metal=0;Surface surface=Surface.PaintedMetal;
-            switch(key)
-            {
-                case "paint":color=van?new Color(.55f,.53f,.46f):new Color(.22f,.34f,.39f);metal=.25f;smooth=.32f;break;
-                case "glass":color=new Color(.07f,.14f,.19f);smooth=.55f;metal=.2f;surface=Surface.Polymer;break;
-                case "rubber":color=new Color(.045f,.05f,.055f);smooth=.08f;surface=Surface.Rubber;break;
-                case "metal":color=new Color(.42f,.46f,.48f);metal=.75f;smooth=.4f;surface=Surface.Steel;break;
-                case "light":color=new Color(.78f,.85f,.84f);smooth=.45f;surface=Surface.Polymer;break;
-                case "red":color=new Color(.52f,.055f,.045f);smooth=.38f;break;
-                case "plate":color=new Color(.7f,.71f,.64f);break;
-                default:color=new Color(.025f,.028f,.03f);smooth=.08f;surface=Surface.Rubber;break;
-            }
-            var m=SurfaceDetail.Make(surface,color,smooth,metal);m.name="Vehicle "+id;materials[id]=m;return m;
         }
     }
 }

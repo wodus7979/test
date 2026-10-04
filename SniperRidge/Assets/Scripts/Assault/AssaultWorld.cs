@@ -92,10 +92,12 @@ namespace SniperRidge
             QualitySettings.shadowDistance=180;QualitySettings.lodBias=1.6f;
             MilitaryTownEnvironment.Build(transform,gm);
             Physics.SyncTransforms();BuildNavigation();
+            // Dents replace object-space meshes; static batching would invalidate their vertex/submesh ranges.
             var batch=new List<GameObject>();
             foreach(var renderer in GetComponentsInChildren<MeshRenderer>())
-                if(!renderer.forceRenderingOff && renderer.GetComponentInParent<LODGroup>()==null && renderer.GetComponent<MeshFilter>()!=null)batch.Add(renderer.gameObject);
+                if(!renderer.forceRenderingOff && renderer.GetComponentInParent<DestructibleVehicle>()==null && renderer.GetComponentInParent<LODGroup>()==null && renderer.GetComponent<MeshFilter>()!=null)batch.Add(renderer.gameObject);
             StaticBatchingUtility.Combine(batch.ToArray(),gameObject);
+            VehicleFinish.CreateReflectionProbe(transform);
         }
         void BuildNavigation()
         {

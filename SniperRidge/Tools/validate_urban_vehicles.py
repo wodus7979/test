@@ -7,7 +7,7 @@ from build_urban_vehicles import ROOT,COLORS
 
 def load(name):return json.loads((ROOT/'Assets/Resources/Vehicles'/f'{name}.json').read_text())['parts']
 def validate():
-    for name in ['sedan','van']:
+    for name in ['sedan','van','suv','bus']:
         parts=load(name);total=0;allv=[]
         for part in parts:
             v=np.array(part['positions']).reshape(-1,3);n=np.array(part['normals']).reshape(-1,3);f=np.array(part['triangles']).reshape(-1,3)
@@ -24,10 +24,10 @@ def validate():
             assert np.allclose(np.linalg.norm(n,axis=1),1,atol=2e-5),part['name']
             total+=len(f);allv.extend(v)
         bounds=np.array(allv);extent=np.ptp(bounds,axis=0)
-        assert extent[0]<2.2 and extent[2]<4.65 and bounds[:,1].min()>=-.19
-        assert total<22000
+        assert extent[0]<(3.4 if name=='bus' else 2.31) and extent[2]<(10.9 if name=='bus' else 4.65) and bounds[:,1].min()>=-.19
+        assert total<(36000 if name=='bus' else 22000)
         assert sum(p['name']=='Rounded radial tire' for p in parts)==4
-        assert sum('Windshield'==p['name'] for p in parts)==1
+        assert sum(p['name'] in ('Windshield','SUV windscreen','Panoramic windshield') for p in parts)==1
         print('PASS',name,total,'triangles;',len(parts),'shaped parts; dimensions',extent.round(3).tolist())
 
 def preview(path):

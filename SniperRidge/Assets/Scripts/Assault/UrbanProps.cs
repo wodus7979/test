@@ -29,14 +29,15 @@ namespace SniperRidge
             }
             var go=Object.Instantiate(prototype,parent);go.name=kind;
             go.transform.SetPositionAndRotation(position,Quaternion.Euler(0,yaw,0));go.GetComponent<UrbanMeshOwner>().Mesh=null;go.SetActive(true);
-            if(kind=="Utility van"||kind=="Abandoned sedan")go.AddComponent<DestructibleVehicle>();
+            if(IsVehicle(kind)){go.AddComponent<DestructibleVehicle>();if(kind=="City bus")VehicleFinish.AddBusSigns(go.transform);}
             return go;
         }
+        public static bool IsVehicle(string kind)=>kind=="Utility van"||kind=="Abandoned sedan"||kind=="Offroad SUV"||kind=="City bus";
         static void Build(Transform root,string kind)
         {
-            if(kind=="Utility van" || kind=="Abandoned sedan")
+            if(IsVehicle(kind))
             {
-                VehicleModels.Build(root,kind=="Utility van");
+                VehicleModels.Build(root,kind=="City bus"?"bus":kind=="Offroad SUV"?"suv":kind=="Utility van"?"van":"sedan");
             }
             else if(kind=="Sandbag corner")
             {

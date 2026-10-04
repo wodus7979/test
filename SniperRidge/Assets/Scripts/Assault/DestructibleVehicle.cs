@@ -62,8 +62,9 @@ namespace SniperRidge
             var renderer=GetComponent<MeshRenderer>();var original=renderer.sharedMaterials;
             wreckMaterials=new Material[original.Length];
             for(int i=0;i<original.Length;i++)
-            {var m=new Material(original[i]);m.color=Color.Lerp(m.color,new Color(.045f,.038f,.03f),.84f);if(m.HasProperty("_Glossiness"))m.SetFloat("_Glossiness",.06f);wreckMaterials[i]=m;}
+            {var m=new Material(original[i]);m.color=Color.Lerp(m.color,new Color(.045f,.038f,.03f),.84f);if(m.HasProperty("_Glossiness"))m.SetFloat("_Glossiness",.06f);if(m.HasProperty("_Destroyed"))m.SetFloat("_Destroyed",1);if(m.HasProperty("_EmissionColor"))m.SetColor("_EmissionColor",Color.black);wreckMaterials[i]=m;}
             renderer.sharedMaterials=wreckMaterials;
+            foreach(var sign in GetComponentsInChildren<TextMesh>())sign.gameObject.SetActive(false);
             Vector3 center=renderer.bounds.center;
             CombatVfx.Explosion(center,1.25f);
             var gm=GameManager.Instance;if(gm)gm.PlaySound(gm.Sounds.RocketExplosion,.8f);

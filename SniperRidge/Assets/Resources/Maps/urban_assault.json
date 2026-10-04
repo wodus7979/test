@@ -529,7 +529,7 @@
       "original": false
     },
     {
-      "asset": "Utility van",
+      "asset": "Offroad SUV",
       "x": -75,
       "y": 12.18,
       "z": -86,
@@ -649,7 +649,7 @@
       "original": false
     },
     {
-      "asset": "Abandoned sedan",
+      "asset": "City bus",
       "x": 3,
       "y": 12.18,
       "z": -86,
@@ -745,7 +745,7 @@
       "original": false
     },
     {
-      "asset": "Utility van",
+      "asset": "Offroad SUV",
       "x": 141,
       "y": 12.18,
       "z": -86,
@@ -1049,7 +1049,7 @@
       "original": false
     },
     {
-      "asset": "Abandoned sedan",
+      "asset": "City bus",
       "x": 141,
       "y": 12.18,
       "z": -14,
@@ -1193,7 +1193,7 @@
       "original": false
     },
     {
-      "asset": "Utility van",
+      "asset": "Offroad SUV",
       "x": -3,
       "y": 12.18,
       "z": 58,
@@ -1385,7 +1385,7 @@
       "original": false
     },
     {
-      "asset": "Utility van",
+      "asset": "Offroad SUV",
       "x": -141,
       "y": 12.18,
       "z": 130,
@@ -1505,7 +1505,7 @@
       "original": false
     },
     {
-      "asset": "Abandoned sedan",
+      "asset": "City bus",
       "x": -3,
       "y": 12.18,
       "z": 130,
@@ -1617,7 +1617,7 @@
       "original": false
     },
     {
-      "asset": "Utility van",
+      "asset": "Offroad SUV",
       "x": 75,
       "y": 12.18,
       "z": 130,
