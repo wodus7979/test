@@ -74,7 +74,7 @@ namespace SniperRidge.EditorTools
                 clips[2].SampleAnimation(model,0);model.name="Native mutant";
                 set.Model=PrefabUtility.SaveAsPrefabAsset(model,Root+"NativeMutant.prefab");
                 EditorUtility.SetDirty(set);AssetDatabase.SaveAssets();
-                EnemyMeleeDeathImport.Run();NativeClapImport.Run();
+                EnemyMeleeDeathImport.Run();NativeClapImport.Run();NativeDropImport.Run();
                 Directory.CreateDirectory("Logs");File.WriteAllText("Logs/native-mutant-import.txt",$"Original FBX model: {skin.sharedMesh.name}, vertices={skin.sharedMesh.vertexCount}\nUniform scale={set.Scale:F4}; groundOffset={set.GroundOffset:F4}; runStride={set.RunStride:F4}m\n"+string.Join("\n",clips.Select(c=>$"{c.name}: {c.length:F4}s")));
             }
             finally{UnityEngine.Object.DestroyImmediate(model);}

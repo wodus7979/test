@@ -33,6 +33,9 @@ namespace SniperRidge
         public bool PunchLeft { get; private set; }
         bool slamLaunched;
         float slamTakeoffY;
+        public bool VehicleJump { get; private set; }
+        public const float DropLaunchSpeed=8.4f, DropRecovery=.6f;
+        public float SlamRecovery => VehicleJump?DropRecovery:JumpRecovery;
         public float LastSlamPower { get; private set; }=1;
         public float LastSlamRadius { get; private set; }=8;
         public float LastSlamDamage { get; private set; }=200;
@@ -121,7 +124,9 @@ namespace SniperRidge
             {PunchLeft=false;visual.PunchLeft=false;punchAt=Time.time+PunchDuration;}
             if(attack==Attack.Clap)clapAt=Time.time+4f;
             if(attack==Attack.Kick)kickAt=Time.time+2.2f;
-            if(attack==Attack.Slam){slamAt=Time.time+JumpCooldown;slamLaunched=false;airborne=false;}
+            if(attack==Attack.Slam){slamAt=Time.time+JumpCooldown;slamLaunched=false;airborne=false;
+                VehicleJump=visual.Definition.JumpDown&&Physics.Raycast(transform.position+Vector3.up*.2f,Vector3.down,out var support,.6f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore)&&support.collider.GetComponentInParent<DestructibleVehicle>();
+            }
             return true;
         }
         public void Tick(float dt)
@@ -161,7 +166,7 @@ namespace SniperRidge
             AdvanceAttack();AdvanceWave();
             float speed=PlanarSpeed;
             visual.SetMotion(transform.InverseTransformDirection(actualVelocity),turnRate,acceleration);
-            visual.SetJumpMotion(vertical,slamLaunched);visual.SetBlocking(Blocking);
+            visual.SetJumpMotion(vertical,slamLaunched,VehicleJump);visual.SetBlocking(Blocking);
             visual.Pose(speed,CurrentAttack,AttackAge,Grounded,impactDone,Transforming?TransformationProgress:-1);
             if(visual.FootstepSerial!=lastFootstep&&speed>.8f&&Grounded)Audio.Play(HulkAudio.Cue.Footstep,Sprinting?.48f:.32f);
             lastFootstep=visual.FootstepSerial;
@@ -176,13 +181,15 @@ namespace SniperRidge
             input=Transforming?Vector2.zero:Vector2.ClampMagnitude(input,1);
             if(CurrentAttack==Attack.Slam&&!slamLaunched)
             {
-                input=Vector2.zero;horizontalVelocity=Vector3.zero;
-                if(AttackAge>=JumpWindup&&Grounded){slamTakeoffY=transform.position.y;vertical=JumpLaunchSpeed;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);}
+                Vector2 launchInput=input;input=Vector2.zero;horizontalVelocity=Vector3.zero;
+                if(AttackAge>=JumpWindup&&Grounded){slamTakeoffY=transform.position.y;vertical=VehicleJump?DropLaunchSpeed:JumpLaunchSpeed;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);
+                    if(VehicleJump){input=launchInput;horizontalVelocity=Quaternion.Euler(0,yaw,0)*new Vector3(input.x,0,input.y)*RunSpeed;}
+                }
             }
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-JumpGravity*dt);
             Sprinting=!Transforming&&CurrentAttack==Attack.None&&(RunEnabled||sprint)&&input.sqrMagnitude>.01f;
-            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?3.8f:CurrentAttack==Attack.Kick?1.4f:Sprinting?RunSpeed:WalkSpeed;
+            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?3.8f:CurrentAttack==Attack.Kick?1.4f:CurrentAttack==Attack.Slam&&VehicleJump&&slamLaunched&&!impactDone?RunSpeed:Sprinting?RunSpeed:WalkSpeed;
             Vector3 desired=Quaternion.Euler(0,yaw,0)*new Vector3(input.x,0,input.y)*speed;
             float rate=desired.sqrMagnitude<horizontalVelocity.sqrMagnitude?44:32;
             horizontalVelocity=Vector3.MoveTowards(horizontalVelocity,desired,rate*dt);
@@ -238,7 +245,7 @@ namespace SniperRidge
                 }
                 if(age>KickDuration)CurrentAttack=Attack.None;
             }
-            else if(CurrentAttack==Attack.Slam&&impactDone&&age>JumpRecovery)CurrentAttack=Attack.None;
+            else if(CurrentAttack==Attack.Slam&&impactDone&&age>SlamRecovery)CurrentAttack=Attack.None;
         }
         void StartWave(Attack attack)
         {

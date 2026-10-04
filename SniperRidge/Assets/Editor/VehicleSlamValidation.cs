@@ -15,6 +15,7 @@ namespace SniperRidge.EditorTools
         const string Key="VehicleSlam.Validation";
         static int stage,last=-1,landings,frame;
         static float at,roofY,nextFrame,peak;
+        static bool sawDropFlight,sawDropLanding;
         static Vector3 arena=new Vector3(1500,40.05f,1500);
         static Vector2 move;
         static HulkController hero;
@@ -92,9 +93,16 @@ namespace SniperRidge.EditorTools
                     }
                     else if(stage==7)
                     {
+                        if(hero.CurrentAttack==HulkController.Attack.Slam&&age>.06f)
+                        {
+                            Check(hero.VehicleJump&&hero.Visual.ActiveBlenderClip==hero.Visual.Definition.JumpDown,"roof jump is not Mixamo Jumping Down");
+                            if(hero.JumpLaunched&&!hero.Grounded){sawDropFlight=true;Check(near.Health==1000&&far.Health==1000,"damage before landing");}
+                            if(hero.Landings>landings)sawDropLanding=true;
+                        }
                         if(p.transform.position.z>=arena.z+4.5f)move=Vector2.zero;
                         if(age<2.4f)return;move=Vector2.zero;
                         Check(hero.Grounded&&hero.Landings==landings+1&&Mathf.Abs(p.transform.position.y-arena.y)<.1f,"roof-to-street jump failed: "+(p.transform.position-arena));
+                        Check(sawDropFlight&&sawDropLanding,"drop flight/landing animation missing");
                         Check(hero.LastSlamPower>1.6f&&hero.LastSlamRadius>10&&hero.LastSlamDamage>320,"high slam did not grow");
                         Check(Mathf.Abs(near.Health-(1000-hero.LastSlamDamage))<1&&Mathf.Abs(far.Health-(1000-hero.LastSlamDamage))<1,"height-scaled damage or extended radius failed: "+near.Health+","+far.Health+" at "+(p.transform.position-arena));
                         var wave=UnityEngine.Object.FindObjectsOfType<HulkWave>().FirstOrDefault(w=>!w.Directional);Check(wave&&wave.Power>1.6f,"high slam VFX not boosted");
@@ -110,7 +118,7 @@ namespace SniperRidge.EditorTools
                     else if(stage==10&&age>2)
                     {
                         Check(hero.Grounded&&hero.Landings==landings+1&&Mathf.Abs(p.transform.position.y-roofY)<.08f&&Mathf.Abs(hero.LastSlamPower-1)<.03f,"same-roof jump incorrectly boosted");
-                        File.WriteAllText("Logs/vehicle-slam-play.txt","PASS: original native poses; ground jump and baseline damage; physically jump onto sedan and rotated van; stable roof grounding; roof clap hits street enemies; roof-to-street single landing; larger VFX/radius and actual enemy damage; same-roof jump unboosted; power capped; bonnet shot clearance preserved.\nJump apex="+peak+"m\n");Debug.Log("[Vehicle slam] PASS");p.enabled=true;stage=99;
+                        File.WriteAllText("Logs/vehicle-slam-play.txt","PASS: Mixamo Jumping Down used during roof launch, airborne and actual landing; no pre-landing damage; original native poses; ground jump and baseline damage; physically jump onto sedan and rotated van; stable roof grounding; roof clap hits street enemies; roof-to-street single landing; larger VFX/radius and actual enemy damage; same-roof jump unboosted; power capped; bonnet shot clearance preserved.\nJump apex="+peak+"m\n");Debug.Log("[Vehicle slam] PASS");p.enabled=true;stage=99;
                     }
                 }
                 if(!File.Exists("Logs/autoplay_result.txt")||EditorApplication.isPlayingOrWillChangePlaymode)return;

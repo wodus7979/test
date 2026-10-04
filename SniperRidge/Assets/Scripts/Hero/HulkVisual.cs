@@ -39,7 +39,7 @@ namespace SniperRidge
         Quaternion[] outgoingRotations,lastRotations;
         Vector3 velocity;
         float gait,idleTime,heading,blendAge,jumpVelocity;
-        bool jumpLaunched,hasPose;
+        bool jumpLaunched,hasPose,vehicleJump;
         string previousState;
 
         public static HulkVisual Create(Transform parent)
@@ -77,7 +77,7 @@ namespace SniperRidge
             Pose(0,HulkController.Attack.None,0,true,false,-1,0);
         }
         public void SetMotion(Vector3 localVelocity,float turn,float acceleration){velocity=localVelocity;}
-        public void SetJumpMotion(float vertical,bool launched){jumpVelocity=vertical;jumpLaunched=launched;}
+        public void SetJumpMotion(float vertical,bool launched,bool fromVehicle=false){jumpVelocity=vertical;jumpLaunched=launched;vehicleJump=fromVehicle;}
         public void SetVisible(bool visible){foreach(var skin in renderers)skin.enabled=visible;}
         public void ResetLocomotion()
         {blocking=false;blockWeight=0;hitAge=99;ReactingToHit=false;gait=idleTime=heading=blendAge=0;velocity=Vector3.zero;previousState=null;hasPose=false;transform.localRotation=Quaternion.identity;}
@@ -97,11 +97,16 @@ namespace SniperRidge
             else if(attack==HulkController.Attack.Clap&&Definition.Clap){clip=Definition.Clap;time=age;state="Clap";}
             else if(attack==HulkController.Attack.Slam)
             {
-                clip=Definition.Jump;state=landed?"Land":"Jump";
-                if(landed)time=Mathf.Lerp(Definition.JumpLanding,clip.length,Mathf.Clamp01(age/HulkController.JumpRecovery));
-                else if(!jumpLaunched)time=Definition.JumpTakeoff*Mathf.Clamp01(age/HulkController.JumpWindup);
-                else if(jumpVelocity>=0)time=Mathf.Lerp(Definition.JumpTakeoff,Definition.JumpApex,1-Mathf.Clamp01(jumpVelocity/HulkController.JumpLaunchSpeed));
-                else time=Mathf.Lerp(Definition.JumpApex,Definition.JumpLanding,Mathf.Clamp01(-jumpVelocity/HulkController.JumpLaunchSpeed));
+                bool drop=vehicleJump&&Definition.JumpDown;
+                clip=drop?Definition.JumpDown:Definition.Jump;state=drop?(landed?"Drop land":"Drop"):(landed?"Land":"Jump");
+                float takeoff=drop?Definition.DropTakeoff:Definition.JumpTakeoff;
+                float apex=drop?Definition.DropApex:Definition.JumpApex;
+                float landing=drop?Definition.DropLanding:Definition.JumpLanding;
+                float launch=drop?HulkController.DropLaunchSpeed:HulkController.JumpLaunchSpeed;
+                if(landed)time=Mathf.Lerp(landing,clip.length,Mathf.Clamp01(age/(drop?HulkController.DropRecovery:HulkController.JumpRecovery)));
+                else if(!jumpLaunched)time=takeoff*Mathf.Clamp01(age/HulkController.JumpWindup);
+                else if(jumpVelocity>=0)time=Mathf.Lerp(takeoff,apex,1-Mathf.Clamp01(jumpVelocity/launch));
+                else time=Mathf.Lerp(apex,drop?landing-.035f:landing,Mathf.Clamp01(-jumpVelocity/launch));
             }
             else if(speed>.12f){clip=Definition.Run;time=Mathf.Repeat(gait,1)*clip.length;state="Run";}
             else
@@ -140,8 +145,20 @@ namespace SniperRidge
                     bones[i].localRotation=Quaternion.Slerp(bones[i].localRotation,locomotionBones[i].localRotation,weight);
                 }
             }
-            if(attack==HulkController.Attack.Slam&&!landed&&jumpLaunched)
+            if(attack==HulkController.Attack.Slam&&!vehicleJump&&!landed&&jumpLaunched)
                 hips.localPosition-=Vector3.up*Definition.JumpRootLift.Evaluate(time);
+            if(attack==HulkController.Attack.Slam&&vehicleJump&&landed&&Definition.Idle)
+            {
+                Definition.Idle.SampleAnimation(locomotionSampler,0);
+                float recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.3f,HulkController.DropRecovery,age));
+                for(int i=0;i<bones.Length;i++)
+                {
+                    Vector3 position=locomotionBones[i].localPosition;
+                    if(bones[i]==hips)position-=Vector3.ProjectOnPlane(Definition.IdleStart,Vector3.up);
+                    bones[i].localPosition=Vector3.Lerp(bones[i].localPosition,position,recover);
+                    bones[i].localRotation=Quaternion.Slerp(bones[i].localRotation,locomotionBones[i].localRotation,recover);
+                }
+            }
             // A short additive upper-body flinch never stops movement or overrides an attack/jump.
             ReactingToHit=!blocking&&Definition.Hit&&hitAge<HitDuration&&transformation<0&&attack==HulkController.Attack.None&&grounded;
             if(ReactingToHit)
