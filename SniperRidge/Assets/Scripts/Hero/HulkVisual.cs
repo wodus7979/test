@@ -28,7 +28,10 @@ namespace SniperRidge
         Transform[] locomotionBones;
         bool[] lowerBody;
         Quaternion[] hitReference;
-        float hitAge=99;
+        float hitAge=99, blockWeight;
+        bool blocking;
+        public bool GuardVisible => blockWeight>.5f;
+        public void SetBlocking(bool active){blocking=active;}
         public const float HitDuration=.55f;
         public bool ReactingToHit { get; private set; }
         public void ReactToHit(){if(Definition.Hit&&hitAge>.8f)hitAge=0;}
@@ -77,7 +80,7 @@ namespace SniperRidge
         public void SetJumpMotion(float vertical,bool launched){jumpVelocity=vertical;jumpLaunched=launched;}
         public void SetVisible(bool visible){foreach(var skin in renderers)skin.enabled=visible;}
         public void ResetLocomotion()
-        {hitAge=99;ReactingToHit=false;gait=idleTime=heading=blendAge=0;velocity=Vector3.zero;previousState=null;hasPose=false;transform.localRotation=Quaternion.identity;}
+        {blocking=false;blockWeight=0;hitAge=99;ReactingToHit=false;gait=idleTime=heading=blendAge=0;velocity=Vector3.zero;previousState=null;hasPose=false;transform.localRotation=Quaternion.identity;}
         public void Pose(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation=-1,float deltaTime=-1)
         {
             float dt=Mathf.Max(0,deltaTime<0?Time.deltaTime:deltaTime);
@@ -139,7 +142,7 @@ namespace SniperRidge
             if(attack==HulkController.Attack.Slam&&!landed&&jumpLaunched)
                 hips.localPosition-=Vector3.up*Definition.JumpRootLift.Evaluate(time);
             // A short additive upper-body flinch never stops movement or overrides an attack/jump.
-            ReactingToHit=Definition.Hit&&hitAge<HitDuration&&transformation<0&&attack==HulkController.Attack.None&&grounded;
+            ReactingToHit=!blocking&&Definition.Hit&&hitAge<HitDuration&&transformation<0&&attack==HulkController.Attack.None&&grounded;
             if(ReactingToHit)
             {
                 Definition.Hit.SampleAnimation(locomotionSampler,Mathf.Clamp01(hitAge/HitDuration)*Mathf.Min(1.2f,Definition.Hit.length));
@@ -149,6 +152,13 @@ namespace SniperRidge
                     Quaternion delta=Quaternion.Inverse(hitReference[i])*locomotionBones[i].localRotation;
                     bones[i].localRotation*=Quaternion.Slerp(Quaternion.identity,delta,weight);
                 }
+            }
+            blockWeight=Mathf.MoveTowards(blockWeight,blocking&&transformation<0&&attack==HulkController.Attack.None?1:0,dt*9);
+            if(Definition.Block&&blockWeight>0)
+            {
+                Definition.Block.SampleAnimation(locomotionSampler,Mathf.Repeat(idleTime,Definition.Block.length));
+                for(int i=0;i<bones.Length;i++)if(!lowerBody[i])
+                    bones[i].localRotation=Quaternion.Slerp(bones[i].localRotation,locomotionBones[i].localRotation,blockWeight);
             }
             // Only cross-fade whole native poses; never change knee/ankle/finger angles individually.
             float blend=hasPose?Mathf.SmoothStep(0,1,Mathf.Clamp01(blendAge/.14f)):1;

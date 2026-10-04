@@ -13,7 +13,7 @@ namespace SniperRidge.EditorTools
         public static void Run()
         {
             Directory.CreateDirectory(Root+"Clips");Directory.CreateDirectory(Root+"Textures");Directory.CreateDirectory(Root+"Materials");AssetDatabase.Refresh();
-            string[] names={"Standing Taunt Battlecry","Zombie Punching","Mutant Jumping","Fast Run","Fighting Idle","Taking Punch"};
+            string[] names={"Standing Taunt Battlecry","Zombie Punching","Mutant Jumping","Fast Run","Fighting Idle","Taking Punch","Standing Block Idle"};
             var clips=new AnimationClip[names.Length];
             for(int i=0;i<names.Length;i++)
             {
@@ -27,7 +27,7 @@ namespace SniperRidge.EditorTools
                 AssetDatabase.Refresh();
                 var source=AssetDatabase.LoadAllAssetsAtPath(path).OfType<AnimationClip>().First(c=>!c.name.StartsWith("__preview__"));
                 var copy=UnityEngine.Object.Instantiate(source);copy.name=names[i];
-                var settings=AnimationUtility.GetAnimationClipSettings(copy);settings.loopTime=i==3||i==4;AnimationUtility.SetAnimationClipSettings(copy,settings);
+                var settings=AnimationUtility.GetAnimationClipSettings(copy);settings.loopTime=i==3||i==4||i==6;AnimationUtility.SetAnimationClipSettings(copy,settings);
                 string clipPath=Root+"Clips/"+names[i]+".anim";var existing=AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
                 if(existing){EditorUtility.CopySerialized(copy,existing);UnityEngine.Object.DestroyImmediate(copy);clips[i]=existing;}else{AssetDatabase.CreateAsset(copy,clipPath);clips[i]=copy;}
             }
@@ -48,7 +48,7 @@ namespace SniperRidge.EditorTools
                 string dataPath="Assets/Resources/Hero/NativeMutant.asset";
                 var set=AssetDatabase.LoadAssetAtPath<NativeMutantSet>(dataPath);
                 if(!set){set=ScriptableObject.CreateInstance<NativeMutantSet>();AssetDatabase.CreateAsset(set,dataPath);}
-                set.Transform=clips[0];set.Punch=clips[1];set.Jump=clips[2];set.Run=clips[3];set.Idle=clips[4];set.Hit=clips[5];
+                set.Transform=clips[0];set.Punch=clips[1];set.Jump=clips[2];set.Run=clips[3];set.Idle=clips[4];set.Hit=clips[5];set.Block=clips[6];
                 clips[2].SampleAnimation(model,0);
                 var mesh=new Mesh();skin.BakeMesh(mesh);var bounds=new Bounds(skin.transform.TransformPoint(mesh.vertices[0]),Vector3.zero);
                 foreach(var vertex in mesh.vertices)bounds.Encapsulate(skin.transform.TransformPoint(vertex));UnityEngine.Object.DestroyImmediate(mesh);
@@ -74,6 +74,7 @@ namespace SniperRidge.EditorTools
                 clips[2].SampleAnimation(model,0);model.name="Native mutant";
                 set.Model=PrefabUtility.SaveAsPrefabAsset(model,Root+"NativeMutant.prefab");
                 EditorUtility.SetDirty(set);AssetDatabase.SaveAssets();
+                EnemyMeleeDeathImport.Run();
                 Directory.CreateDirectory("Logs");File.WriteAllText("Logs/native-mutant-import.txt",$"Original FBX model: {skin.sharedMesh.name}, vertices={skin.sharedMesh.vertexCount}\nUniform scale={set.Scale:F4}; groundOffset={set.GroundOffset:F4}; runStride={set.RunStride:F4}m\n"+string.Join("\n",clips.Select(c=>$"{c.name}: {c.length:F4}s")));
             }
             finally{UnityEngine.Object.DestroyImmediate(model);}

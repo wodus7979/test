@@ -29,6 +29,7 @@ namespace SniperRidge
             }
             var go=Object.Instantiate(prototype,parent);go.name=kind;
             go.transform.SetPositionAndRotation(position,Quaternion.Euler(0,yaw,0));go.GetComponent<UrbanMeshOwner>().Mesh=null;go.SetActive(true);
+            if(kind=="Utility van"||kind=="Abandoned sedan")go.AddComponent<DestructibleVehicle>();
             return go;
         }
         static void Build(Transform root,string kind)

@@ -595,7 +595,7 @@ namespace SniperRidge
         }
 
         /// <summary>피격. 사망하면 true.</summary>
-        public bool TakeHit(float damage, bool headshot, Vector3 bulletDir)
+        public bool TakeHit(float damage, bool headshot, Vector3 bulletDir, bool characterMelee=false)
         {
             if (IsDead) return false;
             Health -= Boss!=null ? Boss.AbsorbHit(damage,headshot) : damage*(headshot?3f:1f);
@@ -604,7 +604,7 @@ namespace SniperRidge
             SetAware();
             if (Health <= 0f)
             {
-                Kill(headshot, bulletDir);
+                Kill(headshot, bulletDir,characterMelee);
                 return true;
             }
             if(Boss!=null)return false;
@@ -621,7 +621,7 @@ namespace SniperRidge
             return false;
         }
 
-        public void Kill(bool headshot, Vector3 bulletDir)
+        public void Kill(bool headshot, Vector3 bulletDir,bool characterMelee=false)
         {
             if (IsDead) return;
             IsDead = true;
@@ -631,7 +631,7 @@ namespace SniperRidge
             var marker=transform.Find("Friendly blue marker");if(marker!=null)marker.gameObject.SetActive(false);
             if(IsAlly && gm!=null)gm.Hud.Announce(name+" 전사 · 남은 동료 "+gm.Assault.AlliesAlive+"명");
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
-            if (motion != null) motion.Die(bulletDir, headshot, motion.AnimatedVelocity);
+            if (motion != null) motion.Die(bulletDir, headshot, motion.AnimatedVelocity,characterMelee);
             else
             {
                 if (animator != null) SetAnim("Dead", true);

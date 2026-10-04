@@ -36,6 +36,8 @@ namespace SniperRidge
         public bool CanFireFromPose => !UsesCover || EnemyCoverPose.Sample(owner.Kind == EnemyKind.Tree, coverExposure, coverSide).CanFire;
         float leftSole, rightSole, deathTime, fallSide;
         bool ready, dead;
+        AnimationClip meleeDeath;
+        public bool UsesMeleeDeath => meleeDeath!=null;
         Vector3 aimTarget;
 
         class HitShape
@@ -174,12 +176,19 @@ namespace SniperRidge
             reaction = 1f;
             reactionSide = Mathf.Sign(Vector3.Dot(direction, owner.transform.right));
         }
-        public void Die(Vector3 direction, bool headshot, Vector3 movement)
+        public void Die(Vector3 direction, bool headshot, Vector3 movement,bool characterMelee=false)
         {
             if (!ready || dead) return;
             dead = true;
             animator.enabled = false;
             foreach (var h in hitShapes) h.capsule.enabled = false;
+            if(characterMelee)meleeDeath=Resources.Load<AnimationClip>("Enemies/StandingReactDeathRight");
+            if(meleeDeath)
+            {
+                deathPositions=new Vector3[bones.Length];deathRotations=new Quaternion[bones.Length];
+                for(int i=0;i<bones.Length;i++){deathPositions[i]=bones[i].localPosition;deathRotations[i]=bones[i].localRotation;}
+                return;
+            }
             // Transfer the exact current pose (including crouching and aiming) to joint physics.
             if (EnemyRagdoll.Begin(transform, owner.transform, weapon, movement, direction, headshot) != null)
             {
@@ -326,6 +335,15 @@ namespace SniperRidge
         void AnimateDeath()
         {
             deathTime += Time.deltaTime;
+            if(meleeDeath)
+            {
+                meleeDeath.SampleAnimation(gameObject,Mathf.Min(deathTime,meleeDeath.length));
+                float blend=Mathf.SmoothStep(0,1,Mathf.Clamp01(deathTime/.12f));
+                for(int i=0;i<bones.Length;i++){bones[i].localPosition=Vector3.Lerp(deathPositions[i],bones[i].localPosition,blend);bones[i].localRotation=Quaternion.Slerp(deathRotations[i],bones[i].localRotation,blend);}
+                if(deathTime>=meleeDeath.length)
+                {EnemyRagdoll.Begin(transform,owner.transform,weapon,Vector3.zero,Vector3.zero,false);enabled=false;}
+                return;
+            }
             for (int i = 0; i < bones.Length; i++) { bones[i].localPosition = deathPositions[i]; bones[i].localRotation = deathRotations[i]; }
             bodyRig.localPosition = rigRestPosition;
             float collapse = Mathf.SmoothStep(0f, 1f, deathTime / .4f);
