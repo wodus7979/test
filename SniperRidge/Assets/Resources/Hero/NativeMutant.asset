@@ -17,6 +17,10 @@ MonoBehaviour:
   Punch: {fileID: 7400000, guid: 317a97393d8db472898296a0e1e37372, type: 2}
   Jump: {fileID: 7400000, guid: 2c9b1e2927e634231bddbefdace3b6c0, type: 2}
   Run: {fileID: 7400000, guid: c822ffab5e59f4ee1a4f1120ea174f3a, type: 2}
+  Idle: {fileID: 7400000, guid: f547c379fd7474deab2ab2e7725783a7, type: 2}
+  Hit: {fileID: 7400000, guid: 35f8382e1e8f74fda961442195100be0, type: 2}
+  IdleStart: {x: 0.01381459, y: 0.993656, z: -0.009763812}
+  IdleEnd: {x: 0.01381459, y: 0.993656, z: -0.009763812}
   Scale: 1.363235
   GroundOffset: 0.007739552
   RunStride: 4.118755

@@ -1,5 +1,20 @@
 # Sniper Ridge (Unity 3D 저격 게임 테스트)
 
+## 빠른 액션과 Mixamo 대기·피격 추가 — 2026-10-04
+
+현재 PumpkinHulk 캐릭터를 유지하고 Mixamo에서 같은 캐릭터에 맞춰 `Fighting Idle`과 `Taking Punch`를 다운로드했습니다. **FBX Binary / Without Skin / 60fps / Keyframe Reduction none**, 원본 메시와 같은 Generic 뼈대로 연결했습니다.
+
+- 기본 달리기 **3.2 → 5.2m/s**, Shift/뛰기 버튼 **6.4 → 8.4m/s**. 가속·감속도 높이고 보폭은 실제 이동 거리에 맞춥니다.
+- 기존 `Zombie Punching`을 **3배 속도**로 재생: 전체 **3.83 → 1.28초**, 타격 **1.40 → 0.47초**. 피해와 휘두르기·명중음도 함께 동기화했습니다. 이동 중 펀치 속도는 **3.8m/s**입니다.
+- `Mutant Jumping`의 준비 **1.20 → 0.28초**, 착지 후 회복 **1.27 → 0.28초**. 도약 속도 8m/s, 중력 36m/s²로 짧고 빠르게 뛰며, 재사용 시간은 **6 → 2초**입니다. 애니메이션의 준비·공중·착지 구간은 물리 상태에 맞춰 재생합니다.
+- `Fighting Idle`: 정지 시 원본 전투 대기 자세를 반복합니다.
+- `Taking Punch`: 실제 피해를 받으면 원본 첫 반응 구간을 상체에 **0.55초** 동안 섞습니다. 연속 피격에도 이동을 멈추지 않으며, 변신·공격·점프가 우선합니다. 캐릭터 체형과 손가락·다리 관절에 별도 보정을 추가하지 않습니다.
+
+검증: Unity 2022.3.62f3에서 원본 관절·빠른 점프 구간·피격 중 하체 유지 및 30/60/120fps 보폭 검사를 통과했습니다. 실제 Play에서 명중 1회/효과음, 속도 증가, 이동 중 펀치, 피격 반응, 점프·착지와 인간 복귀를 확인했습니다.
+
+출처: [Mixamo](https://www.mixamo.com/), [Adobe Mixamo FAQ](https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html). 다운로드한 FBX와 재생 클립은 `Assets/MutantCharacter/Source`, `Clips`에 포함되어 다른 PC에서 다시 받을 필요가 없습니다. 기존 네 동작과 H 변신/인간 복귀는 유지합니다.
+
+
 ## 현재 캐릭터: 제공된 FBX 원본으로 교체 — 2026-10-03
 
 기존 Olive Titan 대신 네 FBX 안에 포함된 **PumpkinHulk** 메시·스킨 가중치·텍스처·뼈대를 사용합니다. 원본의 주황/갈색 외형과 체형을 유지하며, 키만 전체 비율을 유지한 채 2.3m로 맞춥니다. 기존 체형 조형, 손가락 보정, Humanoid 리타기팅과 다리 IK는 새 캐릭터에 적용하지 않습니다.
@@ -18,7 +33,7 @@
 
 - 데이터: `Assets/Resources/Hero/NativeMutant.asset`
 - 원본·프리팹·클립: `Assets/MutantCharacter/`
-- 재생성 메뉴: **Sniper Ridge → 새 FBX 캐릭터와 네 동작 연결**
+- 재생성 메뉴: **Sniper Ridge → 원본 캐릭터와 Mixamo 동작 연결**
 - 현재 검증: `NativeMutantValidation.Run`(원본 관절 비교, 30/60/120fps 보폭, 이동 중 펀치), `NativeMutantPlayValidation.Run`(격리 프로젝트의 실제 도시 Play, 변신·피해·효과음·달리기·점프·인간 복귀). Play 검사는 자동 실행용으로 프로젝트를 종료하므로 작업 중인 에디터가 아닌 별도 프로젝트 복사본에서 실행합니다.
 
 Unity **2022.3.62f3**에서 위 두 검사를 통과했습니다. 원본 변신·펀치 관절 비교 오차 0°, 실제 Play `errors=0`, 점프 높이 약 0.76m와 착지 1회, 이동 중 펀치 무릎 움직임을 확인했습니다.

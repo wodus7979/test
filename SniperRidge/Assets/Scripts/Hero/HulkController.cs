@@ -11,7 +11,7 @@ namespace SniperRidge
         public enum Attack { None, Punch, Clap, Slam, Kick }
         public bool Active { get; private set; }
         public const float TransformDuration=2.833333f;
-        public const float WalkSpeed=3.2f, RunSpeed=6.4f;
+        public const float WalkSpeed=5.2f, RunSpeed=8.4f;
         public bool RunEnabled { get; private set; }
         public bool Sprinting { get; private set; }
         public float PlanarSpeed { get; private set; }
@@ -23,7 +23,10 @@ namespace SniperRidge
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None)return false;
             RunEnabled=!RunEnabled;return true;
         }
-        public const float PunchDuration=3.833333f, PunchImpactTime=1.40f, JumpWindup=1.20f, JumpLaunchSpeed=6.5f, JumpRecovery=1.266667f;
+        // Source contact stays at 1.40s; playback and gameplay share the same rate.
+        public const float PunchPlaybackRate=3f;
+        public const float PunchDuration=3.833333f/PunchPlaybackRate, PunchImpactTime=1.40f/PunchPlaybackRate;
+        public const float JumpWindup=.28f, JumpLaunchSpeed=8f, JumpGravity=36f, JumpRecovery=.28f, JumpCooldown=2f;
         public const float KickDuration=1.5f, KickImpactTime=.65f;
         public bool PunchLeft { get; private set; }
         bool slamLaunched;
@@ -90,6 +93,10 @@ namespace SniperRidge
             Game.Hud.Announce(Active?"헐크 변신 · 왕을 향해 돌파하세요":"FPS 모드로 복귀");
             return true;
         }
+        public void NotifyHit()
+        {
+            if(Active&&!Transforming&&CurrentAttack==Attack.None&&Grounded)visual.ReactToHit();
+        }
         public bool BeginAttack(Attack attack)
         {
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
@@ -100,7 +107,7 @@ namespace SniperRidge
             {PunchLeft=false;visual.PunchLeft=false;punchAt=Time.time+PunchDuration;}
             if(attack==Attack.Clap)clapAt=Time.time+4f;
             if(attack==Attack.Kick)kickAt=Time.time+2.2f;
-            if(attack==Attack.Slam){slamAt=Time.time+6f;slamLaunched=false;airborne=false;}
+            if(attack==Attack.Slam){slamAt=Time.time+JumpCooldown;slamLaunched=false;airborne=false;}
             return true;
         }
         public void Tick(float dt)
@@ -159,11 +166,11 @@ namespace SniperRidge
                 if(AttackAge>=JumpWindup&&Grounded){vertical=JumpLaunchSpeed;slamLaunched=true;Audio.Play(HulkAudio.Cue.Jump);}
             }
             if(Grounded&&vertical<0)vertical=-2;
-            vertical=Mathf.Max(-30,vertical-26*dt);
+            vertical=Mathf.Max(-30,vertical-JumpGravity*dt);
             Sprinting=!Transforming&&CurrentAttack==Attack.None&&(RunEnabled||sprint)&&input.sqrMagnitude>.01f;
-            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?2.7f:CurrentAttack==Attack.Kick?1.4f:Sprinting?RunSpeed:WalkSpeed;
+            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?3.8f:CurrentAttack==Attack.Kick?1.4f:Sprinting?RunSpeed:WalkSpeed;
             Vector3 desired=Quaternion.Euler(0,yaw,0)*new Vector3(input.x,0,input.y)*speed;
-            float rate=desired.sqrMagnitude<horizontalVelocity.sqrMagnitude?34:24;
+            float rate=desired.sqrMagnitude<horizontalVelocity.sqrMagnitude?44:32;
             horizontalVelocity=Vector3.MoveTowards(horizontalVelocity,desired,rate*dt);
             Vector3 before=transform.position;float previousSpeed=PlanarSpeed;
             CollisionFlags flags=capsule.Move((horizontalVelocity+Vector3.up*vertical)*dt);

@@ -9,12 +9,12 @@ namespace SniperRidge.EditorTools
     public static class NativeMutantImport
     {
         const string Root="Assets/MutantCharacter/";
-        [MenuItem("Sniper Ridge/새 FBX 캐릭터와 네 동작 연결")]
+        [MenuItem("Sniper Ridge/원본 캐릭터와 Mixamo 동작 연결")]
         public static void Run()
         {
             Directory.CreateDirectory(Root+"Clips");Directory.CreateDirectory(Root+"Textures");Directory.CreateDirectory(Root+"Materials");AssetDatabase.Refresh();
-            string[] names={"Standing Taunt Battlecry","Zombie Punching","Mutant Jumping","Fast Run"};
-            var clips=new AnimationClip[4];
+            string[] names={"Standing Taunt Battlecry","Zombie Punching","Mutant Jumping","Fast Run","Fighting Idle","Taking Punch"};
+            var clips=new AnimationClip[names.Length];
             for(int i=0;i<names.Length;i++)
             {
                 string path=Root+"Source/"+names[i]+".fbx";
@@ -27,7 +27,7 @@ namespace SniperRidge.EditorTools
                 AssetDatabase.Refresh();
                 var source=AssetDatabase.LoadAllAssetsAtPath(path).OfType<AnimationClip>().First(c=>!c.name.StartsWith("__preview__"));
                 var copy=UnityEngine.Object.Instantiate(source);copy.name=names[i];
-                var settings=AnimationUtility.GetAnimationClipSettings(copy);settings.loopTime=i==3;AnimationUtility.SetAnimationClipSettings(copy,settings);
+                var settings=AnimationUtility.GetAnimationClipSettings(copy);settings.loopTime=i==3||i==4;AnimationUtility.SetAnimationClipSettings(copy,settings);
                 string clipPath=Root+"Clips/"+names[i]+".anim";var existing=AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
                 if(existing){EditorUtility.CopySerialized(copy,existing);UnityEngine.Object.DestroyImmediate(copy);clips[i]=existing;}else{AssetDatabase.CreateAsset(copy,clipPath);clips[i]=copy;}
             }
@@ -48,16 +48,19 @@ namespace SniperRidge.EditorTools
                 string dataPath="Assets/Resources/Hero/NativeMutant.asset";
                 var set=AssetDatabase.LoadAssetAtPath<NativeMutantSet>(dataPath);
                 if(!set){set=ScriptableObject.CreateInstance<NativeMutantSet>();AssetDatabase.CreateAsset(set,dataPath);}
-                set.Transform=clips[0];set.Punch=clips[1];set.Jump=clips[2];set.Run=clips[3];
+                set.Transform=clips[0];set.Punch=clips[1];set.Jump=clips[2];set.Run=clips[3];set.Idle=clips[4];set.Hit=clips[5];
                 clips[2].SampleAnimation(model,0);
                 var mesh=new Mesh();skin.BakeMesh(mesh);var bounds=new Bounds(skin.transform.TransformPoint(mesh.vertices[0]),Vector3.zero);
                 foreach(var vertex in mesh.vertices)bounds.Encapsulate(skin.transform.TransformPoint(vertex));UnityEngine.Object.DestroyImmediate(mesh);
                 set.Scale=HulkController.Height/bounds.size.y;set.GroundOffset=-bounds.min.y*set.Scale;
                 var hip=model.GetComponentsInChildren<Transform>().First(t=>t.name=="mixamorig:Hips");
+                clips[4].SampleAnimation(model,0);set.IdleStart=hip.localPosition;
+                clips[4].SampleAnimation(model,clips[4].length);set.IdleEnd=hip.localPosition;
                 clips[3].SampleAnimation(model,0);set.RunStart=hip.localPosition;
                 clips[3].SampleAnimation(model,clips[3].length);set.RunEnd=hip.localPosition;
                 set.RunStride=Vector3.ProjectOnPlane(set.RunEnd-set.RunStart,Vector3.up).magnitude*set.Scale;
-                set.JumpTakeoff=HulkController.JumpWindup;set.JumpApex=1.5f;set.JumpLanding=1.9f;
+                set.JumpTakeoff=1.2f; // Source clip time, independent of the gameplay wind-up.
+                set.JumpApex=1.5f;set.JumpLanding=1.9f;
                 clips[2].SampleAnimation(model,set.JumpTakeoff);float liftStart=hip.localPosition.y;
                 clips[2].SampleAnimation(model,set.JumpLanding);float liftEnd=hip.localPosition.y;
                 var lift=new AnimationCurve();

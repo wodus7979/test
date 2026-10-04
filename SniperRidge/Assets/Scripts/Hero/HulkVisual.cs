@@ -27,6 +27,11 @@ namespace SniperRidge
         GameObject locomotionSampler;
         Transform[] locomotionBones;
         bool[] lowerBody;
+        Quaternion[] hitReference;
+        float hitAge=99;
+        public const float HitDuration=.55f;
+        public bool ReactingToHit { get; private set; }
+        public void ReactToHit(){if(Definition.Hit&&hitAge>.8f)hitAge=0;}
         Vector3[] outgoingPositions,lastPositions;
         Quaternion[] outgoingRotations,lastRotations;
         Vector3 velocity;
@@ -58,6 +63,12 @@ namespace SniperRidge
             var samples=locomotionSampler.GetComponentsInChildren<Transform>().ToDictionary(t=>t.name);
             locomotionBones=bones.Select(b=>samples[b.name]).ToArray();
             lowerBody=bones.Select(b=>b==hips||b.name.Contains("Leg")||b.name.Contains("Foot")||b.name.Contains("Toe")).ToArray();
+            hitReference=new Quaternion[bones.Length];
+            if(data.Hit)
+            {
+                data.Hit.SampleAnimation(locomotionSampler,0);
+                for(int i=0;i<bones.Length;i++)hitReference[i]=locomotionBones[i].localRotation;
+            }
             outgoingPositions=new Vector3[bones.Length];lastPositions=new Vector3[bones.Length];
             outgoingRotations=new Quaternion[bones.Length];lastRotations=new Quaternion[bones.Length];
             Pose(0,HulkController.Attack.None,0,true,false,-1,0);
@@ -66,11 +77,11 @@ namespace SniperRidge
         public void SetJumpMotion(float vertical,bool launched){jumpVelocity=vertical;jumpLaunched=launched;}
         public void SetVisible(bool visible){foreach(var skin in renderers)skin.enabled=visible;}
         public void ResetLocomotion()
-        {gait=idleTime=heading=blendAge=0;velocity=Vector3.zero;previousState=null;hasPose=false;transform.localRotation=Quaternion.identity;}
+        {hitAge=99;ReactingToHit=false;gait=idleTime=heading=blendAge=0;velocity=Vector3.zero;previousState=null;hasPose=false;transform.localRotation=Quaternion.identity;}
         public void Pose(float speed,HulkController.Attack attack,float age,bool grounded,bool landed,float transformation=-1,float deltaTime=-1)
         {
             float dt=Mathf.Max(0,deltaTime<0?Time.deltaTime:deltaTime);
-            idleTime+=dt;
+            idleTime+=dt;hitAge+=dt;
             // Distance, rather than a guessed clip rate, keeps the original stride in step with movement.
             int oldStep=Mathf.FloorToInt((gait-.30f)*2);
             if(speed>.08f&&grounded&&transformation<0)gait+=speed*dt/Definition.RunStride;
@@ -79,20 +90,21 @@ namespace SniperRidge
             heading=Mathf.LerpAngle(heading,desiredHeading,1-Mathf.Exp(-12*dt));transform.localRotation=Quaternion.Euler(0,heading,0);
             AnimationClip clip;float time;string state;
             if(transformation>=0){clip=Definition.Transform;time=transformation*clip.length;state="Transform";}
-            else if(attack==HulkController.Attack.Punch){clip=Definition.Punch;time=age;state="Punch";}
+            else if(attack==HulkController.Attack.Punch){clip=Definition.Punch;time=age*HulkController.PunchPlaybackRate;state="Punch";}
             else if(attack==HulkController.Attack.Slam)
             {
                 clip=Definition.Jump;state=landed?"Land":"Jump";
-                if(landed)time=Definition.JumpLanding+age;
-                else if(!jumpLaunched)time=Mathf.Min(age,Definition.JumpTakeoff);
+                if(landed)time=Mathf.Lerp(Definition.JumpLanding,clip.length,Mathf.Clamp01(age/HulkController.JumpRecovery));
+                else if(!jumpLaunched)time=Definition.JumpTakeoff*Mathf.Clamp01(age/HulkController.JumpWindup);
                 else if(jumpVelocity>=0)time=Mathf.Lerp(Definition.JumpTakeoff,Definition.JumpApex,1-Mathf.Clamp01(jumpVelocity/HulkController.JumpLaunchSpeed));
                 else time=Mathf.Lerp(Definition.JumpApex,Definition.JumpLanding,Mathf.Clamp01(-jumpVelocity/HulkController.JumpLaunchSpeed));
             }
             else if(speed>.12f){clip=Definition.Run;time=Mathf.Repeat(gait,1)*clip.length;state="Run";}
             else
             {
-                // A quiet planted-foot section of the supplied jump serves as the waiting pose.
-                clip=Definition.Jump;time=.08f+.12f*(.5f-.5f*Mathf.Cos(idleTime*2));state="Idle";
+                // Native Mixamo fighting stance, with a fallback for older asset sets.
+                clip=Definition.Idle?Definition.Idle:Definition.Jump;
+                time=Definition.Idle?Mathf.Repeat(idleTime,clip.length):.08f+.12f*(.5f-.5f*Mathf.Cos(idleTime*2));state="Idle";
             }
             if(state!=previousState)
             {
@@ -104,6 +116,11 @@ namespace SniperRidge
             if(state=="Run")
             {
                 Vector3 travel=Vector3.Lerp(Definition.RunStart,Definition.RunEnd,time/clip.length);travel.y=0;
+                hips.localPosition-=travel;
+            }
+            if(state=="Idle"&&Definition.Idle)
+            {
+                Vector3 travel=Vector3.Lerp(Definition.IdleStart,Definition.IdleEnd,time/clip.length);travel.y=0;
                 hips.localPosition-=travel;
             }
             if(attack==HulkController.Attack.Punch&&speed>.15f)
@@ -121,6 +138,18 @@ namespace SniperRidge
             }
             if(attack==HulkController.Attack.Slam&&!landed&&jumpLaunched)
                 hips.localPosition-=Vector3.up*Definition.JumpRootLift.Evaluate(time);
+            // A short additive upper-body flinch never stops movement or overrides an attack/jump.
+            ReactingToHit=Definition.Hit&&hitAge<HitDuration&&transformation<0&&attack==HulkController.Attack.None&&grounded;
+            if(ReactingToHit)
+            {
+                Definition.Hit.SampleAnimation(locomotionSampler,Mathf.Clamp01(hitAge/HitDuration)*Mathf.Min(1.2f,Definition.Hit.length));
+                float weight=.65f*Mathf.SmoothStep(0,1,Mathf.Clamp01(hitAge/.06f))*Mathf.SmoothStep(0,1,Mathf.Clamp01((HitDuration-hitAge)/.14f));
+                for(int i=0;i<bones.Length;i++)if(!lowerBody[i]&&!bones[i].name.Contains("Hand"))
+                {
+                    Quaternion delta=Quaternion.Inverse(hitReference[i])*locomotionBones[i].localRotation;
+                    bones[i].localRotation*=Quaternion.Slerp(Quaternion.identity,delta,weight);
+                }
+            }
             // Only cross-fade whole native poses; never change knee/ankle/finger angles individually.
             float blend=hasPose?Mathf.SmoothStep(0,1,Mathf.Clamp01(blendAge/.14f)):1;
             for(int i=0;i<bones.Length;i++)

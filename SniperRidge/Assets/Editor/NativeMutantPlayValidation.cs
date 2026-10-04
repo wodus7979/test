@@ -18,7 +18,7 @@ namespace SniperRidge.EditorTools
         static float at,peak,nextRecord,kneeMotion;
         static Vector3 city,start,arena=new Vector3(1500,40.05f,1500);
         static Vector2 move;
-        static bool sprint,contactShot,jumpShot;
+        static bool sprint,contactShot,jumpShot,reactionTested;
         static Quaternion kneeStart;
         static HulkController h;
         static GameObject floor;
@@ -84,27 +84,31 @@ namespace SniperRidge.EditorTools
                         Check(Mathf.Abs(enemy.Health-855)<.1f,"punch must hit once: "+enemy.Health);Check(h.Audio.Count(HulkAudio.Cue.PunchSwing)==1&&h.Audio.Count(HulkAudio.Cue.PunchHit)==1,"punch audio events wrong");
                         start=p.transform.position;move=Vector2.left;Next();
                     }
-                    else if(stage==4&&age>1.5f)
-                    {Check(h.Visual.ActiveBlenderClip==h.Visual.Definition.Run&&h.PlanarSpeed>3,"Fast Run missing");Check(Vector3.Distance(start,p.transform.position)>3,"normal run does not move");Record("run");sprint=true;start=p.transform.position;Next();}
+                    else if(stage==4)
+                    {
+                        if(age>.4f&&!reactionTested){gm.Health.TakeDamage(10);reactionTested=true;}
+                        if(age>.55f&&age<.8f){Check(h.Visual.ReactingToHit&&h.PlanarSpeed>HulkController.WalkSpeed-.2f,"hit reaction freezes locomotion or is missing");Record("running_hit");}
+                        if(age<1.5f)return;
+                        Check(h.Visual.ActiveBlenderClip==h.Visual.Definition.Run&&h.PlanarSpeed>HulkController.WalkSpeed-.2f,"Fast Run missing");Check(Vector3.Distance(start,p.transform.position)>6,"normal run does not move");Record("run");sprint=true;start=p.transform.position;Next();}
                     else if(stage==5&&age>1.5f)
                     {
-                        Check(h.Sprinting&&h.PlanarSpeed>6.1f&&Vector3.Distance(start,p.transform.position)>7,"fast run is not faster");Record("sprint");sprint=false;
+                        Check(h.Sprinting&&h.PlanarSpeed>HulkController.RunSpeed-.2f&&Vector3.Distance(start,p.transform.position)>10,"fast run is not faster");Record("sprint");sprint=false;
                         Check(h.BeginAttack(HulkController.Attack.Punch),"moving punch rejected");kneeStart=h.Visual.MotionBones.First(b=>b.name=="mixamorig:LeftLeg").localRotation;start=p.transform.position;Next();
                     }
                     else if(stage==6)
                     {
                         kneeMotion=Mathf.Max(kneeMotion,Quaternion.Angle(kneeStart,h.Visual.MotionBones.First(b=>b.name=="mixamorig:LeftLeg").localRotation));
                         if(age<HulkController.PunchDuration+.2f)return;
-                        Check(kneeMotion>25&&Vector3.Distance(start,p.transform.position)>5,"moving punch freezes legs/root");move=Vector2.zero;
+                        Check(kneeMotion>25&&Vector3.Distance(start,p.transform.position)>4,"moving punch freezes legs/root");move=Vector2.zero;
                         Teleport(p,arena+Vector3.right*20);enemy.transform.position=p.transform.position+Vector3.forward*2;typeof(EnemySoldier).GetProperty("Health").SetValue(enemy,1000f);Physics.SyncTransforms();Next();
                     }
                     else if(stage==7&&age>.3f){start=p.transform.position;landings=h.Landings;peak=0;Check(h.BeginAttack(HulkController.Attack.Slam),"jump rejected");Next();}
                     else if(stage==8)
                     {
                         peak=Mathf.Max(peak,p.transform.position.y-start.y);
-                        if(age<1.1f)Check(!h.JumpLaunched&&Mathf.Abs(p.transform.position.y-start.y)<.05f,"jump launches before source wind-up");
+                        if(age<HulkController.JumpWindup-.04f)Check(!h.JumpLaunched&&Mathf.Abs(p.transform.position.y-start.y)<.05f,"jump launches before source wind-up");
                         if(h.JumpLaunched&&!jumpShot&&Mathf.Abs(h.JumpVelocity)<1.5f){Record("jump_apex");jumpShot=true;}
-                        if(h.CurrentAttack!=HulkController.Attack.None){Check(age<5,"jump stuck");return;}
+                        if(h.CurrentAttack!=HulkController.Attack.None){Check(age<1.4f,"jump too slow or stuck");return;}
                         Check(h.Landings==landings+1&&peak>.4f&&peak<1.1f,"jump physics or single landing wrong: "+peak);Check(Mathf.Abs(enemy.Health-800)<.1f,"landing damage missing/repeated");
                         Check(h.Audio.Count(HulkAudio.Cue.Jump)==1&&h.Audio.Count(HulkAudio.Cue.Slam)==1,"jump/landing audio wrong");Record("landing");
                         Check(h.Toggle()&&!p.IsHulk&&gm.Health.Max==10000,"FPS/health restore failed");
@@ -131,7 +135,7 @@ namespace SniperRidge.EditorTools
                     {
                         if(Time.time>nextRecord){Record("frame_"+(recordFrame++).ToString("D3"));nextRecord=Time.time+.08f;}
                         if(h.CurrentAttack!=HulkController.Attack.None)return;
-                        p.enabled=true;File.WriteAllText("Logs/native-mutant-play.txt","PASS: supplied character; H taunt; native punch once at contact with audio; Fast Run normal/sprint; moving punch leg motion; jump wind-up/flight/single landing/audio; double health and FPS restore.\nJump height="+peak+"m; moving knee travel="+kneeMotion+"deg\n");Debug.Log("[Native mutant Play] PASS");stage=99;
+                        p.enabled=true;File.WriteAllText("Logs/native-mutant-play.txt","PASS: supplied character; Mixamo idle/hit with uninterrupted running; H taunt; native punch once at contact with audio; Fast Run normal/sprint; moving punch leg motion; jump wind-up/flight/single landing/audio; double health and FPS restore.\nJump height="+peak+"m; moving knee travel="+kneeMotion+"deg\n");Debug.Log("[Native mutant Play] PASS");stage=99;
                     }
                 }
                 if(!File.Exists("Logs/autoplay_result.txt")||EditorApplication.isPlayingOrWillChangePlaymode)return;

@@ -37,6 +37,7 @@ namespace SniperRidge
             if (gm == null || !gm.IsPlaying) return;
             if(gm.Player != null && gm.Player.IsHulk)amount*=.35f;
             Current = Mathf.Max(0f, Current - amount);
+            if(amount>0f && Current>0f && gm.Player != null && gm.Player.IsHulk)gm.Player.Hulk.NotifyHit();
             lastHitTime = Time.time;
             gm.Hud.FlashDamage();
             gm.PlaySound(gm.Sounds.Crack, 0.9f, 0.8f);
