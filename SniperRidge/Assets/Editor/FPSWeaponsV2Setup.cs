@@ -13,7 +13,7 @@ namespace SniperRidge.EditorTools
     [InitializeOnLoad]
     public static class FPSWeaponsV2Setup
     {
-        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-1";
+        const string Root="Assets/FPSWeaponsV2", Output="Assets/Resources/WeaponsV2", Revision="game-weapons-v2-2";
         [Serializable] public class Part { public string name; public int mat; public float[] p,n,uv; }
         [Serializable] public class Level { public Part[] parts; }
         [Serializable] public class ComponentData { public string name,parent; public float[] position; public Level[] lods; }
@@ -94,6 +94,7 @@ namespace SniperRidge.EditorTools
                 {
                     Texture(m,LoadTexture(info.albedo,false,true),"_MainTex","_BaseMap","_BaseColorMap");
                     Texture(m,LoadTexture(info.normal,true,false),"_BumpMap","_NormalMap");m.EnableKeyword("_NORMALMAP");
+                    Float(m,"_BumpScale",info.name=="Graphite"||info.name=="Steel"||info.name=="EdgeSteel"?.22f:.55f);
                     if(Pipeline=="HDRP/Lit")
                     {
                         Texture(m,LoadTexture(info.maskMap,false,false),"_MaskMap");m.EnableKeyword("_MASKMAP");m.EnableKeyword("_NORMALMAP_TANGENT_SPACE");
@@ -102,7 +103,7 @@ namespace SniperRidge.EditorTools
                     {
                         Texture(m,LoadTexture(info.metallicSmoothness,false,false),"_MetallicGlossMap");
                         m.EnableKeyword(Pipeline=="Standard"?"_METALLICGLOSSMAP":"_METALLICSPECGLOSSMAP");
-                        Float(m,"_GlossMapScale",1);Float(m,"_Smoothness",1);Float(m,"_WorkflowMode",1);Float(m,"_SmoothnessTextureChannel",0);
+                        Float(m,"_GlossMapScale",info.name=="Graphite"?.62f:info.name=="Steel"?.8f:1f);Float(m,"_Smoothness",1);Float(m,"_WorkflowMode",1);Float(m,"_SmoothnessTextureChannel",0);
                     }
                 }
                 if(info.doubleSided){Float(m,"_Cull",0);Float(m,"_CullMode",0);m.doubleSidedGI=true;}
@@ -146,11 +147,27 @@ namespace SniperRidge.EditorTools
                         var child=new GameObject("LOD"+l,typeof(MeshFilter),typeof(MeshRenderer));child.transform.SetParent(pivot,false);
                         string name=model.name+"_"+c.name+"_LOD"+l;
                         child.GetComponent<MeshFilter>().sharedMesh=Save(MakeMesh(c.lods[l],name),Output+"/Meshes/"+name+".asset");
-                        var slots=new Material[c.lods[l].parts.Length];for(int s=0;s<slots.Length;s++)slots[s]=materials[c.lods[l].parts[s].mat];
+                        var slots=new Material[c.lods[l].parts.Length];
+                        for(int s=0;s<slots.Length;s++)
+                        {
+                            int material=c.lods[l].parts[s].mat;
+                            // The optical housing is anodized black, not exposed silver steel.
+                            if(model.name=="03_assault_rifle"&&c.name=="Optic"&&material==1)material=0;
+                            slots[s]=materials[material];
+                        }
                         var renderer=child.GetComponent<MeshRenderer>();renderer.sharedMaterials=slots;renderers[l].Add(renderer);
                     }
                 }
                 foreach(var marker in model.markers)Point(pivots[marker.parent],marker.name,V(marker.position));
+                if(model.name=="03_assault_rifle")
+                {
+                    // Compact optical housing anchored to the receiver rail; the lens and
+                    // ADS marker follow the same transform, including the moving cap geometry.
+                    var optic=pivots["Optic"];Vector3 rail=new Vector3(optic.localPosition.x,.073f,optic.localPosition.z);
+                    const float opticScale=.72f;
+                    optic.localPosition=rail+(optic.localPosition-rail)*opticScale;optic.localScale=Vector3.one*opticScale;
+                    var sight=pivots["Body"].Find("SightLine");sight.localPosition=rail+(sight.localPosition-rail)*opticScale;
+                }
                 if(model.name=="mounted_machine_gun")
                 {
                     Point(pivots["Weapon"],"RearGripLeft",new Vector3(-.225f,.065f,-.55f));

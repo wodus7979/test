@@ -43,7 +43,8 @@ namespace SniperRidge.EditorTools
         }
         static void CheckHands(WeaponDefinition definition)
         {
-            var instance=UnityEngine.Object.Instantiate(WeaponModels.LoadPrefab(definition.ModelName));
+            var instance=WeaponModels.Build(null,definition);
+            instance.transform.SetPositionAndRotation(Vector3.zero,Quaternion.identity);
             try
             {
                 Vector3 hip=FpsWeaponView.Offset(definition,false,instance.transform);
@@ -51,7 +52,7 @@ namespace SniperRidge.EditorTools
                     foreach(var vertex in filter.sharedMesh.vertices)
                     {
                         Vector3 local=instance.transform.InverseTransformPoint(filter.transform.TransformPoint(vertex));
-                        Vector3 cameraPoint=hip+FpsWeaponView.Rotation(false,0)*local;
+                        Vector3 cameraPoint=hip+FpsWeaponView.Rotation(false,0)*Vector3.Scale(local,instance.transform.localScale);
                         Check(cameraPoint.z>.06f&&cameraPoint.y<.04f,"기본 자세에서 총이 눈/화면 중앙을 가립니다: "+definition.Id);
                     }
                 instance.transform.SetPositionAndRotation(new Vector3(31,12,-17),Quaternion.Euler(8,53,2));
@@ -67,7 +68,7 @@ namespace SniperRidge.EditorTools
                 {
                     var sight=WeaponModels.FindPart(instance.transform,"SightLine");
                     Vector3 local=instance.transform.InverseTransformPoint(sight.position);
-                    Vector3 aim=FpsWeaponView.Offset(definition,true,instance.transform)+local;
+                    Vector3 aim=FpsWeaponView.Offset(definition,true,instance.transform)+Vector3.Scale(local,instance.transform.localScale);
                     Check(new Vector2(aim.x,aim.y).magnitude<.001f&&aim.z>.1f,"조준축 정렬 오류: "+definition.Id);
                     hands.SetAiming(true);
                     var occluder=WeaponModels.FindPart(instance.transform,"Optic");

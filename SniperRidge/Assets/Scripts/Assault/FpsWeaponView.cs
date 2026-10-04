@@ -4,6 +4,8 @@ namespace SniperRidge
     // Keep the receiver in the lower-right quadrant; aiming alone brings it to the centre.
     public static class FpsWeaponView
     {
+        // A modest presentation scale; world weapons retain their authored dimensions.
+        public static float Scale(WeaponDefinition weapon)=>weapon.IsRocket||weapon.IsMounted||weapon.IsTank?1f:1.12f;
         public static Vector3 Offset(WeaponDefinition weapon,bool aiming,Transform model=null)
         {
             if(aiming&&!weapon.IsRocket)
@@ -11,7 +13,7 @@ namespace SniperRidge
                 var sight=model!=null?model.Find("Body/SightLine"):null;
                 if(sight!=null)
                 {
-                    Vector3 local=model.InverseTransformPoint(sight.position);
+                    Vector3 local=Vector3.Scale(model.InverseTransformPoint(sight.position),model.localScale);
                     return new Vector3(-local.x,-local.y,.46f-local.z);
                 }
                 return new Vector3(0,-.20f,.64f);

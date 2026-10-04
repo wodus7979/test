@@ -22,7 +22,7 @@ namespace SniperRidge.EditorTools
                 foreach(var definition in WeaponDefinition.All)
                 {
                     if(definition.IsMounted||definition.IsTank)continue;
-                    model=UnityEngine.Object.Instantiate(WeaponModels.LoadPrefab(definition.ModelName),camera.transform);
+                    model=WeaponModels.Build(camera.transform,definition);
                     var hands=FpsWeaponHands.Attach(model.transform,definition);
                     foreach(bool aim in new[]{false,true})
                     {

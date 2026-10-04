@@ -56,7 +56,7 @@ namespace SniperRidge
                 inst.name = "WeaponModel_" + def.Id;
                 inst.transform.localPosition = def.ViewOffset;
                 inst.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-                inst.transform.localScale = Vector3.one;
+                inst.transform.localScale = Vector3.one * FpsWeaponView.Scale(def);
                 var lod = inst.GetComponent<LODGroup>();
                 if (lod != null) lod.ForceLOD(0); // First-person equipment always uses the detailed mesh.
                 foreach (var c in inst.GetComponentsInChildren<Collider>())
