@@ -24,24 +24,24 @@ namespace SniperRidge
         }
         void UpdateInfantry()
         {
-            if(!CombatReady){nextInfantry=Time.time+7;return;}
-            if(infantryWaves>=3||Time.time<nextInfantry||AliveInfantry>8||battle.AliveTanks==0)return;
+            if(!battle.TargetAvailable){nextInfantry=Time.time+3;return;}
+            if(infantryWaves>=3||Time.time<nextInfantry||AliveInfantry>8||(infantryWaves>0&&battle.AliveTanks==0))return;
             SpawnInfantryWave();nextInfantry=Time.time+28;
         }
         public void SpawnInfantryWave()
         {
-            if(!CombatReady||infantryWaves>=3)return;
+            if(!battle.TargetAvailable||infantryWaves>=3)return;
             int spawned=0;
             for(int i=0;i<48&&spawned<6;i++)
             {
                 float angle=(i*137.5f+infantryWaves*45)*Mathf.Deg2Rad;
-                Vector3 p=Ground(GM.Player.transform.position+new Vector3(Mathf.Sin(angle),0,Mathf.Cos(angle))*(28+i%3*6));
+                Vector3 p=Ground(battle.TargetPosition+new Vector3(Mathf.Sin(angle),0,Mathf.Cos(angle))*(28+i%3*6));
                 if(Mathf.Abs(p.x)>TankBattle.Bounds-5||Mathf.Abs(p.z)>TankBattle.Bounds-5)continue;
                 if(Physics.CheckCapsule(p+Vector3.up*.6f,p+Vector3.up*2,.6f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))continue;
                 var enemy=LevelBuilder.SpawnRusher(GM,new Vector2(p.x,p.z),"Armored battle infantry "+infantryWaves+"-"+spawned);
                 infantry.Add(enemy);spawned++;
             }
-            if(spawned>0){infantryWaves++;GM.Hud.Announce("적 보병 "+spawned+"명 접근 · 주먹·충격파·나무로 반격하세요");}
+            if(spawned>0){infantryWaves++;GM.Hud.Announce("적 보병 "+spawned+"명 접근 · 전차 주포 또는 변신 공격으로 반격하세요");}
         }
     }
 }

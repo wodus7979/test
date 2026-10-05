@@ -107,7 +107,10 @@ namespace SniperRidge
             var settings=NavMesh.GetSettingsByIndex(0);settings.agentRadius=.5f;settings.agentHeight=2.5f;settings.agentClimb=.3f;
             settings.overrideVoxelSize=true;settings.voxelSize=.2f;
             var sources=new List<NavMeshBuildSource>();
-            NavMeshBuilder.CollectSources(transform,EnemyRagdoll.CombatMask,NavMeshCollectGeometry.PhysicsColliders,0,new List<NavMeshBuildMarkup>(),sources);
+            var movable=new List<NavMeshBuildMarkup>();
+            foreach(var car in GetComponentsInChildren<StreetWeapon>())
+                if(car.Kind==StreetWeapon.PropKind.Car)movable.Add(new NavMeshBuildMarkup{root=car.transform,ignoreFromBuild=true});
+            NavMeshBuilder.CollectSources(transform,EnemyRagdoll.CombatMask,NavMeshCollectGeometry.PhysicsColliders,0,movable,sources);
             data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(new Vector3(0,25,0),new Vector3(AssaultLayout.Size,70,AssaultLayout.Size)),Vector3.zero,Quaternion.identity);
             if(data==null)throw new InvalidOperationException("도시 이동 경로 생성 실패");
             navigation=NavMesh.AddNavMeshData(data);

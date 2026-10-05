@@ -260,7 +260,7 @@ namespace SniperRidge
             Physics.SyncTransforms();
             foreach(var collider in root.GetComponentsInChildren<Collider>())
             {
-                if(!collider.enabled||collider.isTrigger||collider.GetComponentInParent<KnockdownTree>()!=null)continue;
+                if(!collider.enabled||collider.isTrigger||collider.GetComponentInParent<KnockdownTree>()!=null||collider.GetComponentInParent<TankMovableRock>()!=null)continue;
                 Bounds b=collider.bounds;
                 Obstacles.Add(new Vector3(b.center.x,b.center.z,new Vector2(b.extents.x,b.extents.z).magnitude));
             }
@@ -273,6 +273,7 @@ namespace SniperRidge
             var cap=GameObject.CreatePrimitive(PrimitiveType.Sphere);cap.name="Snow cap";cap.transform.SetParent(root,true);
             cap.transform.position=position+Vector3.up*(scale.y*.70f);cap.transform.localScale=new Vector3(scale.x*.91f,scale.y*.20f,scale.z*.91f);
             cap.transform.rotation=Quaternion.Euler(0,index*67f,0);cap.GetComponent<Renderer>().sharedMaterial=snow;cap.GetComponent<Collider>().enabled=false;
+            cap.transform.SetParent(rock.transform,true);rock.AddComponent<TankMovableRock>();
             return rock;
         }
         static void WinterStump(Transform root,Terrain terrain,System.Random rng,Material snow,Material timber,int index)

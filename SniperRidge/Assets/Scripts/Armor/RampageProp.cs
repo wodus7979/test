@@ -59,11 +59,13 @@ namespace SniperRidge
                 go.transform.Rotate(0,(float)rng.NextDouble()*360,0);
                 go.transform.localScale*=.85f+(float)rng.NextDouble()*.35f;
             }
+            if(!tree)go.AddComponent<TankMovableRock>();
             var prop=go.AddComponent<RampageProp>();prop.Tree=tree;return prop;
         }
         public void PickUp()
         {
             Available=false;
+            var rock=GetComponent<TankMovableRock>();if(rock)rock.StopMoving();
             foreach(var collider in GetComponentsInChildren<Collider>())collider.enabled=false;
             transform.SetParent(null,true);
         }

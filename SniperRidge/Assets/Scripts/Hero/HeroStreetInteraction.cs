@@ -17,15 +17,15 @@ namespace SniperRidge
         public static bool IsPropAttack(HulkController.Attack attack)=>attack==HulkController.Attack.BarrelThrow||attack==HulkController.Attack.Uproot||attack==HulkController.Attack.PoleSwing;
         public static float EventFraction(HulkController.Attack attack)=>attack==HulkController.Attack.BarrelThrow?.55f:attack==HulkController.Attack.Uproot?.60f:.42f;
         public bool CanAttack(HulkController.Attack attack)=>attack==HulkController.Attack.Uproot?pending&&pending.Available:
-            Held&&((attack==HulkController.Attack.BarrelThrow&&Held.Kind==StreetWeapon.PropKind.Barrel)||(attack==HulkController.Attack.PoleSwing&&Held.Kind==StreetWeapon.PropKind.Pole));
+            Held&&((attack==HulkController.Attack.BarrelThrow&&Held.Throwable)||(attack==HulkController.Attack.PoleSwing&&Held.Kind==StreetWeapon.PropKind.Pole));
         public StreetWeapon Nearest()
         {
             StreetWeapon nearest=null;float best=3.4f;Vector3 origin=transform.position+Vector3.up;
             foreach(var prop in FindObjectsOfType<StreetWeapon>())
             {
-                if(!prop.Available)continue;Vector3 point=prop.transform.position+Vector3.up*.7f;
+                if(!prop.Available)continue;Vector3 point=prop.PickupPoint(origin);
                 float distance=Vector3.Distance(origin,point);if(distance>best||Vector3.Angle(transform.forward,point-origin)>75)continue;
-                if(EnemyProjectile.WorldHit(origin,point,null,out var hit)&&hit.collider.GetComponentInParent<StreetWeapon>()!=prop)continue;
+                if(EnemyProjectile.WorldHit(origin,Vector3.MoveTowards(point,prop.GetComponent<Collider>().bounds.center,.12f),null,out var hit)&&hit.collider.GetComponentInParent<StreetWeapon>()!=prop)continue;
                 nearest=prop;best=distance;
             }
             return nearest;
@@ -34,8 +34,8 @@ namespace SniperRidge
         {
             if(!hero.Active||hero.Transforming||!hero.Grounded||hero.CurrentAttack!=HulkController.Attack.None)return false;
             if(Held){Drop();return true;}
-            pending=Nearest();if(!pending){GameManager.Instance.Hud.ShowShotFeedback("드럼통이나 전봇대를 바라보고 가까이 다가가세요");return false;}
-            if(pending.Kind==StreetWeapon.PropKind.Pole)return hero.BeginAttack(HulkController.Attack.Uproot);
+            pending=Nearest();if(!pending){GameManager.Instance.Hud.ShowShotFeedback("자동차, 드럼통이나 전봇대를 바라보고 가까이 다가가세요");return false;}
+            if(pending.Kind!=StreetWeapon.PropKind.Barrel)return hero.BeginAttack(HulkController.Attack.Uproot);
             if(!pending.Grab())return false;Held=pending;pending=null;return true;
         }
         public void Drop()
@@ -50,7 +50,7 @@ namespace SniperRidge
                 if(pending&&pending.Grab()){Held=pending;Held.Uproot();hero.Audio.Play(HulkAudio.Cue.Slam,.6f);}pending=null;
             }
             else if(attack==HulkController.Attack.BarrelThrow&&Held)
-            {Held.Throw(transform.forward);Held=null;hero.Audio.Play(HulkAudio.Cue.PunchSwing);}
+            {Held.Throw(GameManager.Instance.Player.Eye.forward);Held=null;hero.Audio.Play(HulkAudio.Cue.PunchSwing);}
             else if(attack==HulkController.Attack.PoleSwing&&Held)
             {
                 hero.Audio.Play(HulkAudio.Cue.PunchSwing);var gm=GameManager.Instance;Vector3 origin=transform.position+Vector3.up*1.7f;
@@ -70,7 +70,7 @@ namespace SniperRidge
         {
             if(!button)return;button.gameObject.SetActive(hero.Active&&GameManager.Instance.Assault!=null);
             button.interactable=hero.Active&&!hero.Transforming&&hero.CurrentAttack==HulkController.Attack.None;
-            button.GetComponentInChildren<Text>().text=Held?"[Q] 내려놓기 · 좌클릭 공격":"[E] 드럼통 / 전봇대 집기";
+            button.GetComponentInChildren<Text>().text=Held?"[Q] 내려놓기 · 좌클릭 공격":"[E] 자동차 / 드럼통 / 전봇대 집기";
         }
         void Grip(Transform[] bones,string side,Vector3 target,Transform hand)
         {
@@ -88,10 +88,20 @@ namespace SniperRidge
             if(hero.CurrentAttack==HulkController.Attack.None)
             {
                 // Carry poses use the beginning of the native action, keeping locomotion in the legs.
-                var clip=Held.Kind==StreetWeapon.PropKind.Barrel?hero.Visual.Definition.ThrowIn:hero.Visual.Definition.PoleAttack;
+                var clip=Held.Throwable?hero.Visual.Definition.ThrowIn:hero.Visual.Definition.PoleAttack;
                 hero.Visual.ApplyCarryPose(clip);
             }
-            if(Held.Kind==StreetWeapon.PropKind.Barrel)
+            if(Held.Kind==StreetWeapon.PropKind.Car)
+            {
+                // Carry the complete vehicle across the shoulders, with both palms supporting its chassis.
+                Held.transform.rotation=Quaternion.LookRotation(transform.right,Vector3.up);
+                Vector3 centre=hero.CurrentAttack==HulkController.Attack.BarrelThrow?
+                    (right.position+left.position)*.5f+Vector3.up*.65f+transform.forward*.35f:
+                    transform.position+Vector3.up*3.35f+transform.forward*.45f;
+                Held.transform.position=Vector3.Lerp(Held.LiftOrigin,centre-Held.transform.TransformVector(Held.GetComponent<MeshFilter>().sharedMesh.bounds.center),Held.LiftBlend);
+                if(!hero.Blocking){Grip(bones,"Right",centre+transform.right*.65f-Vector3.up*.6f,right);Grip(bones,"Left",centre-transform.right*.65f-Vector3.up*.6f,left);}
+            }
+            else if(Held.Throwable)
             {
                 Held.transform.rotation=Quaternion.LookRotation(transform.forward,Vector3.up);
                 Vector3 centre=(right.position+left.position)*.5f+transform.forward*.08f;

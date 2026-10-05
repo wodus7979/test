@@ -74,6 +74,18 @@ namespace SniperRidge
             return ps;
         }
 
+        public static void Exhaust(Transform rocket)
+        {
+            var flame=System("Rocket exhaust flame",rocket.position,.16f,.32f,1.5f,new Color(1f,.55f,.08f,1));
+            flame.transform.SetParent(rocket,false);flame.transform.localPosition=Vector3.back*.45f;
+            flame.transform.localRotation=Quaternion.Euler(0,180,0);
+            var main=flame.main;main.loop=true;main.duration=1;main.maxParticles=48;
+            var shape=flame.shape;shape.shapeType=ParticleSystemShapeType.Cone;shape.angle=8;shape.radius=.08f;
+            var emission=flame.emission;emission.enabled=true;emission.rateOverTime=90;
+            flame.GetComponent<ParticleSystemRenderer>().sharedMaterial=CombatVfx.FireMaterial;flame.Play();
+            var glow=flame.gameObject.AddComponent<Light>();glow.color=new Color(1,.38f,.06f);glow.intensity=5;glow.range=8;glow.shadows=LightShadows.None;
+        }
+
         public static ParticleSystem Trail(Transform rocket)
         {
             var ps = System("RocketSmokeTrail", rocket.position, 1.7f, .65f, .25f, new Color(.72f, .69f, .62f, .45f));
@@ -104,7 +116,7 @@ namespace SniperRidge
             CombatVfx.Explosion(point, scale);
         }
 
-        public static void TankDestruction(Transform tank)
+        public static void TankDestruction(Transform tank,bool follow=false)
         {
             Bounds bounds=new Bounds(tank.position+Vector3.up*1.5f,new Vector3(4,3,8));bool found=false;
             foreach(var renderer in tank.GetComponentsInChildren<MeshRenderer>())
@@ -116,6 +128,7 @@ namespace SniperRidge
             TankDebris(centre,Mathf.Clamp(bounds.extents.magnitude*.38f,2.2f,4.2f));
 
             var root=new GameObject("Burning tank wreck");root.transform.position=centre;
+            if(follow)root.transform.SetParent(tank,true);
             var fire=System("Tank wreck flames",centre+Vector3.up*.2f,1.05f,1.8f,2.8f,new Color(1f,.22f,.025f,.95f));
             fire.transform.SetParent(root.transform,true);
             var fireMain=fire.main;fireMain.loop=true;fireMain.duration=1f;fireMain.maxParticles=180;

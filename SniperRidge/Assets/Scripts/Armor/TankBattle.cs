@@ -45,7 +45,7 @@ namespace SniperRidge
             float angle=(index*60f+25f)*Mathf.Deg2Rad;
             return new Vector3(Mathf.Sin(angle)*75f,TerrainGenerator.FieldElevation,Mathf.Cos(angle)*75f-40f);
         }
-        public static int EnemyTankCount(int stage)=>4+Mathf.Clamp(stage,1,Stages);
+        public static int EnemyTankCount(int stage)=>2+Mathf.Clamp(stage,1,Stages);
         public static TankAppearance EnemyAppearance(int stage,int ordinal)=>(ordinal+stage)%2==0?TankAppearance.K2BlackPanther:TankAppearance.Opposition;
         IEnumerator RunStages()
         {
@@ -74,7 +74,7 @@ namespace SniperRidge
                 if(stage<Stages)
                 {
                     Resupplying=true;if(!PlayerTank.IsDead)PlayerTank.Resupply();
-                    gm.Hud.Announce(PlayerTank.IsDead?"단계 완료 · 8초 후 적 전차 증원":"단계 완료 · 포탄 +25 / 로켓 +6 / 장갑 수리 +140 · 8초 후 적 증원");
+                    gm.Hud.Announce(PlayerTank.IsDead?"단계 완료 · 8초 후 적 전차 증원":"단계 완료 · 포탄 +25 / 로켓 +6 / 장갑 수리 +280 · 8초 후 적 증원");
                     yield return new WaitForSeconds(8f);
                 }
             }

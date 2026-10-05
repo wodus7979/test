@@ -97,7 +97,7 @@ namespace SniperRidge
             tank.turret = go.transform.Find("Turret"); tank.barrel = tank.turret.Find("Barrel");
             tank.barrelRest = tank.barrel.localPosition; tank.Muzzle = tank.barrel.Find("Muzzle");
             tank.HitsToDestroy=player?0:HitsRequired(appearance);
-            tank.maximumHealth = tank.health = player ? 500f : tank.HitsToDestroy;
+            tank.maximumHealth = tank.health = player ? 1000f : tank.HitsToDestroy;
             tank.body = go.AddComponent<Rigidbody>();
             tank.traction = TankDrive.Configure(tank.body,true);
             tank.engine = go.AddComponent<AudioSource>(); tank.engine.clip = Resources.Load<AudioClip>("Audio/tank_engine");
@@ -267,6 +267,7 @@ namespace SniperRidge
         {
             var gm=GameManager.Instance;
             if (body==null || IsDead || Captured || gm==null || !gm.IsPlaying) return;
+            if(Mathf.Abs(drive)>.05f)TankMovableRock.ClearPath(this,drive);
             TankDrive.Step(body, drive, steering, Time.fixedDeltaTime,gm.Terrain);
         }
         public bool Damage(float amount,bool directShellHit=false)
@@ -304,7 +305,7 @@ namespace SniperRidge
             if (destroyed) detail.Burn();
         }
         void OnDestroy() { if (traction != null) Destroy(traction); }
-        public void Resupply() { Shells+=25;Rockets=Mathf.Min(18,Rockets+6);health=Mathf.Min(maximumHealth,health+140f); }
+        public void Resupply() { Shells+=25;Rockets=Mathf.Min(18,Rockets+6);health=Mathf.Min(maximumHealth,health+280f); }
         public void StopVehicle()
         {
             drive=steering=0;

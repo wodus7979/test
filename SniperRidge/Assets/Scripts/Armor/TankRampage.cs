@@ -10,6 +10,7 @@ namespace SniperRidge
     {
         public bool Escaped { get; private set; }
         public bool Cinematic { get; private set; }
+        public bool Invulnerable => Cinematic || turretPhase!=TurretPhase.None;
         public bool Busy => Cinematic||action!=null;
         public bool CombatReady=>Escaped&&!Cinematic&&Hero&&Hero.Active&&!Hero.Transforming;
         public RampageProp Held { get; private set; }
@@ -39,7 +40,7 @@ namespace SniperRidge
         {
             if(!GM||!GM.IsPlaying)return;
             UpdateInfantry();
-            if(!airSpawned&&(battle.Stage>=3||Time.time-started>70f||Escaped&&!Cinematic&&Time.time-started>28f))SpawnAirSupport();
+            if(!airSpawned&&Time.time-started>1f)SpawnAirSupport();
         }
         public void SpawnAirSupport()
         {
@@ -158,7 +159,7 @@ namespace SniperRidge
         }
         public void ShellHit(Vector3 direction)
         {
-            if(!CombatReady||!GM.IsPlaying)return;
+            if(!CombatReady||Invulnerable||!GM.IsPlaying)return;
             GM.Health.TakeDamage(GM.Health.Max*.10f,true);ShellReactions++;
             if(!GM.IsPlaying)return;
             if(Busy){queuedHit=direction;hasQueuedHit=true;return;}
@@ -289,7 +290,7 @@ namespace SniperRidge
         {
             StopAllCoroutines();EndEscapePresentation();if(escapingHuman)Destroy(escapingHuman);if(carriedTurret)Destroy(carriedTurret.gameObject);
             if(capturedTank&&!capturedTank.IsDead)capturedTank.StopVehicle();
-            action=null;motion=null;Cinematic=false;
+            action=null;motion=null;Cinematic=false;turretPhase=TurretPhase.None;hasQueuedHit=false;
         }
     }
 }

@@ -42,7 +42,7 @@ namespace SniperRidge
             var shot=go.AddComponent<ArmorProjectile>();shot.owner=shooter;shot.friendly=playerShot;
             shot.damage=damage;shot.velocity=direction.normalized*speed;shot.origin=muzzle;shot.rocket=rocket;
             RocketEffects.BuildBody(go.transform);
-            if(rocket){shot.smoke=RocketEffects.Trail(go.transform);var visual=go.transform.Find("RocketVisual");if(visual)visual.localScale*=2.4f;}
+            if(rocket){RocketEffects.Exhaust(go.transform);shot.smoke=RocketEffects.Trail(go.transform);var visual=go.transform.Find("RocketVisual");if(visual)visual.localScale*=2.4f;}
             // Check the barrel's whole reach, including objects penetrated by the displayed muzzle.
             var tank=shooter!=null?shooter.GetComponent<TankVehicle>():null;
             Vector3 breech=tank!=null?tank.AimPoint:shooter!=null?shooter.position+Vector3.up*1.5f:muzzle;

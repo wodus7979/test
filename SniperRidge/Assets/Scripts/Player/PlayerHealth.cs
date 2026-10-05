@@ -35,6 +35,7 @@ namespace SniperRidge
         {
             var gm = GameManager.Instance;
             if (gm == null || !gm.IsPlaying) return;
+            if(gm.Armor&&(gm.Player.InTank||gm.Armor.Rampage.Invulnerable))return;
             if(!bypassResistance && gm.Player != null && gm.Player.IsHulk)amount*=.35f;
             Current = Mathf.Max(0f, Current - amount);
             if(amount>0f && Current>0f && gm.Player != null && gm.Player.IsHulk)gm.Player.Hulk.NotifyHit();

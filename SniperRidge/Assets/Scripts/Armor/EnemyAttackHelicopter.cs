@@ -66,7 +66,7 @@ namespace SniperRidge
         {
             if(Dead)return false;health-=amount;Effects.Dust(transform.position,Vector3.up,.6f);
             if(health>0)return false;Dead=true;
-            GetComponent<TankAppearanceDetail>().Burn();RocketEffects.TankDestruction(transform);
+            GetComponent<TankAppearanceDetail>().Burn();RocketEffects.TankDestruction(transform,true);
             foreach(var c in GetComponentsInChildren<Collider>())c.enabled=false;
             var audio=GetComponent<AudioSource>();if(audio)audio.Stop();
             gameObject.AddComponent<AttackHelicopterWreck>();Destroy(gameObject,16);

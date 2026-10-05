@@ -80,7 +80,7 @@ namespace SniperRidge
             float wallDistance = blocked ? obstacle.distance : float.PositiveInfinity;
             gm.Player.GetDamageCapsule(out Vector3 bottom, out Vector3 top);
             float playerDistance = CounterfireRules.CapsuleHit(position, next, bottom, top, gm.Player.DamageRadius);
-            if ((owner==null||!owner.IsAlly) && !float.IsPositiveInfinity(playerDistance) && playerDistance < wallDistance)
+            if (!gm.Player.InTank && (owner==null||!owner.IsAlly) && !float.IsPositiveInfinity(playerDistance) && playerDistance < wallDistance)
             {
                 gm.Health.TakeDamage(damage);
                 Destroy(gameObject);
@@ -88,6 +88,8 @@ namespace SniperRidge
             }
             if (blocked)
             {
+                var tank=obstacle.collider.GetComponentInParent<TankVehicle>();
+                if(tank&&tank.IsPlayer&&(owner==null||!owner.IsAlly))tank.Damage(damage*.2f);
                 var hitbox=obstacle.collider.GetComponent<EnemyHitbox>();
                 if(hitbox!=null && hitbox.Owner!=null && owner!=null && hitbox.Owner.IsAlly!=owner.IsAlly)
                 {

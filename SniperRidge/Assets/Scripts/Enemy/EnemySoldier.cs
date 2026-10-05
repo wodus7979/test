@@ -454,7 +454,7 @@ namespace SniperRidge
         float UpdateRushing(float dt)
         {
             coverTarget = 0f;
-            Vector3 toPlayer = (gm.Armor?gm.Player.transform.position:gm.PlayerEye.position) - transform.position;
+            Vector3 toPlayer = (gm.Armor?gm.Armor.TargetPosition:gm.PlayerEye.position) - transform.position;
             toPlayer.y = 0f;
             float dist = toPlayer.magnitude;
             Vector3 dir = toPlayer.normalized;
@@ -750,7 +750,7 @@ namespace SniperRidge
 
         bool ShotBlocked(Vector3 from, Vector3 target)
         {
-            if (Role == EnemyRole.RocketTrooper && gm.Armor != null)
+            if (gm.Armor != null)
                 return ArmorProjectile.Obstructed(from,target,transform,gm.Armor.PlayerTank);
             if(!EnemyProjectile.WorldHit(from,target,this,out var hit))return false;
             var hitbox=hit.collider.GetComponent<EnemyHitbox>();

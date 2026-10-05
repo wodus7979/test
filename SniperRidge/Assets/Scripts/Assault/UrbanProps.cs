@@ -29,7 +29,7 @@ namespace SniperRidge
             }
             var go=Object.Instantiate(prototype,parent);go.name=kind;
             go.transform.SetPositionAndRotation(position,Quaternion.Euler(0,yaw,0));go.GetComponent<UrbanMeshOwner>().Mesh=null;go.SetActive(true);
-            if(IsVehicle(kind)){go.AddComponent<DestructibleVehicle>();if(kind=="City bus")VehicleFinish.AddBusSigns(go.transform);}
+            if(IsVehicle(kind)){var car=go.AddComponent<DestructibleVehicle>();if(kind!="City bus")StreetWeapon.AttachCar(car);if(kind=="City bus")VehicleFinish.AddBusSigns(go.transform);}
             return go;
         }
         public static bool IsVehicle(string kind)=>kind=="Utility van"||kind=="Abandoned sedan"||kind=="Offroad SUV"||kind=="City bus";

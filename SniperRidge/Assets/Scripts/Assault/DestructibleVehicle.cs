@@ -19,6 +19,11 @@ namespace SniperRidge
         Vector3 restingPosition,impulse;
         Quaternion restingRotation;
         float reactionAge=1,burnAge;
+        bool carried;
+        public void SetCarried(bool value)
+        {
+            carried=value;reactionAge=1;restingPosition=transform.position;restingRotation=transform.rotation;
+        }
         void Awake()
         {
             body=GetComponent<MeshRenderer>();damage=new MaterialPropertyBlock();
@@ -89,7 +94,7 @@ namespace SniperRidge
         }
         void Update()
         {
-            if(Reacting)
+            if(Reacting&&!carried)
             {
                 reactionAge+=Time.deltaTime;float wave=Mathf.Sin(reactionAge*29)*Mathf.Exp(-reactionAge*8);
                 Vector3 local=Quaternion.Inverse(restingRotation)*impulse;

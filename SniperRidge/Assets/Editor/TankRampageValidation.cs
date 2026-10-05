@@ -83,7 +83,7 @@ namespace SniperRidge.EditorTools
                     Check(rampage.GripError<.28f,"hands detached from turret: "+rampage.GripError);
                     Check(rampage.FootContactError<.12f,"feet detached from deck: "+rampage.FootContactError);
                 }
-                if(stage==0&&!shellFinished&&battle.Enemies.Count==5)
+                if(stage==0&&!shellFinished&&battle.Enemies.Count==TankBattle.EnemyTankCount(1))
                 {
                     var tank=battle.PlayerTank;tank.enabled=false;
                     foreach(var enemy in battle.Enemies){enemy.StopVehicle();enemy.enabled=false;}
@@ -101,9 +101,13 @@ namespace SniperRidge.EditorTools
                     Check(earlyShotChecked&&tank.FireCannon(),"second cannon fire at 1.5 seconds");
                     Check(tank.Shells==shellAmmo-2,"cannon ammo consumed incorrectly");shellFinished=true;tank.enabled=true;
                 }
-                if(stage==0&&battle.Enemies.Count==5)
+                if(stage==0&&battle.Enemies.Count==TankBattle.EnemyTankCount(1))
                 {
-                    battle.StopAllCoroutines();foreach(var t in battle.Enemies){t.StopVehicle();t.enabled=false;}
+                    battle.StopAllCoroutines();
+                    // This long action suite consumes five tanks; the live opening now has three.
+                    var fixtures=(System.Collections.Generic.List<TankVehicle>)battle.Enemies;
+                    while(fixtures.Count<5)fixtures.Add(TankVehicle.Create(battle,Ground(gm,battle.PlayerTank.transform.position+Vector3.right*(35+fixtures.Count*15)),false,1,TankAppearance.Opposition));
+                    foreach(var t in battle.Enemies){t.StopVehicle();t.enabled=false;}
                     Check(battle.PlayerTank.transform.Find("Turret/Player rocket pod")!=null,"player rocket pod missing");
                     Check(!battle.Enemies.Any(t=>t.transform.Find("Turret/Player rocket pod")),"enemy appearance changed");
                     var focus=battle.PlayerTank.AimPoint;View(player.Eye,focus,new Vector3(8,5,11));Capture(cam,"01_player_tank");
@@ -112,7 +116,7 @@ namespace SniperRidge.EditorTools
                     Check(rocks.Length>=70,"insufficient scattered boulders: "+rocks.Length);
                     Check(rocks.All(p=>TankCanyon.RoadDistance(p.transform.position.x,p.transform.position.z)>=7),"boulders obstruct main roads");
                     Debug.Log("[Rampage test] Liftable boulders: "+rocks.Length);
-                    battle.PlayerTank.Damage(999);Check(rampage.Cinematic&&gm.IsPlaying,"tank destruction ended mission");Next();
+                    battle.PlayerTank.Damage(9999);Check(rampage.Cinematic&&gm.IsPlaying,"tank destruction ended mission");Next();
                 }
                 else if(stage==1&&age>.85f){Capture(cam,"02_escape");Next();}
                 else if(stage==2&&player.IsHulk&&player.Hulk.TransformationProgress>.35f){Capture(cam,"03_rage_transform");Next();}
@@ -244,7 +248,7 @@ namespace SniperRidge.EditorTools
                 {
                     Check(!ShaderUtil.ShaderHasError(Shader.Find("SniperRidge/HeroArmorSurface")),"runtime shader error");
                     Check(SessionState.GetString(Key+"errors","")=="","runtime errors: "+SessionState.GetString(Key+"errors",""));
-                    File.WriteAllText("Logs/tank-rampage-result.txt","PASS: contextual E pickup/throw/turret/charge counter / R manual lift without push / fallen recovery / infantry spawn, advance, fire and defeat / 1.5-second cannon cadence / early-shot rejection / road-safe boulder density / tree and rock reticle / helicopter target tint / player-only armor / rocket ammo / single cinematic escape / deck foot contact / turret hand contact / rage / 10% shell hit / native motions / single climb per target / both enemy tank types / queued shell reaction / turret removal / 10m restrain / tree melee / 3 gunships / rockets / bullets / thrown-rock air kill\n");
+                    File.WriteAllText("Logs/tank-rampage-result.txt","PASS: contextual E pickup/throw/turret/charge counter / R manual lift without push / fallen recovery / infantry spawn, advance, fire and defeat / 1.5-second cannon cadence / early-shot rejection / road-safe boulder density / tree and rock reticle / helicopter target tint / player-only armor / rocket ammo / single cinematic escape / deck foot contact / turret hand contact / rage / 10% shell hit / native motions / single climb per target / both enemy tank types / turret protection / turret removal / 10m restrain / tree melee / 3 gunships / rockets / bullets / thrown-rock air kill\n");
                     SessionState.SetBool(Key,false);File.Delete("Logs/autoplay.txt");EditorApplication.Exit(0);
                 }
             }

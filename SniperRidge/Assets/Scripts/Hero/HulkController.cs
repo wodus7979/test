@@ -127,7 +127,7 @@ namespace SniperRidge
         {
             if(Game&&Game.Armor&&Game.Armor.Rampage&&Game.Armor.Rampage.Busy)return false;
             if(attack==Attack.Punch&&Game&&Game.Armor&&Game.Armor.Rampage&&Game.Armor.Rampage.Held)return Game.Armor.Rampage.SwingHeld();
-            if(attack==Attack.Punch&&Street&&Street.Held)attack=Street.Held.Kind==StreetWeapon.PropKind.Barrel?Attack.BarrelThrow:Attack.PoleSwing;
+            if(attack==Attack.Punch&&Street&&Street.Held)attack=Street.Held.Throwable?Attack.BarrelThrow:Attack.PoleSwing;
             if(HeroStreetInteraction.IsPropAttack(attack)&&(!visual||!visual.Definition.PropClip(attack)||!Street.CanAttack(attack)))return false;
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
             if(attack==Attack.Clap&&!HasClap||FourActionsOnly&&attack==Attack.Kick)return false;
@@ -351,7 +351,7 @@ namespace SniperRidge
             skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
             skills.Add(Button("Run",4,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
             skills.Add(Button("Kick",5,"[F] 날아차기",()=>{if(BeginAttack(Attack.Kick))LockInput();}));
-            Street.SetButton(Button("Street weapon",6,"[E] 드럼통 / 전봇대 집기",()=>{if(Street.Interact())LockInput();}));
+            Street.SetButton(Button("Street weapon",6,"[E] 자동차 / 드럼통 / 전봇대 집기",()=>{if(Street.Interact())LockInput();}));
             foreach(var b in skills)b.gameObject.SetActive(false);
         }
         Button Button(string name,int row,string label,UnityEngine.Events.UnityAction action)
