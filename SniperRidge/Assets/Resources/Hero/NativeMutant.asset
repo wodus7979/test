@@ -25,6 +25,11 @@ MonoBehaviour:
   ThrowIn: {fileID: 7400000, guid: 93e49cc3f597b466c8337f2d56040290, type: 2}
   Harvesting: {fileID: 7400000, guid: 69b218d92be074b40ad77d1e6eb1111e, type: 2}
   PoleAttack: {fileID: 7400000, guid: be69cb1f4b60e4a84b88652945c29afd, type: 2}
+  TankClimb: {fileID: 7400000, guid: 547516c687a3f41b088a97c36b47146e, type: 2}
+  TankPull: {fileID: 7400000, guid: 12eb824da02904b30a031db876ca52ad, type: 2}
+  TankThrow: {fileID: 7400000, guid: 744d81924bf464889b318436cfb89a17, type: 2}
+  TankRestrain: {fileID: 7400000, guid: 207fd8bd86ff7481dbbee5ca386523b1, type: 2}
+  ShellHit: {fileID: 7400000, guid: 05e93bdb3f780410bb6d8aadc1830600, type: 2}
   IdleStart: {x: 0.01381459, y: 0.993656, z: -0.009763812}
   IdleEnd: {x: 0.01381459, y: 0.993656, z: -0.009763812}
   Scale: 1.635882

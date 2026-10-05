@@ -87,6 +87,13 @@ namespace SniperRidge
             }
         }
 
+        public void LeaveTank(Vector3 position)
+        {
+            InTank=false;cam.transform.SetParent(transform,false);
+            AttachToCityAssault(position);Equip(WeaponDefinition.Find("urban_rifle"));
+            State=WeaponState.Ready;stateTimer=0;inputEnabled=true;enabled=true;
+        }
+
         public void AttachToTank(WeaponDefinition weapon)
         {
             loadout.Reset(weapon); Grenades.CancelAim(); Grenades.enabled = false;

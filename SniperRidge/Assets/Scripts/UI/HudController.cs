@@ -387,7 +387,7 @@ namespace SniperRidge
             {
                 weaponText.text="헐크";ammoText.text="주먹 / 충격파";stateText.text="받는 피해 65% 감소";
                 grenadeCount.gameObject.SetActive(false);crosshair.SetActive(false);
-                coverText.text="왕을 향해 돌파하세요 · "+gm.Assault.SquadStatus;
+                coverText.text=gm.Assault?"왕을 향해 돌파하세요 · "+gm.Assault.SquadStatus:"전차 격파 · E 올라타기 / F 전차 막기 / G 나무·바위 뽑기";
                 hintText.text="WASD 이동 · Shift 달리기 · 마우스 시점 | 좌클릭 주먹 · 우클릭 박수 충격파 · Space 점프 강타 | H 인간 복귀 · Esc 버튼 선택";
             }
             if (p.InTank && gm.Armor != null)
@@ -397,14 +397,23 @@ namespace SniperRidge
                 coverText.text = string.Format("속도 {0:0} km/h · 장갑 {1:0}% · 고도 {2:0}m\n숲길과 초지를 이동 · 나무 충돌로 돌파",tank.Speed*3.6f,tank.Fraction*100f,tank.transform.position.y);
                 healthLabel.text = "장갑 " + Mathf.CeilToInt(tank.Fraction*100f) + "%";
                 hpFill.localScale = new Vector3(tank.Fraction,1,1);
-                ammoText.text = "포탄 " + tank.Shells;
+                ammoText.text = "포탄 " + tank.Shells+" · 로켓 "+tank.Rockets;
                 stateText.text = tank.ReloadRemaining>0 ? string.Format("재장전 {0:0.0}초",tank.ReloadRemaining) : tank.HasAim ? "포격 준비" : "포탑 정렬 중";
                 weaponText.text = "전차 주포";zeroText.text = "마우스 포탑 조준";
                 rangeText.text = "";grenadeAim.text = "";windText.text = gm.Armor.Resupplying ? "정비 · 재보급" : "W/S 전후진 · A/D 차체 회전";
                 hintText.text = Cursor.lockState != CursorLockMode.Locked
                     ? "게임 화면을 클릭하거나 W/A/S/D를 눌러 전차 조작을 시작하세요"
-                    : "W 전진  |  S 후진  |  A/D 차체 회전  |  마우스 포탑 조준  |  좌클릭 포격  |  우클릭 확대  |  Esc 커서 해제";
+                    : "W 전진  |  S 후진  |  A/D 차체 회전  |  마우스 포탑 조준  |  좌클릭 포격  |  R 로켓  |  우클릭 확대  |  Esc 커서 해제";
                 if (Time.time < threatUntil) threatText.text = threatRole + " 공격 준비 · 이동하거나 바위 뒤로 피하세요";
+            }
+            if(gm.Armor&&gm.Armor.Rampage.Escaped)
+            {
+                var rampage=gm.Armor.Rampage;
+                crosshair.SetActive(rampage.Held&&!rampage.Busy);
+                enemyText.text=$"분노의 반격 {gm.Armor.Stage}/5 · 적 전차 {gm.Armor.AliveTanks} · 헬기 {rampage.AliveHelicopters}";
+                coverText.text=rampage.Prompt;windText.text="적 기갑 부대 격파";zeroText.text="";rangeText.text="";
+                stateText.text="포탄 피격: 최대 체력 10%";
+                hintText.text="WASD 이동 · Shift 달리기 · 좌클릭 주먹/나무 타격 · 우클릭 박수 · Space 강타 | E 포탑 뜯기 · F 전차 던지기 · G 나무/바위 · R 던지기 · Q 내려놓기";
             }
             Fade(shotFeedback, ref shotFeedbackTimer, dt, .6f);
             Fade(killFeed, ref killFeedTimer, dt, 0.6f);

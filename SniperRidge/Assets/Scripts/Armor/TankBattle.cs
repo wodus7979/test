@@ -10,6 +10,11 @@ namespace SniperRidge
         public const int Stages=5;
         public TankVehicle PlayerTank { get; private set; }
         public int Stage { get; private set; }
+        public TankRampage Rampage { get; private set; }
+        public System.Collections.Generic.IReadOnlyList<TankVehicle> Enemies=>tanks;
+        public Vector3 TargetPoint=>Rampage&&Rampage.Escaped?gm.Player.AimPoint:PlayerTank.AimPoint;
+        public Vector3 TargetPosition=>Rampage&&Rampage.Escaped?gm.Player.transform.position:PlayerTank.transform.position;
+        public bool TargetAvailable=>(PlayerTank&&!PlayerTank.IsDead)||(Rampage&&Rampage.CombatReady);
         public int AliveTanks { get { int n=0;foreach(var t in tanks)if(t!=null&&!t.IsDead)n++;return n; } }
         public int AliveK2 { get { int n=0;foreach(var t in tanks)if(t!=null&&!t.IsDead&&t.Appearance==TankAppearance.K2BlackPanther)n++;return n; } }
         public int AliveOpposition { get { int n=0;foreach(var t in tanks)if(t!=null&&!t.IsDead&&t.Appearance==TankAppearance.Opposition)n++;return n; } }
@@ -30,6 +35,7 @@ namespace SniperRidge
             battle.explosion=Resources.Load<AudioClip>("Audio/tank_impact");
             game.Player.AttachToTank(game.Weapon);
             battle.PlayerTank=TankVehicle.Create(battle,TankCanyon.Ground(game.Terrain,TankCanyon.Node(TankCanyon.EntryNode),.2f),true,1);
+            battle.Rampage=battle.gameObject.AddComponent<TankRampage>();battle.Rampage.Initialize(battle);
             battle.StartCoroutine(battle.RunStages());
             return battle;
         }
@@ -66,11 +72,12 @@ namespace SniperRidge
                 if(!gm.IsPlaying)yield break;
                 if(stage<Stages)
                 {
-                    Resupplying=true;PlayerTank.Resupply();
-                    gm.Hud.Announce("단계 완료 · 포탄 +25발 / 장갑 수리 +140 · 8초 후 적 증원");
+                    Resupplying=true;if(!PlayerTank.IsDead)PlayerTank.Resupply();
+                    gm.Hud.Announce(PlayerTank.IsDead?"단계 완료 · 8초 후 적 전차 증원":"단계 완료 · 포탄 +25 / 로켓 +6 / 장갑 수리 +140 · 8초 후 적 증원");
                     yield return new WaitForSeconds(8f);
                 }
             }
+            while(gm.IsPlaying&&Rampage.AliveHelicopters>0)yield return null;
             if(gm.IsPlaying)gm.CompleteArmoredMission();
         }
         bool TryChooseTankSpawn(int ordinal,int stage,out Vector3 spawn)
@@ -82,7 +89,7 @@ namespace SniperRidge
                 int node=(ordinal*5+stage*3+attempt)%TankCanyon.NodeCount;
                 Vector2 offset=attempt<TankCanyon.NodeCount?Vector2.zero:Vector2.right*(attempt<TankCanyon.NodeCount*2?10:-10);
                 var p=TankCanyon.Ground(gm.Terrain,TankCanyon.Node(node)+offset,.25f);
-                if(TankCanyon.RoadDistance(p.x,p.z)>4||Vector3.Distance(p,PlayerTank.transform.position)<38)continue;
+                if(TankCanyon.RoadDistance(p.x,p.z)>4||Vector3.Distance(p,TargetPosition)<38)continue;
                 bool free=true;
                 foreach(var t in tanks)if(t!=null&&Vector3.Distance(p,t.transform.position)<18)free=false;
                 Vector3 normal=TankCanyon.Normal(gm.Terrain,p);
@@ -114,7 +121,7 @@ namespace SniperRidge
         }
         public void StopBattle()
         {
-            StopAllCoroutines();if(PlayerTank!=null)PlayerTank.StopVehicle();
+            StopAllCoroutines();if(Rampage)Rampage.enabled=false;if(PlayerTank!=null)PlayerTank.StopVehicle();
             foreach(var tank in tanks)if(tank!=null)tank.StopVehicle();
         }
     }

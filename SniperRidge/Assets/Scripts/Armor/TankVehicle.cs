@@ -27,7 +27,24 @@ namespace SniperRidge
         public Transform Muzzle { get; private set; }
         public int Shells { get; private set; } = 60;
         Rigidbody body;
-        Transform turret, barrel;
+        Transform turret, barrel, rocketMuzzle;
+        public Transform Turret=>turret;
+        public bool Captured { get; private set; }
+        public int Rockets { get; private set; }=12;
+        float nextRocket;
+        public void Capture(){Captured=true;StopVehicle();fireAt=-1;}
+        public bool HeroHit(int hits)
+        {
+            if(IsDead||IsPlayer||hits<=0)return false;
+            bool killed=false;for(int i=0;i<hits&&!IsDead;i++)killed=Damage(1,true);
+            GameManager.Instance.OnArmorHit(this,killed,true);return killed;
+        }
+        public Transform DetachTurret()
+        {
+            turret.SetParent(null,true);
+            foreach(var c in turret.GetComponentsInChildren<Collider>())c.enabled=false;
+            return turret;
+        }
         Vector3 barrelRest;
         float health, maximumHealth, drive, steering, nextShot, recoil, stuckTime, avoidanceTime;
         float cameraYaw, cameraPitch = 13f;
@@ -68,6 +85,7 @@ namespace SniperRidge
             tank.leftDust = RocketEffects.TankDust(go.transform, new Vector3(-1.5f,.25f,-2.5f));
             tank.rightDust = RocketEffects.TankDust(go.transform, new Vector3(1.5f,.25f,-2.5f));
             tank.nextAIShot = Time.time + 4f + stage;
+            if(player)tank.rocketMuzzle=ArmoredReferenceVisual.Refit(tank);
             tank.ApplyColor(false);
             if (player)
             {
@@ -82,7 +100,7 @@ namespace SniperRidge
         void Update()
         {
             var gm = GameManager.Instance;
-            if (IsDead || gm == null || !gm.IsPlaying) { drive = steering = 0f; return; }
+            if (IsDead || Captured || gm == null || !gm.IsPlaying) { drive = steering = 0f; return; }
             recoil = Mathf.MoveTowards(recoil, 0, Time.deltaTime * 1.8f);
             if (IsPlayer) PlayerInput(); else Think();
             float dustRate = Mathf.Abs(Speed) * 2f + Mathf.Abs(steering) * 5f;
@@ -112,17 +130,25 @@ namespace SniperRidge
             drive=(Input.GetKey(KeyCode.W)?1:0)-(Input.GetKey(KeyCode.S)?1:0);
             steering=(Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0);
             cameraYaw+=Input.GetAxis("Mouse X")*1.8f;
-            cameraPitch=Mathf.Clamp(cameraPitch-Input.GetAxis("Mouse Y")*1.3f,-5f,42f);
+            cameraPitch=Mathf.Clamp(cameraPitch-Input.GetAxis("Mouse Y")*1.3f,-35f,42f);
             cameraEye.fieldOfView=Mathf.Lerp(cameraEye.fieldOfView,Input.GetMouseButton(1)?34f:54f,Time.deltaTime*10);
             UpdateCamera();
             Vector3 target = cameraEye.transform.position + cameraEye.transform.forward * 800f;
             if (ArmorProjectile.Cast(cameraEye.transform.position, target, transform, out var hit)) target=hit.point;
             Aim(target,90f);
+            if(Input.GetKeyDown(KeyCode.R))FireRocket(target);
             if (Input.GetMouseButton(0) && ReloadRemaining<=0 && Shells>0 && HasAim)
             {
                 Fire(160f,280f); Shells--;
                 GameManager.Instance.OnPlayerShot(Muzzle.position);
             }
+        }
+        public bool FireRocket(Vector3 target)
+        {
+            if(!IsPlayer||IsDead||Time.time<nextRocket||Rockets<=0)return false;
+            Rockets--;nextRocket=Time.time+1.2f;
+            ArmorProjectile.Launch(rocketMuzzle.position,(target-rocketMuzzle.position).normalized,transform,true,180,95,true);
+            RocketEffects.CannonMuzzle(rocketMuzzle.position,rocketMuzzle.forward);battle.PlayCannon(rocketMuzzle.position,true);return true;
         }
         void UpdateCamera()
         {
@@ -152,17 +178,18 @@ namespace SniperRidge
         void Think()
         {
             var target=battle.PlayerTank;
-            if (target == null || target.IsDead) return;
-            Vector3 flat=target.transform.position-transform.position; flat.y=0;
+            if (target == null || !battle.TargetAvailable) {drive=steering=0;return;}
+            Vector3 targetPosition=battle.TargetPosition,targetPoint=battle.TargetPoint;
+            Vector3 flat=targetPosition-transform.position; flat.y=0;
             float distance=flat.magnitude;
-            bool lineOfFire=!ArmorProjectile.Obstructed(Muzzle.position,target.AimPoint,transform,target);
-            bool directRoad=TankCanyon.ClearRoad(transform.position,target.transform.position);
-            Vector3 movementTarget=target.transform.position;
+            bool lineOfFire=!ArmorProjectile.Obstructed(Muzzle.position,targetPoint,transform,target.IsDead?null:target);
+            bool directRoad=TankCanyon.ClearRoad(transform.position,targetPosition);
+            Vector3 movementTarget=targetPosition;
             if(!directRoad)
             {
                 if(!hasNavigationPoint){navigationPoint=TankCanyon.Ground(GameManager.Instance.Terrain,TankCanyon.Node(TankCanyon.NearestNode(transform.position)));hasNavigationPoint=true;}
                 if(Vector2.Distance(new Vector2(transform.position.x,transform.position.z),new Vector2(navigationPoint.x,navigationPoint.z))<5f)
-                    navigationPoint=TankCanyon.NextWaypoint(GameManager.Instance.Terrain,transform.position,target.transform.position);
+                    navigationPoint=TankCanyon.NextWaypoint(GameManager.Instance.Terrain,transform.position,targetPosition);
                 movementTarget=navigationPoint;
             }
             else hasNavigationPoint=false;
@@ -178,7 +205,7 @@ namespace SniperRidge
                 if (Mathf.Abs(drive)>.2f && body.velocity.magnitude<.35f) stuckTime+=Time.deltaTime; else stuckTime=0;
                 if (stuckTime>1.5f) { avoidanceTime=2.2f; stuckTime=0;hasNavigationPoint=false; }
             }
-            Vector3 aimPoint=target.AimPoint+target.Velocity*Mathf.Min(.65f,distance/160f);
+            Vector3 aimPoint=targetPoint+(target.IsDead?Vector3.zero:target.Velocity)*Mathf.Min(.65f,distance/160f);
             Aim(fireAt >= 0f ? committedAim : aimPoint,34f);
             if (fireAt >= 0f)
             {
@@ -186,12 +213,12 @@ namespace SniperRidge
                 if (Time.time < fireAt) return;
                 fireAt = -1f;
                 // The warning commits the shot to one point: moving after it can evade the shell.
-                if (HasAim && !ArmorProjectile.Obstructed(Muzzle.position,committedAim,transform,target)) Fire(75f,160f);
+                if (HasAim && !ArmorProjectile.Obstructed(Muzzle.position,committedAim,transform,target.IsDead?null:target)) Fire(75f,160f);
                 nextAIShot=Time.time+Random.Range(5.5f,8f);
                 return;
             }
             if (Time.time<nextAIShot || !HasAim || distance>125f) return;
-            if (ArmorProjectile.Obstructed(Muzzle.position,aimPoint,transform,target) || !battle.ReserveEnemyCannon()) return;
+            if (ArmorProjectile.Obstructed(Muzzle.position,aimPoint,transform,target.IsDead?null:target) || !battle.ReserveEnemyCannon()) return;
             committedAim=aimPoint;fireAt=Time.time+1.1f;
             GameManager.Instance.Hud.WarnIncoming(transform.position,1.1f+distance/160f,"적 전차");
         }
@@ -208,7 +235,7 @@ namespace SniperRidge
         void FixedUpdate()
         {
             var gm=GameManager.Instance;
-            if (body==null || IsDead || gm==null || !gm.IsPlaying) return;
+            if (body==null || IsDead || Captured || gm==null || !gm.IsPlaying) return;
             TankDrive.Step(body, drive, steering, Time.fixedDeltaTime,gm.Terrain);
         }
         public bool Damage(float amount,bool directShellHit=false)
@@ -229,7 +256,7 @@ namespace SniperRidge
             IsDead=true; StopVehicle();
             RocketEffects.TankDestruction(transform);
             ApplyColor(true);
-            if (IsPlayer) GameManager.Instance.PlayerDied();
+            if (IsPlayer) battle.Rampage.BeginEscape();
             else Destroy(gameObject,20f);
             return true;
         }
@@ -241,12 +268,12 @@ namespace SniperRidge
                 detail = gameObject.AddComponent<TankAppearanceDetail>();
                 Color paint = IsPlayer ? new Color(.38f,.43f,.27f) :
                     Appearance == TankAppearance.K2BlackPanther ? new Color(.34f,.39f,.24f) : new Color(.36f,.31f,.25f);
-                detail.Initialize(paint);
+                detail.Initialize(paint,IsPlayer);
             }
             if (destroyed) detail.Burn();
         }
         void OnDestroy() { if (traction != null) Destroy(traction); }
-        public void Resupply() { Shells+=25;health=Mathf.Min(maximumHealth,health+140f); }
+        public void Resupply() { Shells+=25;Rockets=Mathf.Min(18,Rockets+6);health=Mathf.Min(maximumHealth,health+140f); }
         public void StopVehicle()
         {
             drive=steering=0;

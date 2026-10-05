@@ -10,9 +10,9 @@ namespace SniperRidge
         readonly Dictionary<Material, Material> finishes = new Dictionary<Material, Material>();
         bool weatherShader;
 
-        public void Initialize(Color paint)
+        public void Initialize(Color paint,bool enhanced=false)
         {
-            var shader = Resources.Load<Shader>("Shaders/TankSurface");
+            var shader = Resources.Load<Shader>(enhanced?"Shaders/HeroArmorSurface":"Shaders/TankSurface");
             weatherShader = GraphicsSettings.currentRenderPipeline == null && shader != null && shader.isSupported;
             foreach (var renderer in GetComponentsInChildren<MeshRenderer>(true))
             {

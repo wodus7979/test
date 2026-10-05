@@ -66,7 +66,7 @@ namespace SniperRidge
         float nextEnemyAttack;
         public bool PositionRevealed => Mission != MissionType.Sniper || contact.Revealed;
         public float HideProgress => contact.HiddenSeconds / CounterfireRules.LoseContactSeconds;
-        public Vector3 EnemyAimPoint => Mission == MissionType.Assault ? Player.AimPoint : Armor != null && Armor.PlayerTank != null ? Armor.PlayerTank.AimPoint : Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
+        public Vector3 EnemyAimPoint => Mission == MissionType.Assault ? Player.AimPoint : Armor != null && Armor.PlayerTank != null ? Armor.TargetPoint : Mission == MissionType.Sniper ? contact.LastKnownPosition : defenseAimPoint;
 
         void LateUpdate()
         {
@@ -153,7 +153,7 @@ namespace SniperRidge
             {
                 Armor = TankBattle.Create(this);
                 if (Ambience != null) Ambience.volume = .12f;
-                Hud.OnMissionStart("산악 침엽수 계곡 · 전차전 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · 우클릭 확대\n숲과 완만한 초지를 돌파하세요. 전차로 들이받은 나무는 진행 방향으로 쓰러집니다.");
+                Hud.OnMissionStart("산악 침엽수 계곡 · 전차전 5단계\nW/S 전후진 · A/D 차체 회전\n마우스 포탑 조준 · 좌클릭 포격 · R 로켓 · 우클릭 확대\n전차 파괴 시 탈출·분노 변신 후 계속 전투합니다.\n변신 후 E 포탑 뜯기 · F 전차 막기 · G 나무/바위 · R 던지기");
                 return;
             }
             if (Mission == MissionType.Assault)

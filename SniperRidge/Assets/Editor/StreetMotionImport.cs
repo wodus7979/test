@@ -14,7 +14,7 @@ namespace SniperRidge.EditorTools
             EnemyMeleeDeathImport.Retarget("Assets/MutantCharacter/Source/Grenade Throw.fbx","Assets/Resources/Enemies/GrenadeThrow.anim","Grenade Throw");
             EditorUtility.SetDirty(set);AssetDatabase.SaveAssets();Debug.Log("[Street motions] Imported requested Mixamo clips and soldier grenade retarget.");
         }
-        static AnimationClip Import(string name)
+        public static AnimationClip Import(string name)
         {
             string path="Assets/MutantCharacter/Source/"+name+".fbx";
             var importer=(ModelImporter)AssetImporter.GetAtPath(path);

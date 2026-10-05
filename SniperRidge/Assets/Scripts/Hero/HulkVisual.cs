@@ -84,6 +84,14 @@ namespace SniperRidge
             clip.SampleAnimation(locomotionSampler,Mathf.Min(.25f,clip.length*.1f));
             for(int i=0;i<bones.Length;i++)if(!lowerBody[i])bones[i].localRotation=locomotionBones[i].localRotation;
         }
+        public void SampleExternal(AnimationClip clip,float progress)
+        {
+            if(!clip)return;
+            transform.localRotation=Quaternion.identity;
+            clip.SampleAnimation(model,Mathf.Clamp01(progress)*clip.length);
+            ActiveBlenderClip=clip;Motion=clip.name;previousState="External";hasPose=true;
+            for(int i=0;i<bones.Length;i++){lastPositions[i]=bones[i].localPosition;lastRotations[i]=bones[i].localRotation;}
+        }
         public void SetVisible(bool visible){foreach(var skin in renderers)skin.enabled=visible;}
         public void ResetLocomotion()
         {blocking=false;blockWeight=0;hitAge=99;ReactingToHit=false;gait=idleTime=heading=blendAge=0;velocity=Vector3.zero;previousState=null;hasPose=false;transform.localRotation=Quaternion.identity;}

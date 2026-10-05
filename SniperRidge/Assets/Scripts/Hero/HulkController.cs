@@ -82,6 +82,7 @@ namespace SniperRidge
         }
         public bool Toggle()
         {
+            if(Active&&Game&&Game.Armor)return false;
             if(Game==null || !Game.IsPlaying || !owner.IsFreeRoam || Transforming || CurrentAttack!=Attack.None ||
                 owner.State!=SniperController.WeaponState.Ready || (!Grounded && Active))return false;
             if(!Active && Physics.CheckCapsule(transform.position+Vector3.up*(Radius+.08f),
@@ -106,8 +107,13 @@ namespace SniperRidge
             else {Audio.Stop();visual.gameObject.SetActive(false);FpsMovement.Configure(capsule);owner.FreeMovement.ResetPose();}
             owner.SetHulkView(Active);LockInput();
             Effects.Puff(transform.position+Vector3.up*.2f,Vector3.up,1.5f,new Color(.48f,.52f,.35f),.7f);
-            Game.Hud.Announce(Active?"헐크 변신 · 왕을 향해 돌파하세요":"FPS 모드로 복귀");
+            Game.Hud.Announce(Active?(Game.Armor?"분노의 반격 · 적 전차와 공격 헬기를 격파하세요":"헐크 변신 · 왕을 향해 돌파하세요"):"FPS 모드로 복귀");
             return true;
+        }
+        public void CancelForExternal()
+        {
+            CurrentAttack=Attack.None;horizontalVelocity=actualVelocity=Vector3.zero;vertical=-2;PlanarSpeed=0;
+            guardUntil=-99;waveStart=-99;yaw=transform.eulerAngles.y;
         }
         public void NotifyHit()
         {
@@ -118,6 +124,8 @@ namespace SniperRidge
         }
         public bool BeginAttack(Attack attack)
         {
+            if(Game&&Game.Armor&&Game.Armor.Rampage&&Game.Armor.Rampage.Busy)return false;
+            if(attack==Attack.Punch&&Game&&Game.Armor&&Game.Armor.Rampage&&Game.Armor.Rampage.Held)return Game.Armor.Rampage.SwingHeld();
             if(attack==Attack.Punch&&Street&&Street.Held)attack=Street.Held.Kind==StreetWeapon.PropKind.Barrel?Attack.BarrelThrow:Attack.PoleSwing;
             if(HeroStreetInteraction.IsPropAttack(attack)&&(!visual||!visual.Definition.PropClip(attack)||!Street.CanAttack(attack)))return false;
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
@@ -139,7 +147,9 @@ namespace SniperRidge
             bool playing=Game!=null && Game.IsPlaying;
             canvas.gameObject.SetActive(playing);
             if(!playing){Audio.Stop();RunEnabled=false;Sprinting=false;horizontalVelocity=Vector3.zero;return;}
-            if(Input.GetKeyDown(KeyCode.H))Toggle();
+            var rampage=Game.Armor?Game.Armor.Rampage:null;
+            if(rampage && rampage.Busy){if(Active&&visual)rampage.PoseHero();return;}
+            if(Input.GetKeyDown(KeyCode.H)&&!rampage)Toggle();
             if(Street)Street.RefreshUi();
             transformButton.interactable=!Transforming && CurrentAttack==Attack.None;
             transformButton.GetComponentInChildren<Text>().text=Transforming?"변신 중…":Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
@@ -160,13 +170,25 @@ namespace SniperRidge
             if(keys)
             {
                 yaw+=Input.GetAxis("Mouse X")*owner.MouseSensitivity;
-                pitch=Mathf.Clamp(pitch-Input.GetAxis("Mouse Y")*owner.MouseSensitivity,-12,55);
+                pitch=Mathf.Clamp(pitch-Input.GetAxis("Mouse Y")*owner.MouseSensitivity,rampage?-55:-12,55);
                 if(Input.GetMouseButton(0))BeginAttack(Attack.Punch);
                 if(Input.GetMouseButtonDown(1))BeginAttack(Attack.Clap);
                 if(Input.GetKeyDown(KeyCode.Space))BeginAttack(Attack.Slam);
-                if(Input.GetKeyDown(KeyCode.F))BeginAttack(Attack.Kick);
-                if(Input.GetKeyDown(KeyCode.E))Street.Interact();
-                if(Input.GetKeyDown(KeyCode.Q))Street.Drop();
+                if(rampage)
+                {
+                    if(Input.GetKeyDown(KeyCode.E))rampage.ClimbNearest();
+                    if(Input.GetKeyDown(KeyCode.F))rampage.RestrainNearest();
+                    if(Input.GetKeyDown(KeyCode.G))rampage.GrabNearest();
+                    if(Input.GetKeyDown(KeyCode.R))rampage.ThrowHeld();
+                    if(Input.GetKeyDown(KeyCode.Q))rampage.DropHeld();
+                    if(rampage.Busy)return;
+                }
+                else
+                {
+                    if(Input.GetKeyDown(KeyCode.F))BeginAttack(Attack.Kick);
+                    if(Input.GetKeyDown(KeyCode.E))Street.Interact();
+                    if(Input.GetKeyDown(KeyCode.Q))Street.Drop();
+                }
             }
             Vector2 movement=keys?new Vector2((Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0),
                 (Input.GetKey(KeyCode.W)?1:0)-(Input.GetKey(KeyCode.S)?1:0)):Vector2.zero;
@@ -271,6 +293,7 @@ namespace SniperRidge
             if(attack==Attack.Slam){LastSlamRadius=waveRadius;LastSlamDamage=waveDamage;}
             waveOrigin=transform.position+Vector3.up*(attack==Attack.Clap?2.05f:.45f);waveForward=transform.forward;waveHit.Clear();
             HulkWave.Create(waveOrigin,waveForward,waveRadius,attack==Attack.Clap,power);
+            if(Game.Armor&&Game.Armor.Rampage)Game.Armor.Rampage.Strike(waveOrigin,waveForward,waveRadius,attack==Attack.Clap?65:180,attack==Attack.Clap?1:2);
         }
         void AdvanceWave()
         {
@@ -281,6 +304,7 @@ namespace SniperRidge
         }
         void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height)
         {
+            if(Game.Armor&&Game.Armor.Rampage&&hit==null)Game.Armor.Rampage.Strike(origin,forward,range,degrees,1);
             if(Game.Assault==null)return;
             foreach(var enemy in Game.Assault.Soldiers.ToArray())
             {
@@ -307,7 +331,7 @@ namespace SniperRidge
             float distance=offset.magnitude;
             if(Physics.SphereCast(focus,.23f,offset.normalized,out var hit,distance,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))distance=Mathf.Max(.25f,hit.distance-.12f);
             owner.Eye.position=focus+offset.normalized*distance;
-            owner.Eye.rotation=Quaternion.LookRotation(focus+transform.forward*1.8f-owner.Eye.position);
+            owner.Eye.rotation=Quaternion.LookRotation(focus+(Game.Armor?rotation*Vector3.forward*70:transform.forward*1.8f)-owner.Eye.position);
             var camera=owner.Eye.GetComponent<Camera>();
             camera.fieldOfView=Mathf.Lerp(camera.fieldOfView,68+5*Mathf.InverseLerp(WalkSpeed,RunSpeed,PlanarSpeed),1-Mathf.Exp(-5*Time.deltaTime));
             // Don't fill the screen with the back of the head when a wall pushes the camera close.

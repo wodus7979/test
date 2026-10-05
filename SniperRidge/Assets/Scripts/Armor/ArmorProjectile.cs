@@ -42,7 +42,7 @@ namespace SniperRidge
             var shot=go.AddComponent<ArmorProjectile>();shot.owner=shooter;shot.friendly=playerShot;
             shot.damage=damage;shot.velocity=direction.normalized*speed;shot.origin=muzzle;shot.rocket=rocket;
             RocketEffects.BuildBody(go.transform);
-            if(rocket)shot.smoke=RocketEffects.Trail(go.transform);
+            if(rocket){shot.smoke=RocketEffects.Trail(go.transform);var visual=go.transform.Find("RocketVisual");if(visual)visual.localScale*=2.4f;}
             // Check the barrel's whole reach, including objects penetrated by the displayed muzzle.
             var tank=shooter!=null?shooter.GetComponent<TankVehicle>():null;
             Vector3 breech=tank!=null?tank.AimPoint:shooter!=null?shooter.position+Vector3.up*1.5f:muzzle;
@@ -59,7 +59,15 @@ namespace SniperRidge
             Physics.SyncTransforms();age+=Time.deltaTime;
             if(age>8f){Destroy(gameObject);return;}
             Vector3 old=transform.position,next=old+velocity*Time.deltaTime;
-            if(Cast(old,next,owner,out var hit)){Explode(hit.point,hit.normal,hit.collider);return;}
+            bool wall=Cast(old,next,owner,out var hit);
+            if(!friendly&&gm.Armor&&gm.Armor.Rampage.Escaped&&!gm.Armor.Rampage.Cinematic)
+            {
+                gm.Player.GetDamageCapsule(out var bottom,out var top);
+                float distance=CounterfireRules.CapsuleHit(old,next,bottom,top,gm.Player.DamageRadius);
+                if(!float.IsPositiveInfinity(distance)&&(!wall||distance<hit.distance))
+                {gm.Armor.Rampage.ShellHit(velocity.normalized);Explode(old+velocity.normalized*distance,-velocity.normalized,null);return;}
+            }
+            if(wall){Explode(hit.point,hit.normal,hit.collider);return;}
             transform.position=next;
             if(!rocket)Effects.Tracer(old,next,new Color(1,.80f,.4f),.06f,.075f);
         }
@@ -78,6 +86,8 @@ namespace SniperRidge
             }
             if(friendly)
             {
+                var helicopter=direct?direct.GetComponentInParent<EnemyAttackHelicopter>():null;
+                if(helicopter)helicopter.Hit(rocket?2:3);
                 var hitbox=direct!=null?direct.GetComponent<EnemyHitbox>():null;
                 var targets=RocketProjectile.FindBlastTargets(centre,damage,hitbox!=null?hitbox.Owner:null);
                 foreach(var target in targets)

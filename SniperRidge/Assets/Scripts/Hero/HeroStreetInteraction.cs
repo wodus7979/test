@@ -68,7 +68,7 @@ namespace SniperRidge
         public void Finish(HulkController.Attack attack){if(attack==HulkController.Attack.Uproot)pending=null;}
         public void RefreshUi()
         {
-            if(!button)return;button.gameObject.SetActive(hero.Active);
+            if(!button)return;button.gameObject.SetActive(hero.Active&&GameManager.Instance.Assault!=null);
             button.interactable=hero.Active&&!hero.Transforming&&hero.CurrentAttack==HulkController.Attack.None;
             button.GetComponentInChildren<Text>().text=Held?"[Q] 내려놓기 · 좌클릭 공격":"[E] 드럼통 / 전봇대 집기";
         }
