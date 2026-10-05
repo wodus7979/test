@@ -153,12 +153,12 @@ namespace SniperRidge
             steering=(Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0);
             cameraYaw+=Input.GetAxis("Mouse X")*1.8f;
             cameraPitch=Mathf.Clamp(cameraPitch-Input.GetAxis("Mouse Y")*1.3f,-35f,42f);
-            cameraEye.fieldOfView=Mathf.Lerp(cameraEye.fieldOfView,Input.GetMouseButton(1)?34f:54f,Time.deltaTime*10);
+            cameraEye.fieldOfView=Mathf.Lerp(cameraEye.fieldOfView,54f,Time.deltaTime*10);
             UpdateCamera();
             Vector3 target = cameraEye.transform.position + cameraEye.transform.forward * 800f;
             if (ArmorProjectile.Cast(cameraEye.transform.position, target, transform, out var hit)) target=hit.point;
             Aim(target,90f);
-            if(Input.GetKeyDown(KeyCode.R))FireRocket(target);
+            if(Input.GetMouseButtonDown(1))FireRocket(target);
             if (Input.GetMouseButton(0)) FireCannon();
         }
         public bool FireCannon()
