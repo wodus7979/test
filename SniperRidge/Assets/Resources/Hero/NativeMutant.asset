@@ -22,6 +22,9 @@ MonoBehaviour:
   Block: {fileID: 7400000, guid: 1f677335394004dc1a8cc5660919529b, type: 2}
   Clap: {fileID: 7400000, guid: 04a49fc55e834444ea89578cf4320bac, type: 2}
   JumpDown: {fileID: 7400000, guid: 2b11a4c177bea424c912e512bce450c1, type: 2}
+  ThrowIn: {fileID: 7400000, guid: 93e49cc3f597b466c8337f2d56040290, type: 2}
+  Harvesting: {fileID: 7400000, guid: 69b218d92be074b40ad77d1e6eb1111e, type: 2}
+  PoleAttack: {fileID: 7400000, guid: be69cb1f4b60e4a84b88652945c29afd, type: 2}
   IdleStart: {x: 0.01381459, y: 0.993656, z: -0.009763812}
   IdleEnd: {x: 0.01381459, y: 0.993656, z: -0.009763812}
   Scale: 1.635882

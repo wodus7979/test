@@ -9,6 +9,7 @@ namespace SniperRidge
     {
         public readonly AssaultProgress Progress=new AssaultProgress();
         public readonly List<EnemySoldier> Soldiers=new List<EnemySoldier>();
+        readonly HashSet<EnemySoldier> streetGuards=new HashSet<EnemySoldier>();
         readonly List<EnemySoldier> allies=new List<EnemySoldier>();
         public KingBoss King { get; private set; }
         int defeated;
@@ -40,7 +41,7 @@ namespace SniperRidge
                 var ally=LevelBuilder.SpawnAssaultSoldier(game,nav.position,false,i,role,true);
                 ally.name="동료 "+(i+1);battle.allies.Add(ally);battle.Soldiers.Add(ally);
             }
-            battle.Guards();battle.nextReinforcement=Time.time+6f;battle.StartCoroutine(battle.CheckAfterStart());return battle;
+            battle.Guards();battle.StreetGuards();battle.nextReinforcement=Time.time+6f;battle.StartCoroutine(battle.CheckAfterStart());return battle;
         }
         void Update()
         {
@@ -49,7 +50,7 @@ namespace SniperRidge
             if(Progress.Advance(gm.Player.transform.position))
             {
                 gm.Hud.Announce("북부 요새로 전진 · 왕까지 "+Mathf.RoundToInt(Distance)+" m");
-                foreach(var soldier in Soldiers)if(soldier!=null&&!soldier.IsDead&&!soldier.IsAlly&&soldier.Boss==null)soldier.Combat.DefensePoint=Frontline;
+                foreach(var soldier in Soldiers)if(soldier!=null&&!soldier.IsDead&&!soldier.IsAlly&&soldier.Boss==null&&!streetGuards.Contains(soldier))soldier.Combat.DefensePoint=Frontline;
                 Guards();nextReinforcement=Time.time+10f;
             }
             if(!spawning && Time.time>=nextReinforcement && Alive<AssaultLayout.MaxAlive)
@@ -59,7 +60,19 @@ namespace SniperRidge
         {
             var enemy=LevelBuilder.SpawnAssaultSoldier(gm,point,post,100+ordinal++,role,false,roof);
             Vector2 spread=Random.insideUnitCircle*6f;enemy.Combat.DefensePoint=Frontline+new Vector3(spread.x,0,spread.y);
+            if(role==EnemyRole.MachineGunner&&ordinal%3==0)enemy.gameObject.AddComponent<EnemyGrenadier>();
             Soldiers.Add(enemy);return enemy;
+        }
+        void StreetGuards()
+        {
+            foreach(float x in new[]{-144f,-72f,72f,144f})foreach(float z in new[]{-86f,14f,100f})
+            {
+                if(Alive>=AssaultLayout.MaxAlive)return;
+                if(!NavMesh.SamplePosition(new Vector3(x,AssaultLayout.Ground,z),out var nav,3,NavMesh.AllAreas))continue;
+                var enemy=Spawn(nav.position,false,(streetGuards.Count%3==0)?EnemyRole.RocketTrooper:EnemyRole.MachineGunner);
+                enemy.Combat.DefensePoint=nav.position;streetGuards.Add(enemy);
+                if(enemy.Role==EnemyRole.MachineGunner&&!enemy.GetComponent<EnemyGrenadier>())enemy.gameObject.AddComponent<EnemyGrenadier>();
+            }
         }
         void Guards()
         {
@@ -116,7 +129,7 @@ namespace SniperRidge
             for(int i=0;i<48;i++)
             {
                 float angle=Random.Range(0,Mathf.PI*2),radius=Random.Range(26f,52f);
-                Vector3 centre=Frontline;
+                Vector3 centre=gm.Player.transform.position;
                 Vector3 candidate=centre+new Vector3(Mathf.Sin(angle),0,Mathf.Cos(angle))*radius;
                 // Reinforcements come from the enemy district and its flanks, not behind the player's spawn.
                 Vector3 advance=AssaultLayout.BossPosition-gm.Player.transform.position;advance.y=0;

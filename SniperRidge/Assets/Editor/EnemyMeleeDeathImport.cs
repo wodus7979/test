@@ -25,8 +25,9 @@ namespace SniperRidge.EditorTools
             public AnimationCurve[] position=Enumerable.Range(0,3).Select(_=>new AnimationCurve()).ToArray();
         }
         public static void Run()
+            =>Retarget("Assets/MutantCharacter/Source/Standing React Death Right.fbx","Assets/Resources/Enemies/StandingReactDeathRight.anim","Standing React Death Right",true);
+        public static void Retarget(string sourcePath,string output,string label,bool death=false)
         {
-            const string sourcePath="Assets/MutantCharacter/Source/Standing React Death Right.fbx";
             var importer=(ModelImporter)AssetImporter.GetAtPath(sourcePath);
             importer.animationType=ModelImporterAnimationType.Generic;importer.avatarSetup=ModelImporterAvatarSetup.NoAvatar;
             importer.importAnimation=true;importer.optimizeGameObjects=false;importer.animationCompression=ModelImporterAnimationCompression.Off;importer.SaveAndReimport();
@@ -46,7 +47,7 @@ namespace SniperRidge.EditorTools
                 var hips=bones.First(b=>Key(b.to)=="hips");
                 float scale=(hips.to.position.y-target.transform.position.y)/(hips.from.position.y-source.transform.position.y);
                 var skins=target.GetComponentsInChildren<SkinnedMeshRenderer>();var baked=new Mesh();
-                var result=new AnimationClip{name="Standing React Death Right",frameRate=60};
+                var result=new AnimationClip{name=label,frameRate=60};
                 Quaternion[] previous=new Quaternion[bones.Count];
                 int frames=Mathf.CeilToInt(clip.length*60);
                 for(int f=0;f<=frames;f++)
@@ -58,6 +59,7 @@ namespace SniperRidge.EditorTools
                         b.to.localPosition=b.toPosition;
                     }
                     Vector3 delta=hips.from.parent.TransformVector(hips.from.localPosition-hips.fromPosition)*scale;
+                    if(!death){delta.x=0;delta.z=0;}
                     hips.to.position+=target.transform.TransformVector(source.transform.InverseTransformVector(delta));
                     // Preserve limb lengths, then keep the retargeted skin above the floor.
                     float minimum=float.PositiveInfinity;
@@ -78,11 +80,11 @@ namespace SniperRidge.EditorTools
                     for(int j=0;j<3;j++)result.SetCurve(b.path,typeof(Transform),"m_LocalPosition."+"xyz"[j],b==hips?b.position[j]:AnimationCurve.Constant(0,clip.length,b.toPosition[j]));
                 }
                 result.EnsureQuaternionContinuity();
-                const string path="Assets/Resources/Enemies/StandingReactDeathRight.anim";
+                string path=output;
                 var existing=AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
                 if(existing){EditorUtility.CopySerialized(result,existing);UnityEngine.Object.DestroyImmediate(result);}else AssetDatabase.CreateAsset(result,path);
                 AssetDatabase.SaveAssets();UnityEngine.Object.DestroyImmediate(baked);
-                Directory.CreateDirectory("Logs");File.WriteAllText("Logs/enemy-melee-death-import.txt",$"Source: {clip.name}, duration {clip.length:F3}s, {bones.Count} mapped bones, hip ratio {scale:F4}\nSource hip rest {hips.fromPosition}, target {hips.toPosition}\n");
+                Directory.CreateDirectory("Logs");File.WriteAllText("Logs/"+label.Replace(" ","-")+"-import.txt",$"Source: {clip.name}, duration {clip.length:F3}s, {bones.Count} mapped bones, hip ratio {scale:F4}\nSource hip rest {hips.fromPosition}, target {hips.toPosition}\n");
             }
             finally{UnityEngine.Object.DestroyImmediate(source);UnityEngine.Object.DestroyImmediate(target);}
         }

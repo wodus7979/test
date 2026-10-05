@@ -8,7 +8,7 @@ namespace SniperRidge
     /// <summary>City-only transformation. The player, health and mission remain the same objects.</summary>
     public sealed class HulkController : MonoBehaviour
     {
-        public enum Attack { None, Punch, Clap, Slam, Kick }
+        public enum Attack { None, Punch, Clap, Slam, Kick, BarrelThrow, Uproot, PoleSwing }
         public bool Active { get; private set; }
         public const float TransformDuration=2.833333f;
         public const float WalkSpeed=5.2f, RunSpeed=8.4f;
@@ -47,6 +47,7 @@ namespace SniperRidge
         public float TransformationProgress => Mathf.Clamp01((Time.time-transformedAt)/TransformDuration);
         public HulkAudio Audio { get; private set; }
         public HulkVisual Visual => visual;
+        public HeroStreetInteraction Street { get; private set; }
         float transformedAt=-99, lastIncoming=-99, guardUntil=-99;
         int incomingBurst;
         public bool Blocking => Active&&!Transforming&&CurrentAttack==Attack.None&&Grounded&&Time.time<guardUntil;
@@ -76,6 +77,7 @@ namespace SniperRidge
         public static HulkController Attach(SniperController player)
         {
             var h=player.gameObject.AddComponent<HulkController>();h.owner=player;
+            h.Street=player.gameObject.AddComponent<HeroStreetInteraction>();h.Street.Initialize(h);
             h.capsule=player.GetComponent<CharacterController>();h.Audio=player.gameObject.AddComponent<HulkAudio>();h.BuildUi();return h;
         }
         public bool Toggle()
@@ -91,6 +93,7 @@ namespace SniperRidge
                 if(visual==null){Game.Hud.ShowShotFeedback("헐크 에셋이 없습니다 · 에셋 재생성을 실행하세요");return false;}
             }
             incomingBurst=0;lastIncoming=guardUntil=-99;
+            if(Active)Street.Drop();
             Active=!Active;Game.Health.SetHulkForm(Active);RunEnabled=false;Sprinting=false;horizontalVelocity=actualVelocity=Vector3.zero;PlanarSpeed=0;vertical=-2;waveStart=-99;waveHit.Clear();
             if(Active)
             {
@@ -115,6 +118,8 @@ namespace SniperRidge
         }
         public bool BeginAttack(Attack attack)
         {
+            if(attack==Attack.Punch&&Street&&Street.Held)attack=Street.Held.Kind==StreetWeapon.PropKind.Barrel?Attack.BarrelThrow:Attack.PoleSwing;
+            if(HeroStreetInteraction.IsPropAttack(attack)&&(!visual||!visual.Definition.PropClip(attack)||!Street.CanAttack(attack)))return false;
             if(!Active || Transforming || Game==null || !Game.IsPlaying || CurrentAttack!=Attack.None || !Grounded)return false;
             if(attack==Attack.Clap&&!HasClap||FourActionsOnly&&attack==Attack.Kick)return false;
             if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt || attack==Attack.Kick&&Time.time<kickAt)return false;
@@ -135,6 +140,7 @@ namespace SniperRidge
             canvas.gameObject.SetActive(playing);
             if(!playing){Audio.Stop();RunEnabled=false;Sprinting=false;horizontalVelocity=Vector3.zero;return;}
             if(Input.GetKeyDown(KeyCode.H))Toggle();
+            if(Street)Street.RefreshUi();
             transformButton.interactable=!Transforming && CurrentAttack==Attack.None;
             transformButton.GetComponentInChildren<Text>().text=Transforming?"변신 중…":Active?"[H] 인간으로 복귀":"[H] 헐크 변신";
             for(int i=0;i<skills.Count;i++)skills[i].gameObject.SetActive(Active&&(i!=1||HasClap)&&(!FourActionsOnly||i!=4));
@@ -159,6 +165,8 @@ namespace SniperRidge
                 if(Input.GetMouseButtonDown(1))BeginAttack(Attack.Clap);
                 if(Input.GetKeyDown(KeyCode.Space))BeginAttack(Attack.Slam);
                 if(Input.GetKeyDown(KeyCode.F))BeginAttack(Attack.Kick);
+                if(Input.GetKeyDown(KeyCode.E))Street.Interact();
+                if(Input.GetKeyDown(KeyCode.Q))Street.Drop();
             }
             Vector2 movement=keys?new Vector2((Input.GetKey(KeyCode.D)?1:0)-(Input.GetKey(KeyCode.A)?1:0),
                 (Input.GetKey(KeyCode.W)?1:0)-(Input.GetKey(KeyCode.S)?1:0)):Vector2.zero;
@@ -189,7 +197,7 @@ namespace SniperRidge
             if(Grounded&&vertical<0)vertical=-2;
             vertical=Mathf.Max(-30,vertical-JumpGravity*dt);
             Sprinting=!Transforming&&CurrentAttack==Attack.None&&(RunEnabled||sprint)&&input.sqrMagnitude>.01f;
-            float speed=CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?3.8f:CurrentAttack==Attack.Kick?1.4f:CurrentAttack==Attack.Slam&&VehicleJump&&slamLaunched&&!impactDone?RunSpeed:Sprinting?RunSpeed:WalkSpeed;
+            float speed=CurrentAttack==Attack.Uproot?0:HeroStreetInteraction.IsPropAttack(CurrentAttack)?1.8f:CurrentAttack==Attack.Clap?2f:CurrentAttack==Attack.Punch?3.8f:CurrentAttack==Attack.Kick?1.4f:CurrentAttack==Attack.Slam&&VehicleJump&&slamLaunched&&!impactDone?RunSpeed:Sprinting?RunSpeed:WalkSpeed;
             Vector3 desired=Quaternion.Euler(0,yaw,0)*new Vector3(input.x,0,input.y)*speed;
             float rate=desired.sqrMagnitude<horizontalVelocity.sqrMagnitude?44:32;
             horizontalVelocity=Vector3.MoveTowards(horizontalVelocity,desired,rate*dt);
@@ -216,7 +224,14 @@ namespace SniperRidge
         void AdvanceAttack()
         {
             float age=AttackAge;
-            if(CurrentAttack==Attack.Punch)
+            if(HeroStreetInteraction.IsPropAttack(CurrentAttack))
+            {
+                var clip=visual.Definition.PropClip(CurrentAttack);float duration=clip.length/HeroStreetInteraction.PlaybackRate;
+                if(!impactDone&&age>=duration*HeroStreetInteraction.EventFraction(CurrentAttack))
+                {impactDone=true;Street.Impact(CurrentAttack);}
+                if(age>=duration){Street.Finish(CurrentAttack);CurrentAttack=Attack.None;}
+            }
+            else if(CurrentAttack==Attack.Punch)
             {
                 if(!swingPlayed&&age>=PunchImpactTime-.13f){swingPlayed=true;Audio.Play(HulkAudio.Cue.PunchSwing,.8f);}
                 if(!impactDone&&age>=PunchImpactTime)
@@ -310,6 +325,7 @@ namespace SniperRidge
             skills.Add(Button("Slam",3,"[Space] 점프 강타",()=>{if(BeginAttack(Attack.Slam))LockInput();}));
             skills.Add(Button("Run",4,"[Shift] 빠른 달리기",()=>{if(ToggleRun())LockInput();}));
             skills.Add(Button("Kick",5,"[F] 날아차기",()=>{if(BeginAttack(Attack.Kick))LockInput();}));
+            Street.SetButton(Button("Street weapon",6,"[E] 드럼통 / 전봇대 집기",()=>{if(Street.Interact())LockInput();}));
             foreach(var b in skills)b.gameObject.SetActive(false);
         }
         Button Button(string name,int row,string label,UnityEngine.Events.UnityAction action)

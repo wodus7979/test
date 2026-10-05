@@ -3,12 +3,14 @@ using UnityEngine;
 namespace SniperRidge
 {
     // The four supplied FBXs share one mesh, bind skeleton and texture set.
-    // No Humanoid retargeting, body sculpting or runtime joint correction is applied.
+    // Native clips preserve that skeleton; held props use hand IK without changing the mesh.
     public sealed class NativeMutantSet : ScriptableObject
     {
         public GameObject Model;
         public AnimationClip Transform, Punch, Jump, Run;
         public AnimationClip Idle, Hit, Block, Clap, JumpDown;
+        public AnimationClip ThrowIn, Harvesting, PoleAttack;
+        public AnimationClip PropClip(HulkController.Attack attack)=>attack==HulkController.Attack.BarrelThrow?ThrowIn:attack==HulkController.Attack.Uproot?Harvesting:PoleAttack;
         public Vector3 IdleStart, IdleEnd;
         public float Scale=1, GroundOffset, RunStride;
         public Vector3 RunStart,RunEnd;

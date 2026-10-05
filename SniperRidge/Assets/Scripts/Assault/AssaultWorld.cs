@@ -91,11 +91,13 @@ namespace SniperRidge
             foreach(var block in blocks)blockRenderers.Add(block.GetComponentsInChildren<Renderer>());
             QualitySettings.shadowDistance=180;QualitySettings.lodBias=1.6f;
             MilitaryTownEnvironment.Build(transform,gm);
-            Physics.SyncTransforms();BuildNavigation();
+            UrbanCombatStreets.Vehicles(transform,UnityEngine.Random.Range(1,int.MaxValue));
+            Physics.SyncTransforms();BuildNavigation();UrbanCombatStreets.ValidateRoutes();
+            UrbanCombatStreets.Props(transform);
             // Dents replace object-space meshes; static batching would invalidate their vertex/submesh ranges.
             var batch=new List<GameObject>();
             foreach(var renderer in GetComponentsInChildren<MeshRenderer>())
-                if(!renderer.forceRenderingOff && renderer.GetComponentInParent<DestructibleVehicle>()==null && renderer.GetComponentInParent<LODGroup>()==null && renderer.GetComponent<MeshFilter>()!=null)batch.Add(renderer.gameObject);
+                if(!renderer.forceRenderingOff && renderer.GetComponentInParent<DestructibleVehicle>()==null && renderer.GetComponentInParent<StreetWeapon>()==null && renderer.GetComponentInParent<LODGroup>()==null && renderer.GetComponent<MeshFilter>()!=null)batch.Add(renderer.gameObject);
             StaticBatchingUtility.Combine(batch.ToArray(),gameObject);
             VehicleFinish.CreateReflectionProbe(transform);
         }

@@ -338,6 +338,9 @@ namespace SniperRidge
             if(Combat!=null)
             {
                 Combat.Tick(dt);coverTarget=Combat.Crouch;
+                var grenadier=GetComponent<EnemyGrenadier>();
+                if(grenadier&&grenadier.Throwing)
+                {preparingShot=false;GetComponent<AssaultNavigation>()?.Move(Vector3.zero,0,dt);return;}
                 Combat.RecordOpportunity(dt);
                 if(!Combat.Post)MoveOnTerrain(Combat.Direction,Combat.Speed,dt);
                 speedForAnim=Combat.Speed;

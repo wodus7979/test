@@ -36,7 +36,18 @@ namespace SniperRidge
         public bool CanFireFromPose => !UsesCover || EnemyCoverPose.Sample(owner.Kind == EnemyKind.Tree, coverExposure, coverSide).CanFire;
         float leftSole, rightSole, deathTime, fallSide;
         bool ready, dead;
-        AnimationClip meleeDeath;
+        AnimationClip meleeDeath,grenadeClip;
+        float grenadeAge=99;
+        GameObject handGrenade;
+        public Vector3 GrenadeHand=>rightHand.position;
+        public bool BeginGrenade()
+        {
+            if(!ready||dead)return false;
+            if(!grenadeClip)grenadeClip=Resources.Load<AnimationClip>("Enemies/GrenadeThrow");
+            if(!grenadeClip)return false;
+            grenadeAge=0;animator.enabled=false;if(weapon)weapon.gameObject.SetActive(false);
+            handGrenade=GrenadeProjectile.CreateVisual(rightHand);return true;
+        }
         public bool UsesMeleeDeath => meleeDeath!=null;
         Vector3 aimTarget;
 
@@ -213,7 +224,17 @@ namespace SniperRidge
         void LateUpdate()
         {
             if (!ready || Time.deltaTime <= 0f) return;
-            if (dead) { AnimateDeath(); return; }
+            if (dead) { if(handGrenade)Destroy(handGrenade);AnimateDeath(); return; }
+            if(grenadeAge<EnemyGrenadier.Duration)
+            {
+                if(GameManager.Instance==null||!GameManager.Instance.IsPlaying)return;
+                grenadeAge+=Time.deltaTime;
+                grenadeClip.SampleAnimation(gameObject,Mathf.Clamp01(grenadeAge/EnemyGrenadier.Duration)*grenadeClip.length);
+                if(grenadeAge>=EnemyGrenadier.ReleaseTime&&handGrenade)Destroy(handGrenade);
+                UpdateHitboxes();
+                if(grenadeAge>=EnemyGrenadier.Duration){animator.enabled=true;animator.Play("Locomotion",0,0);if(weapon)weapon.gameObject.SetActive(true);}
+                return;
+            }
             var game = GameManager.Instance;
             if (game == null || !game.IsPlaying) return;
             Vector3 leftTarget = FootTarget(leftFoot, leftSole), rightTarget = FootTarget(rightFoot, rightSole);
