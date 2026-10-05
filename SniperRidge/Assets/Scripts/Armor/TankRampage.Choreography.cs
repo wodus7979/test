@@ -203,6 +203,7 @@ namespace SniperRidge
                 }
             return SafeExit(wreck.transform.position);
         }
+        public string EscapePhase { get; private set; }="None";
         IEnumerator Escape()
         {
             EscapePlays++;escapePresentation=true;escapeAge=0;
@@ -216,37 +217,58 @@ namespace SniperRidge
             foreach(var b in escapingHuman.GetComponentsInChildren<MonoBehaviour>())b.enabled=false;
             foreach(var c in escapingHuman.GetComponentsInChildren<Collider>())c.enabled=false;
             foreach(var t in escapingHuman.GetComponentsInChildren<Transform>())t.gameObject.layer=2;
-            var clip=Resources.Load<AnimationClip>("Enemies/TankEscape");
+            var fall=Resources.Load<AnimationClip>("Enemies/TankBlastFall");
+            var getUp=Resources.Load<AnimationClip>("Enemies/TankGetUp");
             var bones=escapingHuman.GetComponentsInChildren<Transform>();
             Transform hip=bones.FirstOrDefault(t=>t.name.ToLowerInvariant().EndsWith("hips"));
             var feet=bones.Where(t=>t.name.ToLowerInvariant().EndsWith("foot")).ToArray();
             Quaternion facing=Quaternion.LookRotation(escapeDirection)*Quaternion.Euler(0,EnemyModels.YawOffset,0);
-            var hatch=ArmoredReferenceVisual.Part(wreck.transform,"Open escape hatch",new Vector3(-.5f,2.65f,-1),new Vector3(.8f,.1f,.8f),SurfaceDetail.Make(Surface.Steel,new Color(.2f,.23f,.18f),.3f,.65f),PrimitiveType.Cylinder);
-            for(float t=0;t<.32f;t+=Time.deltaTime)
-            {
-                escapeAge=t;escapingHuman.transform.SetPositionAndRotation(from-Vector3.up*.8f,facing);
-                if(clip)clip.SampleAnimation(escapingHuman,1.15f);
-                hatch.transform.localRotation=Quaternion.Euler(-105*Ease(t/.32f),0,0);yield return null;
-            }
+            EscapePhase="Ejected";
             RocketEffects.Explosion(from,.38f);GM.PlaySound(GM.Sounds.RocketExplosion,.7f);
-            for(float t=0;t<1.65f;t+=Time.deltaTime)
+            // The clip supplies the human joint motion; the scene owns the blast trajectory.
+            for(float t=0;t<1.5f;t+=Time.deltaTime)
             {
-                float u=t/1.65f;escapeAge=.32f+t;
+                float u=t/1.5f;escapeAge=t;
+                fall.SampleAnimation(escapingHuman,fall.length*Mathf.Lerp(0,.55f,u));
                 escapingHuman.transform.SetPositionAndRotation(Vector3.Lerp(from,exit,u)+Vector3.up*(12.8f*u*(1-u)),facing);
-                if(clip)clip.SampleAnimation(escapingHuman,Mathf.Lerp(1.22f,1.84f,u));
-                // Blast rotates the torso around the hips, with bent knees from the sampled jump.
-                if(hip)hip.rotation=Quaternion.AngleAxis(-65*Mathf.Sin(u*Mathf.PI),escapeRight)*Quaternion.AngleAxis(18*Mathf.Sin(u*Mathf.PI),escapeDirection)*hip.rotation;
-                cameraFocus=escapingHuman.transform.position+Vector3.up*.9f;yield return null;
+                cameraFocus=hip?hip.position:escapingHuman.transform.position+Vector3.up*.7f;yield return null;
             }
+            EscapePhase="Falling";
             Effects.Puff(exit,Vector3.up,1.35f,new Color(.48f,.43f,.36f),.65f);GM.PlaySound(GM.Sounds.RocketExplosion,.16f);
-            for(float t=0;t<.95f;t+=Time.deltaTime)
+            for(float t=0;t<.6f;t+=Time.deltaTime)
             {
-                float u=t/.95f;escapeAge=1.97f+t;
+                escapeAge=1.5f+t;
+                fall.SampleAnimation(escapingHuman,Mathf.Lerp(fall.length*.55f,fall.length,t/.6f));
                 escapingHuman.transform.SetPositionAndRotation(exit,facing);
-                if(clip)clip.SampleAnimation(escapingHuman,Mathf.Lerp(1.9f,clip.length,Ease(u)));
-                if(hip&&feet.Length>0)hip.position+=Vector3.up*(exit.y+.12f-feet.Min(f=>f.position.y));
-                cameraFocus=exit+Vector3.up*Mathf.Lerp(.8f,1.4f,Ease(u));yield return null;
+                cameraFocus=hip?hip.position:exit+Vector3.up*.5f;yield return null;
             }
+            fall.SampleAnimation(escapingHuman,fall.length);
+            escapingHuman.transform.SetPositionAndRotation(exit,facing);
+            EscapePhase="Prone";
+            var lyingRot=bones.Select(b=>b.localRotation).ToArray();
+            var lyingPos=bones.Select(b=>b.localPosition).ToArray();
+            // Both animations meet in a face-down rest. Only the short transition is blended.
+            for(float t=0;t<.45f;t+=Time.deltaTime)
+            {
+                getUp.SampleAnimation(escapingHuman,0);
+                float blend=Ease(t/.45f);
+                for(int i=1;i<bones.Length;i++){bones[i].localRotation=Quaternion.Slerp(lyingRot[i],bones[i].localRotation,blend);bones[i].localPosition=Vector3.Lerp(lyingPos[i],bones[i].localPosition,blend);}
+                escapingHuman.transform.SetPositionAndRotation(exit,facing);yield return null;
+            }
+            EscapePhase="GettingUp";
+            float getUpSeconds=Mathf.Clamp(getUp.length/1.18f,2.6f,4.8f);
+            for(float t=0;t<getUpSeconds;t+=Time.deltaTime)
+            {
+                escapeAge=2.55f+t;
+                getUp.SampleAnimation(escapingHuman,getUp.length*Mathf.Clamp01(t/getUpSeconds));
+                escapingHuman.transform.SetPositionAndRotation(exit,facing);
+                cameraFocus=hip?hip.position+Vector3.up*.25f:exit+Vector3.up;yield return null;
+            }
+            getUp.SampleAnimation(escapingHuman,getUp.length);
+            escapingHuman.transform.SetPositionAndRotation(exit,facing);
+            if(feet.Length>0)exit=Ground(feet.Aggregate(Vector3.zero,(sum,f)=>sum+f.position)/feet.Length);
+            EscapePhase="Transforming";
+            GM.Player.transform.rotation=Quaternion.LookRotation(escapeDirection);
             GM.Player.LeaveTank(exit);GM.Health.Configure(5,6);Escaped=true;
             Destroy(escapingHuman);escapingHuman=null;Cinematic=false;
             if(!Hero.Toggle())
@@ -258,9 +280,9 @@ namespace SniperRidge
             foreach(var canvas in FindObjectsOfType<Canvas>())if(canvas.enabled){hiddenCanvases.Add(canvas);canvas.enabled=false;}
             GM.PlaySound(Resources.Load<AudioClip>("HeroAudio/tank_rage"),1f);
             for(float t=0;t<HulkController.TransformDuration;t+=Time.deltaTime)
-            {escapeAge=2.92f+t;cameraFocus=GM.Player.transform.position+Vector3.up*Mathf.Lerp(1.3f,1.9f,Ease(t/HulkController.TransformDuration));yield return null;}
-            EndEscapePresentation();
-            GM.Hud.Announce("분노의 반격 · E 포탑 뜯기 · F 전차 막기 · G 나무/바위 · R 던지기");
+            {escapeAge=2.55f+getUpSeconds+t;cameraFocus=GM.Player.transform.position+Vector3.up*Mathf.Lerp(1.3f,1.9f,Ease(t/HulkController.TransformDuration));yield return null;}
+            EscapePhase="Complete";EndEscapePresentation();
+            GM.Hud.Announce("분노의 반격 · E 집기·투척·포탑 뜯기·돌진 반격 · R 전차 들어 던지기");
         }
         void UpdateEscapeCamera()
         {

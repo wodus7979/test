@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace SniperRidge
 {
@@ -18,6 +19,23 @@ namespace SniperRidge
                 if(Physics.CheckSphere(p+Vector3.up*2,1.5f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))continue;
                 Create(owner.transform,p,i%3!=0,rng);
             }
+            // Separate scatter budget for throwable stones; preserve broad road corridors.
+            var placed=new List<Vector3>();
+            for(int attempt=0;attempt<1800&&placed.Count<80;attempt++)
+            {
+                Vector2 point;
+                if(attempt%2==0)
+                {
+                    float angle=(float)rng.NextDouble()*Mathf.PI*2;
+                    point=TankCanyon.Node(attempt%TankCanyon.NodeCount)+new Vector2(Mathf.Sin(angle),Mathf.Cos(angle))*(10+(float)rng.NextDouble()*20);
+                }
+                else point=new Vector2((float)rng.NextDouble()*180-90,(float)rng.NextDouble()*180-90);
+                var p=TankCanyon.Ground(gm.Terrain,point);
+                if(Mathf.Abs(p.x)>TankBattle.Bounds-6||Mathf.Abs(p.z)>TankBattle.Bounds-6||TankCanyon.RoadDistance(p.x,p.z)<8)continue;
+                if(placed.Exists(other=>(other-p).sqrMagnitude<25))continue;
+                if(Physics.CheckSphere(p+Vector3.up*1.6f,1.4f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))continue;
+                Create(owner.transform,p,false,rng);placed.Add(p);
+            }
         }
         public static RampageProp Create(Transform parent,Vector3 p,bool tree,System.Random rng=null)
         {
@@ -35,6 +53,11 @@ namespace SniperRidge
                 for(int i=0;i<vertices.Length;i++){var v=vertices[i];vertices[i]=v*(.82f+.32f*Mathf.PerlinNoise(v.x*6+4,v.y*6+v.z*3));}
                 mesh.vertices=vertices;mesh.RecalculateNormals();mesh.RecalculateBounds();go.GetComponent<MeshFilter>().sharedMesh=mesh;go.AddComponent<RuntimeArmorMesh>().Mesh=mesh;
                 go.GetComponent<Renderer>().sharedMaterial=SurfaceDetail.Make(Surface.Wood,new Color(.32f,.34f,.30f),.10f);
+            }
+            if(!tree&&rng!=null)
+            {
+                go.transform.Rotate(0,(float)rng.NextDouble()*360,0);
+                go.transform.localScale*=.85f+(float)rng.NextDouble()*.35f;
             }
             var prop=go.AddComponent<RampageProp>();prop.Tree=tree;return prop;
         }

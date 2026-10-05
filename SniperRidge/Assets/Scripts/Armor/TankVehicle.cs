@@ -9,7 +9,7 @@ namespace SniperRidge
     {
         public const string Resource = "Tank/Prefabs/k2_black_panther";
         public const string OppositionResource = "Tank/Prefabs/tank_reference";
-        public const float ForwardSpeed = 12f, ReverseSpeed = 6f, TurnRate = 42f, ReloadSeconds = 3f;
+        public const float ForwardSpeed = 12f, ReverseSpeed = 6f, TurnRate = 42f, ReloadSeconds = 1.5f;
         public static bool IsReady => Resources.Load<GameObject>(Resource) != null && Resources.Load<GameObject>(OppositionResource) != null;
         public static int HitsRequired(TankAppearance appearance)=>appearance==TankAppearance.K2BlackPanther?4:3;
         public bool IsPlayer { get; private set; }
@@ -30,9 +30,31 @@ namespace SniperRidge
         Transform turret, barrel, rocketMuzzle;
         public Transform Turret=>turret;
         public bool Captured { get; private set; }
+        public bool IsCharging { get; private set; }
+        float chargeStarted,nextCharge=12;
+        Vector3 chargeDirection;
+        public bool BeginCharge()
+        {
+            if(IsPlayer||IsDead||Captured||IsCharging||!battle.Rampage.CombatReady)return false;
+            chargeDirection=Vector3.ProjectOnPlane(battle.TargetPosition-transform.position,Vector3.up).normalized;
+            chargeStarted=Time.time;IsCharging=true;fireAt=-1;
+            GameManager.Instance.Hud.WarnIncoming(transform.position,3.5f,"전차 돌진 · 가까이 오면 E 반격");return true;
+        }
+        bool ChargeTick()
+        {
+            if(!IsCharging)return false;
+            if(!battle.Rampage.CombatReady||Time.time-chargeStarted>5)
+            {IsCharging=false;nextCharge=Time.time+14;drive=steering=0;return false;}
+            float angle=Vector3.SignedAngle(transform.forward,chargeDirection,Vector3.up);
+            steering=Mathf.Clamp(angle/25,-1,1);drive=Time.time-chargeStarted<.75f?0:Mathf.Abs(angle)<40?1:.35f;
+            var delta=Vector3.ProjectOnPlane(battle.TargetPosition-transform.position,Vector3.up);
+            if(delta.magnitude<5.8f&&Vector3.Dot(transform.forward,delta.normalized)>.4f)
+            {IsCharging=false;nextCharge=Time.time+14;drive=0;battle.Rampage.ShellHit(chargeDirection);}
+            return true;
+        }
         public int Rockets { get; private set; }=12;
         float nextRocket;
-        public void Capture(){Captured=true;StopVehicle();fireAt=-1;}
+        public void Capture(){Captured=true;IsCharging=false;StopVehicle();fireAt=-1;}
         public bool HeroHit(int hits)
         {
             if(IsDead||IsPlayer||hits<=0)return false;
@@ -137,11 +159,12 @@ namespace SniperRidge
             if (ArmorProjectile.Cast(cameraEye.transform.position, target, transform, out var hit)) target=hit.point;
             Aim(target,90f);
             if(Input.GetKeyDown(KeyCode.R))FireRocket(target);
-            if (Input.GetMouseButton(0) && ReloadRemaining<=0 && Shells>0 && HasAim)
-            {
-                Fire(160f,280f); Shells--;
-                GameManager.Instance.OnPlayerShot(Muzzle.position);
-            }
+            if (Input.GetMouseButton(0)) FireCannon();
+        }
+        public bool FireCannon()
+        {
+            if(!IsPlayer||IsDead||Captured||ReloadRemaining>0||Shells<=0||!HasAim)return false;
+            Fire(160f,280f);Shells--;GameManager.Instance.OnPlayerShot(Muzzle.position);return true;
         }
         public bool FireRocket(Vector3 target)
         {
@@ -177,6 +200,14 @@ namespace SniperRidge
         }
         void Think()
         {
+            if(ChargeTick())return;
+            if(battle.Rampage.CombatReady&&!battle.Rampage.Busy&&Time.time>=nextCharge)
+            {
+                var delta=battle.TargetPosition-transform.position;delta.y=0;
+                if(delta.magnitude>9&&delta.magnitude<32&&Vector3.Dot(transform.forward,delta.normalized)>.8f&&
+                    !ArmorProjectile.Obstructed(AimPoint,battle.TargetPoint,transform,null)&&battle.ReserveCharge())
+                {BeginCharge();return;}
+            }
             var target=battle.PlayerTank;
             if (target == null || !battle.TargetAvailable) {drive=steering=0;return;}
             Vector3 targetPosition=battle.TargetPosition,targetPoint=battle.TargetPoint;
@@ -224,7 +255,7 @@ namespace SniperRidge
         }
         void Fire(float damage,float speed)
         {
-            nextShot=Time.time+ReloadSeconds;
+            nextShot=Time.time+(IsPlayer?ReloadSeconds:3f);
             // Actual barrel direction matters while the turret catches up to the cursor.
             ArmorProjectile.Launch(Muzzle.position,Muzzle.forward,transform,IsPlayer,damage,speed,false);
             recoil=.30f;

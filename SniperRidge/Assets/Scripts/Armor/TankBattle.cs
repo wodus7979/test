@@ -25,7 +25,8 @@ namespace SniperRidge
         AudioSource playerCannon;
         float playerShotAt = -10f;
         GameManager gm;
-        float nextEnemyCannon;
+        float nextEnemyCannon,nextCharge;
+        public bool ReserveCharge(){if(Time.time<nextCharge)return false;nextCharge=Time.time+9;return true;}
         public static TankBattle Create(GameManager game)
         {
             var battle=new GameObject("Armored battle").AddComponent<TankBattle>();battle.gm=game;
@@ -77,7 +78,7 @@ namespace SniperRidge
                     yield return new WaitForSeconds(8f);
                 }
             }
-            while(gm.IsPlaying&&Rampage.AliveHelicopters>0)yield return null;
+            while(gm.IsPlaying&&(Rampage.AliveHelicopters>0||Rampage.AliveInfantry>0))yield return null;
             if(gm.IsPlaying)gm.CompleteArmoredMission();
         }
         bool TryChooseTankSpawn(int ordinal,int stage,out Vector3 spawn)

@@ -14,7 +14,7 @@ namespace SniperRidge
         public bool CombatReady=>Escaped&&!Cinematic&&Hero&&Hero.Active&&!Hero.Transforming;
         public RampageProp Held { get; private set; }
         public int AliveHelicopters=>helicopters.Count(h=>h&&!h.Dead);
-        public string Prompt=>Cinematic?"전차 탈출 중…":action??(Held?"좌클릭: 나무 타격 · 하늘을 조준하고 R: 던지기 · Q: 내려놓기":"E: 전차 올라타서 포탑 뜯기 · F: 전차 정면 막기 · G: 굵은 나무 / 바위 뽑기");
+        public string Prompt=>Cinematic?"전차 탈출 중…":action??(Held?"좌클릭: 나무 타격 · 하늘을 조준하고 E: 던지기 · Q: 내려놓기":"E: 집기 / 포탑 뜯기 / 돌진 반격 · R: 전차 앞부분 들어 던지기");
         public float LastRestrainDistance { get; private set; }
         public int ClimbPlays { get; private set; }
         public int ShellReactions { get; private set; }
@@ -30,6 +30,7 @@ namespace SniperRidge
         TankVehicle capturedTank;
         Vector3 cameraFocus,pendingThrowDirection,queuedHit;
         bool hasQueuedHit;
+        EnemyAttackHelicopter pendingThrowTarget;
         GameManager GM=>GameManager.Instance;
         HulkController Hero=>GM.Player.Hulk;
         NativeMutantSet Set=>Hero.Visual.Definition;
@@ -37,6 +38,7 @@ namespace SniperRidge
         void Update()
         {
             if(!GM||!GM.IsPlaying)return;
+            UpdateInfantry();
             if(!airSpawned&&(battle.Stage>=3||Time.time-started>70f||Escaped&&!Cinematic&&Time.time-started>28f))SpawnAirSupport();
         }
         public void SpawnAirSupport()
@@ -80,12 +82,12 @@ namespace SniperRidge
         }
         public bool ClimbNearest()=>StartTankAction(NearestTank(false),false);
         public bool RestrainNearest()=>StartTankAction(NearestTank(true),true);
-        public bool StartTankAction(TankVehicle tank,bool restrain)
+        public bool StartTankAction(TankVehicle tank,bool restrain,bool counter=false)
         {
             if(!CanAct()||Held||!tank||tank.IsDead||tank.IsPlayer||tank.Captured)return false;
             if(Vector3.Distance(GM.Player.transform.position,tank.transform.position)>11f)return false;
-            capturedTank=tank;actionCameraReady=false;tank.Capture();action=restrain?"전차를 막고 밀려나는 중":"전차 올라타기";
-            Hero.CancelForExternal();StartCoroutine(restrain?ThrowTank(tank):RipTurret(tank));return true;
+            capturedTank=tank;actionCameraReady=false;tank.Capture();action=restrain?(counter?"돌진 반격 · 버티며 밀려나는 중":"전차 앞부분 붙잡기"):"전차 올라타기";
+            Hero.CancelForExternal();StartCoroutine(restrain?ThrowTank(tank,counter):RipTurret(tank));return true;
         }
         void PlaceHero(Vector3 point,Quaternion rotation)
         {
@@ -117,7 +119,7 @@ namespace SniperRidge
                 }
             }
         }
-        IEnumerator ThrowTank(TankVehicle tank)
+        IEnumerator ThrowTank(TankVehicle tank,bool counter)
         {
             Vector3 heading=Vector3.ProjectOnPlane(tank.transform.forward,Vector3.up).normalized;
             Quaternion facing=Quaternion.LookRotation(-heading);
@@ -125,14 +127,14 @@ namespace SniperRidge
             PlaceHero(heroStart,facing);Vector3 end=heroStart;
             // Stop before solid scenery; an unobstructed lane gives the requested ten metres.
             float push=0;
-            for(float step=.5f;step<=10;step+=.5f)
+            for(float step=.5f;counter&&step<=10;step+=.5f)
             {
                 Vector3 probe=Ground(heroStart+heading*step);
                 if(Mathf.Abs(probe.x)>TankBattle.Bounds-2||Mathf.Abs(probe.z)>TankBattle.Bounds-2)break;
                 bool blocked=Physics.OverlapCapsule(probe+Vector3.up*.9f,probe+Vector3.up*2,.83f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore).Any(c=>!c.transform.IsChildOf(tank.transform));
                 if(blocked)break;push=step;
             }
-            yield return PlayMotion(Set.TankRestrain,2.1f,u=>
+            yield return PlayMotion(Set.TankRestrain,counter?2.1f:.24f,u=>
             {
                 end=Ground(heroStart+heading*(push*Mathf.SmoothStep(0,1,u)));PlaceHero(end,facing);
                 tank.transform.position=Ground(tankStart+heading*(push*Mathf.SmoothStep(0,1,u)),.15f);
@@ -207,10 +209,10 @@ namespace SniperRidge
         IEnumerator Swing()
         {
             bool hit=false;
-            yield return PlayMotion(Set.PoleAttack,.85f,u=>{if(u>.43f&&!hit){hit=true;Strike(GM.Player.AimPoint,GM.Player.transform.forward,8,95,2);Hero.Audio.Play(HulkAudio.Cue.PunchSwing);}});
+            yield return PlayMotion(Set.PoleAttack,.85f,u=>{if(u>.43f&&!hit){hit=true;Strike(GM.Player.AimPoint,GM.Player.transform.forward,8,95,2);Hero.HitInfantryWithProp();Hero.Audio.Play(HulkAudio.Cue.PunchSwing);}});
             FinishAction();
         }
-        Vector3 ThrowDirection()
+        public EnemyAttackHelicopter FindThrowTarget()
         {
             Vector3 direction=GM.Player.Eye.forward,origin=GM.Player.AimPoint;
             EnemyAttackHelicopter best=null;float angle=16;
@@ -221,6 +223,12 @@ namespace SniperRidge
                 bool blocked=ArmorProjectile.Cast(origin,h.transform.position,GM.Player.transform,out var hit);
                 if(!blocked||hit.collider.GetComponentInParent<EnemyAttackHelicopter>()==h){best=h;angle=a;}
             }
+            return best;
+        }
+        Vector3 ThrowDirection()
+        {
+            Vector3 direction=GM.Player.Eye.forward,origin=GM.Player.AimPoint;
+            var best=FindThrowTarget();
             if(best)
             {
                 float flight=Vector3.Distance(best.transform.position,origin)/60f;
@@ -230,14 +238,30 @@ namespace SniperRidge
         }
         public bool ThrowHeld()
         {
-            if(!CanAct()||!Held)return false;pendingThrowDirection=ThrowDirection();action="던지기";Hero.CancelForExternal();StartCoroutine(ThrowProp());return true;
+            if(!CanAct()||!Held)return false;pendingThrowTarget=FindThrowTarget();pendingThrowDirection=ThrowDirection();action="던지기";Hero.CancelForExternal();StartCoroutine(ThrowProp());return true;
         }
         IEnumerator ThrowProp()
         {
             bool released=false;
             yield return PlayMotion(Set.ThrowIn,.85f,u=>
             {
-                if(u>.55f&&!released){released=true;var prop=Held;Held=null;RampageThrownObject.Launch(prop.gameObject,pendingThrowDirection,60,prop.Tree?4:3,null);Hero.Audio.Play(HulkAudio.Cue.PunchSwing);}
+                if(u>.55f&&!released){released=true;var prop=Held;Held=null;Vector3 direction=pendingThrowDirection;
+                    if(pendingThrowTarget&&!pendingThrowTarget.Dead)
+                    {
+                        // Aim from the real swept-projectile origin at release, not the standing chest.
+                        var origin=prop.transform.position+Vector3.up*.5f;
+                        var target=pendingThrowTarget.transform.position;
+                        var velocity=pendingThrowTarget.isActiveAndEnabled?pendingThrowTarget.Velocity:Vector3.zero;
+                        float flight=Vector3.Distance(origin,target)/60f;
+                        for(int i=0;i<3;i++)
+                        {
+                            direction=target+velocity*flight-origin+Vector3.up*(5*flight*flight);
+                            flight=direction.magnitude/60f;
+                        }
+                        direction.Normalize();
+                    }
+                    pendingThrowTarget=null;
+                    RampageThrownObject.Launch(prop.gameObject,direction,60,prop.Tree?4:3,null);Hero.Audio.Play(HulkAudio.Cue.PunchSwing);}
             });FinishAction();
         }
         public void DropHeld(){if(Busy||!Held)return;var p=Held;Held=null;p.Drop(Ground(GM.Player.transform.position+GM.Player.transform.right*3));}
@@ -257,7 +281,7 @@ namespace SniperRidge
                 if(!Busy)Hero.Visual.ApplyCarryPose(Held.Tree?Set.PoleAttack:Set.ThrowIn);
                 var right=Hero.Visual.MotionBones.First(t=>t.name=="mixamorig:RightHand");
                 float swing=action=="나무 휘두르기"?Mathf.Lerp(-85,90,Mathf.SmoothStep(0,1,motionProgress)):0;
-                Held.transform.SetPositionAndRotation(right.position,Quaternion.LookRotation(GM.Player.transform.forward)*Quaternion.Euler(0,swing,Held.Tree?78:0));
+                Held.transform.SetPositionAndRotation(right.position,Quaternion.LookRotation(GM.Player.transform.forward)*Quaternion.Euler(0,swing,Held.Tree?100:0));
                 if(!Held.Tree)Held.transform.position+=GM.Player.transform.forward*.65f;
             }
         }

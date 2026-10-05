@@ -20,13 +20,13 @@ namespace SniperRidge.EditorTools
         }
         sealed class Bone
         {
-            public Transform from,to;public Quaternion fromRest,toRest;public Vector3 fromPosition,toPosition;
+            public Transform from,to;public Quaternion fromWorld,toWorld;public Quaternion fromRest,toRest;public Vector3 fromPosition,toPosition;
             public string path;public AnimationCurve[] rotation=Enumerable.Range(0,4).Select(_=>new AnimationCurve()).ToArray();
             public AnimationCurve[] position=Enumerable.Range(0,3).Select(_=>new AnimationCurve()).ToArray();
         }
         public static void Run()
             =>Retarget("Assets/MutantCharacter/Source/Standing React Death Right.fbx","Assets/Resources/Enemies/StandingReactDeathRight.anim","Standing React Death Right",true);
-        public static void Retarget(string sourcePath,string output,string label,bool death=false)
+        public static void Retarget(string sourcePath,string output,string label,bool death=false,bool normalizeFloor=false,bool worldSpace=false)
         {
             var importer=(ModelImporter)AssetImporter.GetAtPath(sourcePath);
             importer.animationType=ModelImporterAnimationType.Generic;importer.avatarSetup=ModelImporterAvatarSetup.NoAvatar;
@@ -43,8 +43,17 @@ namespace SniperRidge.EditorTools
                 var bones=new List<Bone>();
                 foreach(var to in target.GetComponentsInChildren<Transform>())
                     if(from.TryGetValue(Key(to),out var f)&&f!=source.transform&&to!=target.transform)
-                        bones.Add(new Bone{from=f,to=to,fromRest=f.localRotation,toRest=to.localRotation,fromPosition=f.localPosition,toPosition=to.localPosition,path=AnimationUtility.CalculateTransformPath(to,target.transform)});
+                        bones.Add(new Bone{from=f,to=to,fromWorld=f.rotation,toWorld=to.rotation,fromRest=f.localRotation,toRest=to.localRotation,fromPosition=f.localPosition,toPosition=to.localPosition,path=AnimationUtility.CalculateTransformPath(to,target.transform)});
+                bones=bones.OrderBy(b=>Depth(b.to)).ToList();
                 var hips=bones.First(b=>Key(b.to)=="hips");
+                Quaternion Basis(bool src)
+                {
+                    Transform Get(string key){var b=bones.First(x=>Key(x.to)==key);return src?b.from:b.to;}
+                    Vector3 right=Get("rightupleg").position-Get("leftupleg").position,up=Get("head").position-Get("hips").position;
+                    return Quaternion.LookRotation(Vector3.Cross(right,up).normalized,up.normalized);
+                }
+                var basis=worldSpace?Basis(false)*Quaternion.Inverse(Basis(true)):Quaternion.identity;
+                var sourceHipRest=hips.from.position;var targetHipRest=hips.to.position;
                 float scale=(hips.to.position.y-target.transform.position.y)/(hips.from.position.y-source.transform.position.y);
                 var skins=target.GetComponentsInChildren<SkinnedMeshRenderer>();var baked=new Mesh();
                 var result=new AnimationClip{name=label,frameRate=60};
@@ -55,16 +64,19 @@ namespace SniperRidge.EditorTools
                     float time=Mathf.Min(clip.length,f/60f);clip.SampleAnimation(source,time);
                     for(int i=0;i<bones.Count;i++)
                     {
-                        var b=bones[i];b.to.localRotation=b.toRest*Quaternion.Inverse(b.fromRest)*b.from.localRotation;
+                        var b=bones[i];
+                        if(worldSpace)b.to.rotation=basis*b.from.rotation*Quaternion.Inverse(b.fromWorld)*Quaternion.Inverse(basis)*b.toWorld;
+                        else b.to.localRotation=b.toRest*Quaternion.Inverse(b.fromRest)*b.from.localRotation;
                         b.to.localPosition=b.toPosition;
                     }
                     Vector3 delta=hips.from.parent.TransformVector(hips.from.localPosition-hips.fromPosition)*scale;
                     if(!death){delta.x=0;delta.z=0;}
-                    hips.to.position+=target.transform.TransformVector(source.transform.InverseTransformVector(delta));
+                    if(worldSpace)hips.to.position=targetHipRest+basis*(hips.from.position-sourceHipRest)*scale;
+                    else hips.to.position+=target.transform.TransformVector(source.transform.InverseTransformVector(delta));
                     // Preserve limb lengths, then keep the retargeted skin above the floor.
                     float minimum=float.PositiveInfinity;
                     foreach(var skin in skins){skin.BakeMesh(baked);foreach(var v in baked.vertices)minimum=Mathf.Min(minimum,skin.transform.TransformPoint(v).y-target.transform.position.y);}
-                    if(minimum<0)hips.to.position+=Vector3.up*(-minimum+.005f);
+                    if(minimum<0||normalizeFloor)hips.to.position+=Vector3.up*(-minimum+.005f);
                     for(int i=0;i<bones.Count;i++)
                     {
                         var b=bones[i];var q=b.to.localRotation;

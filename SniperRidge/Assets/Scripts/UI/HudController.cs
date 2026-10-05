@@ -4,6 +4,7 @@ using UnityEngine.UI;
 namespace SniperRidge
 {
     /// <summary>화면 표시: 무기 선택, 조준경, 십자선, 탄약, 체력, 호흡, 바람, 영점, 거리, 웨이브, 킬 피드, 결과 화면.</summary>
+    [DefaultExecutionOrder(240)]
     public class HudController : MonoBehaviour
     {
         public Canvas RootCanvas { get; private set; }
@@ -36,7 +37,39 @@ namespace SniperRidge
             threatRole = role;
             threatUntil = Mathf.Max(threatUntil, Time.time + duration);
         }
-        Image[] hitLines;
+        Image[] hitLines,throwLines;
+        GameObject throwReticle;
+        Text throwHint;
+        public bool ThrowReticleVisible=>throwReticle&&throwReticle.activeInHierarchy&&RootCanvas.enabled;
+        public bool ThrowTargetAcquired { get; private set; }
+        void BuildThrowReticle(Transform parent)
+        {
+            var center=new Vector2(.5f,.5f);
+            throwReticle=new GameObject("Throw aiming cross",typeof(RectTransform));throwReticle.transform.SetParent(parent,false);
+            UiKit.Place(throwReticle.GetComponent<RectTransform>(),center,center,center,Vector2.zero,Vector2.zero);
+            throwLines=new Image[5];
+            for(int i=0;i<5;i++)
+            {
+                Vector2 pos=i==0?new Vector2(-20,0):i==1?new Vector2(20,0):i==2?new Vector2(0,20):i==3?new Vector2(0,-20):Vector2.zero;
+                Vector2 size=i<2?new Vector2(20,4):i<4?new Vector2(4,20):new Vector2(5,5);
+                UiKit.Panel(throwReticle.transform,"Outline",new Color(0,0,0,.85f),center,center,center,pos,size+Vector2.one*4);
+                throwLines[i]=UiKit.Panel(throwReticle.transform,"Aim",Color.white,center,center,center,pos,size).GetComponent<Image>();
+            }
+            throwHint=UiKit.Label(throwReticle.transform,"Throw instruction","E 던지기",20,TextAnchor.MiddleCenter,Color.white,center,center,new Vector2(0,-55),new Vector2(480,32),true);
+            throwReticle.SetActive(false);
+        }
+        void LateUpdate()
+        {
+            if(!throwReticle)return;
+            var rampage=gm&&gm.Armor?gm.Armor.Rampage:null;
+            bool visible=gm&&gm.IsPlaying&&rampage&&rampage.CombatReady&&rampage.Held&&!rampage.Busy;
+            throwReticle.SetActive(visible);ThrowTargetAcquired=false;
+            if(!visible)return;
+            ThrowTargetAcquired=rampage.FindThrowTarget()!=null;
+            Color color=ThrowTargetAcquired?new Color(.35f,1f,.45f):Color.white;
+            foreach(var line in throwLines)line.color=color;
+            throwHint.color=color;throwHint.text=ThrowTargetAcquired?"헬기 조준 · E 던지기":"마우스로 헬기 조준 · E 던지기";
+        }
         GameObject scopeRoot, adsRoot, crosshair, endPanel, selectPanel, gameplayRoot;
 
         float hitTimer, killFeedTimer, introTimer, announceTimer, damageTimer;
@@ -99,6 +132,7 @@ namespace SniperRidge
             adsRoot.SetActive(false);
 
             // 십자선
+            BuildThrowReticle(g);
             crosshair = new GameObject("Crosshair", typeof(RectTransform));
             crosshair.transform.SetParent(g, false);
             UiKit.Place(crosshair.GetComponent<RectTransform>(), center, center, center, Vector2.zero, Vector2.zero);
@@ -387,7 +421,7 @@ namespace SniperRidge
             {
                 weaponText.text="헐크";ammoText.text="주먹 / 충격파";stateText.text="받는 피해 65% 감소";
                 grenadeCount.gameObject.SetActive(false);crosshair.SetActive(false);
-                coverText.text=gm.Assault?"왕을 향해 돌파하세요 · "+gm.Assault.SquadStatus:"전차 격파 · E 올라타기 / F 전차 막기 / G 나무·바위 뽑기";
+                coverText.text=gm.Assault?"왕을 향해 돌파하세요 · "+gm.Assault.SquadStatus:"전차 격파 · E 상호작용·돌진 반격 / R 전차 던지기";
                 hintText.text="WASD 이동 · Shift 달리기 · 마우스 시점 | 좌클릭 주먹 · 우클릭 박수 충격파 · Space 점프 강타 | H 인간 복귀 · Esc 버튼 선택";
             }
             if (p.InTank && gm.Armor != null)
@@ -409,11 +443,11 @@ namespace SniperRidge
             if(gm.Armor&&gm.Armor.Rampage.Escaped)
             {
                 var rampage=gm.Armor.Rampage;
-                crosshair.SetActive(rampage.Held&&!rampage.Busy);
-                enemyText.text=$"분노의 반격 {gm.Armor.Stage}/5 · 적 전차 {gm.Armor.AliveTanks} · 헬기 {rampage.AliveHelicopters}";
+                crosshair.SetActive(false);
+                enemyText.text=$"분노의 반격 {gm.Armor.Stage}/5 · 적 전차 {gm.Armor.AliveTanks} · 헬기 {rampage.AliveHelicopters} · 보병 {rampage.AliveInfantry}";
                 coverText.text=rampage.Prompt;windText.text="적 기갑 부대 격파";zeroText.text="";rangeText.text="";
                 stateText.text="포탄 피격: 최대 체력 10%";
-                hintText.text="WASD 이동 · Shift 달리기 · 좌클릭 주먹/나무 타격 · 우클릭 박수 · Space 강타 | E 포탑 뜯기 · F 전차 던지기 · G 나무/바위 · R 던지기 · Q 내려놓기";
+                hintText.text="WASD 이동 · Shift 달리기 · 좌클릭 주먹/나무 타격 · 우클릭 박수 · Space 강타 | E 집기·투척·포탑 뜯기·돌진 반격 · R 전차 들어 던지기 · Q 내려놓기";
             }
             Fade(shotFeedback, ref shotFeedbackTimer, dt, .6f);
             Fade(killFeed, ref killFeedTimer, dt, 0.6f);

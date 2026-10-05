@@ -37,6 +37,12 @@ namespace SniperRidge
         void Impact(RaycastHit hit)
         {
             done=true;var gm=GameManager.Instance;
+            var soldier=hit.collider.GetComponentInParent<EnemyHitbox>();
+            if(soldier&&soldier.Owner&&!soldier.Owner.IsDead)
+            {
+                bool killed=soldier.Owner.TakeHit(250,false,velocity.normalized,true);
+                gm.OnEnemyHit(soldier.Owner,false,Vector3.Distance(gm.Player.transform.position,hit.point),killed,false);
+            }
             var tank=hit.collider.GetComponentInParent<TankVehicle>();if(tank&&!tank.IsPlayer&&!tank.IsDead)tank.HeroHit(damage);
             var heli=hit.collider.GetComponentInParent<EnemyAttackHelicopter>();if(heli)heli.Hit(damage);
             if(wholeTank&&ignoredTank&&!ignoredTank.IsDead)ignoredTank.HeroHit(ignoredTank.RemainingShellHits);

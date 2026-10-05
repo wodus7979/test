@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -176,11 +177,10 @@ namespace SniperRidge
                 if(Input.GetKeyDown(KeyCode.Space))BeginAttack(Attack.Slam);
                 if(rampage)
                 {
-                    if(Input.GetKeyDown(KeyCode.E))rampage.ClimbNearest();
-                    if(Input.GetKeyDown(KeyCode.F))rampage.RestrainNearest();
-                    if(Input.GetKeyDown(KeyCode.G))rampage.GrabNearest();
-                    if(Input.GetKeyDown(KeyCode.R))rampage.ThrowHeld();
+                    if(Input.GetKeyDown(KeyCode.E))rampage.Interact();
+                    if(Input.GetKeyDown(KeyCode.R))rampage.RestrainNearest();
                     if(Input.GetKeyDown(KeyCode.Q))rampage.DropHeld();
+                    if(Input.GetKeyDown(KeyCode.F))BeginAttack(Attack.Kick);
                     if(rampage.Busy)return;
                 }
                 else
@@ -302,11 +302,13 @@ namespace SniperRidge
             HitTargets(waveOrigin,waveForward,HulkWave.RadiusAt(age,waveRadius),waveAttack==Attack.Clap?65:180,
                 waveDamage,waveHit,waveAttack==Attack.Clap?4:5);
         }
+        public void HitInfantryWithProp()=>HitTargets(owner.AimPoint,transform.forward,8,95,220,new HashSet<EnemySoldier>(),5);
         void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height)
         {
             if(Game.Armor&&Game.Armor.Rampage&&hit==null)Game.Armor.Rampage.Strike(origin,forward,range,degrees,1);
-            if(Game.Assault==null)return;
-            foreach(var enemy in Game.Assault.Soldiers.ToArray())
+            IEnumerable<EnemySoldier> targets=Game.Assault!=null?Game.Assault.Soldiers:Game.Armor?Game.Armor.Rampage.Infantry:null;
+            if(targets==null)return;
+            foreach(var enemy in targets.ToArray())
             {
                 if(enemy==null||enemy.IsDead||enemy.IsAlly||hit!=null&&hit.Contains(enemy))continue;
                 Vector3 point=enemy.AimPoint,delta=point-origin,flat=Vector3.ProjectOnPlane(delta,Vector3.up);

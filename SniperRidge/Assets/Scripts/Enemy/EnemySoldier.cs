@@ -59,6 +59,7 @@ namespace SniperRidge
         public Vector3 LeftGrip => EnemyCombatRoles.LeftGrip(Role);
 
         public bool IsDead { get; private set; }
+        public int ShotsFired { get; private set; }
         public bool IsAware { get; private set; }
         public float Health { get; private set; } = MaxHealth;
         public Transform Head => head;
@@ -326,6 +327,7 @@ namespace SniperRidge
         void Update()
         {
             if (IsDead || gm == null || !gm.IsPlaying) return;
+            if(gm.Armor&&!gm.Armor.TargetAvailable)return;
             float dt = Time.deltaTime;
             staggerTimer = Mathf.Max(0f, staggerTimer - dt);
 
@@ -452,7 +454,7 @@ namespace SniperRidge
         float UpdateRushing(float dt)
         {
             coverTarget = 0f;
-            Vector3 toPlayer = gm.PlayerEye.position - transform.position;
+            Vector3 toPlayer = (gm.Armor?gm.Player.transform.position:gm.PlayerEye.position) - transform.position;
             toPlayer.y = 0f;
             float dist = toPlayer.magnitude;
             Vector3 dir = toPlayer.normalized;
@@ -641,7 +643,7 @@ namespace SniperRidge
                 StartCoroutine(FallDown(bulletDir));
             }
             if (gm != null && gm.Mission == MissionType.Defense) Destroy(gameObject, 25f);
-            if (gm != null && gm.Mission == MissionType.Assault) Destroy(gameObject, 35f);
+            if (gm != null && (gm.Mission == MissionType.Assault||gm.Armor)) Destroy(gameObject, 35f);
         }
 
         IEnumerator FallDown(Vector3 bulletDir)
@@ -757,6 +759,7 @@ namespace SniperRidge
 
         void FireAtPlayer(Vector3 target)
         {
+            ShotsFired++;
             if (motion != null) motion.Fire();
             Vector3 muzzle = rifleTip.position;
             Effects.Flash(muzzle, new Color(1f, .8f, .5f), 4f, 6f, .06f);
