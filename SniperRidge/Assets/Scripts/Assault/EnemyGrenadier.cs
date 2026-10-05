@@ -27,6 +27,7 @@ namespace SniperRidge
             if(!rig.BeginGrenade())return false;
             target=aim-Vector3.up*1.1f;age=0;released=false;Throwing=true;cooldown=Time.time+Random.Range(10,15);return true;
         }
+        public void CancelThrow(){Throwing=false;released=true;age=Duration;}
         void Update()
         {
             var gm=GameManager.Instance;if(!gm||!gm.IsPlaying||!owner)return;

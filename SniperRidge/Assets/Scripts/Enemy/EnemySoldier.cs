@@ -599,6 +599,18 @@ namespace SniperRidge
             }
         }
 
+        public void InterruptForProp()
+        {
+            StopAllCoroutines();preparingShot=false;roundsRemaining=0;
+            var grenadier=GetComponent<EnemyGrenadier>();if(grenadier)grenadier.CancelThrow();
+        }
+        public bool TakePropHit(float damage,Vector3 direction)
+        {
+            if(IsDead)return false;
+            if(motion)motion.PropImpact(direction);
+            return TakeHit(damage,false,direction,true);
+        }
+
         /// <summary>피격. 사망하면 true.</summary>
         public bool TakeHit(float damage, bool headshot, Vector3 bulletDir, bool characterMelee=false)
         {

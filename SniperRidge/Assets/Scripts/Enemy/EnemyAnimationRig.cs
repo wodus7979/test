@@ -187,12 +187,20 @@ namespace SniperRidge
             reaction = 1f;
             reactionSide = Mathf.Sign(Vector3.Dot(direction, owner.transform.right));
         }
+        public void RefreshImpactHitboxes()=>UpdateHitboxes();
+        public void PropImpact(Vector3 direction)
+        {
+            if(!ready||dead)return;
+            grenadeAge=99;if(handGrenade)Destroy(handGrenade);
+            EnemyPropKnockback.Begin(owner,this,weapon,direction);
+        }
         public void Die(Vector3 direction, bool headshot, Vector3 movement,bool characterMelee=false)
         {
             if (!ready || dead) return;
             dead = true;
             animator.enabled = false;
             foreach (var h in hitShapes) h.capsule.enabled = false;
+            if(owner.GetComponent<EnemyPropKnockback>())return;
             if(characterMelee)meleeDeath=Resources.Load<AnimationClip>("Enemies/StandingReactDeathRight");
             if(meleeDeath)
             {

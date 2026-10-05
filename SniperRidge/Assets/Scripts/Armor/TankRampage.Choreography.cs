@@ -278,7 +278,7 @@ namespace SniperRidge
             }
             // Include the newly created abilities canvas in the cinematic, restoring only what we hid.
             foreach(var canvas in FindObjectsOfType<Canvas>())if(canvas.enabled){hiddenCanvases.Add(canvas);canvas.enabled=false;}
-            GM.PlaySound(Resources.Load<AudioClip>("HeroAudio/tank_rage"),1f);
+            // Hero.Toggle already starts the same single roar used by city transformation.
             for(float t=0;t<HulkController.TransformDuration;t+=Time.deltaTime)
             {escapeAge=2.55f+getUpSeconds+t;cameraFocus=GM.Player.transform.position+Vector3.up*Mathf.Lerp(1.3f,1.9f,Ease(t/HulkController.TransformDuration));yield return null;}
             EscapePhase="Complete";EndEscapePresentation();

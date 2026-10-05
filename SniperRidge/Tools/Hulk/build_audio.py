@@ -1,4 +1,4 @@
-"""Original, deterministic layered action Foley. No third-party audio samples."""
+"""Deterministic action Foley; transformation uses the separately credited CC0 roar."""
 from pathlib import Path
 import wave
 import numpy as np
@@ -26,10 +26,9 @@ def save(name,x):
 for name,seconds in [('transform',1.95),('punch_swing',.32),('punch_hit',.55),('clap',1.25),('jump',.65),('slam',1.55),('footstep',.26)]:
     t=np.arange(int(seconds*RATE))/RATE;n=len(t);white=noise(n);low=noise(n,39)
     if name=='transform':
-        grow=np.sin(np.pi*np.clip(t/1.9,0,1))**1.1
-        throat=sum(np.sin(2*np.pi*(48*k*t+8*k*t*t))*np.exp(-k*.32) for k in range(1,8))
-        x=.38*throat*grow*(.8+.2*np.sin(2*np.pi*18*t))+.8*low*grow+white*.18*np.exp(-((t-.62)/.3)**2)
-        x+=burst(np.maximum(0,t-1.2),60,9)*(t>=1.2)*.7
+        from build_transform_roar import build
+        build()
+        continue
     elif name=='punch_swing':
         x=(white-noise(n,19))*.33*np.sin(np.pi*t/seconds)**1.7+.16*low*np.sin(np.pi*t/seconds)
     elif name=='punch_hit':

@@ -302,8 +302,8 @@ namespace SniperRidge
             HitTargets(waveOrigin,waveForward,HulkWave.RadiusAt(age,waveRadius),waveAttack==Attack.Clap?65:180,
                 waveDamage,waveHit,waveAttack==Attack.Clap?4:5);
         }
-        public void HitInfantryWithProp()=>HitTargets(owner.AimPoint,transform.forward,8,95,220,new HashSet<EnemySoldier>(),5);
-        void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height)
+        public void HitInfantryWithProp()=>HitTargets(owner.AimPoint,transform.forward,8,95,220,new HashSet<EnemySoldier>(),5,true);
+        void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height,bool propImpact=false)
         {
             if(Game.Armor&&Game.Armor.Rampage&&hit==null)Game.Armor.Rampage.Strike(origin,forward,range,degrees,1);
             IEnumerable<EnemySoldier> targets=Game.Assault!=null?Game.Assault.Soldiers:Game.Armor?Game.Armor.Rampage.Infantry:null;
@@ -318,7 +318,7 @@ namespace SniperRidge
                     if(wall.collider.GetComponentInParent<EnemySoldier>()==null){blocked=true;break;}
                 if(blocked)continue;
                 hit?.Add(enemy);DamageEvents++;
-                bool killed=enemy.TakeHit(damage,false,delta.normalized,true);
+                bool killed=propImpact?enemy.TakePropHit(damage,delta.normalized):enemy.TakeHit(damage,false,delta.normalized,true);
                 Game.OnEnemyHit(enemy,false,delta.magnitude,killed,false);
                 Effects.Dust(point,-delta.normalized,.45f);
             }

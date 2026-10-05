@@ -1,0 +1,13 @@
+Source: 80 CC0 creature SFX
+Author: rubberduck
+https://opengameart.org/content/80-cc0-creature-sfx
+Download: https://opengameart.org/sites/default/files/80-CC0-creature-SFX_0.zip
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+Retrieved 2026-10-05.
+
+roar_02.wav and grunt_03.wav are mono PCM conversions of the original Ogg files.
+The author describes creating most sounds with their mouth and applying filters.
+The game transformation cue combines and pitch-shifts these recordings with EQ,
+short room reflections and a bounded peak level. No film/game voice was sampled.
+Rebuild using Tools/Hulk/build_transform_roar.py (Python + NumPy).

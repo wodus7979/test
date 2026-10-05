@@ -59,7 +59,7 @@ namespace SniperRidge
                     if(!enemy||enemy.IsDead||enemy.IsAlly)continue;Vector3 delta=enemy.AimPoint-origin;
                     if(delta.magnitude>6.5f||Vector3.Angle(transform.forward,Vector3.ProjectOnPlane(delta,Vector3.up))>85)continue;
                     if(EnemyProjectile.WorldHit(origin,enemy.AimPoint,null,out var hit)&&hit.collider.GetComponentInParent<EnemySoldier>()!=enemy)continue;
-                    bool killed=enemy.TakeHit(220,false,delta.normalized,true);gm.OnEnemyHit(enemy,false,delta.magnitude,killed,false);
+                    bool killed=enemy.TakePropHit(220,delta.normalized);gm.OnEnemyHit(enemy,false,delta.magnitude,killed,false);
                     Effects.Dust(enemy.AimPoint,-delta.normalized,.5f);hero.Audio.Play(HulkAudio.Cue.PunchHit);
                 }
                 DestructibleVehicle.PunchNearest(origin,transform.forward,6.5f);

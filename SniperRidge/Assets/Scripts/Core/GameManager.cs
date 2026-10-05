@@ -10,9 +10,10 @@ namespace SniperRidge
     {
         public static GameManager Instance { get; private set; }
 
-        public enum GameState { Select, Playing, Won, Lost }
+        public enum GameState { Select, Playing, Dying, Won, Lost }
         public GameState State { get; private set; } = GameState.Select;
         public bool IsPlaying => State == GameState.Playing;
+        public bool IsDying => State == GameState.Dying;
         public bool IsSelecting => State == GameState.Select;
 
         public MissionType Mission { get; private set; }
@@ -113,7 +114,7 @@ namespace SniperRidge
         void Update()
         {
             // Selection and deployment are handled by TacticalStartMenu.
-            if (!IsSelecting && !IsPlaying && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            if ((State == GameState.Won || State == GameState.Lost) && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
             {
                 Restart();
             }
@@ -365,7 +366,18 @@ namespace SniperRidge
         public void CompleteAssault() { if (Mission == MissionType.Assault) EndMission(true); }
         public void CompleteArmoredMission() { if (Mission == MissionType.Tank) EndMission(true); }
         public void CompleteHelicopterMission() { if (Mission == MissionType.Helicopter && Rescue!=null && Rescue.Rescued>=HelicopterRescueMission.TotalSurvivors) EndMission(true); }
-        public void PlayerDied() => EndMission(false);
+        public void PlayerDied()
+        {
+            if(!IsPlaying)return;
+            State=GameState.Dying;endTime=Time.time;
+            if(Flight)Flight.StopFlight();if(Armor)Armor.StopBattle();
+            Player.OnMissionEnd();Player.gameObject.AddComponent<PlayerDeathSequence>().Begin(this);
+        }
+        public void FinishPlayerDeath()
+        {
+            if(!IsDying)return;
+            State=GameState.Lost;Hud.ShowEnd(false);
+        }
 
         void EndMission(bool won)
         {

@@ -8,7 +8,7 @@ namespace SniperRidge
     {
         public GameObject Model;
         public AnimationClip Transform, Punch, Jump, Run;
-        public AnimationClip Idle, Hit, Block, Clap, JumpDown;
+        public AnimationClip Idle, Hit, Block, Clap, JumpDown, Death;
         public AnimationClip ThrowIn, Harvesting, PoleAttack;
         public AnimationClip TankClimb, TankPull, TankThrow, TankRestrain, ShellHit;
         public AnimationClip PropClip(HulkController.Attack attack)=>attack==HulkController.Attack.BarrelThrow?ThrowIn:attack==HulkController.Attack.Uproot?Harvesting:PoleAttack;
