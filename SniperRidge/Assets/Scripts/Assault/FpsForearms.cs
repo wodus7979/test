@@ -22,14 +22,14 @@ namespace SniperRidge
         }
         void Build()
         {
-            skin=SurfaceDetail.Make(Surface.Skin,Color.white,.30f,0);
-            skin.name="Weathered skin with pores and healed scars";
+            var shader=Shader.Find("SniperRidge/FPS Skin");
+            skin=new Material(shader!=null?shader:Shader.Find("Standard"));
+            skin.name="Anatomical matte skin · pores and subtle subsurface scattering";
             skin.mainTexture=Resources.Load<Texture2D>("Hands/forearm_skin_albedo");
             skin.SetTexture("_BumpMap",Resources.Load<Texture2D>("Hands/forearm_skin_normal"));
-            skin.SetTexture("_MetallicGlossMap",Resources.Load<Texture2D>("Hands/forearm_skin_metallicSmoothness"));
-            skin.EnableKeyword("_METALLICGLOSSMAP");
-            skin.SetTextureScale("_BumpMap",Vector2.one);
-            skin.SetFloat("_BumpScale",.7f);skin.SetFloat("_DetailNormalMapScale",.12f);
+            skin.SetTexture("_SurfaceMap",Resources.Load<Texture2D>("Hands/forearm_skin_metallicSmoothness"));
+            skin.SetFloat("_BumpScale",.85f);
+            skin.SetFloat("_ScatterStrength",.13f);
             cuff=SurfaceDetail.Make(Surface.Fabric,new Color(.38f,.29f,.18f),.10f);
             var bodyIndices=new System.Collections.Generic.List<int>();
             var cuffIndices=new System.Collections.Generic.List<int>();
@@ -76,7 +76,8 @@ namespace SniperRidge
                     float width=Mathf.Lerp(.025f,.061f,Mathf.SmoothStep(0,1,t));
                     float height=Mathf.Lerp(.034f,.055f,Mathf.SmoothStep(0,1,t));
                     // Keep a believable wrist taper while adding volume through the forearm belly.
-                    float bulk=1.08f+.25f*Mathf.SmoothStep(0,1,Mathf.Clamp01(t*3));
+                    float bulk=(1.08f+.25f*Mathf.SmoothStep(0,1,Mathf.Clamp01(t*3)))*
+                        (1.03f+.17f*Mathf.SmoothStep(0,1,Mathf.Clamp01(t*2.5f)));
                     width*=bulk;height*=bulk;
                     // Low tendons blend into the forearm muscle; no cloth folds on exposed skin.
                     float envelope=Mathf.Sin(Mathf.PI*t)*(.55f+.45f*Mathf.Exp(-t*3));
@@ -84,7 +85,8 @@ namespace SniperRidge
                     for(int n=0;n<=Sides;n++)
                     {
                         float angle=n*Mathf.PI*2/Sides;
-                        float muscle=Mathf.Cos(angle*2+.3f)*.004f*envelope;
+                        float muscle=Mathf.Cos(angle*2+.3f)*.009f*envelope+
+                            .006f*Mathf.Pow(Mathf.Max(0,Mathf.Cos(angle-.8f)),4)*Mathf.Sin(Mathf.PI*t);
                         float tendon=.0014f*Mathf.Pow(Mathf.Max(0,Mathf.Cos(angle-.6f-t*.3f)),30)*Mathf.Sin(t*Mathf.PI);
                         Vector3 world=centre+x*Mathf.Cos(angle)*(width+muscle+tendon)+y*Mathf.Sin(angle)*(height+muscle+tendon);
                         vertices[arm*Rings*Stride+ring*Stride+n]=transform.InverseTransformPoint(world);

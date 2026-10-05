@@ -11,6 +11,9 @@ namespace SniperRidge.EditorTools
             texture.mipmapEnabled = true;
             texture.anisoLevel = 8;
             texture.maxTextureSize = 2048;
+            texture.wrapModeU = UnityEngine.TextureWrapMode.Repeat;
+            texture.wrapModeV = UnityEngine.TextureWrapMode.Clamp;
+            texture.textureCompression = TextureImporterCompression.CompressedHQ;
             if (assetPath.EndsWith("_normal.png"))
             {
                 texture.textureType = TextureImporterType.NormalMap;

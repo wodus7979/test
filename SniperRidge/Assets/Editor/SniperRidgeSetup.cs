@@ -204,7 +204,7 @@ namespace SniperRidge.EditorTools
         {
             string[] names =
             {
-                "SniperRidge/VehicleSurface", "SniperRidge/VehicleGlass", "Standard", "Unlit/Color", "Sprites/Default", "UI/Default",
+                "SniperRidge/FPS Skin", "SniperRidge/VehicleSurface", "SniperRidge/VehicleGlass", "Standard", "Unlit/Color", "Sprites/Default", "UI/Default",
                 "Nature/Terrain/Standard", "Nature/Terrain/Diffuse", "Legacy Shaders/Diffuse",
                 "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
                 "Hidden/TerrainEngine/Details/WavingDoublePass",
