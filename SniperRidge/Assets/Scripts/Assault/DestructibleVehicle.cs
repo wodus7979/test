@@ -3,16 +3,27 @@ using UnityEngine;
 
 namespace SniperRidge
 {
-    // A placed car owns its dents and wreck materials; other copies retain the source mesh.
+    // Each vehicle owns its dents and damage properties; other copies retain the source mesh.
     public sealed class DestructibleVehicle : MonoBehaviour
     {
         public const int PunchesToDestroy=5;
         public int Hits { get; private set; }
         public bool Destroyed => Hits>=PunchesToDestroy;
-        public bool Burning => fire && fire.isPlaying;
+        public bool Burning => burn && burn.Burning;
+        public bool Smoking => burn && burn.Smoking;
+        public bool Reacting => reactionAge<.55f;
         Mesh dented;
-        Material[] wreckMaterials;
-        ParticleSystem fire;
+        VehicleBurnVfx burn;
+        MeshRenderer body;
+        MaterialPropertyBlock damage;
+        Vector3 restingPosition,impulse;
+        Quaternion restingRotation;
+        float reactionAge=1,burnAge;
+        void Awake()
+        {
+            body=GetComponent<MeshRenderer>();damage=new MaterialPropertyBlock();
+            restingPosition=transform.position;restingRotation=transform.rotation;
+        }
         public static bool PunchNearest(Vector3 origin,Vector3 forward,float range)
         {
             DestructibleVehicle best=null;Vector3 contact=default;float distance=range;
@@ -45,7 +56,14 @@ namespace SniperRidge
         public void Punch(Vector3 contact,Vector3 direction)
         {
             if(Destroyed)return;
+            if(Hits==0){restingPosition=transform.position;restingRotation=transform.rotation;}
             Hits++;
+            Vector3 localContact=transform.InverseTransformPoint(contact);
+            body.GetPropertyBlock(damage);
+            damage.SetVector("_Hit"+(Hits-1),new Vector4(localContact.x,localContact.y,localContact.z,.9f));
+            damage.SetFloat("_Damage",Hits/(float)PunchesToDestroy);body.SetPropertyBlock(damage);
+            reactionAge=0;impulse=Vector3.ProjectOnPlane(direction,Vector3.up).normalized;
+            CombatVfx.Impact(contact,-direction.normalized,.65f,new Color(.32f,.29f,.24f));
             var filter=GetComponent<MeshFilter>();
             if(!dented){dented=Instantiate(filter.sharedMesh);dented.name=name+" damaged hull";filter.sharedMesh=dented;}
             Vector3 point=transform.InverseTransformPoint(contact),push=transform.InverseTransformDirection(direction).normalized;
@@ -56,38 +74,31 @@ namespace SniperRidge
                 if(vertices[i].y>.38f)vertices[i]+=push*(influence*influence*.16f);
                 if(Destroyed&&vertices[i].y>.48f)vertices[i].y=.48f+(vertices[i].y-.48f)*.52f;
             }
-            dented.vertices=vertices;dented.RecalculateNormals();dented.RecalculateBounds();
+            dented.vertices=vertices;dented.RecalculateNormals();dented.RecalculateTangents();dented.RecalculateBounds();
             var hull=GetComponent<MeshCollider>();if(hull){hull.sharedMesh=null;hull.sharedMesh=dented;}
+            if(Hits>=2)
+            {
+                if(!burn)burn=VehicleBurnVfx.Create(transform,dented.bounds);
+                burn.SetDamage(Hits,dented.bounds);
+            }
             if(!Destroyed)return;
-            var renderer=GetComponent<MeshRenderer>();var original=renderer.sharedMaterials;
-            wreckMaterials=new Material[original.Length];
-            for(int i=0;i<original.Length;i++)
-            {var m=new Material(original[i]);m.color=Color.Lerp(m.color,new Color(.045f,.038f,.03f),.84f);if(m.HasProperty("_Glossiness"))m.SetFloat("_Glossiness",.06f);if(m.HasProperty("_Destroyed"))m.SetFloat("_Destroyed",1);if(m.HasProperty("_EmissionColor"))m.SetColor("_EmissionColor",Color.black);wreckMaterials[i]=m;}
-            renderer.sharedMaterials=wreckMaterials;
             foreach(var sign in GetComponentsInChildren<TextMesh>())sign.gameObject.SetActive(false);
-            Vector3 center=renderer.bounds.center;
+            Vector3 center=body.bounds.center;
             CombatVfx.Explosion(center,1.25f);
             var gm=GameManager.Instance;if(gm)gm.PlaySound(gm.Sounds.RocketExplosion,.8f);
-            fire=MakeParticles("Wreck fire",center,CombatVfx.FireMaterial,false);
-            MakeParticles("Wreck smoke",center+Vector3.up*.5f,CombatVfx.SmokeMaterial,true);
         }
-        ParticleSystem MakeParticles(string label,Vector3 position,Material material,bool smoke)
+        void Update()
         {
-            var go=new GameObject(label);go.transform.SetParent(transform);go.transform.position=position;
-            var ps=go.AddComponent<ParticleSystem>();ps.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
-            var main=ps.main;main.loop=true;main.duration=3;main.startLifetime=smoke?new ParticleSystem.MinMaxCurve(3,5):new ParticleSystem.MinMaxCurve(.5f,1.1f);
-            main.startSpeed=smoke?new ParticleSystem.MinMaxCurve(1.5f,2.4f):new ParticleSystem.MinMaxCurve(.6f,1.7f);
-            main.startSize=smoke?new ParticleSystem.MinMaxCurve(.7f,1.4f):new ParticleSystem.MinMaxCurve(.55f,1.25f);
-            main.startRotation=new ParticleSystem.MinMaxCurve(0,Mathf.PI*2);main.simulationSpace=ParticleSystemSimulationSpace.World;main.maxParticles=smoke?90:65;
-            var emission=ps.emission;emission.rateOverTime=smoke?15:38;
-            var shape=ps.shape;shape.shapeType=ParticleSystemShapeType.Cone;shape.angle=12;shape.radius=smoke?.45f:.65f;shape.rotation=new Vector3(-90,0,0);
-            var colors=ps.colorOverLifetime;colors.enabled=true;var gradient=new Gradient();
-            gradient.SetKeys(new[]{new GradientColorKey(smoke?new Color(.08f,.075f,.065f):new Color(1,.8f,.25f),0),new GradientColorKey(smoke?new Color(.2f,.19f,.18f):new Color(1,.15f,.015f),1)},new[]{new GradientAlphaKey(0,0),new GradientAlphaKey(smoke?.55f:.9f,.12f),new GradientAlphaKey(0,1)});colors.color=gradient;
-            var size=ps.sizeOverLifetime;size.enabled=true;size.size=new ParticleSystem.MinMaxCurve(1,AnimationCurve.Linear(0,smoke?.5f:1,1,smoke?2.5f:.1f));
-            var velocity=ps.velocityOverLifetime;velocity.enabled=true;velocity.space=ParticleSystemSimulationSpace.World;velocity.y=new ParticleSystem.MinMaxCurve(smoke?1.1f:.9f);
-            var r=ps.GetComponent<ParticleSystemRenderer>();r.sharedMaterial=material;r.sortMode=ParticleSystemSortMode.Distance;r.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
-            ps.Play();return ps;
+            if(Reacting)
+            {
+                reactionAge+=Time.deltaTime;float wave=Mathf.Sin(reactionAge*29)*Mathf.Exp(-reactionAge*8);
+                Vector3 local=Quaternion.Inverse(restingRotation)*impulse;
+                transform.SetPositionAndRotation(restingPosition+impulse*(wave*.065f),restingRotation*Quaternion.Euler(local.z*wave*2.4f,0,-local.x*wave*2.4f));
+                if(!Reacting)transform.SetPositionAndRotation(restingPosition,restingRotation);
+            }
+            if(Destroyed&&burnAge<3)
+            {burnAge+=Time.deltaTime;damage.SetFloat("_Destroyed",Mathf.SmoothStep(0,1,burnAge/3));body.SetPropertyBlock(damage);}
         }
-        void OnDestroy(){if(dented)Destroy(dented);if(wreckMaterials!=null)foreach(var m in wreckMaterials)if(m)Destroy(m);}
+        void OnDestroy(){if(dented)Destroy(dented);}
     }
 }

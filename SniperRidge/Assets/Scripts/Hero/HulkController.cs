@@ -24,7 +24,7 @@ namespace SniperRidge
             RunEnabled=!RunEnabled;return true;
         }
         // Source contact stays at 1.40s; playback and gameplay share the same rate.
-        public const float PunchPlaybackRate=3f;
+        public const float PunchPlaybackRate=4.5f;
         public const float PunchDuration=3.833333f/PunchPlaybackRate, PunchImpactTime=1.40f/PunchPlaybackRate;
         public const float JumpWindup=.28f, JumpLaunchSpeed=13.8f, JumpGravity=36f, JumpRecovery=.28f, JumpCooldown=2f;
         public const float ClapDuration=1f, ClapImpactTime=.43f;
