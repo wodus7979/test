@@ -13,6 +13,9 @@ namespace SniperRidge.EditorTools
         static int stage,last=-1;
         static float at,health;
         static int previousHits;
+        static float nextFrame;
+        static int movieFrame;
+        static bool sawGrip,sawDeck,secondTurret;
         static TankVehicle target;
         static RampageProp prop;
         static EnemyAttackHelicopter helicopter;
@@ -25,6 +28,7 @@ namespace SniperRidge.EditorTools
             var shader=Shader.Find("SniperRidge/HeroArmorSurface");Check(shader&&shader.isSupported&&!ShaderUtil.ShaderHasError(shader),"PBR shader compilation");
             EditorSceneManager.OpenScene("Assets/Scenes/SniperRidge.unity");Directory.CreateDirectory("Logs");
             File.WriteAllText("Logs/autoplay.txt","mode=8\nwait=180\ntag=tank_rampage\nquit=1\n");
+            Directory.CreateDirectory("Screenshots/tank-rampage");File.WriteAllText("Screenshots/tank-rampage/frames.csv","");
             SessionState.SetString(Key+"errors","");SessionState.SetBool(Key,true);SessionState.SetFloat(Key+"start",(float)EditorApplication.timeSinceStartup);
         }
         static void Next(){stage++;at=Time.time;Debug.Log("[Rampage test] Stage "+stage);}
@@ -50,6 +54,19 @@ namespace SniperRidge.EditorTools
                 var gm=GameManager.Instance;
                 if(!EditorApplication.isPlaying||!gm||!gm.IsPlaying||!gm.Armor||last==Time.frameCount)return;
                 last=Time.frameCount;var battle=gm.Armor;var rampage=battle.Rampage;var player=gm.Player;var cam=player.Eye.GetComponent<Camera>();float age=Time.time-at;
+                if(stage>0&&stage<10&&Time.time>=nextFrame)
+                {
+                    nextFrame=Time.time+.1f;
+                    string name="motion_"+(movieFrame++).ToString("D4");
+                    Capture(cam,name);
+                    File.AppendAllText("Screenshots/tank-rampage/frames.csv",name+","+Time.time.ToString("F3",System.Globalization.CultureInfo.InvariantCulture)+","+stage+","+rampage.ChoreographyPhase+"\n");
+                }
+                if(rampage.ChoreographyPhase=="Pull")
+                {
+                    sawGrip=true;sawDeck=true;
+                    Check(rampage.GripError<.28f,"hands detached from turret: "+rampage.GripError);
+                    Check(rampage.FootContactError<.12f,"feet detached from deck: "+rampage.FootContactError);
+                }
                 if(stage==0&&battle.Enemies.Count==5)
                 {
                     battle.StopAllCoroutines();foreach(var t in battle.Enemies){t.StopVehicle();t.enabled=false;}
@@ -64,7 +81,8 @@ namespace SniperRidge.EditorTools
                 else if(stage==2&&player.IsHulk&&player.Hulk.TransformationProgress>.35f){Capture(cam,"03_rage_transform");Next();}
                 else if(stage==3&&player.IsHulk&&!player.Hulk.Transforming&&player.Hulk.Grounded)
                 {
-                    Check(!player.InTank&&player.IsFreeRoam,"player control transition");Check(gm.Health.Max==200,"transformed health");
+                    Check(!player.InTank&&player.IsFreeRoam,"player control transition");
+                    Check(rampage.EscapePlays==1,"escape must play once");rampage.BeginEscape();Check(rampage.EscapePlays==1,"escape replayed");Check(gm.Health.Max==200,"transformed health");
                     gm.Health.Configure(999,0);health=gm.Health.Current;
                     rampage.ShellHit(-player.transform.forward);Check(Mathf.Abs(gm.Health.Current-(health-20))<.01f,"shell damage is not 10 percent");Next();
                 }
@@ -72,15 +90,25 @@ namespace SniperRidge.EditorTools
                 else if(stage==5&&!rampage.Busy&&player.Hulk.Grounded)
                 {
                     target=battle.Enemies.First(t=>!t.IsDead);var p=Ground(gm,player.transform.position+player.transform.forward*12);
-                    target.transform.SetPositionAndRotation(p,Quaternion.identity);Place(player,Ground(gm,p+Vector3.back*6),Quaternion.identity);Next();
+                    target.transform.SetPositionAndRotation(p,Quaternion.identity);target.Turret.localRotation=Quaternion.Euler(0,65,0);Place(player,Ground(gm,p+Vector3.back*6),Quaternion.identity);Next();
                 }
                 else if(stage==6&&age>.25f)
                 {Check(rampage.StartTankAction(target,false),"climb action refused");Next();}
-                else if(stage==7&&age>.55f){Check(player.Hulk.Visual.ActiveBlenderClip==player.Hulk.Visual.Definition.TankClimb,"climb native clip");Capture(cam,"05_climb");Next();}
-                else if(stage==8&&age>1.2f){Capture(cam,"06_turret_pull");Next();}
+                else if(stage==7&&age>.55f&&rampage.ChoreographyPhase=="Climb"){Check(player.Hulk.Visual.ActiveBlenderClip==player.Hulk.Visual.Definition.TankClimb,"climb native clip");Capture(cam,"05_climb");Next();}
+                else if(stage==8&&age>1.2f){Capture(cam,"06_turret_pull");rampage.ShellHit(-player.transform.forward);Next();}
                 else if(stage==9&&!rampage.Busy)
                 {
-                    Check(target.IsDead&&rampage.ClimbPlays==1,"turret finish / climb not single play");
+                    Check(target.IsDead&&rampage.ClimbPlays==(secondTurret?2:1),"turret finish / climb not single play");
+                    Check(sawGrip&&sawDeck,"contact phases were not exercised");
+                    if(!secondTurret)
+                    {
+                        secondTurret=true;
+                        target=battle.Enemies.First(t=>!t.IsDead&&t.Appearance!=TankAppearance.K2BlackPanther);
+                        var opposite=Ground(gm,player.transform.position+Vector3.right*14);
+                        target.transform.SetPositionAndRotation(opposite,Quaternion.identity);target.Turret.localRotation=Quaternion.Euler(0,-95,0);
+                        Place(player,Ground(gm,opposite+Vector3.forward*7),Quaternion.Euler(0,180,0));
+                        stage=5;Next();return;
+                    }
                     target=battle.Enemies.First(t=>!t.IsDead);Vector3 p=Vector3.zero;bool found=false;
                     for(int i=0;i<TankCanyon.NodeCount&&!found;i++)
                     {
@@ -136,7 +164,7 @@ namespace SniperRidge.EditorTools
                 {
                     Check(!ShaderUtil.ShaderHasError(Shader.Find("SniperRidge/HeroArmorSurface")),"runtime shader error");
                     Check(SessionState.GetString(Key+"errors","")=="","runtime errors: "+SessionState.GetString(Key+"errors",""));
-                    File.WriteAllText("Logs/tank-rampage-result.txt","PASS: player-only armor / rocket ammo / escape / rage / 10% shell hit / native motions / single climb / turret removal / 10m restrain / tree melee / 3 gunships / rockets / bullets / thrown-rock air kill\n");
+                    File.WriteAllText("Logs/tank-rampage-result.txt","PASS: player-only armor / rocket ammo / single cinematic escape / deck foot contact / turret hand contact / rage / 10% shell hit / native motions / single climb per target / both enemy tank types / queued shell reaction / turret removal / 10m restrain / tree melee / 3 gunships / rockets / bullets / thrown-rock air kill\n");
                     SessionState.SetBool(Key,false);File.Delete("Logs/autoplay.txt");EditorApplication.Exit(0);
                 }
             }

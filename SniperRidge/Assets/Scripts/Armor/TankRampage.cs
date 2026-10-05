@@ -6,7 +6,7 @@ namespace SniperRidge
 {
     // Owns the transition and synchronized finishers; normal locomotion stays in HulkController.
     [DefaultExecutionOrder(230)]
-    public sealed class TankRampage : MonoBehaviour
+    public sealed partial class TankRampage : MonoBehaviour
     {
         public bool Escaped { get; private set; }
         public bool Cinematic { get; private set; }
@@ -63,39 +63,6 @@ namespace SniperRidge
                 }
             return Ground(center+Vector3.back*16);
         }
-        IEnumerator Escape()
-        {
-            var wreck=battle.PlayerTank;var exit=SafeExit(wreck.transform.position);
-            var from=wreck.transform.position+Vector3.up*2.7f;
-            cameraFocus=from;
-            GM.Hud.Announce("전차 피격! 해치를 열고 탈출합니다");
-            escapingHuman=Instantiate(EnemyModels.Prefab);escapingHuman.name="Player escaping tank";
-            foreach(var a in escapingHuman.GetComponentsInChildren<Animator>())a.enabled=false;
-            foreach(var b in escapingHuman.GetComponentsInChildren<MonoBehaviour>())b.enabled=false;
-            foreach(var c in escapingHuman.GetComponentsInChildren<Collider>())c.enabled=false;
-            foreach(var t in escapingHuman.GetComponentsInChildren<Transform>())t.gameObject.layer=2;
-            var clip=Resources.Load<AnimationClip>("Enemies/TankEscape");
-            Quaternion facing=Quaternion.LookRotation(Vector3.ProjectOnPlane(exit-from,Vector3.up))*Quaternion.Euler(0,EnemyModels.YawOffset,0);
-            var hatch=ArmoredReferenceVisual.Part(wreck.transform,"Open escape hatch",new Vector3(-.5f,2.65f,-1),new Vector3(.8f,.1f,.8f),SurfaceDetail.Make(Surface.Steel,new Color(.2f,.23f,.18f),.3f,.65f),PrimitiveType.Cylinder);
-            for(float t=0;t<2.35f;t+=Time.deltaTime)
-            {
-                float u=t/2.35f;
-                hatch.transform.localRotation=Quaternion.Euler(Mathf.Lerp(0,-105,Mathf.Clamp01(u*4)),0,0);
-                escapingHuman.transform.SetPositionAndRotation(Vector3.Lerp(from,exit,Mathf.SmoothStep(0,1,u))+Vector3.up*Mathf.Sin(u*Mathf.PI)*1.7f,facing);
-                if(clip)clip.SampleAnimation(escapingHuman,u*clip.length);
-                cameraFocus=escapingHuman.transform.position+Vector3.up;yield return null;
-            }
-            GM.Player.LeaveTank(exit);GM.Health.Configure(5,6);Escaped=true;
-            Destroy(escapingHuman);escapingHuman=null;Cinematic=false;
-            if(!Hero.Toggle())
-            {
-                var controller=GM.Player.GetComponent<CharacterController>();controller.enabled=false;GM.Player.transform.position=SafeExit(exit);controller.enabled=true;
-                Hero.Toggle();
-            }
-            GM.PlaySound(Resources.Load<AudioClip>("HeroAudio/tank_rage"),1f);
-            yield return new WaitForSeconds(HulkController.TransformDuration);
-            GM.Hud.Announce("분노의 반격 · E 포탑 뜯기 · F 전차 막기 · G 나무/바위 · R 던지기");
-        }
         bool CanAct()=>Escaped&&!Busy&&GM.IsPlaying&&Hero.Active&&!Hero.Transforming&&Hero.CurrentAttack==HulkController.Attack.None&&Hero.Grounded;
         TankVehicle NearestTank(bool front)
         {
@@ -117,7 +84,7 @@ namespace SniperRidge
         {
             if(!CanAct()||Held||!tank||tank.IsDead||tank.IsPlayer||tank.Captured)return false;
             if(Vector3.Distance(GM.Player.transform.position,tank.transform.position)>11f)return false;
-            capturedTank=tank;tank.Capture();action=restrain?"전차를 막고 밀려나는 중":"전차 올라타기";
+            capturedTank=tank;actionCameraReady=false;tank.Capture();action=restrain?"전차를 막고 밀려나는 중":"전차 올라타기";
             Hero.CancelForExternal();StartCoroutine(restrain?ThrowTank(tank):RipTurret(tank));return true;
         }
         void PlaceHero(Vector3 point,Quaternion rotation)
@@ -127,7 +94,7 @@ namespace SniperRidge
         }
         IEnumerator PlayMotion(AnimationClip clip,float seconds,System.Action<float> frame=null)
         {
-            motion=clip;motionProgress=0;
+            motion=clip;motionProgress=0;motionSeconds=seconds;Hero.Visual.BeginExternalMotion();
             for(float t=0;t<seconds;t+=Time.deltaTime)
             {
                 if(!GM||!GM.IsPlaying)yield break;
@@ -138,7 +105,8 @@ namespace SniperRidge
         public void PoseHero()
         {
             if(!Escaped||!Hero||!Hero.Visual||!motion)return;
-            Hero.Visual.SampleExternal(motion,motionProgress);
+            Hero.Visual.SampleExternal(motion,Mathf.Lerp(clipFrom,clipTo,motionProgress),Mathf.SmoothStep(0,1,Mathf.Clamp01(motionProgress*motionSeconds/.16f)));
+            PoseTurretAction();
             if(capturedTank&&(action=="전차를 막고 밀려나는 중"||action=="전차 앞부분 들어 올리기"))
             {
                 foreach(var side in new[]{"Left","Right"})
@@ -148,32 +116,6 @@ namespace SniperRidge
                     EnemyAnimationRig.SolveLimb(upper,elbow,hand,grip,elbow.position+GM.Player.transform.right*(side=="Left"?-.3f:.3f));
                 }
             }
-        }
-        IEnumerator RipTurret(TankVehicle tank)
-        {
-            Vector3 start=GM.Player.transform.position;
-            Vector3 roof=tank.transform.TransformPoint(0,2.5f,-1.8f);
-            Quaternion facing=Quaternion.LookRotation(Vector3.ProjectOnPlane(tank.transform.forward,Vector3.up));
-            ClimbPlays++;
-            yield return PlayMotion(Set.TankClimb,1.3f,u=>PlaceHero(Vector3.Lerp(start,roof,Mathf.SmoothStep(0,1,u)),facing));
-            action="포탑을 뜯는 중";
-            bool torn=false;Vector3 turretStart=tank.Turret.position;
-            yield return PlayMotion(Set.TankPull,1.55f,u=>
-            {
-                if(u>.35f&&!torn){torn=true;carriedTurret=tank.DetachTurret();Hero.Audio.Play(HulkAudio.Cue.Slam,.75f);Effects.Puff(turretStart,Vector3.up,1.4f,new Color(.4f,.37f,.3f),.8f);}
-                if(carriedTurret)carriedTurret.position=Vector3.Lerp(turretStart,roof+Vector3.up*2.25f+tank.transform.forward*1.1f,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.35f,.9f,u)));
-            });
-            action="포탑 던지기";bool released=false;
-            yield return PlayMotion(Set.TankThrow,.95f,u=>
-            {
-                if(u>.53f&&!released)
-                {
-                    released=true;var thrown=carriedTurret;carriedTurret=null;
-                    RampageThrownObject.Launch(thrown.gameObject,ThrowDirection(),55,4,tank);
-                    tank.HeroHit(tank.RemainingShellHits);Hero.Audio.Play(HulkAudio.Cue.PunchSwing);
-                }
-            });
-            PlaceHero(SafeExit(tank.transform.position),facing);FinishAction();
         }
         IEnumerator ThrowTank(TankVehicle tank)
         {
@@ -208,7 +150,7 @@ namespace SniperRidge
         }
         void FinishAction()
         {
-            action=null;motion=null;capturedTank=null;
+            action=null;motion=null;capturedTank=null;turretPhase=TurretPhase.None;
             if(Hero){Hero.CancelForExternal();Hero.Visual.ResetLocomotion();}
             if(hasQueuedHit&&GM.IsPlaying){hasQueuedHit=false;action="포탄 충격 · 뒤로 튕겨남";StartCoroutine(Knockback(queuedHit));}
         }
@@ -225,7 +167,7 @@ namespace SniperRidge
             Vector3 travel=Vector3.ProjectOnPlane(direction,Vector3.up).normalized;
             var c=GM.Player.GetComponent<CharacterController>();
             if(travel.sqrMagnitude>.01f)GM.Player.transform.rotation=Quaternion.LookRotation(-travel);
-            motion=Set.ShellHit;
+            motion=Set.ShellHit;motionSeconds=.9f;clipFrom=0;clipTo=1;Hero.Visual.BeginExternalMotion();
             for(float t=0;t<.9f;t+=Time.deltaTime)
             {
                 motionProgress=t/.9f;c.Move((travel*Mathf.Lerp(12,0,motionProgress)+Vector3.up*(t<.25f?4:-6))*Time.deltaTime);PoseHero();yield return null;
@@ -302,18 +244,13 @@ namespace SniperRidge
         void LateUpdate()
         {
             if(!GM)return;
-            if(Cinematic)
-            {
-                Vector3 position=cameraFocus+battle.PlayerTank.transform.right*7+Vector3.up*3-battle.PlayerTank.transform.forward*5;
-                position.y=Mathf.Max(position.y,TerrainGenerator.GroundHeight(GM.Terrain,position.x,position.z)+1);
-                GM.Player.Eye.SetPositionAndRotation(position,Quaternion.LookRotation(cameraFocus-position));GM.Player.Eye.GetComponent<Camera>().fieldOfView=57;
-            }
+            UpdateEscapeCamera();
             if(capturedTank&&Busy&&Escaped)
             {
                 Vector3 focus=(GM.Player.transform.position+capturedTank.transform.position)*.5f+Vector3.up*2.2f;
                 Vector3 desired=focus+GM.Player.transform.right*9-GM.Player.transform.forward*7+Vector3.up*4;
                 desired.y=Mathf.Max(desired.y,TerrainGenerator.GroundHeight(GM.Terrain,desired.x,desired.z)+1.5f);
-                GM.Player.Eye.SetPositionAndRotation(desired,Quaternion.LookRotation(focus-desired));Hero.Visual.SetVisible(true);
+                UpdateActionCamera(focus,desired);Hero.Visual.SetVisible(true);
             }
             if(Held&&Hero&&Hero.Visual)
             {
@@ -326,7 +263,7 @@ namespace SniperRidge
         }
         void OnDisable()
         {
-            StopAllCoroutines();if(escapingHuman)Destroy(escapingHuman);if(carriedTurret)Destroy(carriedTurret.gameObject);
+            StopAllCoroutines();EndEscapePresentation();if(escapingHuman)Destroy(escapingHuman);if(carriedTurret)Destroy(carriedTurret.gameObject);
             if(capturedTank&&!capturedTank.IsDead)capturedTank.StopVehicle();
             action=null;motion=null;Cinematic=false;
         }

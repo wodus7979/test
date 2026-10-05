@@ -84,11 +84,24 @@ namespace SniperRidge
             clip.SampleAnimation(locomotionSampler,Mathf.Min(.25f,clip.length*.1f));
             for(int i=0;i<bones.Length;i++)if(!lowerBody[i])bones[i].localRotation=locomotionBones[i].localRotation;
         }
-        public void SampleExternal(AnimationClip clip,float progress)
+        Vector3[] externalPositions;
+        Quaternion[] externalRotations;
+        public void BeginExternalMotion()
+        {
+            externalPositions=bones.Select(b=>b.localPosition).ToArray();
+            externalRotations=bones.Select(b=>b.localRotation).ToArray();
+        }
+        public void SampleExternal(AnimationClip clip,float progress,float blend=1)
         {
             if(!clip)return;
             transform.localRotation=Quaternion.identity;
             clip.SampleAnimation(model,Mathf.Clamp01(progress)*clip.length);
+            if(blend<1&&externalPositions!=null)
+                for(int i=0;i<bones.Length;i++)
+                {
+                    bones[i].localPosition=Vector3.Lerp(externalPositions[i],bones[i].localPosition,blend);
+                    bones[i].localRotation=Quaternion.Slerp(externalRotations[i],bones[i].localRotation,blend);
+                }
             ActiveBlenderClip=clip;Motion=clip.name;previousState="External";hasPose=true;
             for(int i=0;i<bones.Length;i++){lastPositions[i]=bones[i].localPosition;lastRotations[i]=bones[i].localRotation;}
         }
