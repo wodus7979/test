@@ -62,6 +62,7 @@ namespace SniperRidge
                     bool killed=enemy.TakePropHit(220,delta.normalized);gm.OnEnemyHit(enemy,false,delta.magnitude,killed,false);
                     Effects.Dust(enemy.AimPoint,-delta.normalized,.5f);hero.Audio.Play(HulkAudio.Cue.PunchHit);
                 }
+                if(gm.Assault.Midboss)gm.Assault.Midboss.HeroHit(origin,transform.forward,6.5f,85,220,hero.AttackSerial);
                 DestructibleVehicle.PunchNearest(origin,transform.forward,6.5f);
             }
         }

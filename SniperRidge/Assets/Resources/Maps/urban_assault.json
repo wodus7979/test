@@ -1,9 +1,9 @@
 {
-  "size": 320,
+  "size": 416,
   "boundary": 152,
   "start": {
     "x": 0,
-    "z": -142
+    "z": -188
   },
   "objectives": [
     {
@@ -485,6 +485,70 @@
       "y": 12.04,
       "z": 126,
       "yaw": -90
+    },
+    {
+      "asset": "town_residential",
+      "x": -108,
+      "y": 12,
+      "z": -174,
+      "yaw": 0,
+      "original": false
+    },
+    {
+      "asset": "town_apartment",
+      "x": -36,
+      "y": 12,
+      "z": -174,
+      "yaw": 0,
+      "original": false
+    },
+    {
+      "asset": "town_residential",
+      "x": 36,
+      "y": 12,
+      "z": -174,
+      "yaw": 0,
+      "original": false
+    },
+    {
+      "asset": "town_apartment",
+      "x": 108,
+      "y": 12,
+      "z": -174,
+      "yaw": 0,
+      "original": false
+    },
+    {
+      "asset": "town_residential",
+      "x": -108,
+      "y": 12,
+      "z": 174,
+      "yaw": 0,
+      "original": false
+    },
+    {
+      "asset": "town_apartment",
+      "x": -36,
+      "y": 12,
+      "z": 174,
+      "yaw": 0,
+      "original": false
+    },
+    {
+      "asset": "town_residential",
+      "x": 36,
+      "y": 12,
+      "z": 174,
+      "yaw": 0,
+      "original": false
+    },
+    {
+      "asset": "town_apartment",
+      "x": 108,
+      "y": 12,
+      "z": 174,
+      "yaw": 0,
+      "original": false
     }
   ],
   "props": [
@@ -2271,5 +2335,6 @@
       "scale": 0.79,
       "pine": true
     }
-  ]
+  ],
+  "boundaryZ": 200
 }

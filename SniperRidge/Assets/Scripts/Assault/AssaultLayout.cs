@@ -12,7 +12,7 @@ namespace SniperRidge
         [Serializable] public class Objective:Point { public string name; }
         [Serializable] public class Placement:Point { public string asset;public float y,yaw;public bool original;public Vector3 WorldPosition=>new Vector3(x,y,z); }
         [Serializable] public class Greenery:Point { public float scale;public bool pine; }
-        [Serializable] public class Layout { public string theme;public float size,boundary;public Point start;public Objective[] objectives;public Placement[] buildings,props;public Greenery[] greenery; }
+        [Serializable] public class Layout { public string theme;public float size,boundary,boundaryZ;public Point start;public Objective[] objectives;public Placement[] buildings,props;public Greenery[] greenery; }
         static Layout data;
         static Vector3[] objectives;
         static string[] names;
@@ -33,9 +33,9 @@ namespace SniperRidge
         }
         public static float Size=>Data.size;
         public static float BoundaryX=>Data.boundary;
-        public static float BoundaryZ=>Data.boundary;
+        public static float BoundaryZ=>Data.boundaryZ>0?Data.boundaryZ:Data.boundary;
         public static Vector3 Start=>Data.start.Position;
-        public static Vector3 BossPosition=>new Vector3(0,Ground,132f);
+        public static Vector3 BossPosition=>new Vector3(0,Ground,180f);
         public static Vector3[] Objectives { get {var layout=Data;return objectives;} }
         public static string[] Names { get {var layout=Data;return names;} }
         public static Vector3 CoverPost(int sector,int slot)

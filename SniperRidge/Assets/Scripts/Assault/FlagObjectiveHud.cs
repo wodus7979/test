@@ -40,7 +40,7 @@ namespace SniperRidge
         void LateUpdate()
         {
             bool active=game.IsPlaying && game.Assault!=null && game.Player.IsFreeRoam;
-            marker.gameObject.SetActive(active);map.gameObject.SetActive(active);compass.gameObject.SetActive(active);bossPanel.gameObject.SetActive(active&&game.Assault.King!=null&&game.Assault.King.Engaged);
+            marker.gameObject.SetActive(active);map.gameObject.SetActive(active);compass.gameObject.SetActive(active);bossPanel.gameObject.SetActive(active&&((game.Assault.King!=null&&game.Assault.King.Engaged)||(!game.Assault.TankDefeated&&game.Assault.Midboss&&game.Assault.Midboss.Engaged)));
             if(!active)return;
             var battle=game.Assault;var camera=game.PlayerEye.GetComponent<Camera>();
             var viewport=camera.WorldToViewportPoint(battle.Objective+Vector3.up*4.6f);
@@ -53,8 +53,13 @@ namespace SniperRidge
                 Mathf.Clamp(screen.y*canvas.rect.height,-canvas.rect.height*.5f+220,canvas.rect.height*.5f-155));
             arrow.gameObject.SetActive(outside);
             arrow.localRotation=Quaternion.Euler(0,0,-Mathf.Atan2(screen.x,screen.y)*Mathf.Rad2Deg);
-            label.text="왕 · 최종 목표\n"+Mathf.RoundToInt(battle.Distance)+" m";
-            if(battle.King!=null)
+            label.text=battle.ObjectiveName+"\n"+Mathf.RoundToInt(battle.Distance)+" m";
+            if(!battle.TankDefeated&&battle.Midboss)
+            {
+                var tank=battle.Midboss;healthFill.localScale=new Vector3(tank.Health/CityTankBoss.MaximumHealth,1,1);armorFill.localScale=Vector3.zero;
+                bossText.text="중간 보스 전차 · 내구도 "+Mathf.CeilToInt(tank.Health)+"\n"+tank.Action;bossText.fontSize=16;bossText.rectTransform.sizeDelta=new Vector2(470,50);
+            }
+            else if(battle.King!=null)
             {
                 var king=battle.King;
                 healthFill.localScale=new Vector3(Mathf.Clamp01(king.Soldier.Health/KingBoss.MaximumHealth),1,1);
@@ -64,12 +69,12 @@ namespace SniperRidge
             }
             float heading=camera.transform.eulerAngles.y;
             string cardinal=new[]{"N","NE","E","SE","S","SW","W","NW"}[Mathf.RoundToInt(heading/45)%8];
-            compass.text=cardinal+"  "+Mathf.RoundToInt(heading).ToString("000")+"°     |     왕 "+
+            compass.text=cardinal+"  "+Mathf.RoundToInt(heading).ToString("000")+"°     |     "+battle.ObjectiveName+" "+
                 (Mathf.Abs(bearing)<12?"정면":Mathf.Abs(bearing)>160?"뒤쪽":bearing<0?"← "+Mathf.RoundToInt(-bearing)+"°":Mathf.RoundToInt(bearing)+"° →");
             bool expanded=Input.GetKey(KeyCode.Tab);
             UiKit.Place(map,expanded?Vector2.one*.5f:new Vector2(0,1),expanded?Vector2.one*.5f:new Vector2(0,1),expanded?Vector2.one*.5f:new Vector2(0,1),
                 expanded?Vector2.zero:new Vector2(30,-145),expanded?new Vector2(580,580):new Vector2(220,220));
-            mapTitle.text=expanded?"N ↑   흰색: 나 · 파랑: 동료 · 노랑: 왕\n"+battle.ObjectiveName+" — 왕까지의 이동 경로 · Tab 놓기: 닫기":"N ↑   [Tab] 전술 지도";
+            mapTitle.text=expanded?"N ↑   흰색: 나 · 파랑: 동료 · 노랑: 목표\n"+battle.ObjectiveName+" — 목표까지의 이동 경로 · Tab 놓기: 닫기":"N ↑   [Tab] 전술 지도";
             if(Time.time>=refresh)
             {
                 refresh=Time.time+.7f;

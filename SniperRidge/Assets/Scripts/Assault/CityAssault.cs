@@ -12,6 +12,9 @@ namespace SniperRidge
         readonly HashSet<EnemySoldier> streetGuards=new HashSet<EnemySoldier>();
         readonly List<EnemySoldier> allies=new List<EnemySoldier>();
         public KingBoss King { get; private set; }
+        public CityTankBoss Midboss { get; private set; }
+        public bool TankDefeated=>Midboss&&Midboss.IsDead;
+        public const float KingApproachZ=132f;
         int defeated;
         GameManager gm;
         float nextReinforcement;
@@ -19,10 +22,10 @@ namespace SniperRidge
         int ordinal;
         public int Alive {get {int n=0;foreach(var e in Soldiers)if(e!=null&&!e.IsDead&&!allies.Contains(e))n++;return n;}}
         public int AlliesAlive {get {int n=0;foreach(var e in allies)if(e!=null&&!e.IsDead)n++;return n;}}
-        public Vector3 Objective=>King!=null?King.transform.position:AssaultLayout.BossPosition;
+        public Vector3 Objective=>!TankDefeated&&Midboss?Midboss.transform.position:King!=null?King.transform.position:AssaultLayout.BossPosition;
         Vector3 Frontline=>new Vector3(0,AssaultLayout.Ground,AssaultLayout.Objectives[Progress.Sector].z);
         public float Distance=>Vector3.Distance(gm.Player.transform.position,Objective);
-        public string ObjectiveName=>"북부 요새의 왕";
+        public string ObjectiveName=>!TankDefeated?"중간 보스 전차":"북부 요새의 왕";
         public string SquadStatus
         {
             get {var text="동료 ";for(int i=0;i<allies.Count;i++)text+=(i+1)+":"+(allies[i]!=null&&!allies[i].IsDead?Mathf.CeilToInt(allies[i].Health)+"%":"전사")+"  ";return text;}
@@ -30,9 +33,7 @@ namespace SniperRidge
         public static CityAssault Create(GameManager game)
         {
             var battle=new GameObject("King assault and squad").AddComponent<CityAssault>();battle.gm=game;
-            if(!NavMesh.SamplePosition(AssaultLayout.BossPosition,out var kingPoint,2f,NavMesh.AllAreas))throw new System.InvalidOperationException("왕의 전투 구역 경로 누락");
-            var king=LevelBuilder.SpawnAssaultSoldier(game,kingPoint.position,false,900,EnemyRole.MachineGunner);
-            battle.Soldiers.Add(king);battle.King=KingBoss.Attach(king,game);
+            battle.Midboss=CityTankBoss.Create(game,new Vector3(0,AssaultLayout.Ground,24));
             for(int i=0;i<4;i++)
             {
                 Vector3 point=AssaultLayout.Start+new Vector3((i-1.5f)*1.8f,0,-3f-(i%2)*1.5f);
@@ -41,15 +42,16 @@ namespace SniperRidge
                 var ally=LevelBuilder.SpawnAssaultSoldier(game,nav.position,false,i,role,true);
                 ally.name="동료 "+(i+1);battle.allies.Add(ally);battle.Soldiers.Add(ally);
             }
-            battle.Guards();battle.StreetGuards();battle.nextReinforcement=Time.time+6f;battle.StartCoroutine(battle.CheckAfterStart());return battle;
+            battle.RooftopSnipers();battle.Guards();battle.StreetGuards();battle.nextReinforcement=Time.time+6f;battle.StartCoroutine(battle.CheckAfterStart());return battle;
         }
         void Update()
         {
             if(!gm.IsPlaying)return;
             if(Progress.Complete){gm.CompleteAssault();return;}
+            TrySpawnKing();
             if(Progress.Advance(gm.Player.transform.position))
             {
-                gm.Hud.Announce("북부 요새로 전진 · 왕까지 "+Mathf.RoundToInt(Distance)+" m");
+                gm.Hud.Announce(ObjectiveName+"까지 "+Mathf.RoundToInt(Distance)+" m");
                 foreach(var soldier in Soldiers)if(soldier!=null&&!soldier.IsDead&&!soldier.IsAlly&&soldier.Boss==null&&!streetGuards.Contains(soldier))soldier.Combat.DefensePoint=Frontline;
                 Guards();nextReinforcement=Time.time+10f;
             }
@@ -61,6 +63,7 @@ namespace SniperRidge
             var enemy=LevelBuilder.SpawnAssaultSoldier(gm,point,post,100+ordinal++,role,false,roof);
             Vector2 spread=Random.insideUnitCircle*6f;enemy.Combat.DefensePoint=Frontline+new Vector3(spread.x,0,spread.y);
             if(role==EnemyRole.MachineGunner&&ordinal%3==0)enemy.gameObject.AddComponent<EnemyGrenadier>();
+            if(role==EnemyRole.Flamethrower)enemy.gameObject.AddComponent<EnemyFlamethrower>();
             Soldiers.Add(enemy);return enemy;
         }
         void StreetGuards()
@@ -69,7 +72,7 @@ namespace SniperRidge
             {
                 if(Alive>=AssaultLayout.MaxAlive)return;
                 if(!NavMesh.SamplePosition(new Vector3(x,AssaultLayout.Ground,z),out var nav,3,NavMesh.AllAreas))continue;
-                var enemy=Spawn(nav.position,false,(streetGuards.Count%3==0)?EnemyRole.RocketTrooper:EnemyRole.MachineGunner);
+                var enemy=Spawn(nav.position,false,streetGuards.Count%4==0?EnemyRole.Flamethrower:(streetGuards.Count%3==0)?EnemyRole.RocketTrooper:EnemyRole.MachineGunner);
                 enemy.Combat.DefensePoint=nav.position;streetGuards.Add(enemy);
                 if(enemy.Role==EnemyRole.MachineGunner&&!enemy.GetComponent<EnemyGrenadier>())enemy.gameObject.AddComponent<EnemyGrenadier>();
             }
@@ -82,25 +85,38 @@ namespace SniperRidge
                 var p=Frontline+new Vector3(slot==0?-2.5f:2.5f,0,10f);
                 if(NavMesh.SamplePosition(p,out var nav,2f,NavMesh.AllAreas))Spawn(nav.position,false,slot==0?EnemyRole.MachineGunner:EnemyRole.Sniper);
             }
-            // Choose a real building roof edge with an open line toward this route sector.
+        }
+        public bool TrySpawnKing()
+        {
+            if(King||!TankDefeated||gm.Player.transform.position.z<KingApproachZ)return false;
+            if(!NavMesh.SamplePosition(AssaultLayout.BossPosition,out var point,3f,NavMesh.AllAreas))return false;
+            var soldier=LevelBuilder.SpawnAssaultSoldier(gm,point.position,false,900,EnemyRole.MachineGunner);
+            Soldiers.Add(soldier);King=KingBoss.Attach(soldier,gm);gm.Hud.Announce("북부 요새 도착 · 최종 보스 등장");return true;
+        }
+        void RooftopSnipers()
+        {
+            int placed=0;var districts=new HashSet<int>();
+            // Real roof colliders, supported feet and an unobstructed view onto the nearest avenue.
             foreach(var building in AssaultLayout.Data.buildings)
             {
-                if(building.asset.StartsWith("town_") && building.asset!="town_command")continue; // Pitched roofs have no standing platform.
+                if(building.asset!="town_apartment"&&building.asset!="town_residential"&&building.asset!="town_tenement")continue;
                 if(Alive>=AssaultLayout.MaxAlive)return;
-                if(Vector3.Distance(building.WorldPosition,Frontline)>42f)continue;
-                Vector3 toward=(Frontline-building.WorldPosition).normalized;toward.y=0;
-                for(int offset=8;offset<=14;offset+=2)
+                if(placed>=4)return;
+                int district=Mathf.Clamp(Mathf.FloorToInt((building.z+200)/100),0,3);if(districts.Contains(district))continue;
+                Vector3 avenue=new Vector3(Mathf.Round(building.x/72f)*72,AssaultLayout.Ground,building.z);
+                Vector3 toward=(avenue-building.WorldPosition).normalized;toward.y=0;
+                for(int offset=16;offset>=4;offset--)
                 {
-                    var probe=building.WorldPosition+toward*offset+Vector3.up*50;
-                    if(!Physics.Raycast(probe,Vector3.down,out var hit,46f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore) || hit.normal.y<.9f)continue;
-                    if(hit.point.y<AssaultLayout.Ground+4f || hit.point.y>AssaultLayout.Ground+25f)continue;
-                    var point=hit.point-toward*1.6f+Vector3.up*.05f;
+                    var probe=building.WorldPosition+toward*offset+Vector3.up*90;
+                    if(!Physics.Raycast(probe,Vector3.down,out var hit,88f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore) || hit.normal.y<.9f)continue;
+                    if(hit.point.y<AssaultLayout.Ground+18f || hit.point.y>AssaultLayout.Ground+80f)continue;
+                    var point=hit.point-toward*.65f+Vector3.up*.05f;
                     Vector3 right=Vector3.Cross(Vector3.up,toward);
                     if(!Supported(point) || !Supported(hit.point+right*1.3f) || !Supported(hit.point-right*1.3f))continue;
-                    if(Physics.Linecast(point+Vector3.up*2.3f,Frontline+Vector3.up*1.6f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))continue;
-                    Spawn(point,true,Progress.Sector%2==0?EnemyRole.Sniper:EnemyRole.RocketTrooper,true);
-                    var cover=UrbanProps.Place("Sandbag corner",transform,point+toward*1.6f,Quaternion.LookRotation(toward).eulerAngles.y);
-                    cover.transform.localScale=new Vector3(1,1.5f/1.14f,1);return;
+                    if(Physics.Linecast(point+Vector3.up*2.3f,avenue+Vector3.up*1.6f,EnemyRagdoll.CombatMask,QueryTriggerInteraction.Ignore))continue;
+                    Spawn(point,true,EnemyRole.Sniper,true);placed++;districts.Add(district);
+                    var cover=UrbanProps.Place("Sandbag corner",transform,point-toward*1.4f,Quaternion.LookRotation(toward).eulerAngles.y);
+                    cover.transform.localScale=new Vector3(1,.75f,1);break;
                 }
             }
         }
@@ -116,7 +132,7 @@ namespace SniperRidge
                 if(FindEntrance(out var point))
                 {
                     float roll=Random.value;
-                    Spawn(point,false,roll<.15f?EnemyRole.RocketTrooper:roll<.3f?EnemyRole.Sniper:EnemyRole.MachineGunner);
+                    Spawn(point,false,roll<.2f?EnemyRole.Flamethrower:roll<.35f?EnemyRole.RocketTrooper:roll<.45f?EnemyRole.Sniper:EnemyRole.MachineGunner);
                 }
                 yield return new WaitForSeconds(.45f);
             }

@@ -185,7 +185,7 @@ namespace SniperRidge
             var rng=new System.Random(91023);
             for(int side=0;side<4;side++)for(int i=0;i<9;i++)
             {
-                float along=-260+i*65+rng.Next(-12,13),away=220+rng.Next(0,65);
+                float along=-260+i*65+rng.Next(-12,13),away=(side>=2?280:220)+rng.Next(0,65);
                 var p=new Vector3(side<2?(side==0?-away:away):along,AssaultLayout.Ground,side>=2?(side==2?-away:away):along);
                 float w=23+rng.Next(15),d=23+rng.Next(14),h=42+rng.Next(65);
                 var b=new Geometry(palette.Length);float y=0;

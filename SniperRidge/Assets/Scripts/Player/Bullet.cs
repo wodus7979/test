@@ -99,7 +99,10 @@ namespace SniperRidge
             float dist = Vector3.Distance(origin, hit.point);
             var hitbox = hit.collider.GetComponent<EnemyHitbox>();
 
-            if (hitbox != null && hitbox.Owner != null && !hitbox.Owner.IsDead)
+            var cityTank=hit.collider.GetComponentInParent<CityTankBoss>();
+            if(cityTank&&!cityTank.IsDead)
+            {cityTank.Damage(damage*.4f);SurfaceImpactMarks.Bullet(hit,.2f);Effects.Dust(hit.point,hit.normal,.3f);}
+            else if (hitbox != null && hitbox.Owner != null && !hitbox.Owner.IsDead)
             {
                 if(hitbox.Owner.IsAlly){Destroy(gameObject);return;}
                 bool killed = hitbox.Owner.TakeHit(damage, hitbox.IsHead, vel.normalized);

@@ -31,6 +31,13 @@ namespace SniperRidge
             Current = Max;
         }
 
+        // City mutants still have double health, but bullets now deal 70% instead of 35%.
+        public void TakeBulletDamage(float amount)
+        {
+            var gm=GameManager.Instance;
+            TakeDamage(amount*(gm&&gm.Assault&&gm.Player.IsHulk?2f:1f));
+        }
+
         public void TakeDamage(float amount,bool bypassResistance=false)
         {
             var gm = GameManager.Instance;

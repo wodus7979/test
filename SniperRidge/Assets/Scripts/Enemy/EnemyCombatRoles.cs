@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SniperRidge
 {
-    public enum EnemyRole { Automatic, MachineGunner, Sniper, RocketTrooper }
+    public enum EnemyRole { Automatic, MachineGunner, Sniper, RocketTrooper, Flamethrower }
 
     public static class EnemyCombatRoles
     {
@@ -10,7 +10,7 @@ namespace SniperRidge
         public const float BurstInterval = .11f;
         public static EnemyRole Resolve(EnemySpawn spawn) => spawn.Role != EnemyRole.Automatic ? spawn.Role :
             (spawn.Kind == EnemyKind.Cover || spawn.Kind == EnemyKind.Tree ? EnemyRole.Sniper : EnemyRole.MachineGunner);
-        public static string Name(EnemyRole role) => role == EnemyRole.RocketTrooper ? "대전차 로켓병" : role == EnemyRole.Sniper ? "저격병" : "기관총병";
+        public static string Name(EnemyRole role) => role == EnemyRole.Flamethrower ? "화염방사병" : role == EnemyRole.RocketTrooper ? "대전차 로켓병" : role == EnemyRole.Sniper ? "저격병" : "기관총병";
         public static string Model(EnemyRole role) => role == EnemyRole.RocketTrooper ? "launcher_reusable" : role == EnemyRole.Sniper ? "01_precision_rifle" : "02_light_machine_gun";
         public static string Sound(EnemyRole role) => role == EnemyRole.Sniper ? "sniper" : "lmg";
         public static int Rounds(EnemyRole role) => role == EnemyRole.MachineGunner ? 3 : 1;
@@ -23,6 +23,7 @@ namespace SniperRidge
         public static Color Uniform(EnemyRole role, int variant)
         {
             if (role == EnemyRole.RocketTrooper) return new Color(.43f,.45f,.25f);
+            if (role == EnemyRole.Flamethrower) return new Color(.64f,.23f,.08f);
             if (role == EnemyRole.Sniper) return new Color(.58f, .25f, .32f);
             switch (Mathf.Clamp(variant, 0, GunnerColors - 1))
             {

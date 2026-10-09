@@ -406,7 +406,7 @@ namespace SniperRidge
                 coverText.text="적 처치 시 예비 탄약 자동 확보\n"+battle.SquadStatus;
                 coverText.color=new Color(.85f,.85f,.75f);
                 zeroText.text=p.FreeMovement.Crouching?"앉은 자세":p.FreeMovement.Sprinting?"달리는 중":"이동/교전";
-                windText.text="목표: "+battle.ObjectiveName;windText.fontSize=20;zeroText.text="[Tab] 지도 · 왕 표식으로 전진";
+                windText.text="목표: "+battle.ObjectiveName;windText.fontSize=20;zeroText.text="[Tab] 지도 · 목표 표식으로 전진";
                 breathFill.localScale=new Vector3(p.FreeMovement.Stamina,1,1);
                 threatText.fontSize=20;threatText.rectTransform.anchoredPosition=new Vector2(0,-154);
                 killFeed.fontSize=22;killFeed.rectTransform.anchoredPosition=new Vector2(0,-188);

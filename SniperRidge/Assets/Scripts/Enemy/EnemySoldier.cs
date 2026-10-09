@@ -74,6 +74,7 @@ namespace SniperRidge
         public InfantryCombat Combat { get; private set; }
         public KingBoss Boss { get; private set; }
         public Vector3 Muzzle=>rifleTip.position;
+        public Transform MuzzleTransform=>rifleTip;
         public void ConfigureBoss(KingBoss boss){Boss=boss;Health=KingBoss.MaximumHealth;}
         public void BossRecoil(){if(motion!=null)motion.Fire();}
         public void AttachCombat(InfantryCombat combat){Combat=combat;}
@@ -350,7 +351,7 @@ namespace SniperRidge
                 Vector3 direction=Combat.LookPoint-transform.position;direction.y=0;
                 if(direction.sqrMagnitude>.001f)faceDir=direction.normalized;
                 if(!Combat.CanShoot)preparingShot=false;
-                else if(Boss==null)TryShoot(Combat.Speed>.1f?1.5f:.75f,IsAlly?1.1f:1.8f,IsAlly?2.0f:3.1f);
+                else if(Boss==null&&Role!=EnemyRole.Flamethrower)TryShoot(Combat.Speed>.1f?1.5f:.75f,IsAlly?1.1f:1.8f,IsAlly?2.0f:3.1f);
             }
             else switch (state)
             {

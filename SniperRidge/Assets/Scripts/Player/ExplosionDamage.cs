@@ -10,7 +10,7 @@ namespace SniperRidge
             if (gm == null || !gm.IsPlaying) return;
             RocketEffects.Explosion(centre);
             var targets = RocketProjectile.FindBlastTargets(centre, damage, direct);
-            bool counted = false;
+            bool counted = gm.Assault&&gm.Assault.Midboss&&gm.Assault.Midboss.Blast(centre,damage);
             int kills = 0;
             foreach (var target in targets)
             {

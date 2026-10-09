@@ -72,7 +72,7 @@ namespace SniperRidge
         float yaw,pitch=15,vertical,actionAt,punchAt,clapAt,slamAt,kickAt,waveStart=-99,waveRadius,waveDamage,inputAfter;
         bool impactDone,airborne;
         Vector3 waveOrigin,waveForward;
-        Attack waveAttack;
+        Attack waveAttack;int waveSerial;
 
         GameManager Game => GameManager.Instance;
         public static HulkController Attach(SniperController player)
@@ -123,6 +123,7 @@ namespace SniperRidge
             if(incomingBurst>=3)guardUntil=Time.time+1.3f;
             if(!Transforming&&CurrentAttack==Attack.None&&Grounded&&!Blocking)visual.ReactToHit();
         }
+        public int AttackSerial { get; private set; }
         public bool BeginAttack(Attack attack)
         {
             if(Game&&Game.Armor&&Game.Armor.Rampage&&Game.Armor.Rampage.Busy)return false;
@@ -133,7 +134,7 @@ namespace SniperRidge
             if(attack==Attack.Clap&&!HasClap||FourActionsOnly&&attack==Attack.Kick)return false;
             if(attack==Attack.None || attack==Attack.Punch&&Time.time<punchAt || attack==Attack.Clap&&Time.time<clapAt || attack==Attack.Slam&&Time.time<slamAt || attack==Attack.Kick&&Time.time<kickAt)return false;
             guardUntil=-99;incomingBurst=0;
-            CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
+            AttackSerial++;CurrentAttack=attack;actionAt=Time.time;impactDone=false;swingPlayed=false;
             if(attack==Attack.Punch)
             {PunchLeft=false;visual.PunchLeft=false;punchAt=Time.time+PunchDuration;}
             if(attack==Attack.Clap)clapAt=Time.time+4f;
@@ -286,7 +287,7 @@ namespace SniperRidge
         }
         void StartWave(Attack attack)
         {
-            waveAttack=attack;waveStart=Time.time;
+            waveAttack=attack;waveSerial=AttackSerial;waveStart=Time.time;
             float power=attack==Attack.Slam?LastSlamPower:1;
             waveRadius=attack==Attack.Clap?18:8*Mathf.Sqrt(power);
             waveDamage=attack==Attack.Clap?110:200*power;
@@ -300,12 +301,13 @@ namespace SniperRidge
             float age=Time.time-waveStart;
             if(age<0||age>1.05f)return;
             HitTargets(waveOrigin,waveForward,HulkWave.RadiusAt(age,waveRadius),waveAttack==Attack.Clap?65:180,
-                waveDamage,waveHit,waveAttack==Attack.Clap?4:5);
+                waveDamage,waveHit,waveAttack==Attack.Clap?4:5,false,waveSerial);
         }
         public void HitInfantryWithProp()=>HitTargets(owner.AimPoint,transform.forward,8,95,220,new HashSet<EnemySoldier>(),5,true);
-        void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height,bool propImpact=false)
+        void HitTargets(Vector3 origin,Vector3 forward,float range,float degrees,float damage,HashSet<EnemySoldier> hit,float height,bool propImpact=false,int serial=-1)
         {
             if(Game.Armor&&Game.Armor.Rampage&&hit==null)Game.Armor.Rampage.Strike(origin,forward,range,degrees,1);
+            if(Game.Assault&&Game.Assault.Midboss)Game.Assault.Midboss.HeroHit(origin,forward,range,degrees,damage,serial<0?AttackSerial:serial);
             IEnumerable<EnemySoldier> targets=Game.Assault!=null?Game.Assault.Soldiers:Game.Armor?Game.Armor.Rampage.Infantry:null;
             if(targets==null)return;
             foreach(var enemy in targets.ToArray())

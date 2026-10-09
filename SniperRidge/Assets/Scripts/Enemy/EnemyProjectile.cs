@@ -82,7 +82,7 @@ namespace SniperRidge
             float playerDistance = CounterfireRules.CapsuleHit(position, next, bottom, top, gm.Player.DamageRadius);
             if (!gm.Player.InTank && (owner==null||!owner.IsAlly) && !float.IsPositiveInfinity(playerDistance) && playerDistance < wallDistance)
             {
-                gm.Health.TakeDamage(damage);
+                gm.Health.TakeBulletDamage(damage);
                 Destroy(gameObject);
                 return;
             }

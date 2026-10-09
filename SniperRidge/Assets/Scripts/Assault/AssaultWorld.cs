@@ -53,6 +53,7 @@ namespace SniperRidge
             {
                 var block=Place(item.asset,transform,item.WorldPosition,item.yaw);blocks.Add(block);
                 architecture.Replace(block,item.asset,blocks.Count);
+                if(item.asset=="town_apartment"||item.asset=="town_residential"||item.asset=="town_tenement")block.transform.localScale=Vector3.Scale(block.transform.localScale,new Vector3(1,1.65f,1));
             }
             foreach(var item in AssaultLayout.Data.props)
             {
@@ -63,8 +64,8 @@ namespace SniperRidge
             var white=Resources.Load<Material>("CityPack/Materials/White_Paint");
             for(int x=-144;x<=144;x+=72)
             {
-                foreach(int side in new[]{-1,1})Box("Pavement curb",new Vector3(x+side*4.8f,12.09f,0),new Vector3(1.6f,.18f,300),sidewalk);
-                for(int z=-144;z<=144;z+=9)Box("Lane paint",new Vector3(x,12.008f,z),new Vector3(.10f,.012f,2.6f),white,false);
+                foreach(int side in new[]{-1,1})Box("Pavement curb",new Vector3(x+side*4.8f,12.09f,0),new Vector3(1.6f,.18f,396),sidewalk);
+                for(int z=-192;z<=192;z+=9)Box("Lane paint",new Vector3(x,12.008f,z),new Vector3(.10f,.012f,2.6f),white,false);
             }
             for(int z=-144;z<=144;z+=72)
                 for(int x=-144;x<=144;x+=9)Box("Cross street paint",new Vector3(x,12.009f,z),new Vector3(2.6f,.012f,.1f),white,false);
@@ -83,10 +84,10 @@ namespace SniperRidge
             }
             var concrete=Resources.Load<Material>("CityPack/Materials/Concrete");
             float boundary=AssaultLayout.BoundaryX;
-            Box("District west boundary",new Vector3(-boundary,15,0),new Vector3(2,6,boundary*2),concrete);
-            Box("District east boundary",new Vector3(boundary,15,0),new Vector3(2,6,boundary*2),concrete);
-            Box("District south boundary",new Vector3(0,15,-boundary),new Vector3(boundary*2,6,2),concrete);
-            Box("District north boundary",new Vector3(0,15,boundary),new Vector3(boundary*2,6,2),concrete);
+            Box("District west boundary",new Vector3(-boundary,15,0),new Vector3(2,6,AssaultLayout.BoundaryZ*2),concrete);
+            Box("District east boundary",new Vector3(boundary,15,0),new Vector3(2,6,AssaultLayout.BoundaryZ*2),concrete);
+            Box("District south boundary",new Vector3(0,15,-AssaultLayout.BoundaryZ),new Vector3(boundary*2,6,2),concrete);
+            Box("District north boundary",new Vector3(0,15,AssaultLayout.BoundaryZ),new Vector3(boundary*2,6,2),concrete);
             UrbanStreetDetails.Build(transform);
             foreach(var block in blocks)blockRenderers.Add(block.GetComponentsInChildren<Renderer>());
             QualitySettings.shadowDistance=180;QualitySettings.lodBias=1.6f;
@@ -111,7 +112,7 @@ namespace SniperRidge
             foreach(var car in GetComponentsInChildren<StreetWeapon>())
                 if(car.Kind==StreetWeapon.PropKind.Car)movable.Add(new NavMeshBuildMarkup{root=car.transform,ignoreFromBuild=true});
             NavMeshBuilder.CollectSources(transform,EnemyRagdoll.CombatMask,NavMeshCollectGeometry.PhysicsColliders,0,movable,sources);
-            data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(new Vector3(0,25,0),new Vector3(AssaultLayout.Size,70,AssaultLayout.Size)),Vector3.zero,Quaternion.identity);
+            data=NavMeshBuilder.BuildNavMeshData(settings,sources,new Bounds(new Vector3(0,45,0),new Vector3(AssaultLayout.Size,110,AssaultLayout.Size)),Vector3.zero,Quaternion.identity);
             if(data==null)throw new InvalidOperationException("도시 이동 경로 생성 실패");
             navigation=NavMesh.AddNavMeshData(data);
             ValidateNavigation();

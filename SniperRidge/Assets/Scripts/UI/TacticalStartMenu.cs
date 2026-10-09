@@ -328,9 +328,9 @@ namespace SniperRidge
             {
                 mapDescription.text="도시 FPS / 주거단지 · 공장 · 검문소";
                 weaponType.text="돌격소총 / 보병 자유 이동";missionTitle.text="왕 처치 작전";
-                objective.text="입구에서 출발해 도시 끝의 왕을 무찌르세요.\n왕의 방어구·기관총·로켓 공격에 대비하세요.";
-                range.text="입구 → 북부 요새 / 최종 보스";
-                rule.text="적 처치 시 예비 탄약 자동 확보\n왕 처치로 승리 · 로켓 예고 후 이동/엄폐";
+                objective.text="중간 보스 전차를 격파하고 북부 요새로 진격하세요.\n왕의 방어구·기관총·로켓 공격에 대비하세요.";
+                range.text="확장된 도시 304 × 400 m / 전차 → 왕";
+                rule.text="화염방사병·옥상 저격수 주의\n적 처치 시 탄약 확보 · 왕 처치로 승리";
                 controls.text="WASD 이동   Tab 지도   1~4 무기   좌클릭 사격   우클릭 조준   R 장전   G 수류탄";
                 SetCard(equipmentLeft,"W","자유 이동","골목·상점·차량을 활용해 접근");
                 SetCard(equipmentRight,"G","수류탄 조준","누르고 위치 지정 · 놓아 투척");

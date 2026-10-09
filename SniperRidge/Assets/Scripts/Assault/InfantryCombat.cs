@@ -141,7 +141,7 @@ namespace SniperRidge
                     else ChooseMove(danger);
                     decisionAt=now+Random.Range(3.4f,4.8f);
                 }
-                if(range<desired+14f)return;
+                if(range<desired+(owner.Role==EnemyRole.Flamethrower?2f:14f))return;
             }
             if(!visible&&remembers&&now>=decisionAt)
             {
@@ -160,7 +160,7 @@ namespace SniperRidge
                 if(!visible)LookPoint=transform.position+Direction*5;
             }
         }
-        float DesiredRange=>owner.Role==EnemyRole.Sniper?32f:owner.Role==EnemyRole.RocketTrooper?25f:17f;
+        float DesiredRange=>owner.Role==EnemyRole.Flamethrower?9f:owner.Role==EnemyRole.Sniper?32f:owner.Role==EnemyRole.RocketTrooper?25f:17f;
         void BeginMove(Vector3 point,bool shelter)
         {
             destination=point;goingToCover=shelter;moving=true;stalled=0;exposed=0;
